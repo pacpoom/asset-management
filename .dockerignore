@@ -1,0 +1,22 @@
+Ignore dependencies, build artifacts, and local environment files
+node_modules
+.svelte-kit
+
+We must keep the output directory excluded so the COPY command from host to Docker does not fail.
+The build/ directory in the build stage is an artifact inside the container.
+build/
+
+----------------------------------------------------------------------------------
+CRITICAL FIX: Ensure .env is available in the build context for $env/static/private
+----------------------------------------------------------------------------------
+The previous build failed because the .env file was missing, leading to no 'build/'
+directory and thus causing the subsequent COPY error in the production stage.
+We explicitly UN-ignore the required .env file using the negation pattern '!'.
+!/.env
+
+Ignore other environment files and logs
+.env.*
+!/.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

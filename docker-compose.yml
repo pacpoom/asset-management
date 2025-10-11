@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  # SVELTE/NODE.JS APPLICATION SERVICE
+  web:
+    build: .
+    # Container name changed to avoid conflicts
+    container_name: asset-control-web
+    ports:
+      # External port changed from 4173 to 4174
+      - "4174:3000"
+    environment:
+      NODE_ENV: production
+      # ORIGIN updated to match the new port
+      # ORIGIN: http://localhost:4174
+      ORIGIN: https://asset.freedomsoft.in.th
+      DB_HOST: 192.168.111.52
+      DB_PORT: 3308
+      DB_USER: root
+      DB_DATABASE: asset_control_db
+      DB_PASSWORD: Anji@12345
+    # --- IMPORTANT ADDITION ---
+    # Mount a volume to persist the 'uploads' directory.
+    # This ensures that uploaded images are not lost when the container is rebuilt.
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # MYSQL DATABASE SERVICE
+  db:
+    image: mysql:8.0
+    # Container name changed to avoid conflicts
+    container_name: asset-control-db
+    environment:
+      MYSQL_ROOT_PASSWORD: Anji@12345
+      MYSQL_DATABASE: asset_control_db
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pAnji@12345"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password
+
+# --- IMPORTANT ADDITION ---
+# Define the named volumes to be managed by Docker.
+volumes:
+  mysql-data:
+  uploads-data:
