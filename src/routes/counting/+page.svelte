@@ -2,6 +2,9 @@
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
+    import { onMount, onDestroy } from 'svelte';
+    // --- NEW: Import the image compressor utility ---
+    import { compressImage } from '$lib/utils/image-compressor';
 
 	// --- Component Types ---
 	interface Activity {
@@ -51,13 +54,34 @@
 	// --- State for Modals ---
 	let scannedAsset: ScannedAsset | null = $state(null);
 	let isUpdatingAsset = $state(false);
+	let updateAssetMessage: { success: boolean, text: string, type: 'success' | 'error' } | null = $state(null);
 	let unrecordedAssetTag = $state<string | null>(null);
 	let isAddingUnrecorded = $state(false);
+    let addUnrecordedMessage: { success: boolean, text: string, type: 'success' | 'error' } | null = $state(null);
+    
+    // --- NEW: State for image compression ---
+    let compressedImageFile = $state<File | null>(null);
+    let isCompressing = $state(false);
+    let compressionError = $state<string | null>(null);
 
+    // --- Camera scanner states ---
+    let isCameraScanning = $state(false);
+    let html5QrCode: any;
+    let scanFormElement = $state<HTMLFormElement | null>(null);
 
 	// --- Lifecycle/Reactivity ---
+    onMount(() => {
+        // Scanner instance is now created on-demand in startCameraScanner
+    });
+
+    onDestroy(() => {
+        stopCameraScanner();
+    });
 
 	$effect.pre(() => {
+        updateAssetMessage = null; 
+        addUnrecordedMessage = null;
+
         if (form?.success && form?.activityId) {
             isCreateModalOpen = false;
             openScanModal(form.activityId);
@@ -72,11 +96,18 @@
 					type = 'success';
 					if (form.scannedAsset) {
 						scannedAsset = form.scannedAsset as ScannedAsset;
+                        isScanModalOpen = false;
+                        setTimeout(() => { openAssetDetailModal(scannedAsset); }, 150);
 					}
 				} else if (form.foundStatus === 'Unrecorded') {
                     type = 'warning';
                     text = `แท็กไม่พบในระบบ: ${form.assetTag}. กรุณาเพิ่มรายละเอียด`;
-					unrecordedAssetTag = form.assetTag; // Open the "Add Unrecorded" modal
+					unrecordedAssetTag = form.assetTag;
+                    // --- NEW: Reset compression state when opening add unrecorded modal ---
+                    compressedImageFile = null;
+                    compressionError = null;
+                    isCompressing = false;
+                    isScanModalOpen = false;
                 }
             } else {
                 if (form.isDuplicate) {
@@ -86,7 +117,7 @@
                     text = (form.message as string) || 'เกิดข้อผิดพลาด';
                 }
             }
-
+            
             scanMessage = { success: form.success, text: text, type: type };
             clearTimeout(scanTimeout);
             scanTimeout = setTimeout(() => { scanMessage = null; }, 5000);
@@ -95,14 +126,20 @@
 
 		if (form?.detailsUpdated) {
 			scannedAsset = null;
-		}
+            updateAssetMessage = { success: true, text: form.message as string, type: 'success' };
+            setTimeout(() => { updateAssetMessage = null; }, 4000);
+		} else if (form?.updateError) {
+            updateAssetMessage = { success: false, text: form.message as string, type: 'error' };
+        }
 
 		if (form?.unrecordedAdded) {
 			unrecordedAssetTag = null;
-			scanMessage = { success: true, text: form.message as string, type: 'success' };
-            clearTimeout(scanTimeout);
-            scanTimeout = setTimeout(() => { scanMessage = null; }, 4000);
-		}
+            addUnrecordedMessage = { success: true, text: form.message as string, type: 'success' };
+            setTimeout(() => { addUnrecordedMessage = null; }, 4000);
+            scanMessage = null;
+		} else if (form?.unrecordedAddError) {
+            addUnrecordedMessage = { success: false, text: form.message as string, type: 'error' };
+        }
 		
 		if (form?.settleSuccess) {
 			activityToSettle = null;
@@ -120,6 +157,42 @@
         return data.activities.find(a => a.id === id);
     }
     
+    // --- NEW: Function to handle file selection and compression ---
+    async function onFileSelected(event: Event) {
+        const input = event.target as HTMLInputElement;
+        if (input.files && input.files.length > 0) {
+            const file = input.files[0];
+            
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                compressionError = 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP) เท่านั้น';
+                compressedImageFile = null;
+                return;
+            }
+
+            isCompressing = true;
+            compressionError = null;
+            try {
+                const compressed = await compressImage(file);
+                compressedImageFile = compressed;
+            } catch (error) {
+                console.error('Image compression failed:', error);
+                compressionError = 'เกิดข้อผิดพลาดในการบีบอัดรูปภาพ';
+                compressedImageFile = null;
+            } finally {
+                isCompressing = false;
+            }
+        }
+    }
+    
+    function openAssetDetailModal(asset: ScannedAsset) {
+        scannedAsset = asset;
+        updateAssetMessage = null; 
+        // --- NEW: Reset compression state ---
+        compressedImageFile = null;
+        compressionError = null;
+        isCompressing = false;
+    }
+
     async function openScanDetail(activityId: number) {
         detailLoadError = null;
         scanDetailData = null;
@@ -155,9 +228,11 @@
 	}
 
 	function closeScanModal() {
+        stopCameraScanner();
 		isScanModalOpen = false;
 		activeActivityId = null;
         scanMessage = null;
+        html5QrCode = null;
 	}
     
     function closeScanDetailModal() {
@@ -166,6 +241,60 @@
         detailLoadError = null;
     }
     
+    function startCameraScanner() {
+        if (!html5QrCode) {
+            if (typeof Html5Qrcode !== 'undefined') {
+                try {
+                    html5QrCode = new Html5Qrcode("qr-reader", { verbose: true });
+                } catch (err) {
+                    console.error("Error initializing Html5Qrcode:", err);
+                    scanMessage = { success: false, text: "ไม่สามารถเริ่มต้นสแกนเนอร์ได้", type: 'error' };
+                    return;
+                }
+            } else {
+                scanMessage = { success: false, text: "Library สำหรับสแกนยังไม่พร้อมใช้งาน", type: 'error' };
+                return;
+            }
+        }
+
+        isCameraScanning = true;
+        const config = { 
+            fps: 10, 
+            qrbox: { width: 250, height: 250 },
+            rememberLastUsedCamera: true
+        };
+        
+        const onScanSuccess = (decodedText: string, decodedResult: any) => {
+            if (navigator.vibrate) { navigator.vibrate(100); }
+            currentScanTag = decodedText;
+            stopCameraScanner();
+            setTimeout(() => { if (scanFormElement) { scanFormElement.requestSubmit(); } }, 100);
+        };
+
+        const onScanFailure = (error: any) => { /* Ignore */ };
+        
+        html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+            .catch((err: any) => {
+                console.error("Unable to start scanning.", err);
+                scanMessage = { success: false, text: `ไม่สามารถเปิดกล้องได้: ${err}`, type: 'error' };
+                isCameraScanning = false;
+            });
+    }
+
+    function stopCameraScanner() {
+        if (html5QrCode && html5QrCode.isScanning) {
+            try {
+                html5QrCode.stop().then(() => { isCameraScanning = false; })
+                .catch((err: any) => { console.error("Error stopping scanner.", err); isCameraScanning = false; });
+            } catch (e) {
+                console.warn("Scanner failed to stop.", e);
+                isCameraScanning = false;
+            }
+        } else {
+            isCameraScanning = false;
+        }
+    }
+
     // --- UI Helpers ---
 	function getStatusClass(status: Activity['status']) {
         return {'In Progress':'bg-yellow-100 text-yellow-800','Completed':'bg-green-100 text-green-800','Pending':'bg-blue-100 text-blue-800'}[status] || 'bg-gray-100 text-gray-800';
@@ -181,7 +310,30 @@
 
 <svelte:head>
 	<title>การนับสินทรัพย์ (Stock Count)</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </svelte:head>
+
+<!-- Global Notifications -->
+{#if updateAssetMessage || addUnrecordedMessage}
+    {@const message = updateAssetMessage || addUnrecordedMessage}
+    <div 
+        transition:fade 
+        class="fixed top-4 right-4 z-[70] max-w-sm rounded-lg shadow-xl p-4 font-semibold text-sm transform transition-transform"
+        class:bg-green-100={message?.type === 'success'}
+        class:text-green-800={message?.type === 'success'}
+        class:bg-red-100={message?.type === 'error'}
+        class:text-red-800={message?.type === 'error'}
+    >
+        <div class="flex items-center gap-2">
+            {#if message?.type === 'success'}
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            {/if}
+            <p>{message?.text}</p>
+        </div>
+    </div>
+{/if}
 
 <!-- Main Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
@@ -229,17 +381,10 @@
 						</td>
 						<td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <!-- View Details Button (Always visible) -->
-                                <!-- <button onclick={() => openScanDetail(activity.id)} class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-blue-600" title="ดูรายละเอียด">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                </button>
-                 -->
                                 {#if activity.status === 'In Progress'}
-                                    <!-- Scan Button -->
                                     <button onclick={() => openScanModal(activity.id)} class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-green-600" title="เริ่มสแกน">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /><path d="M10.9 11.2h.1" /><path d="M15 11.2h.1" /></svg>
                                     </button>
-                                    <!-- Settle Button -->
                                     <button onclick={() => (activityToSettle = activity)} class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-teal-600" title="ปิดกิจกรรม (Settle)">
                                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                                     </button>
@@ -253,9 +398,9 @@
 	</table>
 </div>
 
-<!-- -------------------------- MODALS -------------------------- -->
+<!-- MODALS -->
 
-<!-- 1. Create Activity Modal -->
+<!-- Create Activity Modal -->
 {#if isCreateModalOpen}
 	<div transition:slide={{ duration: 150 }} class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16" role="dialog">
 		<div class="fixed inset-0" role="button" tabindex="0" aria-label="Close modal" onclick={() => (isCreateModalOpen = false)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') isCreateModalOpen = false; }}></div>
@@ -277,7 +422,7 @@
 	</div>
 {/if}
 
-<!-- 2. Scan Asset Modal -->
+<!-- Scan Asset Modal -->
 {#if isScanModalOpen && activeActivityId !== null}
 	{@const activeActivity = getActivityById(activeActivityId)}
 	<div transition:slide={{ duration: 150 }} class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16" role="dialog">
@@ -287,19 +432,37 @@
 				<h2 class="text-lg font-bold text-gray-900">กำลังนับ: {activeActivity?.name ?? ''}</h2>
 				<p class="text-sm text-gray-500 mt-1"><span class="font-semibold">Filter:</span> สถานที่: {activeActivity?.location_name ?? 'ทั้งหมด'}, หมวดหมู่: {activeActivity?.category_name ?? 'ทั้งหมด'}</p>
 			</div>
-			<form method="POST" action="?/scanAsset" use:enhance={() => { isLoading = true; return async ({ update }) => { await update(); isLoading = false; assetTagInput?.focus(); }; }} class="space-y-6 p-6">
-				<input type="hidden" name="activity_id" value={activeActivityId} />
-				<div><label for="asset_tag" class="mb-1 block text-sm font-medium text-gray-700">สแกน Asset Tag (หรือกรอก)</label><input type="text" name="asset_tag" id="asset_tag" required bind:value={currentScanTag} bind:this={assetTagInput} class="w-full rounded-md border-gray-300 text-lg font-mono tracking-widest uppercase" placeholder="สแกน Asset Tag..." autocomplete="off" /></div>
-                {#if scanMessage}
-                    <div transition:fade class="rounded-lg p-4 font-semibold {scanMessage.type === 'success' ? 'bg-green-100 text-green-700' : scanMessage.type === 'warning' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}"><p>{scanMessage.text}</p></div>
-                {/if}
-			</form>
-			<div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 p-4"><button type="button" onclick={closeScanModal} class="rounded-md border bg-white px-4 py-2 text-sm font-medium">ปิด/กลับไป</button></div>
+			<div class="space-y-6 p-6">
+                <form method="POST" action="?/scanAsset" bind:this={scanFormElement} use:enhance={() => { isLoading = true; return async ({ update }) => { await update(); isLoading = false; assetTagInput?.focus(); }; }}>
+				    <input type="hidden" name="activity_id" value={activeActivityId} />
+				    <div>
+                        <label for="asset_tag" class="mb-1 block text-sm font-medium text-gray-700">สแกน Asset Tag (หรือกรอก)</label>
+                        <input type="text" name="asset_tag" id="asset_tag" required bind:value={currentScanTag} bind:this={assetTagInput} class="w-full rounded-md border-gray-300 text-lg font-mono tracking-widest uppercase" placeholder="สแกน Asset Tag..." autocomplete="off" />
+						<div class="mt-4">
+                            <button type="button" onclick={isCameraScanning ? stopCameraScanner : startCameraScanner} class="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all {isCameraScanning ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}">
+                                {#if isCameraScanning}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+                                    <span>หยุด</span>
+                                {:else}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                                    <span>ใช้กล้อง</span>
+                                {/if}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                <div id="qr-reader" class:hidden={!isCameraScanning} class="w-full aspect-video bg-gray-900 rounded-md overflow-hidden border-4 border-gray-300"></div>
+                {#if scanMessage}<div transition:fade class="rounded-lg p-4 font-semibold {scanMessage.type === 'success' ? 'bg-green-100 text-green-700' : scanMessage.type === 'warning' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}"><p>{scanMessage.text}</p></div>{/if}
+            </div>
+			<div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 p-4">
+                <button type="button" onclick={() => openScanDetail(activeActivityId!)} class="rounded-md border bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">ดูผลลัพธ์</button>
+                <button type="button" onclick={closeScanModal} class="rounded-md border bg-white px-4 py-2 text-sm font-medium">ปิด/กลับไป</button>
+            </div>
 		</div>
 	</div>
 {/if}
 
-<!-- 3. Scanned Asset Detail & Update Modal -->
+<!-- Scanned Asset Detail & Update Modal -->
 {#if scannedAsset}
 	<div transition:fade={{ duration: 150 }} class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog">
 		<div class="fixed inset-0" role="button" tabindex="0" aria-label="Close modal" onclick={() => (scannedAsset = null)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') scannedAsset = null; }}></div>
@@ -308,7 +471,7 @@
 				<h2 class="text-lg font-bold text-gray-900">{scannedAsset.name}</h2>
 				<p class="font-mono text-sm text-gray-500">{form?.assetTag}</p>
 			</div>
-			<form method="POST" action="?/updateScannedAsset" enctype="multipart/form-data" use:enhance={() => { isUpdatingAsset = true; return async ({ update }) => { await update(); isUpdatingAsset = false; }; }}>
+			<form method="POST" action="?/updateScannedAsset" enctype="multipart/form-data" use:enhance={({ formData }) => { isUpdatingAsset = true; if (compressedImageFile) { formData.set('image', compressedImageFile); } return async ({ update }) => { await update(); isUpdatingAsset = false; }; }}>
 				<div class="space-y-4 p-6 max-h-[60vh] overflow-y-auto">
 					<input type="hidden" name="asset_id" value={scannedAsset.id}>
                     <div class="flex aspect-video items-center justify-center overflow-hidden rounded-lg border bg-gray-100">
@@ -317,19 +480,33 @@
                     <div><label for="category_id_modal" class="mb-1 block text-sm font-medium text-gray-700">หมวดหมู่</label><select name="category_id" id="category_id_modal" bind:value={scannedAsset.category_id} class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ระบุ --</option>{#each data.categories as category (category.id)}<option value={category.id}>{category.name}</option>{/each}</select></div>
                     <div><label for="location_id_modal" class="mb-1 block text-sm font-medium text-gray-700">สถานที่</label><select name="location_id" id="location_id_modal" bind:value={scannedAsset.location_id} class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ระบุ --</option>{#each data.locations as location (location.id)}<option value={location.id}>{location.name}</option>{/each}</select></div>
                     <div><label for="assigned_to_user_id_modal" class="mb-1 block text-sm font-medium text-gray-700">ผู้รับผิดชอบ</label><select name="assigned_to_user_id" id="assigned_to_user_id_modal" bind:value={scannedAsset.assigned_to_user_id} class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ได้กำหนด --</option>{#each data.users as user (user.id)}<option value={user.id}>{user.full_name}</option>{/each}</select></div>
-                    <div><label for="image_upload" class="mb-1 block text-sm font-medium text-gray-700">อัปโหลดรูปภาพใหม่</label><input type="file" name="image" id="image_upload" accept="image/png, image/jpeg, image/webp" class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100" /></div>
+                    <div>
+                        <label for="image_upload" class="mb-1 block text-sm font-medium text-gray-700">อัปโหลดรูปภาพใหม่</label>
+                        <input type="file" name="image" id="image_upload" accept="image/png, image/jpeg, image/webp" onchange={onFileSelected} class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100" />
+                        {#if isCompressing}
+                            <p class="mt-2 text-sm text-blue-600">กำลังบีบอัดรูปภาพ...</p>
+                        {/if}
+                        {#if compressionError}
+                            <p class="mt-2 text-sm text-red-600">{compressionError}</p>
+                        {/if}
+                        {#if compressedImageFile && !isCompressing}
+                             <p class="mt-2 text-sm text-green-600">รูปภาพพร้อมอัปโหลดแล้ว</p>
+                        {/if}
+                    </div>
                     {#if form?.message && form?.updateError}<div class="rounded-md bg-red-50 p-3 text-sm text-red-600"><p>Error: {form.message}</p></div>{/if}
 				</div>
 				<div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 p-4">
 					<button type="button" onclick={() => (scannedAsset = null)} class="rounded-md border bg-white px-4 py-2 text-sm font-medium">ข้าม</button>
-					<button type="submit" disabled={isUpdatingAsset} class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-400">{#if isUpdatingAsset} กำลังบันทึก... {:else} ยืนยันและอัปเดต {/if}</button>
+					<button type="submit" disabled={isUpdatingAsset || isCompressing} class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-400">
+						{#if isUpdatingAsset}กำลังบันทึก...{:else if isCompressing}กำลังบีบอัด...{:else}ยืนยันและอัปเดต{/if}
+					</button>
 				</div>
 			</form>
 		</div>
 	</div>
 {/if}
 
-<!-- 4. Scan Detail Modal (Summary & List) -->
+<!-- Scan Detail Modal -->
 {#if isScanDetailModalOpen}
 	<div transition:slide class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16">
 		<div class="fixed inset-0" role="button" tabindex="0" aria-label="Close modal" onclick={closeScanDetailModal} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeScanDetailModal(); }}></div>
@@ -359,7 +536,7 @@
 	</div>
 {/if}
 
-<!-- 5. Add Unrecorded Asset Modal -->
+<!-- Add Unrecorded Asset Modal -->
 {#if unrecordedAssetTag}
 	<div transition:fade={{ duration: 150 }} class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog">
 		<div class="fixed inset-0" role="button" tabindex="0" aria-label="Close modal" onclick={() => (unrecordedAssetTag = null)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') unrecordedAssetTag = null; }}></div>
@@ -368,7 +545,7 @@
 				<h2 class="text-lg font-bold text-gray-900">เพิ่มสินทรัพย์ใหม่ (สินทรัพย์เกิน)</h2>
 				<p class="font-mono text-sm text-gray-500">{unrecordedAssetTag}</p>
 			</div>
-			<form method="POST" action="?/addUnrecordedAsset" enctype="multipart/form-data" use:enhance={() => { isAddingUnrecorded = true; return async ({ update }) => { await update(); isAddingUnrecorded = false; }; }}>
+			<form method="POST" action="?/addUnrecordedAsset" enctype="multipart/form-data" use:enhance={({ formData }) => { isAddingUnrecorded = true; if (compressedImageFile) { formData.set('image', compressedImageFile); } return async ({ update }) => { await update(); isAddingUnrecorded = false; }; }}>
 				<div class="space-y-4 p-6 max-h-[70vh] overflow-y-auto">
 					<input type="hidden" name="activity_id" value={activeActivityId}>
 					<input type="hidden" name="asset_tag" value={unrecordedAssetTag}>
@@ -383,15 +560,27 @@
 						<div><label for="location_id_unrecorded" class="mb-1 block text-sm font-medium text-gray-700">สถานที่</label><select name="location_id" id="location_id_unrecorded" class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ระบุ --</option>{#each data.locations as location (location.id)}<option value={location.id}>{location.name}</option>{/each}</select></div>
 					</div>
 					<div><label for="assigned_to_user_id_unrecorded" class="mb-1 block text-sm font-medium text-gray-700">ผู้รับผิดชอบ</label><select name="assigned_to_user_id" id="assigned_to_user_id_unrecorded" class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ได้กำหนด --</option>{#each data.users as user (user.id)}<option value={user.id}>{user.full_name}</option>{/each}</select></div>
-                    <div><label for="image_upload_unrecorded" class="mb-1 block text-sm font-medium text-gray-700">รูปภาพ</label><input type="file" name="image" id="image_upload_unrecorded" accept="image/png, image/jpeg, image/webp" class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100" /></div>
+                    <div>
+                        <label for="image_upload_unrecorded" class="mb-1 block text-sm font-medium text-gray-700">รูปภาพ</label>
+                        <input type="file" name="image" id="image_upload_unrecorded" accept="image/png, image/jpeg, image/webp" onchange={onFileSelected} class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100" />
+                        {#if isCompressing}
+                            <p class="mt-2 text-sm text-blue-600">กำลังบีบอัดรูปภาพ...</p>
+                        {/if}
+                        {#if compressionError}
+                            <p class="mt-2 text-sm text-red-600">{compressionError}</p>
+                        {/if}
+                        {#if compressedImageFile && !isCompressing}
+                             <p class="mt-2 text-sm text-green-600">รูปภาพพร้อมอัปโหลดแล้ว</p>
+                        {/if}
+                    </div>
 					<div><label for="notes_unrecorded" class="mb-1 block text-sm font-medium text-gray-700">บันทึก/หมายเหตุ</label><textarea name="notes" id="notes_unrecorded" rows="2" class="w-full rounded-md border-gray-300"></textarea></div>
 
                     {#if form?.message && form?.unrecordedAddError}<div class="rounded-md bg-red-50 p-3 text-sm text-red-600"><p>Error: {form.message}</p></div>{/if}
 				</div>
 				<div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 p-4">
 					<button type="button" onclick={() => (unrecordedAssetTag = null)} class="rounded-md border bg-white px-4 py-2 text-sm font-medium">ยกเลิก</button>
-					<button type="submit" disabled={isAddingUnrecorded} class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-400">
-						{#if isAddingUnrecorded} กำลังบันทึก... {:else} บันทึกสินทรัพย์ {/if}
+					<button type="submit" disabled={isAddingUnrecorded || isCompressing} class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-400">
+						{#if isAddingUnrecorded}กำลังบันทึก...{:else if isCompressing}กำลังบีบอัด...{:else}บันทึกสินทรัพย์{/if}
 					</button>
 				</div>
 			</form>
@@ -399,7 +588,7 @@
 	</div>
 {/if}
 
-<!-- 6. Settle Activity Confirmation Modal -->
+<!-- Settle Activity Confirmation Modal -->
 {#if activityToSettle}
 	<div transition:fade class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="alertdialog">
 		<div class="w-full max-w-md rounded-xl bg-white shadow-2xl" transition:slide>
@@ -437,7 +626,14 @@
 	</div>
 {/if}
 
-
 <style>
 .max-h-96 { max-height: 24rem; }
+#qr-reader {
+    position: relative;
+}
+:global(#qr-reader video) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
 </style>

@@ -6,12 +6,12 @@ import path from 'path';
 
 /**
  * Configuration for the /assets page.
- * We're increasing the bodySizeLimit to 5MB to allow for larger
+ * We're increasing the bodySizeLimit to 10MB to allow for larger
  * image uploads in the 'addAsset' and 'editAsset' form actions.
  * The default SvelteKit limit is 512KB.
  */
 export const config = {
-	bodySizeLimit: 5 * 1024 * 1024 // 5 MB
+	bodySizeLimit: 10 * 1024 * 1024 // 10 MB
 };
 
 // Define a type for our asset data for better type-safety

@@ -2,21 +2,70 @@
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
+	// --- NEW: Import the image compressor utility ---
+	import { compressImage } from '$lib/utils/image-compressor';
+
 
 	type Asset = PageData['assets'][0];
 
-	export let data: PageData;
-	export let form: ActionData;
+	// FIX: Cannot use `export let` in runes mode — use $props() instead
+	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	let modalMode: 'add' | 'edit' | null = null;
-	let selectedAsset: Partial<Asset> | null = null;
-	let assetToDelete: Asset | null = null;
-	let assetToView: Asset | null = null; // For detail modal
-	let isLoading = false;
-	let searchQuery = data.searchQuery ?? '';
+	// FIX: Must use $state for all variables that are updated to be reactive
+	let modalMode = $state<'add' | 'edit' | null>(null);
+	let selectedAsset = $state<Partial<Asset> | null>(null);
+	let assetToDelete = $state<Asset | null>(null);
+	let assetToView = $state<Asset | null>(null); // For detail modal
+	let isLoading = $state(false);
+	let searchQuery = $state(data.searchQuery ?? '');
+    
+    // --- NEW: State for image compression ---
+    let originalImageFile: File | null = $state(null);
+    let isCompressing = $state(false);
+    let compressionError = $state<string | null>(null);
+
+    // --- NEW: Global Notification States ---
+    let globalMessage = $state<{ success: boolean, text: string, type: 'success' | 'error' } | null>(null);
+    let messageTimeout: NodeJS.Timeout;
+
+    // --- NEW: Function to handle file input change and trigger compression ---
+    async function onFileSelected(event: Event) {
+        const input = event.target as HTMLInputElement;
+        if (input.files && input.files.length > 0) {
+            const file = input.files[0];
+            
+            // Basic validation for file type
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                compressionError = 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP) เท่านั้น';
+                originalImageFile = null;
+                return;
+            }
+
+            isCompressing = true;
+            compressionError = null;
+            try {
+                // Compress the image with default settings
+                const compressedFile = await compressImage(file);
+                originalImageFile = compressedFile; // Store the compressed file to be used in the form
+            } catch (error) {
+                console.error('Image compression failed:', error);
+                compressionError = 'เกิดข้อผิดพลาดในการบีบอัดรูปภาพ';
+                originalImageFile = null;
+            } finally {
+                isCompressing = false;
+            }
+        }
+    }
+
 
 	function openModal(mode: 'add' | 'edit', asset: Asset | null = null) {
 		modalMode = mode;
+        // Clear global message and image states when opening a modal
+        globalMessage = null; 
+        originalImageFile = null;
+        compressionError = null;
+        isCompressing = false;
+
 		if (mode === 'edit' && asset) {
 			selectedAsset = { ...asset }; // Create a copy to edit
 		} else {
@@ -27,7 +76,6 @@
 	function closeModal() {
 		modalMode = null;
 		selectedAsset = null;
-		form = undefined; // Clear any form errors
 	}
 
 	function openDetailModal(asset: Asset) {
@@ -37,14 +85,35 @@
 	function closeDetailModal() {
 		assetToView = null;
 	}
+    
+    // Helper to display a temporary global message
+    function showGlobalMessage(message: { success: boolean, text: string, type: 'success' | 'error' }) {
+        clearTimeout(messageTimeout);
+        globalMessage = message;
+        messageTimeout = setTimeout(() => { globalMessage = null; }, 5000);
+    }
 
-	// Close modal on successful submission from either form
-	$: if (form?.success) {
-		closeModal();
-	}
+    // NEW FUNCTION: Handle print click and stop propagation manually
+    function handlePrintClick(e: Event) {
+        // Prevent the click event from propagating up to the <tr> element's onclick handler
+        e.stopPropagation();
+    }
 
-	// Reactive statement to create a smarter pagination range
-	$: paginationRange = (() => {
+	// This reactive block handles form submission results for the delete action
+	$effect.pre(() => {
+        if (form?.message && form.action === 'deleteAsset') {
+            // If delete action fails (though it should redirect on success)
+            showGlobalMessage({ 
+                success: false, 
+                text: form.message as string, 
+                type: 'error' 
+            });
+        }
+	});
+
+
+	// FIX: Use $derived for reactive calculation instead of $:
+	const paginationRange = $derived(() => {
 		const delta = 1; // How many pages to show before and after the current page
 		const left = data.currentPage - delta;
 		const right = data.currentPage + delta + 1;
@@ -71,7 +140,7 @@
 		}
 
 		return rangeWithDots;
-	})();
+	});
 
 	function getPageUrl(pageNum: number) {
 		const params = new URLSearchParams();
@@ -86,6 +155,27 @@
 <svelte:head>
 	<title>การจัดการสินทรัพย์</title>
 </svelte:head>
+
+<!-- Global Notifications (NEW) -->
+{#if globalMessage}
+    <div 
+        transition:fade 
+        class="fixed top-4 right-4 z-[70] max-w-sm rounded-lg shadow-xl p-4 font-semibold text-sm transform transition-transform"
+        class:bg-green-100={globalMessage?.type === 'success'}
+        class:text-green-800={globalMessage?.type === 'success'}
+        class:bg-red-100={globalMessage?.type === 'error'}
+        class:text-red-800={globalMessage?.type === 'error'}
+    >
+        <div class="flex items-center gap-2">
+            {#if globalMessage?.type === 'success'}
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            {/if}
+            <p>{globalMessage?.text}</p>
+        </div>
+    </div>
+{/if}
 
 <!-- Main Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
@@ -123,7 +213,7 @@
 
 		<!-- ADD NEW ASSET BUTTON -->
 		<button
-			on:click={() => openModal('add')}
+			onclick={() => openModal('add')}
 			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 		>
 			<svg
@@ -200,11 +290,7 @@
 			{:else}
 				{#each data.assets as asset (asset.id)}
 					<tr
-						class="cursor-pointer hover:bg-gray-50"
-						role="button"
-						tabindex="0"
-						on:click={() => openDetailModal(asset)}
-						on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && openDetailModal(asset)}
+						class="hover:bg-gray-50"
 					>
 						<td class="px-4 py-3">
 							<div
@@ -235,7 +321,14 @@
 						</td>
 						<td class="px-4 py-3 font-mono text-xs text-gray-700">{asset.asset_tag}</td>
 						<td class="px-4 py-3 font-mono text-xs text-gray-700">{asset.asset_tag_sub ?? 'N/A'}</td>
-						<td class="px-4 py-3 font-medium text-gray-900">
+						<!-- FIX: ย้าย Event Listener สำหรับเปิด Detail Modal มาที่ชื่อ Asset Name -->
+						<td 
+							class="px-4 py-3 font-medium text-gray-900 cursor-pointer hover:underline hover:text-blue-600"
+							role="button"
+							tabindex="0"
+							onclick={() => openDetailModal(asset)}
+							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openDetailModal(asset)}
+						>
 							<div class="truncate-2-lines max-w-xs">{asset.name}</div>
 						</td>
 						<td class="px-4 py-3 text-gray-600">{asset.category_name ?? 'N/A'}</td>
@@ -260,7 +353,7 @@
 						<td class="px-4 py-3">
 							<div class="flex items-center gap-2">
 								<button
-									on:click|stopPropagation={() => openModal('edit', asset)}
+									onclick={() => openModal('edit', asset)}
 									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-blue-600"
 									aria-label="แก้ไขสินทรัพย์"
 								>
@@ -281,7 +374,7 @@
 									>
 								</button>
 								<button
-									on:click|stopPropagation={() => (assetToDelete = asset)}
+									onclick={() => (assetToDelete = asset)}
 									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-600"
 									aria-label="ลบสินทรัพย์"
 								>
@@ -308,7 +401,7 @@
 									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-green-600"
 									aria-label="พิมพ์ฉลาก"
 									title="พิมพ์ฉลาก"
-									on:click|stopPropagation
+									onclick={handlePrintClick}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -417,8 +510,8 @@
 	>
 		<div
 			class="fixed inset-0"
-			on:click={closeModal}
-			on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeModal()}
+			onclick={closeModal}
+			onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeModal()}
 			role="button"
 			tabindex="0"
 			aria-label="ปิด Modal"
@@ -437,11 +530,36 @@
 				method="POST"
 				action={modalMode === 'add' ? '?/addAsset' : '?/editAsset'}
 				enctype="multipart/form-data"
-				use:enhance={() => {
+				use:enhance={({ formData }) => {
 					isLoading = true;
+                    // --- NEW: Replace original image with compressed one ---
+                    if (originalImageFile) {
+                        formData.set('image', originalImageFile);
+                    }
+
 					return async ({ update }) => {
 						await update();
 						isLoading = false;
+						
+						// FIX: Check form result here to close modal reliably
+						const isAssetAction = form?.action === 'addAsset' || form?.action === 'editAsset';
+						if (isAssetAction) {
+							if (form.success) {
+								closeModal();
+								showGlobalMessage({
+									success: true,
+									text: form.message as string,
+									type: 'success'
+								});
+							} else if (form.message) {
+								// This is for validation errors, etc.
+								showGlobalMessage({
+									success: false,
+									text: form.message as string,
+									type: 'error'
+								});
+							}
+						}
 					};
 				}}
 				class="flex flex-1 flex-col overflow-hidden"
@@ -594,7 +712,7 @@
 						</select>
 					</div>
 
-					<!-- Image Upload -->
+					<!-- Image Upload (with compression) -->
 					<div>
 						<label for="image" class="mb-1 block text-sm font-medium text-gray-700"
 							>รูปภาพสินทรัพย์</label
@@ -604,8 +722,18 @@
 							name="image"
 							id="image"
 							accept="image/png, image/jpeg, image/webp"
+							onchange={onFileSelected}
 							class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2"
 						/>
+                        {#if isCompressing}
+                            <p class="mt-2 text-sm text-blue-600">กำลังบีบอัดรูปภาพ...</p>
+                        {/if}
+                        {#if compressionError}
+                            <p class="mt-2 text-sm text-red-600">{compressionError}</p>
+                        {/if}
+                        {#if originalImageFile && !isCompressing}
+                             <p class="mt-2 text-sm text-green-600">รูปภาพพร้อมอัปโหลดแล้ว</p>
+                        {/if}
 					</div>
 
 					<!-- Notes -->
@@ -622,7 +750,7 @@
 
 					{#if form?.message && !form?.success}
 						<div class="mt-4 rounded-md bg-red-50 p-4">
-							<p class="text-sm text-red-600">{form.message}</p>
+							<p class="text-sm text-red-600">Error: {form.message}</p>
 						</div>
 					{/if}
 				</div>
@@ -630,17 +758,23 @@
 				<div class="flex flex-shrink-0 justify-end gap-3 border-t border-gray-200 p-4">
 					<button
 						type="button"
-						on:click={closeModal}
+						onclick={closeModal}
 						class="rounded-md border bg-white px-4 py-2 text-sm font-medium"
 					>
 						ยกเลิก
 					</button>
 					<button
 						type="submit"
-						disabled={isLoading}
+						disabled={isLoading || isCompressing}
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-400"
 					>
-						{#if isLoading} กำลังบันทึก... {:else} บันทึกสินทรัพย์ {/if}
+						{#if isLoading} 
+                            กำลังบันทึก... 
+                        {:else if isCompressing}
+                            กำลังบีบอัด...
+                        {:else} 
+                            บันทึกสินทรัพย์ 
+                        {/if}
 					</button>
 				</div>
 			</form>
@@ -659,8 +793,8 @@
 	>
 		<div
 			class="fixed inset-0"
-			on:click={closeDetailModal}
-			on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeDetailModal()}
+			onclick={closeDetailModal}
+			onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeDetailModal()}
 			role="button"
 			tabindex="0"
 			aria-label="ปิด Modal"
@@ -676,7 +810,7 @@
 						<p class="font-mono text-sm text-gray-500">{assetToView.asset_tag}</p>
 					</div>
 					<button
-						on:click={closeDetailModal}
+						onclick={closeDetailModal}
 						class="-m-2 rounded-full p-2 text-gray-400 hover:text-gray-600"
 						aria-label="ปิด"
 					>
@@ -770,7 +904,7 @@
 			>
 				<button
 					type="button"
-					on:click={closeDetailModal}
+					onclick={closeDetailModal}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium"
 				>
 					ปิด
@@ -817,6 +951,10 @@
 					return async ({ update }) => {
 						await update();
 						assetToDelete = null;
+                        // Show global message after delete (redirect on success already handled)
+                        if (form?.message) {
+                            showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
+                        }
 					};
 				}}
 				class="mt-6 flex justify-end gap-3"
@@ -824,7 +962,7 @@
 				<input type="hidden" name="id" value={assetToDelete.id} />
 				<button
 					type="button"
-					on:click={() => (assetToDelete = null)}
+					onclick={() => (assetToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium"
 				>
 					ยกเลิก

@@ -44,16 +44,25 @@ async function saveImage(imageFile: File): Promise<string | null> {
 		return null;
 	}
 	try {
+		// Log the file size for debugging upload issues on mobile
+		console.log(`Attempting to save image: ${imageFile.name}, size: ${imageFile.size} bytes`);
+		
 		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
 		const filename = `${uniqueSuffix}-${imageFile.name}`;
 		const uploadDir = path.join(process.cwd(), 'uploads');
 		await fs.mkdir(uploadDir, { recursive: true });
 		const uploadPath = path.join(uploadDir, filename);
+		
+		// Use file.arrayBuffer() which can fail for very large files on memory-constrained servers
 		await fs.writeFile(uploadPath, Buffer.from(await imageFile.arrayBuffer()));
+		
+		console.log(`Image saved successfully: ${uploadPath}`);
 		return `/uploads/${filename}`;
 	} catch (error) {
-		console.error('Error handling file upload:', error);
-		throw new Error('Failed to upload image.');
+		// Catch specific file-related errors, which might be related to mobile file size
+		console.error('Error handling file upload in saveImage:', error);
+		// Throw a specific error message that can be caught by the action handler
+		throw new Error('File processing failed, possibly due to file size or memory limit.');
 	}
 }
 
@@ -242,8 +251,19 @@ export const actions: Actions = {
                 const [rows]: any[] = await pool.execute('SELECT image_url FROM assets WHERE id = ?', [asset_id]);
                 const existingImageUrl = rows.length > 0 ? rows[0].image_url : null;
                 
-                imageUrl = await saveImage(imageFile);
-                await deleteImage(existingImageUrl);
+                try {
+                    // CATCH file upload error here
+                    imageUrl = await saveImage(imageFile);
+                    await deleteImage(existingImageUrl);
+                } catch (e: any) {
+                     console.error('File upload failed during updateScannedAsset:', e);
+                     // Return a specific failure message for the client to display
+                     return fail(500, { 
+                        success: false, 
+                        message: `อัปโหลดรูปภาพล้มเหลว: ${e.message} (อาจเป็นเพราะไฟล์มีขนาดใหญ่เกินไป)`, 
+                        updateError: true 
+                    });
+                }
             }
 
             const updateFields: string[] = [];
@@ -273,7 +293,8 @@ export const actions: Actions = {
 
         } catch (error) {
             console.error('Error updating asset details:', error);
-            return fail(500, { success: false, message: 'ไม่สามารถอัปเดตข้อมูลสินทรัพย์ได้', updateError: true });
+            // General database error
+            return fail(500, { success: false, message: 'ไม่สามารถอัปเดตข้อมูลสินทรัพย์ได้ (เกิดข้อผิดพลาดฐานข้อมูล)', updateError: true });
         }
     },
 
@@ -307,8 +328,23 @@ export const actions: Actions = {
         try {
             await connection.beginTransaction();
 
-            const imageUrl = await saveImage(imageFile);
-
+            let imageUrl = null;
+            if (imageFile && imageFile.size > 0) {
+                try {
+                     // CATCH file upload error here
+                     imageUrl = await saveImage(imageFile);
+                } catch (e: any) {
+                    await connection.rollback(); // Rollback DB transaction since file failed
+                    console.error('File upload failed during unrecorded asset add:', e);
+                    // Return a specific failure message for the client to display
+                    return fail(500, { 
+                        success: false, 
+                        message: `อัปโหลดรูปภาพล้มเหลว: ${e.message} (อาจเป็นเพราะไฟล์มีขนาดใหญ่เกินไป)`, 
+                        unrecordedAddError: true 
+                    });
+                }
+            }
+            
             const [insertResult] = await connection.execute(
 				`INSERT INTO assets (name, asset_tag, category_id, location_id, assigned_to_user_id, status, purchase_date, purchase_cost, notes, image_url) 
 				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -345,7 +381,7 @@ export const actions: Actions = {
 			if (error.code === 'ER_DUP_ENTRY') {
 				return fail(409, { success: false, message: 'Asset Tag นี้มีอยู่ในระบบแล้ว', unrecordedAddError: true });
 			}
-            return fail(500, { success: false, message: 'ไม่สามารถเพิ่มสินทรัพย์ใหม่ลงในฐานข้อมูลได้', unrecordedAddError: true });
+            return fail(500, { success: false, message: 'ไม่สามารถเพิ่มสินทรัพย์ใหม่ลงในฐานข้อมูลได้ (เกิดข้อผิดพลาดฐานข้อมูล)', unrecordedAddError: true });
         } finally {
             connection.release();
         }
