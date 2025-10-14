@@ -184,7 +184,7 @@ export const actions: Actions = {
 
             const [assetRows] = await pool.execute<RowDataPacket[]>(
                 `SELECT
-                    a.id, a.name, a.image_url, 
+                    a.id, a.name, a.image_url, a.status,
                     a.category_id, a.location_id, a.assigned_to_user_id,
                     ac.name AS category_name,
                     al.name AS location_name,
@@ -238,6 +238,7 @@ export const actions: Actions = {
         const category_id = data.get('category_id')?.toString();
         const location_id = data.get('location_id')?.toString();
         const assigned_to_user_id = data.get('assigned_to_user_id')?.toString();
+        const status = data.get('status')?.toString();
         const imageFile = data.get('image') as File;
 
         if (!asset_id) {
@@ -268,6 +269,7 @@ export const actions: Actions = {
 
             const updateFields: string[] = [];
             const params: (string | number | null)[] = [];
+            const validStatuses = ['In Use', 'In Storage', 'Under Maintenance', 'Disposed'];
 
             updateFields.push('category_id = ?');
             params.push(category_id ? parseInt(category_id) : null);
@@ -277,6 +279,11 @@ export const actions: Actions = {
 
             updateFields.push('assigned_to_user_id = ?');
             params.push(assigned_to_user_id ? parseInt(assigned_to_user_id) : null);
+            
+            if (status && validStatuses.includes(status)) {
+                updateFields.push('status = ?');
+                params.push(status);
+            }
 
             if (imageUrl !== undefined) {
                 updateFields.push('image_url = ?');

@@ -27,6 +27,7 @@
 
 	interface ScannedAsset {
         id: number; name: string; image_url: string | null;
+        status: 'In Use' | 'In Storage' | 'Under Maintenance' | 'Disposed';
         category_name: string | null; location_name: string | null; assigned_user_name: string | null;
         category_id: number | null; location_id: number | null; assigned_to_user_id: number | null;
     }
@@ -477,6 +478,15 @@
                     <div class="flex aspect-video items-center justify-center overflow-hidden rounded-lg border bg-gray-100">
 						{#if scannedAsset.image_url}<img src={scannedAsset.image_url} alt={scannedAsset.name} class="h-full w-full object-contain" />{:else}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-12 w-12 text-gray-400"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>{/if}
 					</div>
+                    <div>
+                        <label for="status_modal" class="mb-1 block text-sm font-medium text-gray-700">สถานะ</label>
+                        <select name="status" id="status_modal" bind:value={scannedAsset.status} class="w-full rounded-md border-gray-300">
+                            <option value="In Use">ใช้งานอยู่</option>
+                            <option value="In Storage">อยู่ในสต็อก</option>
+                            <option value="Under Maintenance">ซ่อมบำรุง</option>
+                            <option value="Disposed">จำหน่าย/ตัดออก</option>
+                        </select>
+                    </div>
                     <div><label for="category_id_modal" class="mb-1 block text-sm font-medium text-gray-700">หมวดหมู่</label><select name="category_id" id="category_id_modal" bind:value={scannedAsset.category_id} class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ระบุ --</option>{#each data.categories as category (category.id)}<option value={category.id}>{category.name}</option>{/each}</select></div>
                     <div><label for="location_id_modal" class="mb-1 block text-sm font-medium text-gray-700">สถานที่</label><select name="location_id" id="location_id_modal" bind:value={scannedAsset.location_id} class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ระบุ --</option>{#each data.locations as location (location.id)}<option value={location.id}>{location.name}</option>{/each}</select></div>
                     <div><label for="assigned_to_user_id_modal" class="mb-1 block text-sm font-medium text-gray-700">ผู้รับผิดชอบ</label><select name="assigned_to_user_id" id="assigned_to_user_id_modal" bind:value={scannedAsset.assigned_to_user_id} class="w-full rounded-md border-gray-300"><option value={null}>-- ไม่ได้กำหนด --</option>{#each data.users as user (user.id)}<option value={user.id}>{user.full_name}</option>{/each}</select></div>
