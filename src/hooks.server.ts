@@ -1,30 +1,40 @@
 import type { Handle } from '@sveltejs/kit';
 import pool from '$lib/server/database';
+// NEW: Import the permission fetcher
+import { getUserPermissions } from '$lib/server/auth';
 
 /**
- * นี่คือ Server Hook 'handle' ซึ่งจะทำงานก่อนทุกๆ request ที่เข้ามายังเซิร์ฟเวอร์
- * เป็นตำแหน่งที่เหมาะสมที่สุดในการจัดการ Authentication
+ * This is the server 'handle' hook, which runs before every request to the server.
+ * It's the ideal place to handle authentication and enrich the `event.locals` object.
  */
 export const handle: Handle = async ({ event, resolve }) => {
-	// 1. ดึง session_id จาก cookie
+	// 1. Get session_id from the cookie
 	const sessionId = event.cookies.get('session_id');
 
-	// 2. ถ้ามี session_id, ให้ดึงข้อมูลผู้ใช้จากฐานข้อมูล
+	// 2. If a session_id exists, fetch user data from the database
 	if (sessionId) {
 		try {
+			// MODIFIED: Join with roles table to get role name from role_id
 			const [rows]: any[] = await pool.execute(
-				'SELECT id, email, role FROM users WHERE id = ? LIMIT 1',
+				`SELECT u.id, u.email, r.name as role 
+				 FROM users u
+				 JOIN roles r ON u.role_id = r.id
+				 WHERE u.id = ? LIMIT 1`,
 				[sessionId]
 			);
 			const userData = rows[0];
 
-			// 3. ถ้าพบข้อมูลผู้ใช้, ให้เก็บไว้ใน event.locals
-			//    ข้อมูลใน locals จะสามารถเข้าถึงได้ในทุกๆ +server.ts และ +page.server.ts
+			// 3. If user data is found, populate event.locals
+			// This makes user data available in all server-side loads and actions.
 			if (userData) {
+				// NEW: Fetch user's permissions
+				const permissions = await getUserPermissions(userData.id);
+
 				event.locals.user = {
 					id: userData.id,
 					email: userData.email,
-					role: userData.role
+					role: userData.role,
+					permissions: permissions // Add permissions to the user object
 				};
 			}
 		} catch (err) {
@@ -32,8 +42,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	// 4. เรียก resolve(event) เพื่อให้ SvelteKit ทำงานต่อไปตามปกติ
-	//    ขั้นตอนนี้สำคัญมาก, หากไม่มี SvelteKit จะหยุดทำงาน
+	// 4. Call resolve(event) to allow SvelteKit to continue processing the request.
+	// This step is crucial; without it, SvelteKit will halt.
 	const response = await resolve(event);
 	return response;
 };

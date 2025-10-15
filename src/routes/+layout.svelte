@@ -15,36 +15,28 @@
 		}
 	});
 
-	// Function to create an SVG icon
-	const createIcon = (path: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">${path}</svg>`;
+	// Function to create an SVG icon from a simple name
+	function getIcon(iconName: string | null): string {
+		const icons: { [key: string]: string } = {
+			dashboard: `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />`,
+			assets: `<rect width="20" height="14" x="2" y="7" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />`,
+			counting: `<path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M18 18h.01" /><path d="M7 7h4" /><path d="M7 11h4" /><path d="M18 22v-4h4" /><path d="m18 18 4 4" />`,
+			users: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />`,
+			roles: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path>`,
+			menus: `<path d="M4 6h16M4 12h16M4 18h16"></path>`,
+			settings: `<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>`
+		};
+		const path = iconName ? icons[iconName] : '<circle cx="12" cy="12" r="10"></circle>'; // Default circle icon
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">${path}</svg>`;
+	}
 
-	const menuItems = [
-		{
-			href: '/',
-			label: 'Dashboard',
-			icon: createIcon(`<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />`)
-		},
-		{
-			href: '/assets',
-			label: 'Assets Management',
-			icon: createIcon(`<rect width="20" height="14" x="2" y="7" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />`)
-		},
-		// --- NEW: Asset Counting Menu ---
-		{
-			href: '/counting',
-			label: 'Asset Counting',
-			icon: createIcon(`<path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" /><path d="M18 18h.01" /><path d="M7 7h4" /><path d="M7 11h4" /><path d="M18 22v-4h4" /><path d="m18 18 4 4" />`)
+	function isLinkActive(href: string | null) {
+		if (!href) return false;
+		if (href === '/') {
+			return $page.url.pathname === '/';
 		}
-		// --- END NEW ---
-	];
-	
-	const adminMenuItems = [
-		{
-			href: '/users',
-			label: 'Users Management',
-			icon: createIcon(`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />`)
-		}
-	]
+		return $page.url.pathname.startsWith(href);
+	}
 </script>
 
 <svelte:head>
@@ -72,68 +64,88 @@
 		>
 			<!-- Logo/Brand -->
 			<div class="mb-8 flex items-center gap-3 px-2">
-				<div
-					class="flex h-10 w-10 items-center justify-center rounded-lg"
-				>
-					<!-- This is the new logo image tag -->
+				<div class="flex h-10 w-10 items-center justify-center rounded-lg">
 					<img src="/logo.png" alt="Asset Control Logo" class="h-80 w-80 object-contain" />
 				</div>
 				<span class="text-xl font-bold text-gray-900">Asset Control</span>
 			</div>
 
-			<!-- Navigation Menu -->
+			<!-- DYNAMIC Navigation Menu -->
 			<nav class="flex-grow">
 				<ul class="space-y-2">
-					{#each menuItems as item}
-						{@const isActive = $page.url.pathname.startsWith(item.href) && (item.href !== '/' || $page.url.pathname === '/')}
-						<li>
-							<a
-								href={item.href}
-								class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors
-                {isActive
-									? 'bg-blue-600 text-white shadow-md'
-									: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}"
-							>
-								{@html item.icon}
-								<span class="font-medium">{item.label}</span>
-							</a>
-						</li>
+					{#each data.menus as menu}
+						{#if !menu.children || menu.children.length === 0}
+							<!-- Regular Menu Item -->
+							<li>
+								<a
+									href={menu.route || '#'}
+									class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors
+									{isLinkActive(menu.route)
+										? 'bg-blue-600 text-white shadow-md'
+										: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}"
+								>
+									{@html getIcon(menu.icon)}
+									<span class="font-medium">{menu.title}</span>
+								</a>
+							</li>
+						{:else}
+							<!-- Menu with Sub-items -->
+							<li class="space-y-2">
+								<span class="px-3 text-xs font-semibold uppercase text-gray-400">{menu.title}</span>
+								<ul class="space-y-1 pl-2">
+									{#each menu.children as subMenu}
+										<li>
+											<a
+												href={subMenu.route || '#'}
+												class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors
+												{isLinkActive(subMenu.route)
+													? 'bg-blue-600 text-white shadow-md'
+													: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}"
+											>
+												{@html getIcon(subMenu.icon)}
+												<span class="font-medium">{subMenu.title}</span>
+											</a>
+										</li>
+									{/each}
+								</ul>
+							</li>
+						{/if}
 					{/each}
-				</ul>
 
-				<!-- Admin Section -->
-				{#if data.user?.role === 'admin'}
-					<div class="mt-4 border-t border-gray-200 pt-4">
-						<span class="px-3 text-xs font-semibold uppercase text-gray-400">Admin</span>
-						<ul class="mt-2 space-y-2">
-							{#each adminMenuItems as item}
-								{@const isActive = $page.url.pathname.startsWith(item.href)}
+					<!-- Manually add System Management for admin -->
+					{#if data.user.role === 'admin'}
+						<li class="space-y-2 pt-4 border-t">
+							<span class="px-3 text-xs font-semibold uppercase text-gray-400">System Management</span>
+							<ul class="space-y-1 pl-2">
 								<li>
-									<a
-										href={item.href}
-										class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors
-										{isActive
-											? 'bg-blue-600 text-white shadow-md'
-											: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}"
-									>
-										{@html item.icon}
-										<span class="font-medium">{item.label}</span>
+									<a href="/roles" class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/roles') ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}">
+										{@html getIcon('roles')}
+										<span class="font-medium">Roles & Permissions</span>
 									</a>
 								</li>
-							{/each}
-						</ul>
-					</div>
-				{/if}
+								<li>
+									<a href="/permissions" class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/permissions') ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}">
+										{@html getIcon('settings')}
+										<span class="font-medium">Permissions</span>
+									</a>
+								</li>
+								<li>
+									<a href="/menus" class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/menus') ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}">
+										{@html getIcon('menus')}
+										<span class="font-medium">Menu Management</span>
+									</a>
+								</li>
+							</ul>
+						</li>
+					{/if}
+				</ul>
 			</nav>
 
 			<!-- User Info Footer -->
 			<div class="mt-auto border-t border-gray-200 pt-4">
 				<div class="flex items-center gap-3">
-					<div
-						class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-bold text-gray-600"
-					>
+					<div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-bold text-gray-600">
 						{data.user.email.substring(0, 2).toUpperCase()}
-						
 					</div>
 					<div>
 						<p class="truncate text-sm font-semibold text-gray-800">{data.user.email}</p>
@@ -148,33 +160,15 @@
 		<!-- Main Content Area -->
 		<div class="flex flex-1 flex-col lg:pl-64">
 			<!-- Mobile Header -->
-			<header
-				class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur-sm lg:hidden"
-			>
+			<header class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur-sm lg:hidden">
 				<button onclick={() => (isSidebarOpen = true)} class="text-gray-600 hover:text-gray-900">
 					<span class="sr-only">Open sidebar</span>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						width="24"
-						height="24"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="h-6 w-6"
-						><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line
-							x1="3"
-							y1="18"
-							x2="21"
-							y2="18"
-						/></svg
-					>
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
+						<line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
+					</svg>
 				</button>
 				<span class="text-lg font-bold">Asset Control</span>
-				<!-- Spacer -->
-				<div class="w-6"></div>
+				<div class="w-6"></div> <!-- Spacer -->
 			</header>
 
 			<!-- Page Content with Card-like wrapper -->

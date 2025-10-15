@@ -2,6 +2,7 @@ import { fail, redirect, error } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 import bcrypt from 'bcrypt';
+import type { RowDataPacket } from 'mysql2';
 
 // Define types for better type-safety
 type Department = {
@@ -14,13 +15,19 @@ type Position = {
 	name: string;
 };
 
-type User = {
+type Role = {
+	id: number;
+	name: string;
+};
+
+type User = RowDataPacket & {
 	id: number;
 	username: string;
 	email: string;
 	full_name: string;
 	emp_id: string | null;
-	role: 'admin' | 'user';
+	role: string; // Will hold the role NAME from the join
+	role_id: number | null; // Will hold the role ID
 	department_id: number | null;
 	position_id: number | null;
 	department_name: string | null;
@@ -29,27 +36,24 @@ type User = {
 };
 
 /**
- * Load all users, departments, and positions from the database.
+ * Load all users, departments, positions, and roles from the database.
  * This page is only accessible by admins.
  */
 export const load: PageServerLoad = async ({ locals }) => {
-	// Authorization check
-	if (locals.user?.role !== 'admin') {
-		throw error(403, {
-			message: `Forbidden: Your current role is '${locals.user?.role}'. You do not have permission to access this page.`
-		});
-	}
 
 	try {
-		// Fetch users with department and position names
+		// Fetch users with department, position, and role names
 		const [userRows] = await pool.execute<User[]>(`
             SELECT
-                u.id, u.username, u.email, u.full_name, u.emp_id, u.role, u.created_at,
+                u.id, u.username, u.email, u.full_name, u.emp_id, u.created_at,
+                r.name as role,
+                u.role_id,
                 u.department_id, d.name as department_name,
                 u.position_id, p.name as position_name
             FROM users u
             LEFT JOIN departments d ON u.department_id = d.id
             LEFT JOIN positions p ON u.position_id = p.id
+            LEFT JOIN roles r ON u.role_id = r.id
             ORDER BY u.created_at DESC
         `);
 
@@ -63,10 +67,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			'SELECT id, name FROM positions ORDER BY name ASC'
 		);
 
+		// Fetch all roles
+		const [roleRows] = await pool.execute<Role[]>('SELECT id, name FROM roles ORDER BY name ASC');
+
 		return {
 			users: userRows,
 			departments: departmentRows,
-			positions: positionRows
+			positions: positionRows,
+			roles: roleRows
 		};
 	} catch (err) {
 		console.error('Failed to load data:', err);
@@ -86,12 +94,12 @@ export const actions: Actions = {
 		const email = data.get('email')?.toString();
 		const full_name = data.get('full_name')?.toString();
 		const password = data.get('password')?.toString();
-		const role = data.get('role')?.toString() as 'admin' | 'user';
+		const role_id = data.get('role_id')?.toString();
 		const department_id = data.get('department_id')?.toString();
 		const position_id = data.get('position_id')?.toString();
 		const emp_id = data.get('emp_id')?.toString();
 
-		if (!username || !email || !full_name || !password || !role) {
+		if (!username || !email || !full_name || !password || !role_id) {
 			return fail(400, { success: false, message: 'Please fill in all required fields.' });
 		}
 		if (password.length < 6) {
@@ -103,14 +111,14 @@ export const actions: Actions = {
 			const password_hash = await bcrypt.hash(password, salt);
 
 			await pool.execute(
-				`INSERT INTO users (username, email, full_name, password_hash, role, department_id, position_id, emp_id)
+				`INSERT INTO users (username, email, full_name, password_hash, role_id, department_id, position_id, emp_id)
 				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					username,
 					email,
 					full_name,
 					password_hash,
-					role,
+					role_id,
 					department_id || null, // Convert empty string to NULL
 					position_id || null, // Convert empty string to NULL
 					emp_id || null
@@ -144,16 +152,16 @@ export const actions: Actions = {
 		const email = data.get('email')?.toString();
 		const full_name = data.get('full_name')?.toString();
 		const password = data.get('password')?.toString();
-		const role = data.get('role')?.toString() as 'admin' | 'user';
+		const role_id = data.get('role_id')?.toString();
 		const department_id = data.get('department_id')?.toString();
 		const position_id = data.get('position_id')?.toString();
 		const emp_id = data.get('emp_id')?.toString();
 
-		if (!id || !username || !email || !full_name || !role) {
+		if (!id || !username || !email || !full_name || !role_id) {
 			return fail(400, { success: false, message: 'Please fill in all required fields.' });
 		}
 
-		if (id === '1' && (role !== 'admin' || locals.user.id.toString() !== id)) {
+		if (id === '1' && role_id !== '1') {
 			return fail(403, {
 				success: false,
 				message: 'Cannot change the role of the primary admin account.'
@@ -162,12 +170,12 @@ export const actions: Actions = {
 
 		try {
 			let query =
-				'UPDATE users SET username = ?, email = ?, full_name = ?, role = ?, department_id = ?, position_id = ?, emp_id = ?';
+				'UPDATE users SET username = ?, email = ?, full_name = ?, role_id = ?, department_id = ?, position_id = ?, emp_id = ?';
 			const params: (string | number | null)[] = [
 				username,
 				email,
 				full_name,
-				role,
+				parseInt(role_id),
 				department_id ? parseInt(department_id) : null,
 				position_id ? parseInt(position_id) : null,
 				emp_id || null
