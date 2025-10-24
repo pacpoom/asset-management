@@ -12,6 +12,9 @@ type Menu = RowDataPacket & {
     parent_id: number | null;
     permission_name: string | null;
     order: number;
+    // Added for display logic in Svelte component:
+    children?: Menu[]; 
+    level?: number;
 };
 
 type Permission = RowDataPacket & {
@@ -24,8 +27,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     checkPermission(locals, 'manage settings');
 
     try {
+        // We fetch a flat list of all menus here, which is sufficient for the svelte page to build the hierarchy for display.
         const [menuRows] = await pool.execute<Menu[]>(
-            `SELECT id, title, icon, route, parent_id, permission_name, \`order\` FROM menus ORDER BY \`order\` ASC, title ASC`
+            `SELECT id, title, icon, route, parent_id, permission_name, \`order\` FROM menus ORDER BY parent_id ASC, \`order\` ASC, title ASC`
         );
         const [permissionRows] = await pool.execute<Permission[]>(
             `SELECT name FROM permissions ORDER BY name ASC`
@@ -50,22 +54,37 @@ export const actions: Actions = {
         const title = data.get('title')?.toString();
         const icon = data.get('icon')?.toString() || null;
         const route = data.get('route')?.toString() || null;
-        const parent_id = data.get('parent_id')?.toString();
+        const parent_id_raw = data.get('parent_id')?.toString();
         const permission_name = data.get('permission_name')?.toString();
-        const order = data.get('order')?.toString();
+        const order_raw = data.get('order')?.toString();
+        
+        // Handle parent_id: if 'null' string is passed, set to null, otherwise parse as int
+        const parent_id = parent_id_raw && parent_id_raw !== 'null' ? parseInt(parent_id_raw, 10) : null;
+        const order = order_raw ? parseInt(order_raw, 10) : 0;
 
-        if (!title || !order) {
+        if (!title || !order_raw) {
             return fail(400, { success: false, message: 'Title and Order are required.' });
         }
+
+        // Rule: If it has a parent, the route must be null (it's a grouping menu)
+        const finalRoute = parent_id !== null ? null : route;
         
+        // Rule: Prevent setting self as parent
+        if (id && parent_id && parseInt(id, 10) === parent_id) {
+            return fail(400, { success: false, message: 'Menu cannot be its own parent.' });
+        }
+        
+        // Rule: Prevent setting a child as a parent of its ancestor (not strictly necessary with one level, but good practice)
+        // This is complex to check in SQL and is mostly handled by the Svelte UI filtering `rootMenus`
+
         try {
             const params = [
                 title,
                 icon,
-                route,
-                parent_id ? parseInt(parent_id, 10) : null,
+                finalRoute,
+                parent_id,
                 permission_name || null,
-                parseInt(order, 10)
+                order
             ];
 
             if (id) {
@@ -97,16 +116,36 @@ export const actions: Actions = {
         if (!id) {
             return fail(400, { success: false, message: 'Invalid menu ID.' });
         }
+        
+        const connection = await pool.getConnection();
 
         try {
-            await pool.execute('DELETE FROM menus WHERE id = ?', [id]);
-            return { success: true, message: 'Menu deleted successfully.' };
+            await connection.beginTransaction();
+            const menuId = parseInt(id, 10);
+            
+            // 1. Delete all sub-menus (children) first
+            await connection.execute('DELETE FROM menus WHERE parent_id = ?', [menuId]);
+
+            // 2. Delete the parent menu itself
+            const [result] = await connection.execute('DELETE FROM menus WHERE id = ?', [menuId]);
+
+            await connection.commit();
+            
+            if ((result as any).affectedRows === 0) {
+                 return fail(404, { success: false, message: 'Menu not found.' });
+            }
+
+            return { success: true, message: 'Menu and its sub-menus deleted successfully.' };
         } catch (err: any) {
+             await connection.rollback();
             console.error('Error deleting menu:', err);
+            // This specific error should not happen after deleting children, but keep for general safety.
             if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-                return fail(409, { success: false, message: 'Cannot delete menu. It is a parent to other menu items.' });
+                return fail(409, { success: false, message: 'Cannot delete menu. It is still referenced by other database records.' });
             }
             return fail(500, { success: false, message: 'Failed to delete menu.' });
+        } finally {
+             connection.release();
         }
     }
 };

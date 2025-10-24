@@ -3,15 +3,37 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutData } from './$types';
 	import { page, navigating } from '$app/stores';
+	import { slide } from 'svelte/transition';
 
 	// Svelte 5 runes: Define props and reactive state
 	const { data, children } = $props<{ data: LayoutData; children: unknown }>();
-	
+	type Menu = LayoutData['menus'][0]; // Get the menu type from LayoutData
+
 	// สถานะสำหรับเมนูมือถือ (ซ้าย/ขวา)
 	let isSidebarOpen = $state(false);
-	
-	// สถานะใหม่สำหรับยุบเมนูบน Desktop (เปิด/ปิด)
-	let isSidebarCollapsed = $state(false); 
+
+	// สถานะสำหรับยุบเมนูบน Desktop (เปิด/ปิด)
+	let isSidebarCollapsed = $state(false);
+
+	// --- 1. REPLACED State for collapsible sub-menus ---
+	// Remove old state:
+	// let openMenuId = $state<number | null>(null);
+	// let openSubMenuId = $state<number | null>(null);
+
+	// Add new state to handle infinite levels
+	let openMenuIds = $state(new Set<number>());
+	let isAdminMenuOpen = $state(false);
+
+	// Function to toggle *any* menu ID
+	function toggleMenu(id: number) {
+		const newSet = new Set(openMenuIds); // Create a new set for reactivity
+		if (newSet.has(id)) {
+			newSet.delete(id);
+		} else {
+			newSet.add(id);
+		}
+		openMenuIds = newSet; // Re-assign the state
+	}
 
 	// Close sidebar on navigation change using $effect rune
 	$effect(() => {
@@ -29,7 +51,7 @@
 			users: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />`,
 			roles: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path>`,
 			menus: `<path d="M4 6h16M4 12h16M4 18h16"></path>`,
-			settings: `<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>`
+			settings: `<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82-.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>`
 		};
 		const path = iconName ? icons[iconName] : '<circle cx="12" cy="12" r="10"></circle>'; // Default circle icon
 		return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">${path}</svg>`;
@@ -43,6 +65,79 @@
 		return $page.url.pathname.startsWith(href);
 	}
 </script>
+
+<!-- --- 2. MOVED SNIPPET TO HERE (Outside <script>) --- -->
+{#snippet menuList(menus: Menu[], level: number)}
+	<ul class="space-y-1 {level > 0 ? 'pl-5 pt-1' : ''}">
+		{#each menus as menu}
+			{#if !menu.children || menu.children.length === 0}
+				<!-- Leaf Item (No children) -->
+				<li>
+					<a
+						href={menu.route || '#'}
+						class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150
+						{isLinkActive(menu.route)
+							? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+							: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
+						focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+						title={menu.title}
+					>
+						{@html getIcon(menu.icon)}
+						<span class="whitespace-nowrap overflow-hidden font-medium transition-all duration-100"
+							>{menu.title}</span
+						>
+					</a>
+				</li>
+			{:else}
+				<!-- Parent Item (Has children) -->
+				<li class="space-y-1">
+					<button
+						type="button"
+						onclick={() => toggleMenu(menu.id)}
+						class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors duration-150
+						text-gray-600 hover:bg-gray-100 hover:text-gray-900
+						focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+						title={menu.title}
+					>
+						<div class="flex items-center gap-3">
+							{@html getIcon(menu.icon)}
+							<span
+								class="whitespace-nowrap overflow-hidden font-medium transition-all duration-100"
+								>{menu.title}</span
+							>
+						</div>
+						<!-- Chevron Icon -->
+						<svg
+							class="h-4 w-4 flex-shrink-0 transition-transform duration-200 {openMenuIds.has(
+								menu.id
+							)
+								? 'rotate-90'
+								: 'rotate-0'}"
+							xmlns="http://www.w3.org/2000/svg"
+							width="24"
+							height="24"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="m9 18 6-6-6-6" />
+						</svg>
+					</button>
+
+					<!-- Recursive Call -->
+					{#if openMenuIds.has(menu.id)}
+						<div transition:slide={{ duration: 200 }}>
+							{@render menuList(menu.children, level + 1)}
+						</div>
+					{/if}
+				</li>
+			{/if}
+		{/each}
+	</ul>
+{/snippet}
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
@@ -63,161 +158,233 @@
 
 		<!-- Sidebar (Fixed on Desktop, Sliding on Mobile, Collapsible on Desktop) -->
 		<aside
-			class="fixed inset-y-0 left-0 z-30 flex transform flex-col border-r border-gray-200 bg-white p-4 transition-all duration-300 ease-in-out 
-			{isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-			lg:translate-x-0 
-			{isSidebarCollapsed ? 'lg:w-20' : 'lg:w-64'}" 
+			class="fixed inset-y-0 left-0 z-30 flex transform flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out
+			{isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+			lg:translate-x-0
+			{isSidebarCollapsed ? 'lg:w-0 lg:p-0' : 'lg:w-64 lg:p-4'} overflow-hidden"
 			aria-expanded={!isSidebarCollapsed}
 		>
-			<!-- Logo/Brand (Hidden on Collapse) -->
-			<div class="mb-8 flex items-center gap-3 px-2">
-				<div class="flex h-10 w-10 items-center justify-center rounded-lg">
-					<!-- Assume logo.png is served from static/ -->
-					<img src="/logo.png" alt="Asset Control Logo" class="h-8 w-8 object-contain" />
+			<!-- INNER SIDEBAR CONTENT: ซ่อนเนื้อหาทั้งหมดเมื่อเมนูถูกซ่อนบน Desktop (isSidebarCollapsed=true) -->
+			<div class:hidden={isSidebarCollapsed && !isSidebarOpen} class="flex h-full flex-col">
+				<!-- Logo/Brand -->
+				<div class="mb-8 flex items-center gap-3 px-2">
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg">
+						<!-- Assume logo.png is served from static/ -->
+						<img src="/logo.png" alt="Asset Control Logo" class="h-8 w-8 object-contain" />
+					</div>
+					<span
+						class="whitespace-nowrap overflow-hidden text-xl font-bold text-gray-900 transition-all duration-100"
+						>Asset Control</span
+					>
 				</div>
-				<span class:hidden={isSidebarCollapsed} class="text-xl font-bold text-gray-900 whitespace-nowrap overflow-hidden transition-all duration-100">Asset Control</span>
-			</div>
 
-			<!-- DYNAMIC Navigation Menu -->
-			<nav class="flex-grow">
-				<ul class="space-y-2">
-					{#each data.menus as menu}
-						{#if !menu.children || menu.children.length === 0}
-							<!-- Regular Menu Item -->
-							<li>
-								<a
-									href={menu.route || '#'}
-									class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150
-									{isLinkActive(menu.route)
-										? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
-									focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-									title={menu.title}
-								>
-									{@html getIcon(menu.icon)}
-									<span class:hidden={isSidebarCollapsed} class="font-medium whitespace-nowrap overflow-hidden transition-all duration-100">{menu.title}</span>
-								</a>
-							</li>
-						{:else}
-							<!-- Menu with Sub-items -->
-							<li class="space-y-2">
-								<span class:hidden={isSidebarCollapsed} class="px-3 text-xs font-semibold uppercase text-gray-400 whitespace-nowrap overflow-hidden transition-all duration-100">{menu.title}</span>
-								<!-- หากยุบเมนูหลักจะไม่แสดง Sub-menu เพื่อลดความซับซ้อน -->
-								{#if !isSidebarCollapsed}
-									<ul class="space-y-1 pl-2">
-										{#each menu.children as subMenu}
-											<li>
-												<a
-													href={subMenu.route || '#'}
-													class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150
-													{isLinkActive(subMenu.route)
-														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
-													focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-													title={subMenu.title}
-												>
-													<!-- ใช้ไอคอนเดิมหรือใช้จุดแทนหากไม่มีไอคอนเฉพาะ -->
-													{@html getIcon(subMenu.icon)} 
-													<span class="font-medium whitespace-nowrap overflow-hidden transition-all duration-100">{subMenu.title}</span>
-												</a>
-											</li>
-										{/each}
-									</ul>
-								{/if}
-							</li>
-						{/if}
-					{/each}
+				<!-- DYNAMIC Navigation Menu -->
+				<nav class="flex-grow">
+					<!-- --- 3. REPLACE OLD LOOP WITH NEW RECURSIVE SNIPPET --- -->
+					{@render menuList(data.menus, 0)}
 
-					<!-- Manually add System Management for admin -->
+					<!-- Manually add System Management for admin (BONUS: Make collapsible) -->
 					{#if data.user.role === 'admin'}
-						<li class="space-y-2 pt-4 border-t mt-4 border-gray-200">
-							<span class:hidden={isSidebarCollapsed} class="px-3 text-xs font-semibold uppercase text-gray-400 whitespace-nowrap overflow-hidden transition-all duration-100">System Management</span>
-							{#if !isSidebarCollapsed}
-							<ul class="space-y-1 pl-2">
-								<li>
-									<a href="/roles" class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/roles') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Roles & Permissions">
-										{@html getIcon('roles')}
-										<span class="font-medium">Roles & Permissions</span>
-									</a>
-								</li>
-								<li>
-									<a href="/permissions" class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/permissions') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Permissions">
-										{@html getIcon('settings')}
-										<span class="font-medium">Permissions</span>
-									</a>
-								</li>
-								<li>
-									<a href="/menus" class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/menus') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Menu Management">
-										{@html getIcon('menus')}
-										<span class="font-medium">Menu Management</span>
-									</a>
-								</li>
-							</ul>
+						<li class="mt-4 border-t border-gray-200 pt-4 space-y-1 list-none">
+							<button
+								type="button"
+								onclick={() => (isAdminMenuOpen = !isAdminMenuOpen)}
+								class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors duration-150 text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+							>
+								<span
+									class="whitespace-nowrap overflow-hidden px-0 text-xs font-semibold uppercase text-gray-400 transition-all duration-100"
+									>System Management</span
+								>
+								<svg
+									class="h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-200 {isAdminMenuOpen
+										? 'rotate-90'
+										: 'rotate-0'}"
+									xmlns="http://www.w3.org/2000/svg"
+									width="24"
+									height="24"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<path d="m9 18 6-6-6-6" />
+								</svg>
+							</button>
+
+							{#if isAdminMenuOpen}
+								<ul class="space-y-1 pl-5 pt-1" transition:slide>
+									<li>
+										<a
+											href="/roles"
+											class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive(
+												'/roles'
+											)
+												? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+											title="Roles & Permissions"
+										>
+											{@html getIcon('roles')}
+											<span class="font-medium">Roles & Permissions</span>
+										</a>
+									</li>
+									<li>
+										<a
+											href="/permissions"
+											class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive(
+												'/permissions'
+											)
+												? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+											title="Permissions"
+										>
+											{@html getIcon('settings')}
+											<span class="font-medium">Permissions</span>
+										</a>
+									</li>
+									<li>
+										<a
+											href="/menus"
+											class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive(
+												'/menus'
+											)
+												? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+											title="Menu Management"
+										>
+											{@html getIcon('menus')}
+											<span class="font-medium">Menu Management</span>
+										</a>
+									</li>
+								</ul>
 							{/if}
 						</li>
 					{/if}
-				</ul>
-			</nav>
+				</nav>
 
-			<!-- User Info Footer (Hidden on Collapse, except for the Avatar) -->
-			<div class="mt-auto border-t border-gray-200 pt-4">
-				<div class="flex items-center gap-3">
-					<div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white shadow-md flex-shrink-0">
-						{data.user.email.substring(0, 2).toUpperCase()}
-					</div>
-					<div class:hidden={isSidebarCollapsed} class="overflow-hidden transition-all duration-100">
-						<p class="truncate text-sm font-semibold text-gray-800">{data.user.email}</p>
-						<form method="POST" action="/login?/logout" class="block">
-							<button type="submit" class="text-xs text-red-500 hover:underline focus:outline-none focus:ring-1 focus:ring-red-500 rounded-sm">Logout</button>
-						</form>
+				<!-- User Info Footer (Hidden on Collapse, except for the Avatar) -->
+				<div class="mt-auto border-t border-gray-200 pt-4">
+					<div class="flex items-center gap-3">
+						<div
+							class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white shadow-md"
+						>
+							{data.user.email.substring(0, 2).toUpperCase()}
+						</div>
+						<div class="overflow-hidden transition-all duration-100">
+							<p class="truncate text-sm font-semibold text-gray-800">{data.user.email}</p>
+							<form method="POST" action="/login?/logout" class="block">
+								<button
+									type="submit"
+									class="rounded-sm text-xs text-red-500 hover:underline focus:outline-none focus:ring-1 focus:ring-red-500"
+									>Logout</button
+								>
+							</form>
+						</div>
 					</div>
 				</div>
 			</div>
+			<!-- END INNER SIDEBAR CONTENT -->
 		</aside>
 
 		<!-- Main Content Area -->
-		<div class="flex flex-1 flex-col transition-all duration-300 ease-in-out 
-			{isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}">
-			
+		<div
+			class="flex flex-1 flex-col transition-all duration-300 ease-in-out
+			{isSidebarCollapsed ? 'lg:pl-0' : 'lg:pl-64'}"
+		>
 			<!-- Desktop Header/Toggle Button -->
-			<header class="hidden sticky top-0 z-10 h-16 items-center border-b border-gray-200 bg-white/90 px-4 backdrop-blur-sm lg:flex shadow-sm">
+			<header
+				class="sticky top-0 z-10 hidden h-16 items-center border-b border-gray-200 bg-white/90 px-4 backdrop-blur-sm shadow-sm lg:flex"
+			>
 				<!-- Toggle Sidebar Button -->
-				<button 
-					onclick={() => (isSidebarCollapsed = !isSidebarCollapsed)} 
+				<button
+					onclick={() => (isSidebarCollapsed = !isSidebarCollapsed)}
 					class="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-					title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+					title={isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
 				>
-					<span class="sr-only">{isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}</span>
+					<span class="sr-only">{isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}</span>
+					<!-- UPDATED: ใช้ไอคอน Menu/Arrow เพื่อบ่งบอกการซ่อน/แสดง -->
 					{#if isSidebarCollapsed}
-						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><path d="M15 17h5"/><path d="M17 21v-4"/><path d="M5 17h5"/><path d="M7 21v-4"/><path d="M9 17v-4"/><path d="M4 4h16v13H4z"/></svg>
+						<!-- Menu Icon (Show) -->
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="24"
+							height="24"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="h-6 w-6"
+						>
+							<line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line
+								x1="3"
+								y1="18"
+								x2="21"
+								y2="18"
+							/>
+						</svg>
 					{:else}
-						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><path d="M20 17H4"/><path d="M4 21v-4"/><path d="M20 21v-4"/><path d="M4 7h16"/><path d="M4 3v4"/><path d="M20 3v4"/><path d="M12 7v10"/></svg>
+						<!-- Arrow Left Icon (Hide) -->
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="24"
+							height="24"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="h-6 w-6"
+						>
+							<path d="M15 18l-6-6 6-6" />
+						</svg>
 					{/if}
 				</button>
 				<!-- Spacer/Additional Header Content -->
-				<div class="flex-grow"></div> 
+				<div class="flex-grow"></div>
 			</header>
 
-
 			<!-- Mobile Header (Always visible on mobile, sticky) -->
-			<header class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 backdrop-blur-sm lg:hidden shadow-sm">
-				<button 
-					onclick={() => (isSidebarOpen = true)} 
+			<header
+				class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 backdrop-blur-sm shadow-sm lg:hidden"
+			>
+				<button
+					onclick={() => (isSidebarOpen = true)}
 					class="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
 				>
 					<span class="sr-only">Open sidebar</span>
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
-						<line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						class="h-6 w-6"
+					>
+						<line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line
+							x1="3"
+							y1="18"
+							x2="21"
+							y2="18"
+						/>
 					</svg>
 				</button>
-				
+
 				<!-- Logo in the middle -->
 				<div class="flex items-center gap-2">
 					<img src="/logo.png" alt="Asset Control Logo" class="h-6 w-6 object-contain" />
 					<span class="text-lg font-bold text-gray-800">Asset Control</span>
 				</div>
-				
-				<div class="w-10"></div> <!-- Spacer to balance the hamburger button -->
+
+				<div class="w-10"></div>
+				<!-- Spacer to balance the hamburger button -->
 			</header>
 
 			<!-- Page Content with Card-like wrapper -->

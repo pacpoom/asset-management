@@ -12,7 +12,7 @@ interface Menu extends RowDataPacket {
 	parent_id: number | null;
 	permission_name: string | null;
 	order: number;
-	children?: Menu[]; // To hold nested children
+	children: Menu[]; // To hold nested children (REQUIRED for the tree structure)
 }
 
 /**
@@ -26,13 +26,23 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 
 	// First pass: add all menus to a map and initialize children array
 	menus.forEach((menu) => {
-		menu.children = [];
-		menuMap.set(menu.id, menu);
+		// Ensure a new object is created and children property is initialized
+        const menuWithChildren: Menu = {
+            ...menu,
+            children: [],
+            // Cast properties to ensure correct types (as some might be RowDataPacket defaults)
+            parent_id: menu.parent_id !== undefined ? (menu.parent_id as number | null) : null,
+            permission_name: menu.permission_name !== undefined ? (menu.permission_name as string | null) : null,
+        };
+		menuMap.set(menu.id, menuWithChildren);
 	});
+    
+    // Convert Map values back to array for the next loop (important if the map altered object references, though Svelte's behavior is often fine without this step)
+    const menusWithChildren = Array.from(menuMap.values());
 
 	// Second pass: link children to their parents
-	menus.forEach((menu) => {
-		if (menu.parent_id && menuMap.has(menu.parent_id)) {
+	menusWithChildren.forEach((menu) => {
+		if (menu.parent_id !== null && menuMap.has(menu.parent_id)) {
 			menuMap.get(menu.parent_id)?.children?.push(menu);
 		} else {
 			rootMenus.push(menu);
@@ -79,23 +89,30 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 				query = `
                     SELECT id, title, icon, route, parent_id, permission_name, \`order\`
                     FROM menus
-                    ORDER BY \`order\` ASC, title ASC
+                    ORDER BY parent_id ASC, \`order\` ASC, title ASC
                 `;
 			} else {
 				const userPermissions = locals.user.permissions;
 
 				if (userPermissions && userPermissions.length > 0) {
 					// For users with permissions, fetch public menus AND their specific menus.
+                    // IMPORTANT: We need all menus (root and children) to build the tree, even if the parent itself has no route.
 					query = `
 						SELECT id, title, icon, route, parent_id, permission_name, \`order\`
 						FROM menus
 						WHERE
 							permission_name IS NULL OR
-							permission_name IN (?)
-						ORDER BY \`order\` ASC, title ASC
+							permission_name IN (?) OR
+                            -- Also include parent menus whose children the user can see (route is null, but needed for navigation structure)
+                            id IN (
+                                SELECT DISTINCT parent_id 
+                                FROM menus 
+                                WHERE parent_id IS NOT NULL AND (permission_name IS NULL OR permission_name IN (?))
+                            )
+						ORDER BY parent_id ASC, \`order\` ASC, title ASC
 					`;
 					// Pass permissions nested in an array for `pool.query` to expand the IN (?) clause.
-					params = [userPermissions]; 
+					params = [userPermissions, userPermissions]; 
                     isDynamicInClause = true; // Flag that we need to use pool.query
 				} else {
 					// For users with NO permissions, only fetch public menus.
@@ -104,7 +121,7 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 						FROM menus
 						WHERE
 							permission_name IS NULL
-						ORDER BY \`order\` ASC, title ASC
+						ORDER BY parent_id ASC, \`order\` ASC, title ASC
 					`;
 					// No parameters are needed for this query.
 				}
