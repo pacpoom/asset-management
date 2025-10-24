@@ -3,26 +3,21 @@ services:
   # SVELTE/NODE.JS APPLICATION SERVICE
   web:
     build: .
-    # Container name changed to avoid conflicts
-    container_name: asset-control-web
+    container_name: svelte_app
     ports:
-      # External port changed from 4173 to 4174
-      - "4174:3000"
+      - "4173:3000"
     environment:
       NODE_ENV: production
-      # ORIGIN updated to match the new port
-      # ORIGIN: http://localhost:4174
-      ORIGIN: https://asset.freedomsoft.in.th
-      DB_HOST: 192.168.111.52
-      DB_PORT: 3308
+      ORIGIN: https://siambids.com # เปลี่ยนเป็น URL ที่ถูกต้องของแอปพลิเคชัน
+      # ✅ แก้ไข: เปลี่ยน DB_HOST เป็นชื่อ service 'db'
+      DB_HOST: db
       DB_USER: root
-      DB_DATABASE: asset_control_db
       DB_PASSWORD: Anji@12345
-    # --- IMPORTANT ADDITION ---
-    # Mount a volume to persist the 'uploads' directory.
-    # This ensures that uploaded images are not lost when the container is rebuilt.
+      DB_NAME: siam_db
+      DB_PORT: 3306 # Port ภายใน Container ของ MySQL คือ 3306
+    # ✅ แก้ไข: เปลี่ยนจาก bind mount เป็น named volume 'uploads_data'
     volumes:
-      - uploads-data:/app/uploads
+      - uploads_data:/app/static/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -30,11 +25,14 @@ services:
   # MYSQL DATABASE SERVICE
   db:
     image: mysql:8.0
-    # Container name changed to avoid conflicts
-    container_name: asset-control-db
+    container_name: mysql_db
+    # ⚠️ คำเตือนด้านความปลอดภัย:
+    # การใช้ MYSQL_ALLOW_EMPTY_PASSWORD หรือรหัสผ่านที่คาดเดาง่าย
+    # เป็นความเสี่ยงอย่างยิ่งเมื่อใช้งานจริง (Production)
+    # แนะนำให้ตั้ง MYSQL_ROOT_PASSWORD เป็นรหัสผ่านที่คาดเดายาก
     environment:
-      MYSQL_ROOT_PASSWORD: Anji@12345
-      MYSQL_DATABASE: asset_control_db
+      MYSQL_ROOT_PASSWORD: Anji@12345 # <--- แนะนำให้ตั้งรหัสผ่านที่คาดเดายาก
+      MYSQL_DATABASE: siam_db
     ports:
       - "3308:3306"
     volumes:
@@ -44,10 +42,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    command: --default-authentication-plugin=mysql_native_password
 
-# --- IMPORTANT ADDITION ---
-# Define the named volumes to be managed by Docker.
 volumes:
   mysql-data:
-  uploads-data:
+  # ✅ เพิ่ม: ประกาศ named volume สำหรับเก็บไฟล์ uploads
+  uploads_data:
