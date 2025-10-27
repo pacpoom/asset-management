@@ -251,8 +251,15 @@
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label for="icon" class="mb-1 block text-sm font-medium">Icon Name (Lucide Icons)</label>
-                            <input type="text" name="icon" id="icon" bind:value={selectedMenu.icon} placeholder="เช่น assets, settings, users" class="w-full rounded-md border-gray-300"/>
+                            <label for="icon" class="mb-1 block text-sm font-medium">Icon Name</label>
+                            <input type="text" name="icon" id="icon" bind:value={selectedMenu.icon} placeholder="เช่น assets, settings" class="w-full rounded-md border-gray-300"/>
+                            <!-- ADDED LINK HERE -->
+                            <p class="mt-1 text-xs text-gray-500">
+                                ใช้ชื่อจาก
+                                <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">
+                                    Lucide Icons
+                                </a>
+                            </p>
                         </div>
                          <div>
                             <label for="route" class="mb-1 block text-sm font-medium">Route</label>
