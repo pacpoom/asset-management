@@ -20,28 +20,77 @@ interface ChartOfAccount extends RowDataPacket {
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense', 'Cost of Goods Sold'];
 
 /**
- * Loads all chart of accounts records.
+ * Loads all chart of accounts records with Server-Side Filtering.
  */
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => { // Added 'url' to access search parameters
     // Permission Check: Assuming 'manage settings' or a dedicated 'manage chart of accounts' permission
     checkPermission(locals, 'manage settings');
 
-    try {
-        const [accounts] = await pool.execute<ChartOfAccount[]>(
-            `SELECT id, account_code, account_name, account_type, description, is_active
-             FROM chart_of_accounts
-             ORDER BY account_code ASC`
-        );
+    // 1. Get filter parameters from URL
+    const search = url.searchParams.get('search')?.toString()?.trim() || '';
+    const type = url.searchParams.get('type')?.toString()?.trim() || '';
+    const activeStatus = url.searchParams.get('active')?.toString()?.trim() || 'all';
 
-        // Convert is_active to boolean if it's stored as TINYINT(1)
+    let sqlQuery = `
+        SELECT id, account_code, account_name, account_type, description, is_active
+        FROM chart_of_accounts
+    `;
+    const params: (string | number)[] = [];
+    const whereClauses: string[] = [];
+
+    // 2. Add WHERE LIKE clauses based on search input
+    if (search) {
+        const likeSearch = `%${search}%`;
+        whereClauses.push(`(account_code LIKE ? OR account_name LIKE ?)`);
+        params.push(likeSearch, likeSearch);
+    }
+    
+    // 3. Add Account Type filter
+    if (type) {
+        whereClauses.push(`account_type = ?`);
+        params.push(type);
+    }
+
+    // 4. Add Active Status filter
+    if (activeStatus !== 'all') {
+        whereClauses.push(`is_active = ?`);
+        params.push(activeStatus === 'active' ? 1 : 0);
+    }
+
+    // Combine WHERE clauses
+    if (whereClauses.length > 0) {
+        sqlQuery += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    sqlQuery += ` ORDER BY account_code ASC`;
+
+    try {
+        console.log('--- Executing SQL Query for Chart of Accounts (Server Filtered) ---');
+        console.log('SQL:', sqlQuery.replace(/\s+/g, ' ').trim());
+        console.log('Parameters:', params);
+        
+        const [accounts] = await pool.execute<ChartOfAccount[]>(sqlQuery, params);
+        
+        // Data cleaning (trimming is still important)
         const formattedAccounts = accounts.map(acc => ({
             ...acc,
+            account_name: acc.account_name.trim(),
+            account_type: acc.account_type.trim(),
             is_active: Boolean(acc.is_active)
         }));
+        
+        console.log(`Query returned ${accounts.length} account(s).`);
+        if (formattedAccounts.length > 0) {
+            console.log('Sample account data (Cleaned):', formattedAccounts[0].account_code, formattedAccounts[0].account_name, formattedAccounts[0].account_type);
+        }
+        console.log(`Returning ${formattedAccounts.length} formatted account(s) to the client.`);
+
 
         return {
             accounts: formattedAccounts,
-            accountTypes: ACCOUNT_TYPES // Pass predefined types for the dropdown
+            accountTypes: ACCOUNT_TYPES, // Pass predefined types for the dropdown
+            // Also pass filter states back to the client for UI sync
+            filters: { search, type, activeStatus }
         };
     } catch (err: any) {
         console.error('Failed to load chart of accounts data:', err.message, err.stack);

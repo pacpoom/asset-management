@@ -2,12 +2,14 @@
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
-    import { invalidateAll } from '$app/navigation'; // For refreshing data
+    import { invalidateAll, goto } from '$app/navigation'; // For refreshing data and navigation
 
 	// --- Types ---
 	type ChartOfAccount = PageData['accounts'][0];
 
 	// --- Props & State (Svelte 5 Runes) ---
+	// data.accounts คือข้อมูลที่ถูกกรองแล้วจาก Server
+	// data.filters คือสถานะฟิลเตอร์ปัจจุบันที่ Server ส่งกลับมา
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let modalMode = $state<'add' | 'edit' | null>(null);
@@ -16,9 +18,12 @@
     let isSaving = $state(false);
     let globalMessage = $state<{ success: boolean, text: string, type: 'success' | 'error' } | null>(null);
     let messageTimeout: NodeJS.Timeout;
-    let filterSearch = $state('');
-    let filterType = $state('');
-    let filterActive = $state<'all' | 'active' | 'inactive'>('all');
+    
+    // --- SERVER-SIDE FILTER STATE (Derived from load data) ---
+    // ใช้ตัวแปร $state สำหรับ UI input, โดยตั้งค่าเริ่มต้นจากค่าที่ Server ส่งมา (data.filters)
+    let currentSearch = $state(data.filters.search);
+    let currentType = $state(data.filters.type);
+    let currentActive = $state(data.filters.activeStatus);
 
 	// --- Functions ---
 	function openModal(mode: 'add' | 'edit', account: ChartOfAccount | null = null) {
@@ -43,32 +48,39 @@
         messageTimeout = setTimeout(() => { globalMessage = null; }, duration);
     }
 
-    // --- Derived State for Filtering ---
-    const filteredAccounts = $derived(() => {
-        let filtered = data.accounts;
-
-        // Filter by search term (code or name)
-        if (filterSearch) {
-            const lowerSearch = filterSearch.toLowerCase();
-            filtered = filtered.filter(acc =>
-                acc.account_code.toLowerCase().includes(lowerSearch) ||
-                acc.account_name.toLowerCase().includes(lowerSearch)
-            );
+    // --- NEW: Function to apply filters by updating the URL ---
+    // การเปลี่ยนแปลง URL จะ trigger ให้ load function บน Server ทำงานซ้ำ
+    function applyFilters() {
+        const url = new URL(window.location.href);
+        
+        // Update Search
+        if (currentSearch) {
+            url.searchParams.set('search', currentSearch);
+        } else {
+            url.searchParams.delete('search');
         }
 
-        // Filter by type
-        if (filterType) {
-            filtered = filtered.filter(acc => acc.account_type === filterType);
+        // Update Type
+        if (currentType) {
+            url.searchParams.set('type', currentType);
+        } else {
+            url.searchParams.delete('type');
+        }
+        
+        // Update Active Status
+        if (currentActive !== 'all') {
+            url.searchParams.set('active', currentActive);
+        } else {
+            url.searchParams.delete('active');
         }
 
-        // Filter by active status
-        if (filterActive !== 'all') {
-            const isActive = filterActive === 'active';
-            filtered = filtered.filter(acc => acc.is_active === isActive);
-        }
+        // Navigate, which triggers the server load function
+        goto(url.toString(), { keepfocus: true, replaceState: true });
+    }
 
-        return filtered;
-    });
+    // --- REMOVED: Derived State for Filtering (Now Server-Side) ---
+    // const filteredAccounts = $derived(() => { ... }); 
+    // เราจะใช้ data.accounts โดยตรงเนื่องจากถูกกรองโดย Server แล้ว
 
 	// --- Reactive Effects (Svelte 5 Runes) ---
 	$effect.pre(() => {
@@ -77,7 +89,7 @@
             if (form.success) {
                 closeModal();
                 showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
-                invalidateAll(); // Refresh account list data
+                invalidateAll(); // Refresh account list data (which also re-runs the load function)
             } else if (form.message) {
                  // Keep modal open, show error globally
                  showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
@@ -130,6 +142,7 @@
 	</button>
 </div>
 
+
 <!-- Filters -->
 <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
     <div class="relative">
@@ -137,7 +150,8 @@
         <input
             type="search"
             id="search"
-            bind:value={filterSearch}
+            bind:value={currentSearch}
+            oninput={applyFilters}
             placeholder="ค้นหารหัสบัญชี หรือ ชื่อบัญชี..."
             class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm"
         />
@@ -147,7 +161,7 @@
     </div>
     <div>
         <label for="filterType" class="sr-only">Account Type</label>
-        <select id="filterType" bind:value={filterType} class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+        <select id="filterType" bind:value={currentType} onchange={applyFilters} class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
             <option value="">-- ทุกประเภทบัญชี --</option>
             {#each data.accountTypes as type}
                 <option value={type}>{type}</option>
@@ -156,7 +170,7 @@
     </div>
      <div>
         <label for="filterActive" class="sr-only">Status</label>
-        <select id="filterActive" bind:value={filterActive} class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+        <select id="filterActive" bind:value={currentActive} onchange={applyFilters} class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
             <option value="all">-- ทุกสถานะ --</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -179,10 +193,10 @@
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
-			{#if filteredAccounts.length === 0}
+			{#if data.accounts.length === 0}
 				<tr>
 					<td colspan="6" class="py-12 text-center text-gray-500">
-						{#if filterSearch || filterType || filterActive !== 'all'}
+						{#if data.filters.search || data.filters.type || data.filters.activeStatus !== 'all'}
                             ไม่พบข้อมูลบัญชีตามเงื่อนไขที่กำหนด
                         {:else}
                             ไม่พบข้อมูลผังบัญชี
@@ -190,7 +204,7 @@
 					</td>
 				</tr>
 			{:else}
-				{#each filteredAccounts as account (account.id)}
+				{#each data.accounts as account (account.id)}
 					<tr class="hover:bg-gray-50">
 						<td class="px-4 py-3 font-mono text-xs text-gray-700">{account.account_code}</td>
 						<td class="px-4 py-3 font-medium text-gray-900">{account.account_name}</td>
