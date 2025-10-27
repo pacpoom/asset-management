@@ -4,6 +4,7 @@
 	import type { LayoutData } from './$types';
 	import { page, navigating } from '$app/stores';
 	import { slide } from 'svelte/transition';
+	import { Toaster } from 'svelte-sonner';
 
 	// Svelte 5 runes: Define props and reactive state
 	const { data, children } = $props<{ data: LayoutData; children: unknown }>();

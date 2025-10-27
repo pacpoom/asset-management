@@ -373,10 +373,11 @@
 
 <!-- Add/Edit Product Modal -->
 {#if modalMode && selectedProduct}
-	<!-- ... existing add/edit modal structure ... -->
-    <div transition:slide class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-8 md:pt-16">
+	<!-- MODIFIED: Changed items-start to items-center and removed pt-* classes -->
+    <div transition:slide class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
 		<div class="fixed inset-0" onclick={closeModal} role="presentation"></div>
-		<div class="relative w-full max-w-4xl transform rounded-xl bg-white shadow-2xl transition-all max-h-[90vh] flex flex-col">
+        <!-- MODIFIED: Adjusted max-h for better centering with scroll -->
+		<div class="relative w-full max-w-4xl transform rounded-xl bg-white shadow-2xl transition-all max-h-[85vh] flex flex-col">
 			<div class="border-b px-6 py-4 flex-shrink-0">
 				<h2 class="text-lg font-bold text-gray-900">{modalMode === 'add' ? 'เพิ่มสินค้า/บริการใหม่' : 'แก้ไขสินค้า/บริการ'}</h2>
 			</div>
@@ -588,7 +589,8 @@
 {#if productToView}
     <div transition:fade={{ duration: 150 }} class="fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4">
         <div class="fixed inset-0" onclick={closeDetailModal} role="presentation"></div>
-        <div class="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl max-h-[90vh] flex flex-col" transition:slide={{ duration: 200 }}>
+        <!-- MODIFIED: Adjusted max-h -->
+        <div class="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl max-h-[85vh] flex flex-col" transition:slide={{ duration: 200 }}>
             <!-- Header -->
             <div class="flex items-start justify-between border-b p-4 flex-shrink-0">
                  <div>
