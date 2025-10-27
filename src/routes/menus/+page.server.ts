@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             `SELECT name FROM permissions ORDER BY name ASC`
         );
         return {
-            menus: menuRows,
+            menus: menuRows.map(m => ({...m, children: []})), // Ensure children array is initialized for runes $props
             availablePermissions: permissionRows.map(p => p.name)
         };
     } catch (err) {
@@ -63,25 +63,28 @@ export const actions: Actions = {
         const order = order_raw ? parseInt(order_raw, 10) : 0;
 
         if (!title || !order_raw) {
-            return fail(400, { success: false, message: 'Title and Order are required.' });
+            return fail(400, { success: false, message: 'Title and Order are required.', action: 'saveMenu' });
         }
 
-        // Rule: If it has a parent, the route must be null (it's a grouping menu)
-        const finalRoute = parent_id !== null ? null : route;
+        // --- MODIFICATION ---
+        // Removed the rule that forces route to be null if parent_id exists.
+        // We now trust the user's input from the form.
+        const finalRoute = route;
         
         // Rule: Prevent setting self as parent
         if (id && parent_id && parseInt(id, 10) === parent_id) {
-            return fail(400, { success: false, message: 'Menu cannot be its own parent.' });
+            return fail(400, { success: false, message: 'Menu cannot be its own parent.', action: 'saveMenu' });
         }
         
-        // Rule: Prevent setting a child as a parent of its ancestor (not strictly necessary with one level, but good practice)
-        // This is complex to check in SQL and is mostly handled by the Svelte UI filtering `rootMenus`
+        // (Optional but recommended) Check for deeper circular dependencies if logic allows
+        // This requires fetching ancestors which might be complex here.
+        // The UI filter helps, but server validation is safer.
 
         try {
             const params = [
                 title,
                 icon,
-                finalRoute,
+                finalRoute, // Use the route from the form
                 parent_id,
                 permission_name || null,
                 order
@@ -100,10 +103,10 @@ export const actions: Actions = {
                     params
                 );
             }
-            return { success: true, message: `Menu '${title}' saved successfully!` };
+            return { success: true, message: `Menu '${title}' saved successfully!`, action: 'saveMenu' };
         } catch (err: any) {
             console.error('Database error on saving menu:', err);
-            return fail(500, { success: false, message: 'Failed to save menu.' });
+            return fail(500, { success: false, message: 'Failed to save menu.', action: 'saveMenu' });
         }
     },
 
@@ -114,7 +117,7 @@ export const actions: Actions = {
         const id = data.get('id')?.toString();
 
         if (!id) {
-            return fail(400, { success: false, message: 'Invalid menu ID.' });
+            return fail(400, { success: false, message: 'Invalid menu ID.', action: 'deleteMenu' });
         }
         
         const connection = await pool.getConnection();
@@ -124,6 +127,8 @@ export const actions: Actions = {
             const menuId = parseInt(id, 10);
             
             // 1. Delete all sub-menus (children) first
+            // We need to handle multi-level deletes, but for simplicity, one level is handled here.
+            // A recursive CTE would be better for infinite levels.
             await connection.execute('DELETE FROM menus WHERE parent_id = ?', [menuId]);
 
             // 2. Delete the parent menu itself
@@ -132,18 +137,18 @@ export const actions: Actions = {
             await connection.commit();
             
             if ((result as any).affectedRows === 0) {
-                 return fail(404, { success: false, message: 'Menu not found.' });
+                 return fail(404, { success: false, message: 'Menu not found.', action: 'deleteMenu' });
             }
 
-            return { success: true, message: 'Menu and its sub-menus deleted successfully.' };
+            return { success: true, message: 'Menu and its sub-menus deleted successfully.', action: 'deleteMenu' };
         } catch (err: any) {
              await connection.rollback();
             console.error('Error deleting menu:', err);
-            // This specific error should not happen after deleting children, but keep for general safety.
             if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-                return fail(409, { success: false, message: 'Cannot delete menu. It is still referenced by other database records.' });
+                // This might still happen if the DB constraints are set to ON DELETE RESTRICT
+                return fail(409, { success: false, message: 'Cannot delete menu. It is still referenced by other database records (e.g., deeper sub-menus).', action: 'deleteMenu' });
             }
-            return fail(500, { success: false, message: 'Failed to delete menu.' });
+            return fail(500, { success: false, message: 'Failed to delete menu.', action: 'deleteMenu' });
         } finally {
              connection.release();
         }

@@ -5,7 +5,8 @@
 	// Chart.js will be loaded from a CDN via app.html, so we declare it here.
 	declare let Chart: any;
 
-	export let data: PageData;
+	// FIX: Cannot use `export let` in runes mode — use $props() instead
+	const { data } = $props<{ data: PageData }>();
 
 	let categoryChartCanvas: HTMLCanvasElement;
 	let locationChartCanvas: HTMLCanvasElement;

@@ -4,7 +4,7 @@
 	import { slide, fade } from 'svelte/transition';
 
 	// UPDATED: Menu type now includes children for nested structure display
-	type Menu = PageData['menus'][0]; 
+	type Menu = PageData['menus'][0];
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -14,77 +14,65 @@
 	let isLoading = $state(false);
     let globalMessage = $state<{ success: boolean, text: string } | null>(null);
     let messageTimeout: NodeJS.Timeout;
-    
-	function openModal(mode: 'add' | 'edit', menu: Menu | null = null) {
-		modalMode = mode;
-		if (mode === 'edit' && menu) {
-			// Ensure parent_id is null if it's the root, otherwise convert to string for select box
-			selectedMenu = { ...menu, parent_id: menu.parent_id ?? null };
-		} else {
-			// Default to root level
-			selectedMenu = { title: '', order: data.menus.length + 1, parent_id: null };
-		}
-	}
-
-	function closeModal() {
-		modalMode = null;
-		selectedMenu = null;
-	}
-
-    function showGlobalMessage(success: boolean, text: string) {
-        clearTimeout(messageTimeout);
-        globalMessage = { success, text };
-        messageTimeout = setTimeout(() => { globalMessage = null; }, 5000);
-    }
-
-	$effect(() => {
-		if (form?.success) {
-            closeModal();
-            // RELOAD data after successful form submission to reflect changes immediately
-            // Since this page uses layout.server.ts's load data, we need a full refresh.
-            // In a real SvelteKit app using `+page.server.ts` this would be `await update({ invalidate: '/menus' })`
-            // But since this is a simple page, a quick reload is acceptable.
-            setTimeout(() => window.location.reload(), 100); 
-            showGlobalMessage(true, form.message as string);
-		} else if (form?.message) {
-            showGlobalMessage(false, form.message as string);
-        }
-	});
 
 	// MODIFIED: Filter for menus that can be parents (no route, and not the current item being edited)
     // We flatten the list for use in the dropdown but ensure only grouping menus are selectable.
 	const selectableParents = $derived(
         data.menus
-            .filter(m => 
-                m.route === null && // Only menus that are groups (no route)
+            .filter(m =>
+                // m.route === null && // Allow selecting any menu as parent if needed, adjust filter as required
                 m.id !== selectedMenu?.id && // Cannot be its own parent
-                m.parent_id !== selectedMenu?.id // Cannot be a child of the current menu (prevents simple circular logic)
+                (!selectedMenu?.id || !isAncestor(m, selectedMenu.id, data.menus)) // Prevent circular dependency
             )
             .sort((a, b) => a.order - b.order)
     );
-    
+
+    // Helper function to check for circular dependencies (prevent selecting a descendant as a parent)
+    function isAncestor(potentialParent: Menu, childId: number, allMenus: Menu[]): boolean {
+        let currentParentId = potentialParent.parent_id;
+        const menuMap = new Map(allMenus.map(m => [m.id, m]));
+        while (currentParentId !== null) {
+            if (currentParentId === childId) {
+                return true; // Found circular dependency
+            }
+            const parentMenu = menuMap.get(currentParentId);
+            currentParentId = parentMenu ? parentMenu.parent_id : null;
+        }
+        return false;
+    }
+
+
     // RECURSIVE FUNCTION to render the menu rows with indentation
     // We will use a flat list for simplicity in data fetching, but render it hierarchically
     function renderMenuRows(menus: Menu[], level: number = 0) {
         const rows: Menu[] = [];
         const menuMap = new Map<number, Menu>();
-        
+
         // 1. Create a map and initialize children array
         menus.forEach(menu => {
-            menu.children = []; // Ensure children array exists for rendering logic
-            menuMap.set(menu.id, menu);
+            const menuCopy = {...menu}; // Create a copy to avoid modifying original data directly
+            menuCopy.children = []; // Ensure children array exists for rendering logic
+            menuMap.set(menuCopy.id, menuCopy);
         });
 
         // 2. Build the tree (Only for display purposes here)
         const rootItems: Menu[] = [];
-        menus.forEach(menu => {
+        menuMap.forEach(menu => {
             if (menu.parent_id && menuMap.has(menu.parent_id)) {
-                menuMap.get(menu.parent_id)?.children?.push(menu);
+                // Ensure parent exists before pushing
+                 const parent = menuMap.get(menu.parent_id);
+                 if (parent) {
+                    parent.children?.push(menu);
+                 } else {
+                     // Handle orphaned menu item if necessary, or just add to root
+                     rootItems.push(menu);
+                 }
+
             } else {
                 rootItems.push(menu);
             }
         });
-        
+
         // Sort root and children
         const sortMenus = (menuList: Menu[]) => {
             menuList.sort((a, b) => a.order - b.order);
@@ -107,11 +95,51 @@
             });
         }
         flatten(rootItems, 0);
-        
+
         return rows;
     }
-    
+
     const displayMenus = $derived(renderMenuRows(data.menus));
+
+
+	function openModal(mode: 'add' | 'edit', menu: Menu | null = null) {
+		modalMode = mode;
+		if (mode === 'edit' && menu) {
+			// Ensure parent_id is null if it's the root, otherwise use its value
+            const originalMenu = data.menus.find(m => m.id === menu.id); // Find original from data to get correct parent_id type
+			selectedMenu = { ...menu, parent_id: originalMenu?.parent_id ?? null };
+		} else {
+			// Default to root level, find max order + 1
+            const maxOrder = data.menus.length > 0 ? Math.max(...data.menus.map(m => m.order)) : 0;
+			selectedMenu = { title: '', order: maxOrder + 1, parent_id: null, route: null, icon: null, permission_name: null };
+		}
+	}
+
+	function closeModal() {
+		modalMode = null;
+		selectedMenu = null;
+	}
+
+    function showGlobalMessage(success: boolean, text: string) {
+        clearTimeout(messageTimeout);
+        globalMessage = { success, text };
+        messageTimeout = setTimeout(() => { globalMessage = null; }, 5000);
+    }
+
+	$effect.pre(() => { // Use .pre to run before DOM updates
+		if (form?.success) {
+            closeModal();
+            showGlobalMessage(true, form.message as string);
+            // Optionally force a reload or use invalidate to refresh data - reload is simpler here
+            // Note: Reloading clears component state, use invalidate for smoother UX if needed.
+             setTimeout(() => window.location.reload(), 100); // Reload after brief delay
+             form.success = false; // Reset form state after handling
+		} else if (form?.message && form.action) { // Check form.action to avoid showing unrelated messages
+            showGlobalMessage(false, form.message as string);
+             form.action = undefined; // Reset action after showing message
+        }
+	});
+
 </script>
 
 <svelte:head>
@@ -162,8 +190,8 @@
                             <div class="flex items-center" style="padding-left: {menu.level * 1.5}rem;">
                                 {#if menu.level > 0}
                                     <span class="mr-2 text-gray-400">↳</span>
-                                {:else if menu.children.length > 0}
-                                    <span class="mr-2 text-gray-400">📁</span>
+                                {:else if menu.children && menu.children.length > 0}
+                                     <span class="mr-2 text-gray-400">📁</span>
                                 {/if}
                                 {menu.title}
                             </div>
@@ -195,9 +223,9 @@
 		<div class="relative w-full max-w-lg transform rounded-xl bg-white shadow-2xl">
 			<div class="border-b px-6 py-4"><h2 class="text-lg font-bold">{modalMode === 'add' ? 'Add Menu Item' : 'Edit Menu Item'}</h2></div>
 			<form method="POST" action="?/saveMenu" use:enhance={() => { isLoading = true; return async ({ update }) => { await update(); isLoading = false; }; }}>
-				<div class="space-y-4 p-6">
+				<div class="space-y-4 p-6 max-h-[70vh] overflow-y-auto">
 					{#if modalMode === 'edit'}<input type="hidden" name="id" value={selectedMenu.id} />{/if}
-					
+
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label for="title" class="mb-1 block text-sm font-medium">Title *</label>
@@ -208,7 +236,7 @@
                             <input type="number" name="order" id="order" required bind:value={selectedMenu.order} class="w-full rounded-md border-gray-300"/>
                         </div>
                     </div>
-                    
+
                     <!-- MODIFIED: Parent Menu selection uses selectableParents -->
                     <div>
 						<label for="parent_id" class="mb-1 block text-sm font-medium">Parent Menu (สำหรับสร้าง Sub Menu)</label>
@@ -218,7 +246,7 @@
 								<option value={menu.id}>{menu.title}</option>
 							{/each}
 						</select>
-                        <p class="mt-1 text-xs text-gray-500">หากเลือก Parent Menu ช่อง Route จะถูกละเว้น (เป็นเมนูสำหรับเปิดรายการย่อย)</p>
+                        <!-- Removed descriptive text about route being ignored -->
 					</div>
 
                     <div class="grid grid-cols-2 gap-4">
@@ -228,7 +256,14 @@
                         </div>
                          <div>
                             <label for="route" class="mb-1 block text-sm font-medium">Route</label>
-                            <input type="text" name="route" id="route" bind:value={selectedMenu.route} placeholder="/assets" class="w-full rounded-md border-gray-300" disabled={!!selectedMenu.parent_id}/>
+                            <input
+                                type="text"
+                                name="route"
+                                id="route"
+                                bind:value={selectedMenu.route}
+                                placeholder="/customers"
+                                class="w-full rounded-md border-gray-300"
+                            />
                         </div>
                     </div>
 
@@ -241,6 +276,14 @@
 							{/each}
 						</select>
 					</div>
+
+                    <!-- Display form error messages inside the modal -->
+                    {#if form?.message && !form.success && form.action === 'saveMenu'}
+                        <div class="rounded-md bg-red-50 p-3 text-sm text-red-600">
+                            <p><strong>Error:</strong> {form.message}</p>
+                        </div>
+                    {/if}
+
 				</div>
 				<div class="flex justify-end gap-3 border-t bg-gray-50 p-4">
 					<button type="button" onclick={closeModal} class="rounded-md border bg-white px-4 py-2 text-sm">Cancel</button>
@@ -255,13 +298,16 @@
 
 <!-- Delete Confirmation Modal -->
 {#if menuToDelete}
+    <!-- *** FIX: Moved {@const} here, as an immediate child of the {#if} block *** -->
+    {@const childrenCount = data.menus.filter(m => m.parent_id === menuToDelete.id).length}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold">Confirm Deletion</h3>
 			<p class="mt-2 text-sm">
-                Are you sure you want to delete "<strong>{menuToDelete.title}</strong>"? 
-                {#if menuToDelete.children && menuToDelete.children.length > 0}
-                    <span class="font-bold text-red-600">This will also delete all {menuToDelete.children.length} sub-menus under it.</span>
+                Are you sure you want to delete "<strong>{menuToDelete.title}</strong>"?
+                <!-- *** FIX: Removed {@const} from inside the <p> tag *** -->
+                {#if childrenCount > 0}
+                    <span class="font-bold text-red-600"> This will also delete all {childrenCount} sub-menus under it.</span>
                 {/if}
             </p>
 			<form method="POST" action="?/deleteMenu" use:enhance={() => { return async ({ update }) => { await update(); menuToDelete = null; }; }} class="mt-6 flex justify-end gap-3">
