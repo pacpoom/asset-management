@@ -4,7 +4,8 @@
 	// Update LayoutData type if necessary (SvelteKit might infer it)
 	import type { LayoutServerData } from './$types'; // Use LayoutServerData
 	import { page, navigating } from '$app/stores';
-	import { slide } from 'svelte/transition';
+	// <<< FIX: Import 'fade' along with 'slide' >>>
+	import { slide, fade } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
 
 	// Svelte 5 runes: Define props and reactive state
@@ -17,12 +18,18 @@
 	// สถานะสำหรับยุบเมนูบน Desktop (เปิด/ปิด)
 	let isSidebarCollapsed = $state(false);
 
-	// State for collapsible sub-menus
+	// State for collapsible sub-menus (when not collapsed)
 	let openMenuIds = $state(new Set<number>());
 	let isAdminMenuOpen = $state(false);
 
-	// Function to toggle *any* menu ID
+	// <<< NEW: State for flyout menu when collapsed >>>
+	let flyoutMenuId = $state<number | null>(null);
+	let flyoutTimeout: NodeJS.Timeout | null = null; // Timeout for closing flyout
+
+	// Function to toggle *any* menu ID (only used when not collapsed)
 	function toggleMenu(id: number) {
+		if (isSidebarCollapsed) return; // Don't toggle when collapsed
+
 		const newSet = new Set(openMenuIds); // Create a new set for reactivity
 		if (newSet.has(id)) {
 			newSet.delete(id);
@@ -69,29 +76,58 @@
 	$effect(() => {
 		if ($navigating) {
 			isSidebarOpen = false;
+            // <<< NEW: Close flyout on navigation >>>
+            flyoutMenuId = null;
+            if (flyoutTimeout) clearTimeout(flyoutTimeout);
 		}
-		// When sidebar collapses, close all open submenus
+		// When sidebar collapses, close all open submenus and flyouts
 		if (isSidebarCollapsed) {
 			openMenuIds = new Set<number>();
             isAdminMenuOpen = false; // Also close admin menu
+            flyoutMenuId = null; // Close flyout
+            if (flyoutTimeout) clearTimeout(flyoutTimeout);
 		}
 	});
 
 	function isLinkActive(href: string | null) {
 		if (!href) return false;
+		// Special case for the root path '/'
 		if (href === '/') {
 			return $page.url.pathname === '/';
 		}
+		// Check if the current path starts with the href, ensuring it's not just a partial match of a longer path
+        // e.g., /users should match /users and /users/123, but not /users-roles
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
+
+    // <<< NEW: Functions to handle flyout menu visibility with delay >>>
+    function handleMouseEnter(id: number) {
+        if (!isSidebarCollapsed) return;
+        if (flyoutTimeout) clearTimeout(flyoutTimeout);
+        flyoutMenuId = id;
+    }
+
+    function handleMouseLeave() {
+        if (!isSidebarCollapsed) return;
+        if (flyoutTimeout) clearTimeout(flyoutTimeout);
+        flyoutTimeout = setTimeout(() => {
+            flyoutMenuId = null;
+        }, 200); // Delay before closing
+    }
+
 </script>
 
 <!-- Snippet for rendering menu items recursively -->
-{#snippet menuList(menus: Menu[] | undefined, level: number)}
+<!-- <<< MODIFIED: Snippet now handles both normal and flyout rendering >>> -->
+{#snippet menuList(menus: Menu[] | undefined, level: number, isFlyout: boolean = false)}
     {#if menus}
-	<ul class="space-y-1 {level > 0 ? (isSidebarCollapsed ? 'pl-0' : 'pl-5 pt-1') : ''}">
+	<ul class="space-y-1 {level > 0 && !isFlyout ? (isSidebarCollapsed ? 'pl-0 hidden' : 'pl-5 pt-1') : ''} {isFlyout ? 'min-w-[200px]' : ''}">
 		{#each menus as menu}
-			<li>
+			<li
+                class="{isSidebarCollapsed && level === 0 ? 'relative' : ''}"
+                onmouseenter={isSidebarCollapsed && level === 0 && menu.children && menu.children.length > 0 ? () => handleMouseEnter(menu.id) : null}
+                onmouseleave={isSidebarCollapsed && level === 0 && menu.children && menu.children.length > 0 ? handleMouseLeave : null}
+            >
 				{#if menu.route}
 					{#if menu.children && menu.children.length > 0 && !isSidebarCollapsed}
 						<!-- CASE: Parent with Route, NOT Collapsed -->
@@ -117,51 +153,76 @@
 							</button>
 						</div>
 					{:else}
-						<!-- CASE: Leaf with Route OR Parent with Route (Collapsed) -->
+						<!-- CASE: Leaf with Route OR Parent with Route (Collapsed/Flyout) -->
 						<a
 							href={menu.route}
-							class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 group {isLinkActive(menu.route) ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {isSidebarCollapsed ? 'justify-center' : ''}"
-							title={isSidebarCollapsed ? menu.title : ''}
+							class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 group
+                                {isLinkActive(menu.route) ? (isSidebarCollapsed || isFlyout ? 'bg-blue-100 text-blue-700' : 'bg-blue-600 text-white shadow-md hover:bg-blue-700') : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                                {isSidebarCollapsed && !isFlyout ? 'justify-center' : ''}"
+							title={isSidebarCollapsed && !isFlyout ? menu.title : ''}
 						>
-							<span class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110">
+							<span class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110">
                                 {menu.icon || (menu.children && menu.children.length > 0 ? 'folder' : 'circle')}
                             </span>
-							<span class={`whitespace-nowrap overflow-hidden font-medium transition-all duration-100 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
+							<span class={`whitespace-nowrap overflow-hidden font-medium transition-all duration-100 ${(isSidebarCollapsed && !isFlyout) ? 'lg:hidden' : ''}`}>
                                 {menu.title}
                             </span>
 						</a>
 					{/if}
 				{:else if menu.children && menu.children.length > 0}
-					<!-- CASE: Parent without Route (Toggle only) -->
-					<button
-						type="button"
-						onclick={() => toggleMenu(menu.id)}
-						disabled={isSidebarCollapsed}
-						class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors duration-150 group text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {isSidebarCollapsed ? 'justify-center cursor-default' : ''}"
-						title={isSidebarCollapsed ? menu.title : ''}
-					>
-						<div class="flex items-center gap-3">
-							<span class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110">{menu.icon || 'folder'}</span>
-							<span class={`whitespace-nowrap overflow-hidden font-medium transition-all duration-100 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>{menu.title}</span>
-						</div>
-						<svg class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'} ${isSidebarCollapsed ? 'lg:hidden' : ''}`} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="m9 18 6-6-6-6" />
-						</svg>
-					</button>
+					<!-- CASE: Parent without Route (Toggle OR Flyout Trigger) -->
+					{#if isSidebarCollapsed && !isFlyout}
+                        <!-- Flyout Trigger (Collapsed): Just show icon, hover handled by li -->
+                         <div
+                            class="flex items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 group text-gray-600 hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
+                            title={menu.title}
+                         >
+                            <span class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110">{menu.icon || 'folder'}</span>
+                         </div>
+                    {:else}
+                         <!-- Normal Toggle Button (Not Collapsed or Inside Flyout) -->
+                        <button
+                            type="button"
+                            onclick={() => toggleMenu(menu.id)}
+                            class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 transition-colors duration-150 group text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        >
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110">{menu.icon || 'folder'}</span>
+                                <span class="whitespace-nowrap overflow-hidden font-medium transition-all duration-100">{menu.title}</span>
+                            </div>
+                            <svg class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'}`} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m9 18 6-6-6-6" />
+                            </svg>
+                        </button>
+                    {/if}
 				{:else}
 					<!-- CASE: Item without Route and without Children (Render as non-interactive) -->
-					<div class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-400 {isSidebarCollapsed ? 'justify-center' : ''}" title={isSidebarCollapsed ? menu.title : ''}>
-						<span class="material-symbols-outlined h-5 w-5 flex-shrink-0">{menu.icon || 'circle'}</span>
-						<span class={`whitespace-nowrap overflow-hidden font-medium transition-all duration-100 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>{menu.title}</span>
+					<div class="flex items-center gap-3 rounded-lg px-3 py-3 text-gray-400 {isSidebarCollapsed && !isFlyout ? 'justify-center' : ''}" title={isSidebarCollapsed && !isFlyout ? menu.title : ''}>
+						<span class="material-symbols-outlined h-6 w-6 flex-shrink-0">{menu.icon || 'circle'}</span>
+						<span class={`whitespace-nowrap overflow-hidden font-medium transition-all duration-100 ${(isSidebarCollapsed && !isFlyout) ? 'lg:hidden' : ''}`}>{menu.title}</span>
 					</div>
 				{/if}
 
-				<!-- Submenu Rendering -->
-				{#if menu.children && menu.children.length > 0 && !isSidebarCollapsed && openMenuIds.has(menu.id)}
+				<!-- Submenu Rendering (Normal State) -->
+				{#if menu.children && menu.children.length > 0 && !isSidebarCollapsed && !isFlyout && openMenuIds.has(menu.id)}
 					<div transition:slide={{ duration: 200 }}>
 						{@render menuList(menu.children, level + 1)}
 					</div>
 				{/if}
+
+                <!-- <<< NEW: Flyout Submenu Rendering (Collapsed State) >>> -->
+                {#if isSidebarCollapsed && level === 0 && menu.children && menu.children.length > 0 && flyoutMenuId === menu.id}
+                     <div
+                        class="absolute left-full top-0 ml-1 z-40 rounded-md bg-white shadow-xl border border-gray-200 p-2"
+                        onmouseenter={() => handleMouseEnter(menu.id)}
+                        onmouseleave={handleMouseLeave}
+                        transition:fade={{ duration: 100 }}
+                     >
+                         <!-- Render children in flyout mode -->
+                        {@render menuList(menu.children, level + 1, true)}
+                     </div>
+                {/if}
 			</li>
 		{/each}
 	</ul>
@@ -179,7 +240,7 @@
           'FILL' 0,
           'wght' 400,
           'GRAD' 0,
-          'opsz' 20
+          'opsz' 24 /* Increased default size slightly */
         }
     </style>
 </svelte:head>
@@ -201,12 +262,12 @@
 			class="fixed inset-y-0 left-0 z-30 flex transform flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out
 			{isSidebarOpen ? 'translate-x-0 w-64 p-4' : '-translate-x-full w-64 p-4'}
 			lg:translate-x-0
-			{isSidebarCollapsed ? 'lg:w-16 lg:px-2 lg:py-4' : 'lg:w-64 lg:p-4'}"
+			{isSidebarCollapsed ? 'lg:w-20 lg:px-2 lg:py-4' : 'lg:w-64 lg:p-4'}"
 			aria-expanded={!isSidebarCollapsed}
 		>
 			<div class="flex h-full flex-col overflow-y-auto overflow-x-hidden">
 				<!-- Logo/Brand -->
-				<div class="mb-8 flex items-center gap-3 px-2 flex-shrink-0 {isSidebarCollapsed ? 'justify-center' : ''}">
+				<div class="mb-6 flex h-16 items-center gap-3 px-2 flex-shrink-0 {isSidebarCollapsed ? 'justify-center' : ''}">
                     <div class="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0">
 						<!-- *** UPDATED IMG SRC *** -->
                         {#if data.companyLogoPath}
@@ -225,16 +286,19 @@
 
 					    <!-- Manually add System Management for admin -->
 					    {#if data.user.role === 'admin'}
-						    <li class="mt-4 border-t border-gray-200 pt-4 space-y-1 list-none">
-							    <button
+						    <li
+                                class="mt-4 border-t border-gray-200 pt-4 space-y-1 list-none relative"
+                                onmouseenter={isSidebarCollapsed ? () => handleMouseEnter(-1) : null}
+                                onmouseleave={isSidebarCollapsed ? handleMouseLeave : null}
+                             >
+                                <button
 								    type="button"
-								    onclick={() => (isAdminMenuOpen = !isAdminMenuOpen)}
-                                    disabled={isSidebarCollapsed}
-								    class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors duration-150 text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {isSidebarCollapsed ? 'justify-center' : ''} {isSidebarCollapsed ? 'cursor-default' : ''}"
+								    onclick={() => { if(!isSidebarCollapsed) isAdminMenuOpen = !isAdminMenuOpen }}
+								    class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 transition-colors duration-150 text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {isSidebarCollapsed ? 'justify-center' : ''}"
                                     title={isSidebarCollapsed ? 'System Management' : ''}
 							    >
                                     <div class="flex items-center gap-3">
-                                        <span class="material-symbols-outlined h-5 w-5 flex-shrink-0 text-gray-400">admin_panel_settings</span>
+                                        <span class="material-symbols-outlined h-6 w-6 flex-shrink-0 text-gray-400">admin_panel_settings</span>
 								        <span class={`whitespace-nowrap overflow-hidden px-0 text-xs font-semibold uppercase text-gray-400 transition-all duration-100 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
 									        System Management
 								        </span>
@@ -247,47 +311,36 @@
 								    </svg>
 							    </button>
 
-							    {#if !isSidebarCollapsed && isAdminMenuOpen}
+                                {#if !isSidebarCollapsed && isAdminMenuOpen}
 								    <ul class="space-y-1 pl-5 pt-1" transition:slide>
-									    <li>
-										    <a
-											    href="/roles"
-											    class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/roles') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-											    title="Roles & Permissions"
-										    >
-                                                <span class="material-symbols-outlined h-5 w-5 flex-shrink-0">shield_person</span>
-											    <span class="font-medium">Roles & Permissions</span>
-										    </a>
-									    </li>
-									    <li>
-										    <a
-											    href="/permissions"
-											    class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/permissions') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-											    title="Permissions"
-										    >
-                                                <span class="material-symbols-outlined h-5 w-5 flex-shrink-0">verified_user</span>
-											    <span class="font-medium">Permissions</span>
-										    </a>
-									    </li>
-									    <li>
-										    <a
-											    href="/menus"
-											    class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {isLinkActive('/menus') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-											    title="Menu Management"
-										    >
-                                                <span class="material-symbols-outlined h-5 w-5 flex-shrink-0">menu</span>
-											    <span class="font-medium">Menu Management</span>
-										    </a>
-									    </li>
+									    <li><a href="/roles" class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive('/roles') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Roles & Permissions"><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">shield_person</span><span class="font-medium">Roles & Permissions</span></a></li>
+									    <li><a href="/permissions" class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive('/permissions') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Permissions"><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">verified_user</span><span class="font-medium">Permissions</span></a></li>
+									    <li><a href="/menus" class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive('/menus') ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Menu Management"><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span><span class="font-medium">Menu Management</span></a></li>
 								    </ul>
 							    {/if}
+
+                                <!-- <<< NEW: Flyout for Admin Menu >>> -->
+                                {#if isSidebarCollapsed && flyoutMenuId === -1}
+                                     <div
+                                        class="absolute left-full top-0 ml-1 z-40 rounded-md bg-white shadow-xl border border-gray-200 p-2 min-w-[200px]"
+                                        onmouseenter={() => handleMouseEnter(-1)}
+                                        onmouseleave={handleMouseLeave}
+                                        transition:fade={{ duration: 100 }}
+                                     >
+                                         <ul class="space-y-1">
+                                            <li><a href="/roles" class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive('/roles') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Roles & Permissions"><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">shield_person</span><span class="font-medium">Roles & Permissions</span></a></li>
+                                            <li><a href="/permissions" class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive('/permissions') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Permissions"><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">verified_user</span><span class="font-medium">Permissions</span></a></li>
+                                            <li><a href="/menus" class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive('/menus') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Menu Management"><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span><span class="font-medium">Menu Management</span></a></li>
+                                         </ul>
+                                     </div>
+                                {/if}
 						    </li>
 					    {/if}
 				    </nav>
                 </div>
 
 				<!-- User Info Footer -->
-				<div class="mt-auto border-t border-gray-200 pt-4 flex-shrink-0">
+				<div class="mt-auto border-t border-gray-200 pt-4 flex-shrink-0 {isSidebarCollapsed ? 'px-1' : 'px-2'}">
 					<div class="flex items-center gap-3 {isSidebarCollapsed ? 'justify-center' : ''}">
                         <div
 							class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white shadow-md"
@@ -311,7 +364,7 @@
 		<!-- Main Content Area -->
 		<div
 			class="flex flex-1 flex-col transition-all duration-300 ease-in-out
-			{isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}"
+			{isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}"
 		>
 			<!-- Desktop Header/Toggle Button -->
 			<header
