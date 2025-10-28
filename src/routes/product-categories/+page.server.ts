@@ -31,26 +31,34 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		if (searchQuery) {
 			whereClause = `WHERE name LIKE ? OR description LIKE ?`;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm); // 2 params if search
 		}
 
+        // --- Logging for Count Query ---
+		const countSql = `SELECT COUNT(*) as total FROM product_categories ${whereClause}`;
+        console.log("[DEBUG][product-categories] Count SQL:", countSql);
+        console.log("[DEBUG][product-categories] Count Params:", JSON.stringify(params));
+        // --- End Logging ---
+
 		// Get total count for pagination based on the search filter
-		const [countResult] = await pool.execute<any[]>(
-			`SELECT COUNT(*) as total FROM product_categories ${whereClause}`,
-			params
-		);
+		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / pageSize);
 
-		// Fetch categories for the current page with search filter
-		const [categoriesData] = await pool.execute<ProductCategory[]>(
-			`SELECT id, name, description
+        // --- Logging for Fetch Query ---
+        const fetchSql = `SELECT id, name, description
              FROM product_categories
              ${whereClause}
              ORDER BY name ASC
-             LIMIT ? OFFSET ?`, // Add LIMIT and OFFSET
-			[...params, pageSize, offset] // Add pageSize and offset to params
-		);
+             LIMIT ? OFFSET ?`;
+        const fetchParams = [...params, pageSize, offset]; // Params array includes search terms + pagination
+        console.log("[DEBUG][product-categories] Fetch SQL:", fetchSql);
+        console.log("[DEBUG][product-categories] Fetch Params:", JSON.stringify(fetchParams));
+        // --- End Logging ---
+
+		// Fetch categories for the current page with search filter
+        // *** SWITCHED from pool.execute to pool.query ***
+		const [categoriesData] = await pool.query<ProductCategory[]>(fetchSql, fetchParams);
 
 		// Convert RowDataPacket[] to plain object[] for serialization
 		const categories = categoriesData.map((cat) => ({
@@ -72,6 +80,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		if (err.status >= 400 && err.status < 600) {
 			throw err;
 		}
+		// Include original error message for better debugging
 		throw error(500, `Failed to load data from the server. Error: ${err.message}`);
 	}
 };
@@ -177,19 +186,20 @@ export const actions: Actions = {
 			}
 
             // Also check if it's used as a parent category
-            const [childRefs] = await connection.execute<RowDataPacket[]>(
-				`SELECT id FROM product_categories WHERE parent_category_id = ? LIMIT 1`,
-				[categoryId]
-			);
-            if (childRefs.length > 0) {
-				await connection.rollback();
-				connection.release();
-				return fail(409, {
-					action: 'deleteCategory',
-					success: false,
-					message: 'Cannot delete. This category is used as a parent for other categories.'
-				});
-			}
+            // Assuming parent_category_id column exists
+            // const [childRefs] = await connection.execute<RowDataPacket[]>(
+			// 	`SELECT id FROM product_categories WHERE parent_category_id = ? LIMIT 1`,
+			// 	[categoryId]
+			// );
+            // if (childRefs.length > 0) {
+			// 	await connection.rollback();
+			// 	connection.release();
+			// 	return fail(409, {
+			// 		action: 'deleteCategory',
+			// 		success: false,
+			// 		message: 'Cannot delete. This category is used as a parent for other categories.'
+			// 	});
+			// }
 
 
 			// Proceed with deletion if no references found
