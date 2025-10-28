@@ -1,138 +1,198 @@
-import { db } from '$lib/server/database'; // สมมติว่าคุณ import db มาจากที่นี่
-import { fail } from '@sveltejs/kit';
-import type { Actions, PageServerLoad } from './$types';
+import { fail, error } from '@sveltejs/kit';
+import type { PageServerLoad, Actions } from './$types';
+import pool from '$lib/server/database'; // Use the pool directly
+import { checkPermission } from '$lib/server/auth';
+import type { RowDataPacket } from 'mysql2';
 import fs from 'fs/promises';
 import path from 'path';
 
-// ฟังก์ชันสำหรับดึงข้อมูลบริษัทมาแสดง
-export const load: PageServerLoad = async () => {
+// Type for Company Data based on company.sql
+interface CompanyData extends RowDataPacket {
+	id: number;
+	name: string;
+	logo_path: string | null;
+	address_line_1: string | null;
+	address_line_2: string | null;
+	city: string | null;
+	state_province: string | null;
+	postal_code: string | null;
+	country: string | null;
+	phone: string | null;
+	email: string | null;
+	website: string | null;
+	tax_id: string | null;
+}
+
+// --- File Handling Helpers (Similar to assets/customers) ---
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'company'); // Specific directory
+
+async function saveLogo(logoFile: File): Promise<string | null> {
+	if (!logoFile || logoFile.size === 0) return null;
+	let uploadPath = '';
 	try {
-		// --- ADDED START ---
-		// Debug check: ตรวจสอบว่า db object ถูก import มาถูกต้องหรือไม่
-		if (!db) {
-			console.error('Database connection (db) is undefined. Please check export in src/lib/server/database.ts');
-			throw new Error('Database connection is not initialized.');
+		await fs.mkdir(UPLOADS_DIR, { recursive: true });
+		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+		// Sanitize and keep original extension
+		const ext = path.extname(logoFile.name);
+		const baseName = path.basename(logoFile.name, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+		const filename = `${baseName}-${uniqueSuffix}${ext}`;
+		uploadPath = path.join(UPLOADS_DIR, filename);
+
+		console.log(`saveLogo: Attempting to write logo to ${uploadPath}`);
+		await fs.writeFile(uploadPath, Buffer.from(await logoFile.arrayBuffer()));
+		console.log(`saveLogo: Successfully wrote logo ${uploadPath}`);
+
+		const relativePath = `/uploads/company/${filename}`; // Adjusted path
+		return relativePath;
+	} catch (uploadError: any) {
+		console.error(`saveLogo Error: ${uploadError.message}`, uploadError.stack);
+		if (uploadPath) { try { if (await fs.stat(uploadPath)) await fs.unlink(uploadPath); } catch (e) { /* ignore */ } }
+		throw new Error(`Failed to save logo file "${logoFile.name}". Reason: ${uploadError.message}`);
+	}
+}
+
+async function deleteLogo(logoPath: string | null | undefined) {
+	if (!logoPath) return;
+	try {
+		const filename = path.basename(logoPath);
+		const fullPath = path.join(UPLOADS_DIR, filename);
+		console.log(`deleteLogo: Attempting to delete ${fullPath}`);
+		await fs.unlink(fullPath);
+		console.log(`deleteLogo: Successfully deleted logo: ${fullPath}`);
+	} catch (error: any) {
+		if (error.code !== 'ENOENT') {
+			console.error(`deleteLogo Error: ${error.message}`, error.stack);
+			// Optional: Don't throw, just log
+		} else {
+			console.log(`deleteLogo: File not found, skipping delete: ${logoPath}`);
 		}
-		// --- ADDED END ---
-		const [rows] = await db.query('SELECT * FROM company WHERE id = 1 LIMIT 1');
-		const companyData = rows[0] || { id: 1, name: 'Your Company Name' }; // ให้มีค่า default ถ้ายังไม่มีข้อมูล
-		return {
-			company: companyData
-		};
-	} catch (error) {
-		console.error('Failed to load company data:', error);
-		return {
-			company: { id: 1, name: 'Error Loading Data' }
-		};
+	}
+}
+
+// --- Load Function ---
+// Fetches the single company record (ID = 1)
+export const load: PageServerLoad = async ({ locals }) => {
+	checkPermission(locals, 'manage settings'); // Ensure user has permission
+
+	try {
+		const [rows] = await pool.execute<CompanyData[]>(
+			`SELECT * FROM company WHERE id = ? LIMIT 1`,
+			[1] // Fetch the company with ID 1
+		);
+
+		let companyData: Partial<CompanyData> | null = null;
+		if (rows.length > 0) {
+			companyData = rows[0];
+		} else {
+			// Provide default empty values if no record exists yet
+			companyData = { id: 1, name: '' };
+		}
+
+		return { company: companyData };
+
+	} catch (err: any) {
+		console.error('Failed to load company data:', err.message, err.stack);
+		throw error(500, `Failed to load company data. Error: ${err.message}`);
 	}
 };
 
-// ฟังก์ชันสำหรับบันทึกข้อมูล (Action)
+// --- Actions ---
 export const actions: Actions = {
-	save: async ({ request }) => {
-		const data = await request.formData();
-		const name = data.get('name') as string;
-		const address_line_1 = data.get('address_line_1') as string;
-		const address_line_2 = data.get('address_line_2') as string;
-		const city = data.get('city') as string;
-		const state_province = data.get('state_province') as string;
-		const postal_code = data.get('postal_code') as string;
-		const country = data.get('country') as string;
-		const phone = data.get('phone') as string;
-		const email = data.get('email') as string;
-		const website = data.get('website') as string;
-		const tax_id = data.get('tax_id') as string;
-		const logoFile = data.get('logo') as File;
+	/**
+	 * Action: Save Company Details (Upsert for ID 1)
+	 */
+	save: async ({ request, locals }) => {
+		checkPermission(locals, 'manage settings');
+		const formData = await request.formData();
 
-		let logo_path: string | null = data.get('current_logo_path') as string; // ดึงค่าโลโก้เดิม
+		const data = {
+			name: formData.get('name')?.toString()?.trim() || '',
+			address_line_1: formData.get('address_line_1')?.toString()?.trim() || null,
+			address_line_2: formData.get('address_line_2')?.toString()?.trim() || null,
+			city: formData.get('city')?.toString()?.trim() || null,
+			state_province: formData.get('state_province')?.toString()?.trim() || null,
+			postal_code: formData.get('postal_code')?.toString()?.trim() || null,
+			country: formData.get('country')?.toString()?.trim() || null,
+			phone: formData.get('phone')?.toString()?.trim() || null,
+			email: formData.get('email')?.toString()?.trim() || null,
+			website: formData.get('website')?.toString()?.trim() || null,
+			tax_id: formData.get('tax_id')?.toString()?.trim() || null,
+		};
 
-		// 1. จัดการการอัปโหลดไฟล์โลโก้
-		if (logoFile && logoFile.size > 0) {
-			try {
-				// สร้างชื่อไฟล์ใหม่ที่ไม่ซ้ำกัน
-				const fileExt = path.extname(logoFile.name);
-				const newFilename = `logo-${Date.now()}${fileExt}`;
-
-				// --- MODIFICATION START ---
-				// กำหนดตำแหน่งที่จะบันทึก (ย้ายไปที่ 'uploads/company/' ใน root directory)
-				// ตรวจสอบให้แน่ใจว่าโฟลเดอร์นี้มีอยู่จริง
-				const uploadDir = path.resolve('uploads/company');
-				// --- MODIFICATION END ---
-				await fs.mkdir(uploadDir, { recursive: true });
-
-				// บันทึกไฟล์
-				const savePath = path.join(uploadDir, newFilename);
-				await fs.writeFile(savePath, Buffer.from(await logoFile.arrayBuffer()));
-
-				// อัปเดต path ที่จะเก็บลง DB (ยังคงเป็น URL path ที่เข้าถึงได้ผ่าน custom endpoint)
-				logo_path = `/uploads/company/${newFilename}`;
-
-				// (ทางเลือก) ลบไฟล์โลโก้เก่า ถ้ามี
-				const oldLogoPath = data.get('current_logo_path') as string;
-				if (oldLogoPath && oldLogoPath.startsWith('/uploads/company/')) {
-					// --- MODIFICATION START ---
-					// แก้ path ให้อ่านจาก root 'uploads' directory แทน 'static'
-					const oldFilePath = path.resolve(oldLogoPath.substring(1));
-					// --- MODIFICATION END ---
-					try {
-						await fs.unlink(oldFilePath);
-					} catch (err) {
-						// ไม่เป็นไรถ้าลบไม่ได้ (อาจจะไฟล์ไม่มีอยู่แล้ว)
-						console.warn('Could not delete old logo:', oldFilePath, err);
-					}
-				}
-			} catch (err) {
-				console.error('File upload failed:', err);
-				return fail(500, { message: 'ไม่สามารถอัปโหลดไฟล์โลโก้ได้' });
-			}
+		// Basic validation
+		if (!data.name) {
+			return fail(400, { success: false, message: 'Company Name is required.' });
 		}
 
-		// 2. อัปเดตข้อมูลลงฐานข้อมูล
+		const logoFile = formData.get('logo') as File | null;
+		const removeLogo = formData.get('remove_logo') === 'true';
+		const existingLogoPath = formData.get('existing_logo_path')?.toString() || null;
+
+		let newLogoPath: string | null = existingLogoPath; // Start with existing
+		let savedLogoTempPath: string | null = null; // Track newly saved path for rollback
+
+		const connection = await pool.getConnection();
+
 		try {
-			// --- ADDED START ---
-			// Debug check: ตรวจสอบ db อีกครั้งสำหรับ action
-			if (!db) {
-				console.error('Database connection (db) is undefined for action. Please check export in src/lib/server/database.ts');
-				throw new Error('Database connection is not initialized.');
+			await connection.beginTransaction();
+
+			// Handle logo upload/removal
+			if (logoFile && logoFile.size > 0) {
+				savedLogoTempPath = await saveLogo(logoFile);
+				newLogoPath = savedLogoTempPath; // Set path to the newly saved logo
+				// Old logo deletion happens *after* commit
+			} else if (removeLogo && existingLogoPath) {
+				newLogoPath = null; // Clear the logo path
+				// Old logo deletion happens *after* commit
 			}
-			// --- ADDED END ---
-			const sql = `
-                UPDATE company
-                SET
-                    name = ?,
-                    logo_path = ?,
-                    address_line_1 = ?,
-                    address_line_2 = ?,
-                    city = ?,
-                    state_province = ?,
-                    postal_code = ?,
-                    country = ?,
-                    phone = ?,
-                    email = ?,
-                    website = ?,
-                    tax_id = ?
-                WHERE id = 1
-            `;
-			await db.query(sql, [
-				name,
-				logo_path,
-				address_line_1,
-				address_line_2,
-				city,
-				state_province,
-				postal_code,
-				country,
-				phone,
-				email,
-				website,
-				tax_id
+
+			// Upsert logic: Try to update first, if no rows affected, insert.
+			const updateSql = `
+                UPDATE company SET
+                    name = ?, logo_path = ?, address_line_1 = ?, address_line_2 = ?,
+                    city = ?, state_province = ?, postal_code = ?, country = ?,
+                    phone = ?, email = ?, website = ?, tax_id = ?
+                WHERE id = ?`;
+			const [updateResult] = await connection.execute(updateSql, [
+				data.name, newLogoPath, data.address_line_1, data.address_line_2,
+				data.city, data.state_province, data.postal_code, data.country,
+				data.phone, data.email, data.website, data.tax_id,
+				1 // Always update ID 1
 			]);
 
-			// ส่ง logo_path ใหม่กลับไปด้วยเพื่อให้ Svelte อัปเดต UI
-			return { success: true, message: 'บันทึกข้อมูลบริษัทสำเร็จ', logo_path: logo_path };
-		} catch (dbError) {
-			console.error('Database update failed:', dbError);
-			return fail(500, { message: 'ไม่สามารถบันทึกข้อมูลลงฐานข้อมูลได้' });
+			// If update didn't affect any rows (meaning ID 1 didn't exist), insert it.
+			if ((updateResult as any).affectedRows === 0) {
+				const insertSql = `
+                    INSERT INTO company (
+                        id, name, logo_path, address_line_1, address_line_2, city, state_province,
+                        postal_code, country, phone, email, website, tax_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+				await connection.execute(insertSql, [
+					1, // Always insert ID 1
+					data.name, newLogoPath, data.address_line_1, data.address_line_2, data.city, data.state_province,
+					data.postal_code, data.country, data.phone, data.email, data.website, data.tax_id
+				]);
+			}
+
+			await connection.commit();
+
+			// Delete old logo only after successful commit
+			if (existingLogoPath && (newLogoPath !== existingLogoPath)) {
+				await deleteLogo(existingLogoPath);
+			}
+
+			return { success: true, message: 'Company details saved successfully.', logoPath: newLogoPath };
+
+		} catch (err: any) {
+			await connection.rollback();
+			// If a new logo was saved but DB failed, delete the temporary logo file
+			if (savedLogoTempPath) {
+				await deleteLogo(savedLogoTempPath);
+			}
+			console.error('Failed to save company details:', err.message, err.stack);
+			return fail(500, { success: false, message: `Failed to save company details. Error: ${err.message}` });
+		} finally {
+			connection.release();
 		}
-	}
+	},
 };

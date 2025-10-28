@@ -15,6 +15,11 @@ interface Menu extends RowDataPacket {
 	children: Menu[]; // To hold nested children (REQUIRED for the tree structure)
 }
 
+// Type for company logo data
+interface CompanyLogo extends RowDataPacket {
+    logo_path: string | null;
+}
+
 /**
  * Builds a hierarchical menu structure from a flat list of menu items.
  * @param menus The flat list of menus from the database.
@@ -36,14 +41,21 @@ function buildMenuTree(menus: Menu[]): Menu[] {
         };
 		menuMap.set(menu.id, menuWithChildren);
 	});
-    
+
     // Convert Map values back to array for the next loop (important if the map altered object references, though Svelte's behavior is often fine without this step)
     const menusWithChildren = Array.from(menuMap.values());
 
 	// Second pass: link children to their parents
 	menusWithChildren.forEach((menu) => {
 		if (menu.parent_id !== null && menuMap.has(menu.parent_id)) {
-			menuMap.get(menu.parent_id)?.children?.push(menu);
+            // Ensure parent exists before pushing
+             const parent = menuMap.get(menu.parent_id);
+             if (parent) {
+                parent.children?.push(menu);
+             } else {
+                 // Handle orphaned menu item if necessary, or just add to root
+                 rootMenus.push(menu);
+             }
 		} else {
 			rootMenus.push(menu);
 		}
@@ -58,7 +70,7 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 			}
 		});
 	};
-	
+
 	sortMenus(rootMenus);
 
 	return rootMenus;
@@ -68,6 +80,7 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 /**
  * LayoutServerLoad function to check login status and load dynamic,
  * permission-based menus for the sidebar on every page.
+ * ADDED: Also loads company logo path.
  */
 export const load: LayoutServerLoad = async ({ url, locals }) => {
 	// If user is not logged in and not on the login page, redirect them.
@@ -76,77 +89,77 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 	}
 
 	let menus: Menu[] = [];
+    let companyLogoPath: string | null = null; // Variable to store logo path
 
-	// If the user is logged in, fetch the menus they are allowed to see.
+	// If the user is logged in, fetch menus and company logo
 	if (locals.user) {
 		try {
+            // --- Fetch Menus ---
 			let query: string;
 			let params: any[] = [];
             let isDynamicInClause = false;
 
-			// Admin gets all menus, no parameters needed.
+			// Admin gets all menus
 			if (locals.user.role === 'admin') {
 				query = `
                     SELECT id, title, icon, route, parent_id, permission_name, \`order\`
                     FROM menus
                     ORDER BY parent_id ASC, \`order\` ASC, title ASC
                 `;
-			} else {
+			} else { // Fetch menus based on user permissions
 				const userPermissions = locals.user.permissions;
-
 				if (userPermissions && userPermissions.length > 0) {
-					// For users with permissions, fetch public menus AND their specific menus.
-                    // IMPORTANT: We need all menus (root and children) to build the tree, even if the parent itself has no route.
 					query = `
 						SELECT id, title, icon, route, parent_id, permission_name, \`order\`
 						FROM menus
 						WHERE
 							permission_name IS NULL OR
 							permission_name IN (?) OR
-                            -- Also include parent menus whose children the user can see (route is null, but needed for navigation structure)
                             id IN (
-                                SELECT DISTINCT parent_id 
-                                FROM menus 
+                                SELECT DISTINCT parent_id
+                                FROM menus
                                 WHERE parent_id IS NOT NULL AND (permission_name IS NULL OR permission_name IN (?))
                             )
 						ORDER BY parent_id ASC, \`order\` ASC, title ASC
 					`;
-					// Pass permissions nested in an array for `pool.query` to expand the IN (?) clause.
-					params = [userPermissions, userPermissions]; 
-                    isDynamicInClause = true; // Flag that we need to use pool.query
-				} else {
-					// For users with NO permissions, only fetch public menus.
+					params = [userPermissions, userPermissions];
+                    isDynamicInClause = true;
+				} else { // Fetch only public menus
 					query = `
 						SELECT id, title, icon, route, parent_id, permission_name, \`order\`
 						FROM menus
-						WHERE
-							permission_name IS NULL
+						WHERE permission_name IS NULL
 						ORDER BY parent_id ASC, \`order\` ASC, title ASC
 					`;
-					// No parameters are needed for this query.
 				}
 			}
 
             let menuRows;
-            
-            // FIX: Use pool.query for the dynamic IN clause (isDynamicInClause = true) 
-            // as pool.execute does not handle array parameter expansion correctly.
             if (isDynamicInClause) {
                  [menuRows] = await pool.query<Menu[]>(query, params);
             } else {
                  [menuRows] = await pool.execute<Menu[]>(query, params);
             }
-
-
 			menus = buildMenuTree(menuRows as Menu[]);
 
+            // --- Fetch Company Logo ---
+            const [companyRows] = await pool.execute<CompanyLogo[]>(
+                `SELECT logo_path FROM company WHERE id = ? LIMIT 1`,
+                [1] // Assuming company ID is always 1
+            );
+            if (companyRows.length > 0) {
+                companyLogoPath = companyRows[0].logo_path;
+            }
+
 		} catch (err) {
-			console.error('[+layout.server.ts] Database error during menu fetch:', err);
+			console.error('[+layout.server.ts] Database error during data fetch:', err);
+            // Don't crash the layout, just log the error. Menus/logo might be missing.
 		}
 	}
 
-	return { 
+	return {
 		user: locals.user,
-		menus: menus // Pass the hierarchical menu structure to the layout
+		menus: menus,
+        companyLogoPath: companyLogoPath // Pass logo path to the layout
 	};
 };

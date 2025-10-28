@@ -77,13 +77,16 @@ async function saveFile(file: File): Promise<{ filePath: string; originalName: s
         // Attempt to clean up partially written file if it exists
         if (uploadPath) {
             try {
-                if (await fs.stat(uploadPath)) {
-                    await fs.unlink(uploadPath);
-                    console.log(`saveFile: Cleaned up partially written file ${uploadPath}`);
-                }
+                // Check if file exists before attempting unlink
+                await fs.stat(uploadPath); // This will throw if it doesn't exist
+                await fs.unlink(uploadPath);
+                console.log(`saveFile: Cleaned up partially written file ${uploadPath}`);
             } catch (cleanupError: any) {
                 // Log cleanup error but prioritize throwing the original upload error
-                console.error(`saveFile: Error cleaning up file ${uploadPath}: ${cleanupError.message}`);
+                // Ignore ENOENT (file not found) errors during cleanup
+                if (cleanupError.code !== 'ENOENT') {
+                    console.error(`saveFile: Error cleaning up file ${uploadPath}: ${cleanupError.message}`);
+                }
             }
         }
 		// Re-throw a more specific error to be caught by the action
@@ -123,7 +126,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 	try {
 		let whereClause = ' WHERE 1=1 ';
-		const params: (string | number)[] = [];
+		const params: (string | number)[] = []; // Intentionally broad type, but only strings are added for search
 
 		if (searchQuery) {
 			whereClause += ` AND (
@@ -135,23 +138,27 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 u.full_name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm); // Added one searchTerm for company_name
+			// Ensure 6 params are added if searchQuery exists
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
-		// Get total count
-		const [countResult] = await pool.execute<any[]>(
-			`SELECT COUNT(*) as total
+		// --- Logging for Count Query ---
+		const countSql = `SELECT COUNT(*) as total
              FROM customers c
              LEFT JOIN users u ON c.assigned_to_user_id = u.id
-             ${whereClause}`,
-			params
-		);
+             ${whereClause}`;
+        console.log("[DEBUG] Count SQL:", countSql);
+        console.log("[DEBUG] Count Params:", JSON.stringify(params));
+        // --- End Logging ---
+
+		// Get total count
+		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / pageSize);
 
-		// Fetch customers
-		const [customerRows] = await pool.execute<Customer[]>(
-			`SELECT
+
+        // --- Logging for Fetch Query ---
+		const fetchSql = `SELECT
                 c.id, c.name, c.company_name, c.email, c.phone, c.address, c.tax_id, c.notes, -- Fetched company_name
                 c.assigned_to_user_id, u.full_name AS assigned_user_name,
                 c.created_at, c.updated_at
@@ -159,17 +166,26 @@ export const load: PageServerLoad = async ({ url, locals }) => {
              LEFT JOIN users u ON c.assigned_to_user_id = u.id
              ${whereClause}
              ORDER BY c.created_at DESC
-             LIMIT ? OFFSET ?`,
-			[...params, pageSize, offset]
-		);
+             LIMIT ? OFFSET ?`;
+        const fetchParams = [...params, pageSize, offset];
+        console.log("[DEBUG] Fetch SQL:", fetchSql);
+        console.log("[DEBUG] Fetch Params:", JSON.stringify(fetchParams));
+        // --- End Logging ---
 
-        // Fetch documents
-        const [documentRows] = await pool.execute<CustomerDocument[]>(`
+		// Fetch customers
+        // *** SWITCHED from pool.execute to pool.query ***
+		const [customerRows] = await pool.query<Customer[]>(fetchSql, fetchParams);
+
+        // Fetch documents (No placeholders, no parameters needed)
+        const documentSql = `
             SELECT id, customer_id, file_name, file_path, uploaded_by_user_id, uploaded_at
             FROM customer_documents
             ORDER BY uploaded_at DESC
-        `);
+        `;
+        console.log("[DEBUG] Document SQL:", documentSql); // Log SQL just in case
+		const [documentRows] = await pool.execute<CustomerDocument[]>(documentSql);
 
+        // Map documents (No DB calls)
         const documentsByCustomerId = new Map<number, CustomerDocument[]>();
         documentRows.forEach(doc => {
             const list = documentsByCustomerId.get(doc.customer_id) || [];
@@ -177,11 +193,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             documentsByCustomerId.set(doc.customer_id, list);
         });
 
-		// Fetch users
-		const [userRows] = await pool.execute<User[]>(
-			'SELECT id, full_name, email FROM users ORDER BY full_name'
-		);
+		// Fetch users (No placeholders, no parameters needed)
+        const userSql = 'SELECT id, full_name, email FROM users ORDER BY full_name';
+        console.log("[DEBUG] User SQL:", userSql); // Log SQL just in case
+		const [userRows] = await pool.execute<User[]>(userSql);
 
+        // Map customers with docs (No DB calls)
         const customersWithDocs = customerRows.map(cust => ({
             ...cust,
             documents: documentsByCustomerId.get(cust.id) || []
@@ -196,11 +213,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		};
 	} catch (err: any) { // Catch specific error
 		console.error('Failed to load customers data:', err.message, err.stack);
+		// Ensure the error message includes the original reason
 		throw error(500, `Failed to load data from the server. Error: ${err.message}`);
 	}
 };
 
-// --- Actions ---
+// --- Actions --- (Keep existing actions unchanged)
 export const actions: Actions = {
 	/**
 	 * Save (Add or Edit) Customer Details

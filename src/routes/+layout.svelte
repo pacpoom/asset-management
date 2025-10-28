@@ -1,14 +1,15 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import type { LayoutData } from './$types';
+	// Update LayoutData type if necessary (SvelteKit might infer it)
+	import type { LayoutServerData } from './$types'; // Use LayoutServerData
 	import { page, navigating } from '$app/stores';
 	import { slide } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
 
 	// Svelte 5 runes: Define props and reactive state
-	const { data, children } = $props<{ data: LayoutData; children: unknown }>();
-	type Menu = LayoutData['menus'][0]; // Get the menu type from LayoutData
+	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>(); // Use LayoutServerData
+	type Menu = LayoutServerData['menus'][0]; // Get the menu type
 
 	// สถานะสำหรับเมนูมือถือ (ซ้าย/ขวา)
 	let isSidebarOpen = $state(false);
@@ -27,12 +28,11 @@
 			newSet.delete(id);
 		} else {
 			// Collapse other open menus at the same level when opening a new one
-			// Find the menu being toggled to get its parent_id
 			const currentMenu = findMenuById(data.menus, id);
 			const parentId = currentMenu?.parent_id;
 			const siblings = parentId
 				? findMenuById(data.menus, parentId)?.children
-				: data.menus; // If root level, siblings are the root menus
+				: data.menus;
 
 			if (siblings) {
 				siblings.forEach(sibling => {
@@ -48,7 +48,8 @@
 	}
 
 	// Helper function to find a menu item by ID recursively
-	function findMenuById(menus: Menu[], id: number): Menu | null {
+	function findMenuById(menus: Menu[] | undefined, id: number): Menu | null {
+        if (!menus) return null; // Add check for undefined menus
 		for (const menu of menus) {
 			if (menu.id === id) {
 				return menu;
@@ -76,21 +77,18 @@
 		}
 	});
 
-	// REMOVED: getIcon function is no longer needed as we use Material Symbols class directly.
-
 	function isLinkActive(href: string | null) {
 		if (!href) return false;
 		if (href === '/') {
 			return $page.url.pathname === '/';
 		}
-		// More specific check: only match if pathname starts *exactly* with the href
-		// This prevents '/assets' matching '/assets/print' incorrectly when '/assets' is active
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 </script>
 
 <!-- Snippet for rendering menu items recursively -->
-{#snippet menuList(menus: Menu[], level: number)}
+{#snippet menuList(menus: Menu[] | undefined, level: number)}
+    {#if menus}
 	<ul class="space-y-1 {level > 0 ? (isSidebarCollapsed ? 'pl-0' : 'pl-5 pt-1') : ''}">
 		{#each menus as menu}
 			<li>
@@ -106,7 +104,6 @@
 								<span class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110">{menu.icon || 'folder'}</span>
 								<span class="whitespace-nowrap overflow-hidden font-medium transition-all duration-100">{menu.title}</span>
 							</a>
-							<!-- FIX: Changed on:click to onclick due to Svelte 5 runes mixing syntax error -->
 							<button
 								type="button"
 								onclick={event => { event.stopPropagation(); toggleMenu(menu.id); }}
@@ -159,7 +156,7 @@
 					</div>
 				{/if}
 
-				<!-- Submenu Rendering (Always check if it *should* be open) -->
+				<!-- Submenu Rendering -->
 				{#if menu.children && menu.children.length > 0 && !isSidebarCollapsed && openMenuIds.has(menu.id)}
 					<div transition:slide={{ duration: 200 }}>
 						{@render menuList(menu.children, level + 1)}
@@ -168,12 +165,13 @@
 			</li>
 		{/each}
 	</ul>
+    {/if}
 {/snippet}
 
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Asset Control</title>
+	<title>Core Business</title>
     <!-- Add styles for Material Symbols -->
     <style>
         .material-symbols-outlined {
@@ -210,10 +208,15 @@
 				<!-- Logo/Brand -->
 				<div class="mb-8 flex items-center gap-3 px-2 flex-shrink-0 {isSidebarCollapsed ? 'justify-center' : ''}">
                     <div class="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0">
-						<img src="/logo.png" alt="Asset Control Logo" class="h-8 w-8 object-contain" />
+						<!-- *** UPDATED IMG SRC *** -->
+                        {#if data.companyLogoPath}
+                            <img src={data.companyLogoPath} alt="Company Logo" class="h-8 w-8 object-contain" />
+                        {:else}
+						    <img src="/logo.png" alt="Default Logo" class="h-8 w-8 object-contain" /> <!-- Fallback logo -->
+                        {/if}
 					</div>
 					<span class={`whitespace-nowrap overflow-hidden text-xl font-bold text-gray-900 transition-all duration-100 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}>
-						Asset Control
+						Core Business
 					</span>
 				</div>
 				<div class="flex-grow">
@@ -343,15 +346,21 @@
                     <span class="material-symbols-outlined h-6 w-6">menu</span>
 				</button>
 				<div class="flex items-center gap-2">
-					<img src="/logo.png" alt="Asset Control Logo" class="h-6 w-6 object-contain" />
-					<span class="text-lg font-bold text-gray-800">Asset Control</span>
+                     <!-- *** UPDATED IMG SRC *** -->
+                    {#if data.companyLogoPath}
+                        <img src={data.companyLogoPath} alt="Company Logo" class="h-6 w-6 object-contain" />
+                    {:else}
+                        <img src="/logo.png" alt="Default Logo" class="h-6 w-6 object-contain" /> <!-- Fallback logo -->
+                    {/if}
+					<span class="text-lg font-bold text-gray-800">Core Business</span>
 				</div>
 				<div class="w-10"></div> <!-- Spacer -->
 			</header>
 
 			<!-- Page Content -->
 			<main class="flex-1 p-4 sm:p-6 lg:p-8">
-				<div class="h-full w-full rounded-xl bg-white p-4 shadow-xl sm:p-6 lg:p-8">
+                <!-- Use max-w-7xl and mx-auto for better centering and max width -->
+				<div class="h-full w-full max-w-7xl mx-auto rounded-xl bg-white p-4 shadow-xl sm:p-6 lg:p-8">
 					{@render children?.()}
 				</div>
 			</main>
@@ -363,3 +372,6 @@
 		{@render children?.()}
 	</main>
 {/if}
+
+<!-- Toaster for Notifications -->
+<Toaster richColors position="top-right" />

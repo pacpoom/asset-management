@@ -114,7 +114,7 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard - Asset Control</title>
+	<title>Dashboard - Core Business</title>
 </svelte:head>
 
 <div class="space-y-8">

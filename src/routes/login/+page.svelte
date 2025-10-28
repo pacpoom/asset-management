@@ -21,10 +21,10 @@
 			class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full"
 		>
 			<!-- ไอคอน SVG สำหรับโลโก้ -->
-			<img src="/logo.png" alt="Asset Control Logo" class="h-80 w-80 object-contain" />
+			<img src="/logo.png" alt="Core Business Logo" class="h-80 w-80 object-contain" />
 		</div>
 		<h1 class="text-3xl font-bold text-gray-900">Welcome Back</h1>
-		<p class="mt-2 text-gray-500">Login to your Asset Control System</p>
+		<p class="mt-2 text-gray-500">Login to your Core Business System</p>
 	</div>
 
 		<form method="POST" action="?/login" class="space-y-6">
