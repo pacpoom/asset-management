@@ -2,9 +2,15 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database'; // Import connection pool
 import bcrypt from 'bcrypt'; // Import bcrypt for password hashing
+import type { RowDataPacket } from 'mysql2'; // Import RowDataPacket
+
+// Type for company logo data
+interface CompanyLogo extends RowDataPacket {
+    logo_path: string | null;
+}
 
 /**
- * PageServerLoad: ตรวจสอบว่าผู้ใช้ล็อกอินอยู่หรือไม่
+ * PageServerLoad: ตรวจสอบว่าผู้ใช้ล็อกอินอยู่หรือไม่ และโหลด logo path
  * หากล็อกอินแล้ว (มี session_id) จะถูก Redirect ไปยังหน้าหลัก (/) ทันที
  */
 export const load: PageServerLoad = async ({ cookies }) => {
@@ -13,8 +19,26 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		// ถ้ามี session cookie อยู่, Redirect ไปยังหน้าหลัก
 		throw redirect(303, '/');
 	}
-	// ถ้าไม่มี session ให้แสดงหน้า login ต่อไป
-	return {};
+
+	let companyLogoPath: string | null = null;
+	try {
+		// Fetch Company Logo
+		const [companyRows] = await pool.execute<CompanyLogo[]>(
+			`SELECT logo_path FROM company WHERE id = ? LIMIT 1`,
+			[1] // Assuming company ID is always 1
+		);
+		if (companyRows.length > 0) {
+			companyLogoPath = companyRows[0].logo_path;
+		}
+	} catch (err) {
+		console.error('[login/+page.server.ts] Failed to load company logo:', err);
+		// Don't prevent login page from loading, just log the error
+	}
+
+	// ถ้าไม่มี session ให้แสดงหน้า login ต่อไป พร้อมส่ง logo path
+	return {
+		companyLogoPath // Pass logo path to the page
+	};
 };
 
 

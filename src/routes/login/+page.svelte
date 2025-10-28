@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { navigating } from '$app/stores';
-	import type { ActionData } from './$types';
+	import type { ActionData, PageData } from './$types'; // Use PageData
 
 	// `form` คือ property ที่ SvelteKit ส่งกลับมาจาก server action
-	// ใช้สำหรับแสดงข้อมูลหรือข้อความผิดพลาด
+	// `data` คือ property ที่ได้จาก load function (มี companyLogoPath)
 	export let form: ActionData;
+	export let data: PageData; // Add data prop
 
 	// `$navigating` คือ store ที่บอกสถานะการเปลี่ยนหน้า
-	// เราใช้ตรวจสอบตอนที่ form กำลังถูกส่งค่า (submitting)
 	$: isLoading = $navigating?.type === 'form';
 </script>
 
@@ -21,10 +21,15 @@
 			class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full"
 		>
 			<!-- ไอคอน SVG สำหรับโลโก้ -->
-			<img src="/logo.png" alt="Core Business Logo" class="h-80 w-80 object-contain" />
+            <!-- *** UPDATED IMG SRC *** -->
+            {#if data.companyLogoPath}
+                <img src={data.companyLogoPath} alt="Company Logo" class="h-20 w-20 object-contain" />
+            {:else}
+                <img src="/logo.png" alt="Default Logo" class="h-20 w-20 object-contain" /> <!-- Fallback -->
+            {/if}
 		</div>
 		<h1 class="text-3xl font-bold text-gray-900">Welcome Back</h1>
-		<p class="mt-2 text-gray-500">Login to your Core Business System</p>
+		<p class="mt-2 text-gray-500">Login to your Core Business System</p> <!-- Updated System Name -->
 	</div>
 
 		<form method="POST" action="?/login" class="space-y-6">
@@ -142,5 +147,5 @@
 </div>
 
 <svelte:head>
-	<title>Login - Asset Management</title>
+	<title>Login - Core Business</title> <!-- Updated Title -->
 </svelte:head>
