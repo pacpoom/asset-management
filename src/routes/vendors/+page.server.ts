@@ -35,8 +35,8 @@ interface VendorNote extends RowDataPacket {
 interface VendorDocument extends RowDataPacket {
     id: number;
     vendor_id: number;
-    file_name: string;
-    file_path: string;
+    file_name: string; // Original file name
+    file_path: string; // Relative path on server (/uploads/...)
     uploaded_by_user_id: number;
     uploaded_at: string;
 }
@@ -55,13 +55,13 @@ async function saveFile(file: File): Promise<{ filePath: string; originalName: s
 		console.log("saveFile: No file or empty file provided.");
 		return null;
 	}
-	let uploadPath = ''; 
+	let uploadPath = '';
 	try {
 		await fs.mkdir(UPLOADS_DIR, { recursive: true });
 		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
 		const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
 		const filename = `${uniqueSuffix}-${sanitizedOriginalName}`;
-		uploadPath = path.join(UPLOADS_DIR, filename); 
+		uploadPath = path.join(UPLOADS_DIR, filename);
 
 		console.log(`saveFile: Attempting to write file to ${uploadPath}`);
 		await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
@@ -74,12 +74,14 @@ async function saveFile(file: File): Promise<{ filePath: string; originalName: s
 		console.error(`saveFile: Error during file upload process for path ${uploadPath}. Error: ${uploadError.message}`, uploadError.stack);
         if (uploadPath) {
             try {
-                if (await fs.stat(uploadPath)) {
-                    await fs.unlink(uploadPath);
-                    console.log(`saveFile: Cleaned up partially written file ${uploadPath}`);
-                }
+                // Check if file exists before attempting unlink
+                await fs.stat(uploadPath); // This will throw if it doesn't exist
+                await fs.unlink(uploadPath);
+                console.log(`saveFile: Cleaned up partially written file ${uploadPath}`);
             } catch (cleanupError: any) {
-                console.error(`saveFile: Error cleaning up file ${uploadPath}: ${cleanupError.message}`);
+                if (cleanupError.code !== 'ENOENT') {
+                    console.error(`saveFile: Error cleaning up file ${uploadPath}: ${cleanupError.message}`);
+                }
             }
         }
 		throw new Error(`Failed to save uploaded file "${file.name}". Reason: ${uploadError.message}`);
@@ -108,7 +110,7 @@ async function deleteFile(filePath: string | null | undefined) {
 
 // --- Load Function ---
 export const load: PageServerLoad = async ({ url, locals }) => {
-	checkPermission(locals, 'view vendors'); // <-- PERMISSION CHANGED
+	checkPermission(locals, 'view vendors');
 
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';
@@ -132,20 +134,20 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
-		// Get total count
-		const [countResult] = await pool.execute<any[]>(
-			`SELECT COUNT(*) as total
+		// Get total count (using execute is fine here as params match placeholders)
+		const countSql = `SELECT COUNT(*) as total
              FROM vendors v
              LEFT JOIN users u ON v.assigned_to_user_id = u.id
-             ${whereClause}`,
-			params
-		);
+             ${whereClause}`;
+        console.log("[DEBUG][vendors] Count SQL:", countSql.replace(/\s+/g, ' ').trim());
+        console.log("[DEBUG][vendors] Count Params:", JSON.stringify(params));
+		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / pageSize);
 
 		// Fetch vendors
-		const [vendorRows] = await pool.execute<Vendor[]>(
-			`SELECT
+        // *** MODIFIED: Changed pool.execute to pool.query ***
+        const fetchSql = `SELECT
                 v.id, v.name, v.company_name, v.email, v.phone, v.address, v.tax_id, v.notes,
                 v.assigned_to_user_id, u.full_name AS assigned_user_name,
                 v.created_at, v.updated_at
@@ -153,16 +155,20 @@ export const load: PageServerLoad = async ({ url, locals }) => {
              LEFT JOIN users u ON v.assigned_to_user_id = u.id
              ${whereClause}
              ORDER BY v.created_at DESC
-             LIMIT ? OFFSET ?`,
-			[...params, pageSize, offset]
-		);
+             LIMIT ? OFFSET ?`;
+        const fetchParams = [...params, pageSize, offset];
+        console.log("[DEBUG][vendors] Fetch SQL:", fetchSql.replace(/\s+/g, ' ').trim());
+        console.log("[DEBUG][vendors] Fetch Params:", JSON.stringify(fetchParams));
+		const [vendorRows] = await pool.query<Vendor[]>(fetchSql, fetchParams); // <-- Line 95 changed to query
 
-        // Fetch documents
-        const [documentRows] = await pool.execute<VendorDocument[]>(`
+        // Fetch documents (using execute is fine, no dynamic params)
+        const documentSql = `
             SELECT id, vendor_id, file_name, file_path, uploaded_by_user_id, uploaded_at
             FROM vendor_documents
             ORDER BY uploaded_at DESC
-        `);
+        `;
+        console.log("[DEBUG][vendors] Document SQL:", documentSql.replace(/\s+/g, ' ').trim());
+        const [documentRows] = await pool.execute<VendorDocument[]>(documentSql);
 
         const documentsByVendorId = new Map<number, VendorDocument[]>();
         documentRows.forEach(doc => {
@@ -171,18 +177,19 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             documentsByVendorId.set(doc.vendor_id, list);
         });
 
-		// Fetch users
-		const [userRows] = await pool.execute<User[]>(
-			'SELECT id, full_name, email FROM users ORDER BY full_name'
-		);
+		// Fetch users (using execute is fine, no dynamic params)
+        const userSql = 'SELECT id, full_name, email FROM users ORDER BY full_name';
+        console.log("[DEBUG][vendors] User SQL:", userSql.replace(/\s+/g, ' ').trim());
+		const [userRows] = await pool.execute<User[]>(userSql);
 
+        // Combine data (no DB calls)
         const vendorsWithDocs = vendorRows.map(vend => ({
             ...vend,
             documents: documentsByVendorId.get(vend.id) || []
         }));
 
 		return {
-			vendors: vendorsWithDocs, // <-- CHANGED
+			vendors: vendorsWithDocs,
 			users: userRows,
 			currentPage: page,
 			totalPages,
@@ -199,7 +206,7 @@ export const actions: Actions = {
 	/**
 	 * Save (Add or Edit) Vendor Details
 	 */
-	saveVendor: async ({ request, locals }) => { // <-- ACTION RENAMED
+	saveVendor: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 		const name = data.get('name')?.toString()?.trim();
@@ -226,7 +233,7 @@ export const actions: Actions = {
 
 			if (id) {
 				// Edit
-				checkPermission(locals, 'edit vendors'); // <-- PERMISSION
+				checkPermission(locals, 'edit vendors');
 				await pool.execute(
 					`UPDATE vendors SET
                         name = ?, company_name = ?, email = ?, phone = ?, address = ?, tax_id = ?, notes = ?, assigned_to_user_id = ?, updated_at = NOW()
@@ -236,7 +243,7 @@ export const actions: Actions = {
 				return { action: 'saveVendor', success: true, message: 'Vendor updated successfully!' };
 			} else {
 				// Add
-				checkPermission(locals, 'create vendors'); // <-- PERMISSION
+				checkPermission(locals, 'create vendors');
 				const [result] = await pool.execute(
 					`INSERT INTO vendors
                         (name, company_name, email, phone, address, tax_id, notes, assigned_to_user_id, created_at, updated_at)
@@ -258,8 +265,8 @@ export const actions: Actions = {
 	/**
 	 * Delete Vendor
 	 */
-	deleteVendor: async ({ request, locals }) => { // <-- ACTION RENAMED
-		checkPermission(locals, 'delete vendors'); // <-- PERMISSION
+	deleteVendor: async ({ request, locals }) => {
+		checkPermission(locals, 'delete vendors');
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 
@@ -274,21 +281,23 @@ export const actions: Actions = {
             await connection.beginTransaction();
 
             const [docsToDelete] = await connection.execute<VendorDocument[]>(
-                'SELECT file_path FROM vendor_documents WHERE vendor_id = ?', // <-- TABLE
+                'SELECT file_path FROM vendor_documents WHERE vendor_id = ?',
                 [vendorId]
             );
 
-			await connection.execute('DELETE FROM vendors WHERE id = ?', [vendorId]); // <-- TABLE
+			await connection.execute('DELETE FROM vendors WHERE id = ?', [vendorId]);
 
             const deletePromises = docsToDelete.map(doc => deleteFile(doc.file_path));
             await Promise.all(deletePromises); // Wait for all file deletions
 
             await connection.commit();
-			throw redirect(303, '/vendors'); // <-- REDIRECT
+			// Redirect after successful deletion
+            throw redirect(303, '/vendors'); // Use redirect
 
 		} catch (error: any) {
             await connection.rollback();
-			if (error.status === 303) throw error; 
+            // Important: Re-throw redirects
+			if (error?.status === 303) throw error;
 
 			console.error(`Error deleting vendor ID ${vendorId}: ${error.message}`, error.stack);
             if (error.code === 'ER_ROW_IS_REFERENCED_2') {
@@ -304,11 +313,11 @@ export const actions: Actions = {
      * Upload Vendor Document
      */
     uploadDocument: async ({ request, locals }) => {
-        checkPermission(locals, 'upload vendor documents'); // <-- PERMISSION
+        checkPermission(locals, 'upload vendor documents');
         let savedFileData: { filePath: string; originalName: string } | null = null;
         try {
             const data = await request.formData();
-            const vendor_id = data.get('vendor_id')?.toString(); // <-- FIELD
+            const vendor_id = data.get('vendor_id')?.toString();
             const documentFile = data.get('document') as File;
 
             if (!vendor_id || !documentFile || documentFile.size === 0) {
@@ -323,7 +332,7 @@ export const actions: Actions = {
             const uploaderUserId = locals.user.id;
 
             console.log(`uploadDocument: Attempting upload for vendor ID ${vendorId}, file: ${documentFile.name}`);
-            savedFileData = await saveFile(documentFile);
+            savedFileData = await saveFile(documentFile); // Save first
 
             if (!savedFileData) {
                  throw new Error('File saving process failed unexpectedly.');
@@ -332,7 +341,7 @@ export const actions: Actions = {
             console.log(`uploadDocument: File saved, attempting DB insert for path ${savedFileData.filePath}`);
             await pool.execute(
                 `INSERT INTO vendor_documents (vendor_id, file_name, file_path, uploaded_by_user_id, uploaded_at)
-                 VALUES (?, ?, ?, ?, NOW())`, // <-- TABLE
+                 VALUES (?, ?, ?, ?, NOW())`,
                 [vendorId, savedFileData.originalName, savedFileData.filePath, uploaderUserId]
             );
             console.log(`uploadDocument: DB insert successful for ${savedFileData.originalName}`);
@@ -340,7 +349,7 @@ export const actions: Actions = {
              const [newDocResult] = await pool.execute<VendorDocument[]>(
                 `SELECT id, vendor_id, file_name, file_path, uploaded_by_user_id, uploaded_at
                  FROM vendor_documents
-                 WHERE vendor_id = ? AND file_path = ? ORDER BY id DESC LIMIT 1`, // <-- TABLE
+                 WHERE vendor_id = ? AND file_path = ? ORDER BY id DESC LIMIT 1`,
                 [vendorId, savedFileData.filePath]
              );
 
@@ -371,7 +380,7 @@ export const actions: Actions = {
      * Delete Vendor Document
      */
     deleteDocument: async ({ request, locals }) => {
-        checkPermission(locals, 'delete vendor documents'); // <-- PERMISSION
+        checkPermission(locals, 'delete vendor documents');
         const data = await request.formData();
         const document_id = data.get('document_id')?.toString();
 
@@ -380,14 +389,14 @@ export const actions: Actions = {
         }
 
         const documentId = parseInt(document_id);
-        let filePath: string | null = null; 
+        let filePath: string | null = null;
 
         try {
             const connection = await pool.getConnection();
             await connection.beginTransaction();
 
             const [docResult] = await connection.execute<VendorDocument[]>(
-                'SELECT file_path FROM vendor_documents WHERE id = ? FOR UPDATE', // <-- TABLE
+                'SELECT file_path FROM vendor_documents WHERE id = ? FOR UPDATE',
                 [documentId]
             );
 
@@ -398,13 +407,13 @@ export const actions: Actions = {
             }
             filePath = docResult[0].file_path;
 
-            await connection.execute('DELETE FROM vendor_documents WHERE id = ?', [documentId]); // <-- TABLE
+            await connection.execute('DELETE FROM vendor_documents WHERE id = ?', [documentId]);
             console.log(`deleteDocument: DB record deleted for ID ${documentId}`);
 
             await connection.commit();
             connection.release();
 
-            await deleteFile(filePath);
+            await deleteFile(filePath); // Delete file after DB commit
 
             return {
                 action: 'deleteDocument',
@@ -421,9 +430,9 @@ export const actions: Actions = {
 
 	// --- Note Actions ---
 	addNote: async ({ request, locals }) => {
-        checkPermission(locals, 'add vendor notes'); // <-- PERMISSION
+        checkPermission(locals, 'add vendor notes');
 		const data = await request.formData();
-		const vendor_id = data.get('vendor_id')?.toString(); // <-- FIELD
+		const vendor_id = data.get('vendor_id')?.toString();
 		const note = data.get('note')?.toString()?.trim();
 
 		if (!vendor_id || !note) {
@@ -433,7 +442,7 @@ export const actions: Actions = {
 
 		try {
 			const [result] = await pool.execute(
-				'INSERT INTO vendor_notes (vendor_id, note, user_id, created_at) VALUES (?, ?, ?, NOW())', // <-- TABLE
+				'INSERT INTO vendor_notes (vendor_id, note, user_id, created_at) VALUES (?, ?, ?, NOW())',
 				[parseInt(vendor_id), note, locals.user.id]
 			);
             const insertId = (result as any).insertId;
@@ -442,7 +451,7 @@ export const actions: Actions = {
                 FROM vendor_notes vn
                 JOIN users u ON vn.user_id = u.id
                 WHERE vn.id = ?
-            `, [insertId]); // <-- TABLE
+            `, [insertId]);
 			return { action: 'addNote', success: true, message: 'Note added.', newNote: newNoteResult[0] };
 		} catch (error: any) {
 			console.error(`Failed to add note for vendor ${vendor_id}: ${error.message}`, error.stack);
@@ -451,10 +460,10 @@ export const actions: Actions = {
 	},
 
     deleteNote: async ({ request, locals }) => {
-        checkPermission(locals, 'delete vendor notes'); // <-- PERMISSION
+        checkPermission(locals, 'delete vendor notes');
 		const data = await request.formData();
 		const note_id = data.get('note_id')?.toString();
-        const vendor_id = data.get('vendor_id')?.toString(); // <-- FIELD
+        const vendor_id = data.get('vendor_id')?.toString();
 
 		if (!note_id || !vendor_id) {
 			return fail(400, { action: 'deleteNote', success: false, message: 'Note ID and Vendor ID are required.' });
@@ -462,7 +471,7 @@ export const actions: Actions = {
         if (!locals.user?.id) { throw error(401, 'Unauthorized'); }
 
         try {
-            const [result] = await pool.execute('DELETE FROM vendor_notes WHERE id = ?', [note_id]); // <-- TABLE
+            const [result] = await pool.execute('DELETE FROM vendor_notes WHERE id = ?', [note_id]);
             if ((result as any).affectedRows === 0) {
                  return fail(404, { action: 'deleteNote', success: false, message: 'Note not found.' });
             }

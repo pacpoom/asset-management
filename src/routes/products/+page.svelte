@@ -233,20 +233,36 @@
 
 
 <!-- Main Header -->
-<!-- ... existing header ... -->
+<!-- *** MODIFIED: Added Export Button and Form *** -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
 		<h1 class="text-2xl font-bold text-gray-800">Products</h1>
 		<p class="mt-1 text-sm text-gray-500">จัดการรายการสินค้าและบริการ</p>
 	</div>
-	<button
-		onclick={() => openModal('add')}
-		class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-	>
-		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-		เพิ่มสินค้าใหม่
-	</button>
+    <!-- Action Buttons -->
+    <div class="flex items-center gap-2">
+        <!-- EXPORT TO CSV BUTTON -->
+		<form method="POST" action="/products/export">
+			<input type="hidden" name="search" value={searchQuery} />
+			<button
+				type="submit"
+				class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+				ส่งออกเป็น CSV
+			</button>
+		</form>
+        <!-- ADD NEW PRODUCT BUTTON -->
+        <button
+            onclick={() => openModal('add')}
+            class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            เพิ่มสินค้าใหม่
+        </button>
+    </div>
 </div>
+<!-- *** END MODIFIED *** -->
 
 
 <!-- Search Input -->
@@ -413,7 +429,22 @@
                         {#if modalMode === 'edit'}<input type="hidden" name="id" value={selectedProduct.id} />{/if}
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><label for="sku" class="mb-1 block text-sm font-medium">SKU *</label><input type="text" name="sku" id="sku" required bind:value={selectedProduct.sku} class="w-full rounded-md border-gray-300 text-sm"/></div>
+                            <!-- *** MODIFIED: SKU Input *** -->
+                            <div>
+                                <label for="sku" class="mb-1 block text-sm font-medium">SKU</label>
+                                <input
+                                    type="text"
+                                    name="sku"
+                                    id="sku"
+                                    value={modalMode === 'add' ? '(Auto-generated)' : selectedProduct.sku}
+                                    class="w-full rounded-md border-gray-300 bg-gray-100 text-sm"
+                                    readonly
+                                />
+                                {#if modalMode === 'add'}
+                                    <p class="mt-1 text-xs text-gray-500">ระบบจะสร้าง SKU ให้โดยอัตโนมัติ</p>
+                                {/if}
+                            </div>
+                            <!-- *** END MODIFIED *** -->
                             <div><label for="name" class="mb-1 block text-sm font-medium">Name *</label><input type="text" name="name" id="name" required bind:value={selectedProduct.name} class="w-full rounded-md border-gray-300 text-sm"/></div>
                         </div>
 
