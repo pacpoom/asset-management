@@ -1,0 +1,285 @@
+import { fail, error, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import pool from '$lib/server/database';
+import { checkPermission } from '$lib/server/auth';
+import type { RowDataPacket } from 'mysql2';
+import fs from 'fs/promises';
+import path from 'path';
+import mime from 'mime-types';
+
+// --- Types ---
+interface Vendor { id: number; name: string; }
+interface User { id: number; full_name: string; }
+interface Unit { id: number; name: string; symbol: string; }
+interface VendorContract { id: number; title: string; vendor_id: number; contract_number: string; } // Added Contract type
+// interface ChartOfAccount { id:number; account_code: string; account_name: string; } // No longer needed for items
+interface Product { id: number; sku: string; name: string; unit_id: number; purchase_cost: number | null; } // Added Product type
+
+interface BillPaymentItemData {
+    // account_id: number | null; // Removed account_id
+    product_id: number | null; // Added product_id
+    description: string;
+    quantity: number;
+    unit_id: number | null;
+    unit_price: number;
+    line_total: number;
+}
+
+// --- File Handling ---
+const UPLOAD_DIR = path.resolve('uploads', 'bill_payments');
+
+async function ensureUploadDir() {
+	try {
+		await fs.mkdir(UPLOAD_DIR, { recursive: true });
+	} catch (e) {
+		console.error('Failed to create upload directory:', UPLOAD_DIR, e);
+		throw new Error('Failed to create upload directory');
+	}
+}
+
+async function saveFile(file: File): Promise<{ systemName: string; originalName: string; mimeType: string | null; size: number } | null> {
+    if (!file || file.size === 0) return null;
+    let uploadPath = '';
+    try {
+        await ensureUploadDir();
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const systemName = `${uniqueSuffix}-${sanitizedOriginalName}`;
+        uploadPath = path.join(UPLOAD_DIR, systemName);
+
+        console.log(`saveFile (Bill Payment): Attempting write to ${uploadPath}`);
+        await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
+        console.log(`saveFile (Bill Payment): Successfully wrote ${uploadPath}`);
+
+        const mimeType = mime.lookup(file.name) || file.type || 'application/octet-stream';
+        return { systemName, originalName: file.name, mimeType, size: file.size };
+
+    } catch (uploadError: any) {
+        console.error(`saveFile (Bill Payment): Error saving ${uploadPath}. ${uploadError.message}`, uploadError.stack);
+        if (uploadPath) { try { if (await fs.stat(uploadPath)) await fs.unlink(uploadPath); } catch (e) {} }
+        throw new Error(`Failed to save uploaded file "${file.name}". Reason: ${uploadError.message}`);
+    }
+}
+
+async function deleteFile(systemName: string | null | undefined) {
+	if (!systemName) return;
+	try {
+		const fullPath = path.join(UPLOAD_DIR, path.basename(systemName));
+        console.log(`deleteFile (Bill Payment): Attempting delete ${fullPath}`);
+		await fs.unlink(fullPath);
+        console.log(`deleteFile (Bill Payment): Successfully deleted ${fullPath}`);
+	} catch (error: any) {
+		if (error.code !== 'ENOENT') {
+			console.error(`deleteFile (Bill Payment): Failed ${systemName}. ${error.message}`, error.stack);
+		} else {
+             console.log(`deleteFile (Bill Payment): Not found, skipping ${systemName}`);
+        }
+	}
+}
+
+
+// --- Load Function ---
+export const load: PageServerLoad = async ({ locals }) => {
+    // Requires permission to create or view payments
+    // checkPermission(locals, 'create bill payments'); // Or 'view bill payments'
+
+    try {
+        // Fetch necessary data for dropdowns
+        const [vendorRows] = await pool.execute<Vendor[]>('SELECT id, name FROM vendors ORDER BY name ASC');
+        const [unitRows] = await pool.execute<Unit[]>('SELECT id, name, symbol FROM units ORDER BY name ASC');
+        // Fetch Products instead of Accounts for line items
+        const [productRows] = await pool.execute<Product[]>(
+             `SELECT id, sku, name, unit_id, purchase_cost
+              FROM products
+              WHERE is_active = 1 -- Optionally filter for active products
+              ORDER BY sku ASC`
+        );
+         // Fetch active vendor contracts
+        const [contractRows] = await pool.execute<VendorContract[]>(
+             `SELECT id, title, vendor_id, contract_number
+              FROM vendor_contracts
+              WHERE status = 'Active'
+              ORDER BY title ASC`
+        );
+        // Maybe fetch users if 'Prepared By' needs to be selectable, otherwise use locals.user
+        // const [userRows] = await pool.execute<User[]>('SELECT id, full_name FROM users ORDER BY full_name ASC');
+
+        return {
+            vendors: vendorRows,
+            units: unitRows,
+            // accounts: accountRows, // Removed accounts
+            products: productRows, // Added products
+            contracts: contractRows, // Added contracts
+            // users: userRows,
+            currentUser: locals.user // Pass logged-in user info
+        };
+    } catch (err: any) {
+        console.error('Failed to load data for bill payment page:', err.message, err.stack);
+        throw error(500, `Failed to load required data. Error: ${err.message}`);
+    }
+};
+
+// --- Actions ---
+export const actions: Actions = {
+    /**
+     * Save Bill Payment (Header, Items, Attachments)
+     */
+    savePayment: async ({ request, locals }) => {
+        checkPermission(locals, 'create bill payments'); // Or 'edit bill payments' if editing exists
+        const formData = await request.formData();
+        const files = formData.getAll('attachments') as File[];
+        const userId = locals.user?.id;
+
+        if (!userId) {
+            throw error(401, 'Unauthorized');
+        }
+
+        // --- Extract Header Data ---
+        const vendor_id = formData.get('vendor_id')?.toString();
+        const vendor_contract_id = formData.get('vendor_contract_id')?.toString() || null; // Added
+        const payment_date = formData.get('payment_date')?.toString();
+        const payment_reference = formData.get('payment_reference')?.toString() || null;
+        const notes = formData.get('notes')?.toString() || null;
+
+        // --- Extract Calculation Data ---
+        const discountAmount = parseFloat(formData.get('discountAmount')?.toString() || '0');
+        const calculateWithholdingTax = formData.get('calculateWithholdingTax')?.toString() === 'true';
+
+        // --- Extract and Parse Line Items ---
+        const itemsJson = formData.get('itemsJson')?.toString();
+        let items: BillPaymentItemData[] = [];
+        try {
+            items = JSON.parse(itemsJson || '[]');
+            if (!Array.isArray(items)) throw new Error("Items data is not an array.");
+        } catch (e: any) {
+            console.error("Failed to parse items JSON:", e.message);
+            return fail(400, { action: 'savePayment', success: false, message: `Invalid line item data format: ${e.message}` });
+        }
+
+        // --- Validation ---
+        if (!vendor_id || !payment_date) {
+            return fail(400, { action: 'savePayment', success: false, message: 'Vendor and Payment Date are required.' });
+        }
+        if (items.length === 0) {
+            return fail(400, { action: 'savePayment', success: false, message: 'At least one line item is required.' });
+        }
+        // Validate each item
+        for (const item of items) {
+            // Changed validation from account_id to product_id
+            if (!item.product_id || item.quantity <= 0 || item.unit_price < 0) {
+                return fail(400, { action: 'savePayment', success: false, message: 'Invalid data in line items (Product, Quantity > 0, Price >= 0).' });
+            }
+        }
+
+        // --- Server-side Calculations ---
+        const subTotal = items.reduce((sum, item) => sum + item.line_total, 0);
+        const totalAfterDiscount = subTotal - discountAmount;
+        const withholdingTaxRate = calculateWithholdingTax ? 7.00 : null;
+        const withholdingTaxAmount = calculateWithholdingTax ? parseFloat((totalAfterDiscount * 0.07).toFixed(2)) : 0.00;
+        const grandTotal = totalAfterDiscount - withholdingTaxAmount; // This is the final total_amount
+        // const totalAmount = items.reduce((sum, item) => sum + item.line_total, 0); // Old calculation
+
+        const connection = await pool.getConnection();
+        const savedFileInfos: { systemName: string; originalName: string; mimeType: string | null; size: number }[] = [];
+        let paymentId: number | null = null;
+
+        try {
+            await connection.beginTransaction();
+
+            // 1. Insert Header
+            const headerSql = `INSERT INTO bill_payments
+                (vendor_id, vendor_contract_id, payment_date, payment_reference, notes, 
+                 subtotal, discount_amount, total_after_discount, 
+                 withholding_tax_rate, withholding_tax_amount, total_amount, 
+                 status, prepared_by_user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            const [headerResult] = await connection.execute<any>(headerSql, [
+                parseInt(vendor_id),
+                vendor_contract_id ? parseInt(vendor_contract_id) : null, // Added contract_id
+                payment_date,
+                payment_reference,
+                notes,
+                subTotal, // Added
+                discountAmount, // Added
+                totalAfterDiscount, // Added
+                withholdingTaxRate, // Added
+                withholdingTaxAmount, // Added
+                grandTotal, // Updated total_amount to be the final grand total
+                'Draft', // Default status
+                userId
+            ]);
+            paymentId = headerResult.insertId;
+
+            if (!paymentId) throw new Error("Failed to create bill payment header.");
+
+            // 2. Insert Line Items
+            if (items.length > 0) {
+                // Changed SQL to use product_id
+                const itemSql = `INSERT INTO bill_payment_items
+                    (bill_payment_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order)
+                    VALUES ?`; // Use bulk insert syntax
+
+                const itemValues = items.map((item, index) => [
+                    paymentId,
+                    item.product_id, // Changed from account_id
+                    item.description || null,
+                    item.quantity,
+                    item.unit_id || null,
+                    item.unit_price,
+                    item.line_total,
+                    index // Use index as order
+                ]);
+                await connection.query(itemSql, [itemValues]); // Use query for bulk insert
+            }
+
+            // 3. Handle File Uploads
+            const validFiles = files.filter(f => f && f.size > 0);
+            if (validFiles.length > 0) {
+                const attachmentSql = `INSERT INTO bill_payment_attachments
+                    (bill_payment_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
+                    VALUES (?, ?, ?, ?, ?, ?)`;
+
+                for (const file of validFiles) {
+                    const fileInfo = await saveFile(file);
+                    if (fileInfo) {
+                        savedFileInfos.push(fileInfo);
+                        await connection.execute(attachmentSql, [
+                            paymentId,
+                            fileInfo.originalName,
+                            fileInfo.systemName,
+                            fileInfo.mimeType,
+                            fileInfo.size,
+                            userId
+                        ]);
+                    }
+                }
+            }
+
+            await connection.commit();
+
+            // Optionally redirect after successful save
+            // throw redirect(303, '/bill-payments'); // Redirect to list page or view page
+            return {
+                action: 'savePayment',
+                success: true,
+                message: 'Bill payment saved successfully!',
+                paymentId: paymentId // Return new ID
+            };
+
+        } catch (err: any) {
+            await connection.rollback();
+            console.error(`Database error saving bill payment: ${err.message}`, err.stack);
+            // Clean up saved files
+            for (const fileInfo of savedFileInfos) {
+                await deleteFile(fileInfo.systemName);
+            }
+            // Updated FK error message
+            if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+                 return fail(400, { action: 'savePayment', success: false, message: 'Invalid Vendor, Product, or Unit selected.' });
+            }
+            return fail(500, { action: 'savePayment', success: false, message: err.message || 'Failed to save bill payment.' });
+        } finally {
+            connection.release();
+        }
+    }
+};
