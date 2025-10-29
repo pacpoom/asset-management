@@ -65,9 +65,12 @@
     let updateStatusForm: HTMLFormElement;
     let statusToUpdate = $state('');
 
-    // --- 3. ADDED: productOptions (copied from +page.svelte) ---
+    // --- 3. MODIFIED: productOptions (copied from +page.svelte) ---
+    // *******************************************************************
+    // ** การแก้ไข: จำกัดรายการสินค้าใน Dropdown ให้แสดง 3 รายการแรกเท่านั้น **
+    // *******************************************************************
     const productOptions = $derived(
-        data.products.map(p => ({
+        data.products.slice(0, 3).map(p => ({
             value: p.id,
             label: `${p.sku} - ${p.name}`, 
             product: p
@@ -128,7 +131,7 @@
     function openEditModal() {
         // Syncs the main data (paymentData, data.items) into the modal's editable state
         payment_reference = paymentData.payment_reference ?? '';
-        payment_date = paymentData.payment_date;
+        payment_date = paymentData.payment_date.split('T')[0];
         notes = paymentData.notes ?? '';
         vendor_id = paymentData.vendor_id;
         vendor_contract_id = paymentData.vendor_contract_id ?? undefined;

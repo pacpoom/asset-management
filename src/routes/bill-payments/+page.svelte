@@ -92,8 +92,11 @@
     );
 
     // Format products for svelte-select
+    // *******************************************************************
+    // ** การแก้ไข: จำกัดรายการสินค้าใน Dropdown ให้แสดง 3 รายการแรกเท่านั้น **
+    // *******************************************************************
     const productOptions = $derived(
-        data.products.map(p => ({
+        data.products.slice(0, 3).map(p => ({
             value: p.id,
             // *** FIX 4: Correct the product name display in Select options ***
             label: `${p.sku} - ${p.name}`, 
@@ -475,11 +478,11 @@
                                     <tr>
                                         <th class="px-3 py-2 text-left font-medium text-gray-500 w-10">#</th>
                                         <!-- *** MODIFIED WIDTH: w-[25%] *** -->
-                                        <th class="px-3 py-2 text-left font-semibold text-gray-600 w-[25%]">สินค้า/บริการ (Product) <span class="text-red-500">*</span></th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-400 w-[25%]">สินค้า/บริการ (Product) <span class="text-red-500">*</span></th>
                                         <!-- *** MODIFIED WIDTH: min-w-[250px] *** -->
                                         <th class="px-3 py-2 text-left font-semibold text-gray-600 min-w-[250px]">รายละเอียด</th>
-                                        <th class="px-3 py-2 text-right font-semibold text-gray-600 w-[80px]">จำนวน <span class="text-red-500"></span></th>
-                                        <th class="px-3 py-2 text-left font-semibold text-gray-600 w-[100px]">หน่วย</th>
+                                        <th class="px-3 py-2 text-right font-semibold text-gray-600 w-[100px]">จำนวน <span class="text-red-500"></span></th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600 w-[130px]">หน่วย</th>
                                         <th class="px-3 py-2 text-right font-semibold text-gray-600 w-[120px]">ราคา/หน่วย <span class="text-red-500"></span></th>
                                         <th class="px-3 py-2 text-right font-semibold text-gray-600 w-[120px]">ราคารวม</th>
                                         <th class="px-3 py-2 text-center font-semibold text-gray-600 w-10"></th>
@@ -674,7 +677,7 @@
      :global(div.svelte-select .list) {
         border-radius: 0.375rem;
         border-color: #d1d5db;
-        z-index: 50; 
+        z-index: 9999;
     }
     :global(div.svelte-select .item) {
         font-size: 0.875rem; 
