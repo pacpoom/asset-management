@@ -21,14 +21,11 @@
 	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	// ✅ FIX: แปลง Key จาก Server (ที่เป็น Number) ให้เป็น String
-	// เพื่อให้ตรงกับ Logic ของ handleSubmit (ที่ใช้ String key)
 	const initialGrouped: GroupedDocuments = {};
 	for (const numKey in data.groupedDocuments) {
 		initialGrouped[String(numKey)] = data.groupedDocuments[numKey as any];
 	}
 	let groupedDocuments = $state<GroupedDocuments>(initialGrouped);
-	// (จบส่วนแก้ไข)
 
 	let selectedDepartmentId = $state<number | undefined>(data.departments?.[0]?.id);
 	let description = $state('');
@@ -82,8 +79,6 @@
 		isRenaming = false;
 	}
 
-	// DERIVED STATE สำหรับ "ค้นหา"
-	// ✅ FIX: นี่คือ `filteredGroupedDocuments` (อันเดียว) ที่รวมการกรองทุกอย่าง
 	const filteredGroupedDocuments = $derived(() => {
 		const lowerQuery = searchQuery.toLowerCase().trim();
 
@@ -96,16 +91,14 @@
 		let toDate: Date | null = null;
 		if (dateTo) {
 			toDate = new Date(dateTo);
-			toDate.setHours(23, 59, 59, 999); // 👈 ตั้งค่าให้เป็น "สิ้นสุดของวัน"
+			toDate.setHours(23, 59, 59, 999); // 👈 ตั้งค่าเวลา 23.59 น."
 		}
 
 		const filtered: GroupedDocuments = {};
 
 		// วนลูปทุกแผนก
 		Object.keys(groupedDocuments).forEach((deptIdKey) => {
-			// 2. ใช้ .filter() กรองทุกเงื่อนไขพร้อมกัน
 			filtered[deptIdKey] = groupedDocuments[deptIdKey].filter((doc) => {
-				// --- 1. กรองด้วย Text (ชื่อ/คำอธิบาย) ---
 				if (lowerQuery) {
 					// ถ้ามีคำค้นหา
 					const nameMatch = doc.file_name.toLowerCase().includes(lowerQuery);
@@ -113,19 +106,18 @@
 						? doc.description.toLowerCase().includes(lowerQuery)
 						: false;
 					if (!nameMatch && !descMatch) {
-						return false; // ถ้า Text ไม่ตรง = ไม่ผ่าน
+						return false;
 					}
 				}
 
-				// --- 2. กรองด้วยวันที่ (ของใหม่) ---
 				const docDate = new Date(doc.uploaded_at);
 
 				if (fromDate && docDate < fromDate) {
-					return false; // ถ้าเอกสารเก่ากว่า 'วันที่เริ่ม' = ไม่ผ่าน
+					return false;
 				}
 
 				if (toDate && docDate > toDate) {
-					return false; // ถ้าเอกสารใหม่กว่า 'วันที่สิ้นสุด' = ไม่ผ่าน
+					return false;
 				}
 
 				// --- ถ้าผ่านทุกเงื่อนไข ---
