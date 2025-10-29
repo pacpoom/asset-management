@@ -11,9 +11,20 @@ import mime from 'mime-types';
 interface Vendor { id: number; name: string; }
 interface User { id: number; full_name: string; }
 interface Unit { id: number; name: string; symbol: string; }
-interface VendorContract { id: number; title: string; vendor_id: number; contract_number: string; } // Added Contract type
-// interface ChartOfAccount { id:number; account_code: string; account_name: string; } // No longer needed for items
-interface Product { id: number; sku: string; name: string; unit_id: number; purchase_cost: number | null; } // Added Product type
+interface VendorContract { id: number; title: string; vendor_id: number; contract_number: string; }
+interface Product { id: number; sku: string; name: string; unit_id: number; purchase_cost: number | null; }
+
+// NEW TYPES for existing payments
+interface BillPaymentHeader extends RowDataPacket {
+    id: number;
+    payment_reference: string | null;
+    payment_date: string;
+    total_amount: number;
+    status: 'Draft' | 'Submitted' | 'Paid' | 'Void'; // Updated status based on common flow
+    vendor_name: string;
+    prepared_by_user_name: string;
+    attachment_count: number;
+}
 
 interface BillPaymentItemData {
     // account_id: number | null; // Removed account_id
@@ -25,7 +36,16 @@ interface BillPaymentItemData {
     line_total: number;
 }
 
-// --- File Handling ---
+interface BillPaymentAttachmentRow extends RowDataPacket {
+    id: number;
+    file_original_name: string;
+    file_system_name: string;
+    file_path: string; // Relative path
+    uploaded_at: string;
+}
+
+
+// --- File Handling (Retained only helpers used by savePayment and deletePayment action) ---
 const UPLOAD_DIR = path.resolve('uploads', 'bill_payments');
 
 async function ensureUploadDir() {
@@ -61,6 +81,7 @@ async function saveFile(file: File): Promise<{ systemName: string; originalName:
     }
 }
 
+// *** ADDED deleteFile helper for deletePayment action ***
 async function deleteFile(systemName: string | null | undefined) {
 	if (!systemName) return;
 	try {
@@ -78,48 +99,112 @@ async function deleteFile(systemName: string | null | undefined) {
 }
 
 
-// --- Load Function ---
-export const load: PageServerLoad = async ({ locals }) => {
-    // Requires permission to create or view payments
-    // checkPermission(locals, 'create bill payments'); // Or 'view bill payments'
+// --- Load Function (MODIFIED) ---
+export const load: PageServerLoad = async ({ locals, url }) => {
+    checkPermission(locals, 'view bill payments'); // NEW: Added permission check
+
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
+    const searchQuery = url.searchParams.get('search') || '';
+    const filterVendor = url.searchParams.get('vendor') || '';
+    const filterStatus = url.searchParams.get('status') || '';
+    const pageSize = 15;
+    const offset = (page - 1) * pageSize;
 
     try {
-        // Fetch necessary data for dropdowns
+        // --- 1. Fetch List of Payments (Headers only) ---
+        let whereClause = ' WHERE 1=1 ';
+        const params: (string | number)[] = [];
+
+        // Apply Search/Filter
+        if (searchQuery) {
+            whereClause += ` AND (
+                bp.payment_reference LIKE ? OR
+                v.name LIKE ?
+            ) `;
+            const searchTerm = `%${searchQuery}%`;
+            params.push(searchTerm, searchTerm);
+        }
+        if (filterVendor) {
+            whereClause += ` AND bp.vendor_id = ? `;
+            params.push(parseInt(filterVendor));
+        }
+        if (filterStatus) {
+            whereClause += ` AND bp.status = ? `;
+            params.push(filterStatus);
+        }
+
+        // Get total count
+        const countSql = `
+            SELECT COUNT(bp.id) as total
+            FROM bill_payments bp
+            LEFT JOIN vendors v ON bp.vendor_id = v.id
+            ${whereClause}`;
+        const [countResult] = await pool.execute<any[]>(countSql, params);
+        const total = countResult[0].total;
+        const totalPages = Math.ceil(total / pageSize);
+
+        // Fetch headers with joins and attachment count
+        const fetchSql = `
+            SELECT
+                bp.id, bp.payment_reference, bp.payment_date, bp.total_amount, bp.status,
+                v.name as vendor_name,
+                u.full_name as prepared_by_user_name,
+                (SELECT COUNT(bpa.id) FROM bill_payment_attachments bpa WHERE bpa.bill_payment_id = bp.id) as attachment_count
+            FROM bill_payments bp
+            JOIN vendors v ON bp.vendor_id = v.id
+            JOIN users u ON bp.prepared_by_user_id = u.id
+            ${whereClause}
+            ORDER BY bp.payment_date DESC, bp.id DESC
+            LIMIT ? OFFSET ?
+        `;
+        const fetchParams = [...params, pageSize, offset];
+        const [paymentRows] = await pool.query<BillPaymentHeader[]>(fetchSql, fetchParams);
+        
+        // --- 2. Fetch Supporting Data for Dropdowns/Modals (Existing logic) ---
         const [vendorRows] = await pool.execute<Vendor[]>('SELECT id, name FROM vendors ORDER BY name ASC');
         const [unitRows] = await pool.execute<Unit[]>('SELECT id, name, symbol FROM units ORDER BY name ASC');
-        // Fetch Products instead of Accounts for line items
         const [productRows] = await pool.execute<Product[]>(
              `SELECT id, sku, name, unit_id, purchase_cost
               FROM products
-              WHERE is_active = 1 -- Optionally filter for active products
+              WHERE is_active = 1
               ORDER BY sku ASC`
         );
-         // Fetch active vendor contracts
         const [contractRows] = await pool.execute<VendorContract[]>(
              `SELECT id, title, vendor_id, contract_number
               FROM vendor_contracts
               WHERE status = 'Active'
               ORDER BY title ASC`
         );
-        // Maybe fetch users if 'Prepared By' needs to be selectable, otherwise use locals.user
-        // const [userRows] = await pool.execute<User[]>('SELECT id, full_name FROM users ORDER BY full_name ASC');
+        
+        // Convert to JSON and back for safe serialization (deep copy)
+        const payments = JSON.parse(JSON.stringify(paymentRows));
 
+        // --- 3. Return Combined Data ---
         return {
+            // Data for list
+            payments,
+            currentPage: page,
+            totalPages,
+            searchQuery,
+            filters: { vendor: filterVendor, status: filterStatus },
+            // Data for new/edit modal (original load data)
             vendors: vendorRows,
             units: unitRows,
-            // accounts: accountRows, // Removed accounts
-            products: productRows, // Added products
-            contracts: contractRows, // Added contracts
-            // users: userRows,
-            currentUser: locals.user // Pass logged-in user info
+            products: productRows,
+            contracts: contractRows,
+            currentUser: locals.user,
+            
+            // New Array of possible statuses
+            availableStatuses: ['Draft', 'Submitted', 'Paid', 'Void']
         };
     } catch (err: any) {
         console.error('Failed to load data for bill payment page:', err.message, err.stack);
+        if (err.status) throw err;
         throw error(500, `Failed to load required data. Error: ${err.message}`);
     }
 };
 
-// --- Actions ---
+// --- Actions (MODIFIED: Added deletePayment action back) ---
 export const actions: Actions = {
     /**
      * Save Bill Payment (Header, Items, Attachments)
@@ -144,11 +229,13 @@ export const actions: Actions = {
         // --- Extract Calculation Data ---
         const discountAmount = parseFloat(formData.get('discountAmount')?.toString() || '0');
         const calculateWithholdingTax = formData.get('calculateWithholdingTax')?.toString() === 'true';
+        const withholdingTaxRate = parseFloat(formData.get('withholdingTaxRate')?.toString() || '7.00'); // Allow overriding the default rate
 
         // --- Extract and Parse Line Items ---
         const itemsJson = formData.get('itemsJson')?.toString();
         let items: BillPaymentItemData[] = [];
         try {
+            // *** FIX 3: The client now ensures item.product_id is a number before JSON.stringify (handled in client code) ***
             items = JSON.parse(itemsJson || '[]');
             if (!Array.isArray(items)) throw new Error("Items data is not an array.");
         } catch (e: any) {
@@ -163,21 +250,35 @@ export const actions: Actions = {
         if (items.length === 0) {
             return fail(400, { action: 'savePayment', success: false, message: 'At least one line item is required.' });
         }
-        // Validate each item
+        // Validate each item (FIX 4)
         for (const item of items) {
-            // Changed validation from account_id to product_id
-            if (!item.product_id || item.quantity <= 0 || item.unit_price < 0) {
-                return fail(400, { action: 'savePayment', success: false, message: 'Invalid data in line items (Product, Quantity > 0, Price >= 0).' });
+            
+            // Check 1: Product must be selected and be a valid number
+            if (item.product_id === null || typeof item.product_id !== 'number' || isNaN(item.product_id)) {
+                 return fail(400, { action: 'savePayment', success: false, message: 'Product is required for all line items.' });
             }
+            
+            // *** FIX 4: Relaxed Quantity/Price Validation ***
+            // Check 2: Quantity must be a valid number (>= 0)
+            if (isNaN(item.quantity) || item.quantity < 0) {
+                 return fail(400, { action: 'savePayment', success: false, message: 'Quantity must be a valid non-negative number.' });
+            }
+
+            // Check 3: Unit Price must be a valid number (>= 0)
+            if (isNaN(item.unit_price) || item.unit_price < 0) {
+                 return fail(400, { action: 'savePayment', success: false, message: 'Unit Price must be a valid non-negative number.' });
+            }
+            
+            // Note: If Quantity or Price is 0, it's allowed.
         }
 
         // --- Server-side Calculations ---
         const subTotal = items.reduce((sum, item) => sum + item.line_total, 0);
         const totalAfterDiscount = subTotal - discountAmount;
-        const withholdingTaxRate = calculateWithholdingTax ? 7.00 : null;
-        const withholdingTaxAmount = calculateWithholdingTax ? parseFloat((totalAfterDiscount * 0.07).toFixed(2)) : 0.00;
-        const grandTotal = totalAfterDiscount - withholdingTaxAmount; // This is the final total_amount
-        // const totalAmount = items.reduce((sum, item) => sum + item.line_total, 0); // Old calculation
+        
+        const actualWhtRate = calculateWithholdingTax ? withholdingTaxRate : null;
+        const withholdingTaxAmount = calculateWithholdingTax ? parseFloat((totalAfterDiscount * (actualWhtRate! / 100)).toFixed(2)) : 0.00;
+        const grandTotal = totalAfterDiscount - withholdingTaxAmount;
 
         const connection = await pool.getConnection();
         const savedFileInfos: { systemName: string; originalName: string; mimeType: string | null; size: number }[] = [];
@@ -195,17 +296,17 @@ export const actions: Actions = {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             const [headerResult] = await connection.execute<any>(headerSql, [
                 parseInt(vendor_id),
-                vendor_contract_id ? parseInt(vendor_contract_id) : null, // Added contract_id
+                vendor_contract_id ? parseInt(vendor_contract_id) : null,
                 payment_date,
                 payment_reference,
                 notes,
-                subTotal, // Added
-                discountAmount, // Added
-                totalAfterDiscount, // Added
-                withholdingTaxRate, // Added
-                withholdingTaxAmount, // Added
-                grandTotal, // Updated total_amount to be the final grand total
-                'Draft', // Default status
+                subTotal,
+                discountAmount,
+                totalAfterDiscount,
+                actualWhtRate, // Use actual rate or null
+                withholdingTaxAmount,
+                grandTotal,
+                'Draft', 
                 userId
             ]);
             paymentId = headerResult.insertId;
@@ -214,22 +315,21 @@ export const actions: Actions = {
 
             // 2. Insert Line Items
             if (items.length > 0) {
-                // Changed SQL to use product_id
                 const itemSql = `INSERT INTO bill_payment_items
                     (bill_payment_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order)
-                    VALUES ?`; // Use bulk insert syntax
+                    VALUES ?`;
 
                 const itemValues = items.map((item, index) => [
                     paymentId,
-                    item.product_id, // Changed from account_id
+                    item.product_id, // Already sanitized as number by client
                     item.description || null,
                     item.quantity,
                     item.unit_id || null,
                     item.unit_price,
                     item.line_total,
-                    index // Use index as order
+                    index
                 ]);
-                await connection.query(itemSql, [itemValues]); // Use query for bulk insert
+                await connection.query(itemSql, [itemValues]);
             }
 
             // 3. Handle File Uploads
@@ -256,30 +356,86 @@ export const actions: Actions = {
             }
 
             await connection.commit();
-
-            // Optionally redirect after successful save
-            // throw redirect(303, '/bill-payments'); // Redirect to list page or view page
+            
             return {
                 action: 'savePayment',
                 success: true,
-                message: 'Bill payment saved successfully!',
-                paymentId: paymentId // Return new ID
+                message: `Bill payment #${paymentId} saved successfully!`,
+                paymentId: paymentId
             };
+
+           //throw redirect(303, '/bill-payments');
+            // return {
+            //     action: 'savePayment',
+            //     success: true,
+            //     message: `Bill payment #${paymentId} saved successfully!`,
+            //     paymentId: paymentId
+            // };
 
         } catch (err: any) {
             await connection.rollback();
             console.error(`Database error saving bill payment: ${err.message}`, err.stack);
             // Clean up saved files
             for (const fileInfo of savedFileInfos) {
+                // Use the deleteFile helper
                 await deleteFile(fileInfo.systemName);
             }
-            // Updated FK error message
             if (err.code === 'ER_NO_REFERENCED_ROW_2') {
                  return fail(400, { action: 'savePayment', success: false, message: 'Invalid Vendor, Product, or Unit selected.' });
             }
+            if (err.status) throw err;
             return fail(500, { action: 'savePayment', success: false, message: err.message || 'Failed to save bill payment.' });
         } finally {
             connection.release();
+        }
+    },
+    
+    // *** ADDED Action: Delete Payment (from [id] page) ***
+    deletePayment: async ({ request, locals }) => {
+        checkPermission(locals, 'delete bill payments');
+        const data = await request.formData();
+        const id = data.get('id')?.toString();
+
+        if (!id) {
+            return fail(400, { action: 'deletePayment', success: false, message: 'Invalid payment ID.' });
+        }
+        const paymentId = parseInt(id);
+        const connection = await pool.getConnection();
+        
+        try {
+            await connection.beginTransaction();
+
+            // 1. Get files for cleanup
+            const [docsToDelete] = await connection.query<BillPaymentAttachmentRow[]>(
+                'SELECT file_system_name FROM bill_payment_attachments WHERE bill_payment_id = ?',
+                [paymentId]
+            );
+
+            // 2. Delete main record (assuming ON DELETE CASCADE)
+            const [deleteResult] = await connection.execute('DELETE FROM bill_payments WHERE id = ?', [paymentId]);
+
+            if ((deleteResult as any).affectedRows === 0) {
+                 await connection.rollback();
+                 return fail(404, { action: 'deletePayment', success: false, message: 'Payment not found.' });
+            }
+
+            await connection.commit();
+            
+            // 3. Delete files from disk AFTER DB commit
+            for (const doc of docsToDelete) {
+                await deleteFile(doc.file_system_name);
+            }
+            
+            // Return success with deleted ID for client-side update (no redirect from List Page delete)
+            return { action: 'deletePayment', success: true, message: `Payment #${paymentId} deleted successfully.`, deletedId: paymentId };
+
+        } catch (error: any) {
+             await connection.rollback();
+             console.error(`Error deleting payment ID ${paymentId}: ${error.message}`, error.stack);
+             if (error.status) throw error;
+             return fail(500, { action: 'deletePayment', success: false, message: `Failed to delete payment: ${error.message}` });
+        } finally {
+             connection.release();
         }
     }
 };
