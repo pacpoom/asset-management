@@ -96,7 +96,7 @@
     // ** การแก้ไข: จำกัดรายการสินค้าใน Dropdown ให้แสดง 3 รายการแรกเท่านั้น **
     // *******************************************************************
     const productOptions = $derived(
-        data.products.slice(0, 3).map(p => ({
+        data.products.map(p => ({
             value: p.id,
             // *** FIX 4: Correct the product name display in Select options ***
             label: `${p.sku} - ${p.name}`, 

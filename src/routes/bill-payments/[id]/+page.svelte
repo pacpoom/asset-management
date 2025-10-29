@@ -67,10 +67,10 @@
 
     // --- 3. MODIFIED: productOptions (copied from +page.svelte) ---
     // *******************************************************************
-    // ** การแก้ไข: จำกัดรายการสินค้าใน Dropdown ให้แสดง 3 รายการแรกเท่านั้น **
+    // ** การแก้ไข: แสดงรายการสินค้าทั้งหมดเพื่อให้ค้นหาได้ (ลบ .slice(0, 3) ออก) **
     // *******************************************************************
     const productOptions = $derived(
-        data.products.slice(0, 3).map(p => ({
+        data.products.map(p => ({
             value: p.id,
             label: `${p.sku} - ${p.name}`, 
             product: p
