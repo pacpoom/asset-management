@@ -5,9 +5,46 @@ import { checkPermission } from '$lib/server/auth';
 import type { RowDataPacket } from 'mysql2';
 import fs from 'fs/promises';
 import path from 'path';
+import mime from 'mime-types'; // <-- 1. ADDED: Import mime
 
 // --- File Handling Helpers (Reused from +page.server.ts) ---
 const UPLOAD_DIR = path.resolve('uploads', 'bill_payments');
+
+// --- 2. ADDED: ensureUploadDir function (copied from +page.server.ts) ---
+async function ensureUploadDir() {
+	try {
+		await fs.mkdir(UPLOAD_DIR, { recursive: true });
+	} catch (e) {
+		console.error('Failed to create upload directory:', UPLOAD_DIR, e);
+		throw new Error('Failed to create upload directory');
+	}
+}
+
+// --- 3. ADDED: saveFile function (copied from +page.server.ts) ---
+async function saveFile(file: File): Promise<{ systemName: string; originalName: string; mimeType: string | null; size: number } | null> {
+    if (!file || file.size === 0) return null;
+    let uploadPath = '';
+    try {
+        await ensureUploadDir();
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const systemName = `${uniqueSuffix}-${sanitizedOriginalName}`;
+        uploadPath = path.join(UPLOAD_DIR, systemName);
+
+        console.log(`saveFile (Bill Payment): Attempting write to ${uploadPath}`);
+        await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
+        console.log(`saveFile (Bill Payment): Successfully wrote ${uploadPath}`);
+
+        const mimeType = mime.lookup(file.name) || file.type || 'application/octet-stream';
+        return { systemName, originalName: file.name, mimeType, size: file.size };
+
+    } catch (uploadError: any) {
+        console.error(`saveFile (Bill Payment): Error saving ${uploadPath}. ${uploadError.message}`, uploadError.stack);
+        if (uploadPath) { try { if (await fs.stat(uploadPath)) await fs.unlink(uploadPath); } catch (e) {} }
+        throw new Error(`Failed to save uploaded file "${file.name}". Reason: ${uploadError.message}`);
+    }
+}
+
 
 async function deleteFile(systemName: string | null | undefined) {
 	if (!systemName) return;
@@ -58,6 +95,17 @@ interface BillPaymentItemRow extends RowDataPacket {
     product_id: number;
     unit_id: number;
 }
+
+// --- 4. ADDED: BillPaymentItemData type (copied from +page.server.ts) ---
+interface BillPaymentItemData {
+    product_id: number | null;
+    description: string;
+    quantity: number;
+    unit_id: number | null;
+    unit_price: number;
+    line_total: number;
+}
+
 
 interface BillPaymentAttachmentRow extends RowDataPacket {
     id: number;
@@ -160,6 +208,178 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 // --- Actions (Re-implementing the necessary list actions here) ---
 export const actions: Actions = {
+    
+    // 5. --- ADDED: updatePayment action (modified from savePayment) ---
+    updatePayment: async ({ request, locals, params }) => {
+        checkPermission(locals, 'manage bill payments'); 
+        const formData = await request.formData();
+        const files = formData.getAll('attachments') as File[];
+        const userId = locals.user?.id;
+        
+        // Get the Payment ID from the form (or params, but form is safer)
+        const paymentIdStr = formData.get('payment_id')?.toString();
+        
+        if (!userId) {
+            throw error(401, 'Unauthorized');
+        }
+        if (!paymentIdStr) {
+             return fail(400, { action: 'updatePayment', success: false, message: 'Payment ID is missing.' });
+        }
+        const paymentId = parseInt(paymentIdStr);
+
+        // --- Extract Header Data ---
+        const vendor_id = formData.get('vendor_id')?.toString();
+        const vendor_contract_id = formData.get('vendor_contract_id')?.toString() || null;
+        const payment_date = formData.get('payment_date')?.toString();
+        const payment_reference = formData.get('payment_reference')?.toString() || null;
+        const notes = formData.get('notes')?.toString() || null;
+
+        // --- Extract Calculation Data ---
+        const discountAmount = parseFloat(formData.get('discountAmount')?.toString() || '0');
+        const calculateWithholdingTax = formData.get('calculateWithholdingTax')?.toString() === 'true';
+        const withholdingTaxRate = parseFloat(formData.get('withholdingTaxRate')?.toString() || '7.00');
+
+        // --- Extract and Parse Line Items ---
+        const itemsJson = formData.get('itemsJson')?.toString();
+        let items: BillPaymentItemData[] = [];
+        try {
+            items = JSON.parse(itemsJson || '[]');
+            if (!Array.isArray(items)) throw new Error("Items data is not an array.");
+        } catch (e: any) {
+            console.error("Failed to parse items JSON:", e.message);
+            return fail(400, { action: 'updatePayment', success: false, message: `Invalid line item data format: ${e.message}` });
+        }
+
+        // --- Validation ---
+        if (!vendor_id || !payment_date) {
+            return fail(400, { action: 'updatePayment', success: false, message: 'Vendor and Payment Date are required.' });
+        }
+        if (items.length === 0) {
+            return fail(400, { action: 'updatePayment', success: false, message: 'At least one line item is required.' });
+        }
+        for (const item of items) {
+            if (item.product_id === null || typeof item.product_id !== 'number' || isNaN(item.product_id)) {
+                 return fail(400, { action: 'updatePayment', success: false, message: 'Product is required for all line items.' });
+            }
+            if (isNaN(item.quantity) || item.quantity < 0) {
+                 return fail(400, { action: 'updatePayment', success: false, message: 'Quantity must be a valid non-negative number.' });
+            }
+            if (isNaN(item.unit_price) || item.unit_price < 0) {
+                 return fail(400, { action: 'updatePayment', success: false, message: 'Unit Price must be a valid non-negative number.' });
+            }
+        }
+
+        // --- Server-side Calculations ---
+        // *** FIX: Wrap item.line_total in parseFloat to defend against string values ***
+        const subTotal = items.reduce((sum, item) => sum + (parseFloat(String(item.line_total) || '0')), 0);
+        const totalAfterDiscount = subTotal - discountAmount;
+        
+        const actualWhtRate = calculateWithholdingTax ? withholdingTaxRate : null;
+        const withholdingTaxAmount = calculateWithholdingTax ? parseFloat((totalAfterDiscount * (actualWhtRate! / 100)).toFixed(2)) : 0.00;
+        const grandTotal = totalAfterDiscount - withholdingTaxAmount;
+
+        const connection = await pool.getConnection();
+        const savedFileInfos: { systemName: string; originalName: string; mimeType: string | null; size: number }[] = [];
+
+        try {
+            await connection.beginTransaction();
+
+            // 1. Update Header
+            const headerSql = `UPDATE bill_payments SET
+                vendor_id = ?, vendor_contract_id = ?, payment_date = ?, payment_reference = ?, notes = ?, 
+                 subtotal = ?, discount_amount = ?, total_after_discount = ?, 
+                 withholding_tax_rate = ?, withholding_tax_amount = ?, total_amount = ?, 
+                 prepared_by_user_id = ?
+                WHERE id = ?`;
+            await connection.execute<any>(headerSql, [
+                parseInt(vendor_id),
+                vendor_contract_id ? parseInt(vendor_contract_id) : null,
+                payment_date,
+                payment_reference,
+                notes,
+                subTotal, // This is now guaranteed to be a valid number
+                discountAmount,
+                totalAfterDiscount,
+                actualWhtRate,
+                withholdingTaxAmount,
+                grandTotal,
+                userId,
+                paymentId // WHERE clause
+            ]);
+
+            // 2. Delete existing Line Items
+            await connection.execute('DELETE FROM bill_payment_items WHERE bill_payment_id = ?', [paymentId]);
+
+            // 3. Re-insert Line Items
+            if (items.length > 0) {
+                const itemSql = `INSERT INTO bill_payment_items
+                    (bill_payment_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order)
+                    VALUES ?`;
+
+                const itemValues = items.map((item, index) => [
+                    paymentId,
+                    item.product_id,
+                    item.description || null,
+                    item.quantity,
+                    item.unit_id || null,
+                    item.unit_price,
+                    item.line_total, // This is guaranteed to be a number from the client fix
+                    index
+                ]);
+                await connection.query(itemSql, [itemValues]);
+            }
+
+            // 4. Handle *New* File Uploads
+            const validFiles = files.filter(f => f && f.size > 0);
+            if (validFiles.length > 0) {
+                const attachmentSql = `INSERT INTO bill_payment_attachments
+                    (bill_payment_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
+                    VALUES (?, ?, ?, ?, ?, ?)`;
+
+                for (const file of validFiles) {
+                    const fileInfo = await saveFile(file);
+                    if (fileInfo) {
+                        savedFileInfos.push(fileInfo);
+                        await connection.execute(attachmentSql, [
+                            paymentId,
+                            fileInfo.originalName,
+                            fileInfo.systemName,
+                            fileInfo.mimeType,
+                            fileInfo.size,
+                            userId
+                        ]);
+                    }
+                }
+            }
+
+            await connection.commit();
+            
+            return {
+                action: 'updatePayment',
+                success: true,
+                message: `Bill payment #${paymentId} updated successfully!`,
+            };
+
+        } catch (err: any) {
+            await connection.rollback();
+            console.error(`Database error updating bill payment ${paymentId}: ${err.message}`, err.stack);
+            // Clean up *newly* saved files on error
+            for (const fileInfo of savedFileInfos) {
+                await deleteFile(fileInfo.systemName);
+            }
+            if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+                 return fail(400, { action: 'updatePayment', success: false, message: 'Invalid Vendor, Product, or Unit selected.' });
+            }
+            // *** ADDED: Check for the specific error ***
+            if (err.message.includes("Incorrect decimal value")) {
+                 return fail(400, { action: 'updatePayment', success: false, message: `Data Error: ${err.message}. Please check all numeric fields for valid values.` });
+            }
+            if (err.status) throw err;
+            return fail(500, { action: 'updatePayment', success: false, message: err.message || 'Failed to update bill payment.' });
+        } finally {
+            connection.release();
+        }
+    },
     
     // 1. Update Payment Status (Moved from +page.server.ts)
     updatePaymentStatus: async ({ request, locals, params }) => {

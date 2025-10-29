@@ -364,14 +364,6 @@ export const actions: Actions = {
                 paymentId: paymentId
             };
 
-           //throw redirect(303, '/bill-payments');
-            // return {
-            //     action: 'savePayment',
-            //     success: true,
-            //     message: `Bill payment #${paymentId} saved successfully!`,
-            //     paymentId: paymentId
-            // };
-
         } catch (err: any) {
             await connection.rollback();
             console.error(`Database error saving bill payment: ${err.message}`, err.stack);

@@ -34,7 +34,13 @@
     let searchQuery = $state(data.searchQuery ?? '');
     let filterVendor = $state(data.filters?.vendor ?? '');
     let filterStatus = $state(data.filters?.status ?? '');
-    const payments = $state(data.payments || []);
+    
+    // *** === THIS IS THE FIX === ***
+    // We use $derived instead of $state.
+    // This ensures 'payments' will always reflect the current 'data.payments' prop.
+    // When invalidateAll() runs, 'data' updates, and $derived recalculates 'payments'.
+    const payments = $derived(data.payments || []);
+    // *** === END OF FIX === ***
 
     // --- New Payment Form Fields (Moved to a New Modal) ---
     let isCreateModalOpen = $state(false);
