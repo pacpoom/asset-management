@@ -14,9 +14,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// 2. If a session_id exists, fetch user data from the database
 	if (sessionId) {
 		try {
-			// MODIFIED: Join with roles table to get role name from role_id
+			// 🔽🔽🔽 [แก้ไข] เพิ่ม u.profile_image_url, u.full_name 🔽🔽🔽
 			const [rows]: any[] = await pool.execute(
-				`SELECT u.id, u.email, r.name as role 
+				`SELECT u.id, u.email, u.full_name, u.profile_image_url, r.name as role
 				 FROM users u
 				 JOIN roles r ON u.role_id = r.id
 				 WHERE u.id = ? LIMIT 1`,
@@ -24,17 +24,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 			);
 			const userData = rows[0];
 
-			// 3. If user data is found, populate event.locals
-			// This makes user data available in all server-side loads and actions.
 			if (userData) {
-				// NEW: Fetch user's permissions
 				const permissions = await getUserPermissions(userData.id);
 
 				event.locals.user = {
 					id: userData.id,
 					email: userData.email,
+					// 🔽🔽🔽 [แก้ไข] เพิ่ม full_name, profile_image_url 🔽🔽🔽
+					full_name: userData.full_name, // เพิ่มชื่อเต็ม
+					profile_image_url: userData.profile_image_url, // เพิ่ม URL รูป
 					role: userData.role,
-					permissions: permissions // Add permissions to the user object
+					permissions: permissions
 				};
 			}
 		} catch (err) {

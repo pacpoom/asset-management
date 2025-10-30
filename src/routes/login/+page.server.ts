@@ -6,7 +6,7 @@ import type { RowDataPacket } from 'mysql2'; // Import RowDataPacket
 
 // Type for company logo data
 interface CompanyLogo extends RowDataPacket {
-    logo_path: string | null;
+	logo_path: string | null;
 }
 
 /**
@@ -40,7 +40,6 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		companyLogoPath // Pass logo path to the page
 	};
 };
-
 
 export const actions: Actions = {
 	login: async ({ cookies, request }) => {
@@ -91,11 +90,11 @@ export const actions: Actions = {
 
 			// Redirect ไปยังหน้าหลัก
 			throw redirect(303, '/');
-
 		} catch (err) {
 			console.error(err);
 			// ในกรณีที่เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ โปรดลองใหม่อีกครั้ง' });
+			identifier: identifier;
 		}
 	},
 

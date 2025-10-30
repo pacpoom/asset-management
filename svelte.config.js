@@ -8,9 +8,9 @@ const config = {
 		// Explicitly use adapter-node to create a standalone Node.js server.
 		// This is the correct adapter for a Docker deployment.
 		adapter: adapter({
-            // The output directory for the server build.
-            out: 'build'
-        })
+			// The output directory for the server build.
+			out: 'build'
+		})
 	}
 };
 

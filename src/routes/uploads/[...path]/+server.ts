@@ -1,61 +1,43 @@
+// src/routes/uploads/[...path]/+server.ts
 import { error } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
 import fs from 'fs';
 import path from 'path';
+import { fileTypeFromBuffer } from 'file-type'; // ถ้ายังไม่ติดตั้ง: npm install file-type
 
-/**
- * This GET handler serves files from the 'uploads' directory.
- * It's necessary for production builds (like in Docker) where
- * the server needs to be explicitly told how to handle these files.
- */
-export const GET: RequestHandler = ({ params }) => {
-	// Construct the full path to the requested file.
-	// params.path will contain everything after /uploads/
-	// e.g., if the request is for /uploads/image.jpg, params.path will be 'image.jpg'
-	const filePath = path.resolve(process.cwd(), 'uploads', params.path);
+export async function GET({ locals, params }) {
+	// 1. ตรวจสอบว่า login หรือยัง
+	if (!locals.user) {
+		throw error(401, 'Unauthorized');
+	}
 
-	// Security Check: Prevent directory traversal attacks.
-	// Ensure the final resolved path is still inside the 'uploads' directory.
-	const uploadsDir = path.resolve(process.cwd(), 'uploads');
-	if (!filePath.startsWith(uploadsDir)) {
-		throw error(403, 'Forbidden');
+	// 2. สร้าง Path ไปยังไฟล์
+	const filePath = path.resolve('uploads', params.path);
+
+	// 3. ตรวจสอบว่าไฟล์มีอยู่จริง
+	if (!fs.existsSync(filePath)) {
+		throw error(404, 'Not Found');
 	}
 
 	try {
-		// Check if the file exists at the constructed path
-		if (fs.existsSync(filePath)) {
-			// Read the file from the filesystem into a buffer
-			const fileBuffer = fs.readFileSync(filePath);
+		// 4. อ่านไฟล์
+		const fileBuffer = fs.readFileSync(filePath);
 
-			// Determine the correct Content-Type based on the file extension
-			const ext = path.extname(filePath).toLowerCase();
-			let contentType = 'application/octet-stream'; // Default content type
-			if (ext === '.jpg' || ext === '.jpeg') {
-				contentType = 'image/jpeg';
-			} else if (ext === '.png') {
-				contentType = 'image/png';
-			} else if (ext === '.webp') {
-				contentType = 'image/webp';
-			} else if (ext === '.gif') {
-				contentType = 'image/gif';
+		// 5. ตรวจสอบ Mime Type
+		const mimeTypeResult = await fileTypeFromBuffer(fileBuffer);
+		const mimeType = mimeTypeResult ? mimeTypeResult.mime : 'application/octet-stream';
+
+		// 6. ส่งไฟล์กลับไปพร้อม Header ที่ถูกต้อง
+		return new Response(fileBuffer, {
+			status: 200,
+			headers: {
+				'Content-Type': mimeType,
+				'Content-Length': fileBuffer.length.toString(), // <--- จุดที่แก้ไขครับ
+				// (แนะนำ) เพิ่ม Cache-Control เพื่อให้เบราว์เซอร์โหลดใหม่เมื่อมีการเปลี่ยนแปลง
+				'Cache-Control': 'public, max-age=3600' // Cache 1 ชั่วโมง
 			}
-
-			// Return the file buffer as a new Response object
-			return new Response(fileBuffer, {
-				status: 200,
-				headers: {
-					'Content-Type': contentType
-				}
-			});
-		} else {
-			// If the file doesn't exist, return a 404 error
-			throw error(404, 'Not Found');
-		}
-	} catch (err) {
-		console.error(`Failed to serve file: ${filePath}`, err);
+		});
+	} catch (e) {
+		console.error('Failed to read file:', e);
 		throw error(500, 'Internal Server Error');
 	}
-};
-
-// Disable prerendering for this dynamic route
-export const prerender = false;
+}

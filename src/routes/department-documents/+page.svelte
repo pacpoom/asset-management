@@ -91,7 +91,7 @@
 		let toDate: Date | null = null;
 		if (dateTo) {
 			toDate = new Date(dateTo);
-			toDate.setHours(23, 59, 59, 999); // 👈 ตั้งค่าเวลา 23.59 น."
+			toDate.setHours(23, 59, 59, 999); //  ตั้งค่าเวลา 23.59 น."
 		}
 
 		const filtered: GroupedDocuments = {};

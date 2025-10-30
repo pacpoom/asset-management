@@ -6,10 +6,11 @@ declare global {
 		interface User {
 			id: number;
 			email: string;
-			// FIX: Changed role type from 'admin' | 'user' to string
-			// to allow for custom role names like 'ANJI_AF' from the database.
+			// 🔽🔽🔽 [แก้ไข] เพิ่ม 2 บรรทัดนี้ 🔽🔽🔽
+			full_name: string | null; // ชื่อเต็ม
+			profile_image_url: string | null; // URL รูปโปรไฟล์
 			role: string;
-			permissions: string[]; // Permissions associated with the user's role
+			permissions: string[];
 		}
 
 		// interface Error {}
