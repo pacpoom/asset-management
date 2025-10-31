@@ -3,7 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutServerData } from './$types';
 	import { page, navigating } from '$app/stores';
-	import { slide, fade } from 'svelte/transition';
+	import { slide, fade, fly } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
 
 	// Svelte 5 runes: Define props and reactive state
@@ -277,7 +277,7 @@
 					{/if}
 
 					{#if menu.children && menu.children.length > 0 && !isSidebarCollapsed && !isFlyout && openMenuIds.has(menu.id)}
-						<div transition:slide={{ duration: 200 }}>
+						<div transition:fly={{ y: -10, duration: 300 }}>
 							{@render menuList(menu.children, level + 1)}
 						</div>
 					{/if}

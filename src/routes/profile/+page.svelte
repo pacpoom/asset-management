@@ -16,8 +16,6 @@
 	let previewUrl = $state<string | null>(data.profile.profile_image_url);
 	let isSaving = $state(false);
 
-	// ❌ ไม่ต้องใช้ฟังก์ชัน getInitials() ในไฟล์นี้ครับ
-
 	function handleFileChange(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
