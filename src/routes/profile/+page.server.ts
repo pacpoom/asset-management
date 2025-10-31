@@ -98,7 +98,6 @@ export const actions: Actions = {
 
 				const fileExt = path.extname(profile_image.name);
 				const fileName = `${uuidv4()}${fileExt}`;
-				// 🔽🔽🔽 [แก้ไข] เปลี่ยน 'static' เป็น 'process.cwd()' 🔽🔽🔽
 				const uploadDir = path.join(process.cwd(), 'uploads', 'profiles');
 
 				if (!fs.existsSync(uploadDir)) {
@@ -148,8 +147,7 @@ export const actions: Actions = {
 			await pool.execute(sql, queryParams);
 
 			if (profile_image_url && old_image_path) {
-				// 🔽🔽🔽 [แก้ไข] เปลี่ยน 'static' เป็น 'process.cwd()' และใช้ path.basename 🔽🔽🔽
-				const oldFilePath = path.join(process.cwd(), 'uploads', path.basename(old_image_path));
+				const oldFilePath = path.join(process.cwd(), old_image_path.substring(1));
 				if (fs.existsSync(oldFilePath)) {
 					fs.unlinkSync(oldFilePath);
 				}
@@ -160,7 +158,6 @@ export const actions: Actions = {
 			console.error('Profile update failed:', err);
 
 			if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
-				// 🔽🔽🔽 [แก้ไข] (Bug fix) ลบไฟล์ที่เพิ่งอัปโหลด ถ้า DB พัง 🔽🔽🔽
 				fs.unlinkSync(uploadedFilePath);
 			}
 
