@@ -12,16 +12,22 @@
 
 	// สถานะสำหรับเมนูมือถือ (ซ้าย/ขวา)
 	let isSidebarOpen = $state(false);
-	// สถานะสำหรับยุบเมนูบน Desktop (เปิด/ปิด)
-	let isSidebarCollapsed = $state(false);
+
+	// --- ===== START: NEW LOGIC ===== ---
+	// สถานะสำหรับ "ปักหมุด" (Pin) เมนู
+	let isSidebarPinned = $state(false); // (เข้ามาแทน isSidebarCollapsed)
+	// สถานะสำหรับ "โฮเวอร์" (Hover) เมนู
+	let isSidebarHovering = $state(false);
+	// สถานะที่บอกว่าเมนู "ขยายเต็ม" หรือไม่
+	const isSidebarExpanded = $derived(isSidebarPinned || isSidebarHovering);
+	// --- ===== END: NEW LOGIC ===== ---
 
 	// State for collapsible sub-menus (when not collapsed)
 	let openMenuIds = $state(new Set<number>());
 	let isAdminMenuOpen = $state(false);
 
-	// State for flyout menu when collapsed
-	let flyoutMenuId = $state<number | null>(null);
-	let flyoutTimeout: NodeJS.Timeout | null = null; // Timeout for closing flyout
+	// --- REMOVED: flyoutMenuId state ---
+	// --- REMOVED: flyoutTimeout logic ---
 
 	// ฟังก์ชันสร้างตัวย่อ (Initials)
 	function getInitials(nameOrEmail: string | null | undefined): string {
@@ -42,7 +48,7 @@
 
 	// Function to toggle *any* menu ID (only used when not collapsed)
 	function toggleMenu(id: number) {
-		if (isSidebarCollapsed) return;
+		// if (isSidebarCollapsed) return; // (logic changed)
 		const newSet = new Set(openMenuIds);
 		if (newSet.has(id)) {
 			newSet.delete(id);
@@ -83,14 +89,12 @@
 	$effect(() => {
 		if ($navigating) {
 			isSidebarOpen = false;
-			flyoutMenuId = null;
-			if (flyoutTimeout) clearTimeout(flyoutTimeout);
+			// --- REMOVED: flyoutMenuId logic ---
 		}
-		if (isSidebarCollapsed) {
+		if (!isSidebarPinned) {
+			// (logic changed)
 			openMenuIds = new Set<number>();
 			isAdminMenuOpen = false;
-			flyoutMenuId = null;
-			if (flyoutTimeout) clearTimeout(flyoutTimeout);
 		}
 	});
 
@@ -102,123 +106,150 @@
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 
-	// Functions to handle flyout menu visibility with delay
-	function handleMouseEnter(id: number) {
-		if (!isSidebarCollapsed) return;
-		if (flyoutTimeout) clearTimeout(flyoutTimeout);
-		flyoutMenuId = id;
+	// --- REMOVED: toggleFlyout function ---
+
+	// --- *** FIX ***: Check if a child link in a group is active
+	function isMenuSectionActive(menu: Menu): boolean {
+		if (!menu.children || menu.children.length === 0) {
+			return false;
+		}
+
+		// Recursive function to check all children
+		function checkChildren(menus: Menu[]): boolean {
+			for (const child of menus) {
+				// Check if this child itself is the active link
+				if (child.route && isLinkActive(child.route)) {
+					return true;
+				}
+				// If not, check its children
+				if (child.children && child.children.length > 0) {
+					if (checkChildren(child.children)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		return checkChildren(menu.children);
 	}
 
-	function handleMouseLeave() {
-		if (!isSidebarCollapsed) return;
-		if (flyoutTimeout) clearTimeout(flyoutTimeout);
-		flyoutTimeout = setTimeout(() => {
-			flyoutMenuId = null;
-		}, 200);
-	}
+	// --- *** FIX ***: Check if admin child link is active
+	const isAdminSectionActive = $derived(
+		isLinkActive('/roles') || isLinkActive('/permissions') || isLinkActive('/menus')
+	);
 </script>
 
 {#snippet menuList(menus: Menu[] | undefined, level: number, isFlyout: boolean = false)}
 	{#if menus}
 		<ul
 			class="space-y-1 {level > 0 && !isFlyout
-				? isSidebarCollapsed
+				? !isSidebarExpanded // (logic changed)
 					? 'hidden pl-0'
 					: 'pt-1 pl-5'
 				: ''} {isFlyout ? 'min-w-[200px]' : ''}"
 		>
 			{#each menus as menu}
-				<li
-					class={isSidebarCollapsed && level === 0 ? 'relative' : ''}
-					onmouseenter={isSidebarCollapsed &&
-					level === 0 &&
-					menu.children &&
-					menu.children.length > 0
-						? () => handleMouseEnter(menu.id)
-						: null}
-					onmouseleave={isSidebarCollapsed &&
-					level === 0 &&
-					menu.children &&
-					menu.children.length > 0
-						? handleMouseLeave
-						: null}
-				>
+				<li>
 					{#if menu.route}
-						{#if menu.children && menu.children.length > 0 && !isSidebarCollapsed}
-							<div class="group relative">
+						{#if menu.children && menu.children.length > 0}
+							{#if isSidebarExpanded}
+								<div class="group relative">
+									<a
+										href={menu.route}
+										class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 {isLinkActive(
+											menu.route
+										)
+											? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+											: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} pr-8 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+										title={menu.title}
+									>
+										<span
+											class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110"
+											>{menu.icon || 'folder'}</span
+										>
+										<span
+											class="overflow-hidden font-medium whitespace-nowrap transition-all duration-100"
+											>{menu.title}</span
+										>
+									</a>
+									<button
+										type="button"
+										onclick={(event) => {
+											event.stopPropagation();
+											toggleMenu(menu.id);
+										}}
+										class="absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-200 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+										aria-label="Toggle submenu"
+									>
+										<span class="sr-only">Toggle submenu</span>
+										<svg
+											class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'}`}
+											xmlns="http://www.w3.org/2000/svg"
+											width="24"
+											height="24"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										>
+											<path d="m9 18 6-6-6-6" />
+										</svg>
+									</button>
+								</div>
+							{:else}
 								<a
 									href={menu.route}
-									class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 {isLinkActive(
+									class="group flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
 										menu.route
 									)
-										? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} pr-8 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+										? 'bg-blue-100 text-blue-700'
+										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
 									title={menu.title}
 								>
 									<span
-										class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110"
-										>{menu.icon || 'folder'}</span
+										class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
 									>
-									<span
-										class="overflow-hidden font-medium whitespace-nowrap transition-all duration-100"
-										>{menu.title}</span
-									>
+										{menu.icon || 'folder'}
+									</span>
 								</a>
-								<button
-									type="button"
-									onclick={(event) => {
-										event.stopPropagation();
-										toggleMenu(menu.id);
-									}}
-									class="absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-200 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-									aria-label="Toggle submenu"
-								>
-									<span class="sr-only">Toggle submenu</span>
-									<svg
-										class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'}`}
-										xmlns="http://www.w3.org/2000/svg"
-										width="24"
-										height="24"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									>
-										<path d="m9 18 6-6-6-6" />
-									</svg>
-								</button>
-							</div>
+							{/if}
 						{:else}
 							<a
 								href={menu.route}
 								class="group flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
                                 {isLinkActive(menu.route)
-									? isSidebarCollapsed || isFlyout
+									? !isSidebarExpanded || isFlyout // (logic changed)
 										? 'bg-blue-100 text-blue-700'
 										: 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
                                 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
-                                {isSidebarCollapsed && !isFlyout ? 'justify-center' : ''}"
-								title={isSidebarCollapsed && !isFlyout ? menu.title : ''}
+  
+                               {!isSidebarExpanded && !isFlyout ? 'justify-center' : ''}"
+								title={!isSidebarExpanded && !isFlyout ? menu.title : ''}
 							>
 								<span
 									class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
 								>
-									{menu.icon || (menu.children && menu.children.length > 0 ? 'folder' : 'circle')}
+									{menu.icon || 'circle'}
 								</span>
 								<span
-									class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${isSidebarCollapsed && !isFlyout ? 'lg:hidden' : ''}`}
+									class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
 								>
 									{menu.title}
 								</span>
 							</a>
 						{/if}
 					{:else if menu.children && menu.children.length > 0}
-						{#if isSidebarCollapsed && !isFlyout}
+						{#if !isSidebarExpanded && !isFlyout}
 							<div
-								class="group flex cursor-pointer items-center justify-center gap-3 rounded-lg px-3 py-3 text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900"
+								class="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isMenuSectionActive(
+									menu
+								)
+									? 'bg-blue-100 text-blue-700'
+									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
 								title={menu.title}
 							>
 								<span
@@ -230,7 +261,11 @@
 							<button
 								type="button"
 								onclick={() => toggleMenu(menu.id)}
-								class="group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+								class="group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none {isMenuSectionActive(
+									menu
+								)
+									? 'bg-blue-100 text-blue-700'
+									: 'text-gray-600'}"
 							>
 								<div class="flex items-center gap-3">
 									<span
@@ -260,37 +295,25 @@
 						{/if}
 					{:else}
 						<div
-							class="flex items-center gap-3 rounded-lg px-3 py-3 text-gray-400 {isSidebarCollapsed &&
+							class="flex items-center gap-3 rounded-lg px-3 py-3 text-gray-400 {!isSidebarExpanded &&
 							!isFlyout
 								? 'justify-center'
 								: ''}"
-							title={isSidebarCollapsed && !isFlyout ? menu.title : ''}
+							title={!isSidebarExpanded && !isFlyout ? menu.title : ''}
 						>
 							<span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
 								>{menu.icon || 'circle'}</span
 							>
 							<span
-								class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${isSidebarCollapsed && !isFlyout ? 'lg:hidden' : ''}`}
+								class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
 								>{menu.title}</span
 							>
 						</div>
 					{/if}
 
-					{#if menu.children && menu.children.length > 0 && !isSidebarCollapsed && !isFlyout && openMenuIds.has(menu.id)}
+					{#if menu.children && menu.children.length > 0 && isSidebarExpanded && !isFlyout && openMenuIds.has(menu.id)}
 						<div transition:fly={{ y: -10, duration: 300 }}>
 							{@render menuList(menu.children, level + 1)}
-						</div>
-					{/if}
-
-					{#if isSidebarCollapsed && level === 0 && menu.children && menu.children.length > 0 && flyoutMenuId === menu.id}
-						<div
-							role="group"
-							class="absolute top-0 left-full z-40 ml-1 rounded-md border border-gray-200 bg-white p-2 shadow-xl"
-							onmouseenter={() => handleMouseEnter(menu.id)}
-							onmouseleave={handleMouseLeave}
-							transition:fade={{ duration: 100 }}
-						>
-							{@render menuList(menu.children, level + 1, true)}
 						</div>
 					{/if}
 				</li>
@@ -327,13 +350,16 @@
 			class="fixed inset-y-0 left-0 z-30 flex transform flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out
 			{isSidebarOpen ? 'w-64 translate-x-0 p-4' : 'w-64 -translate-x-full p-4'}
 			lg:translate-x-0
-			{isSidebarCollapsed ? 'lg:w-20 lg:px-2 lg:py-4' : 'lg:w-64 lg:p-4'}"
+			{isSidebarExpanded ? 'lg:w-64 lg:p-4' : 'lg:w-20 lg:px-2 lg:py-4'}
+			{!isSidebarPinned && isSidebarHovering ? 'shadow-xl' : ''}"
+			onmouseenter={() => (isSidebarHovering = true)}
+			onmouseleave={() => (isSidebarHovering = false)}
 		>
 			<div class="flex h-full flex-col overflow-x-hidden overflow-y-auto">
 				<div
-					class="mb-6 flex h-16 flex-shrink-0 items-center gap-3 px-2 {isSidebarCollapsed
-						? 'justify-center'
-						: ''}"
+					class="mb-6 flex h-16 flex-shrink-0 items-center gap-3 px-2 {isSidebarExpanded
+						? ''
+						: 'justify-center'}"
 				>
 					<div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg">
 						{#if data.companyLogoPath}
@@ -343,7 +369,7 @@
 						{/if}
 					</div>
 					<span
-						class={`overflow-hidden text-xl font-bold whitespace-nowrap text-gray-900 transition-all duration-100 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}
+						class={`overflow-hidden text-xl font-bold whitespace-nowrap text-gray-900 transition-all duration-100 ${!isSidebarExpanded ? 'lg:hidden' : ''}`}
 					>
 						Core Business
 					</span>
@@ -353,33 +379,37 @@
 						{@render menuList(data.menus, 0)}
 
 						{#if data.user.role === 'admin'}
-							<li
-								class="relative mt-4 list-none space-y-1 border-t border-gray-200 pt-4"
-								onmouseenter={isSidebarCollapsed ? () => handleMouseEnter(-1) : null}
-								onmouseleave={isSidebarCollapsed ? handleMouseLeave : null}
-							>
+							<li class="relative mt-4 list-none space-y-1 border-t border-gray-200 pt-4">
 								<button
 									type="button"
 									onclick={() => {
-										if (!isSidebarCollapsed) isAdminMenuOpen = !isAdminMenuOpen;
+										if (!isSidebarPinned) {
+											// If collapsed, clicking this *pins* it open
+											isSidebarPinned = true;
+											isSidebarHovering = false;
+											isAdminMenuOpen = true;
+										} else {
+											// If pinned open, it just toggles the sub-menu
+											isAdminMenuOpen = !isAdminMenuOpen;
+										}
 									}}
-									class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none {isSidebarCollapsed
+									class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none {!isSidebarExpanded
 										? 'justify-center'
-										: ''}"
-									title={isSidebarCollapsed ? 'System Management' : ''}
+										: ''} {isAdminSectionActive ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}"
+									title={!isSidebarExpanded ? 'System Management' : ''}
 								>
 									<div class="flex items-center gap-3">
 										<span class="material-symbols-outlined h-6 w-6 flex-shrink-0 text-gray-400"
 											>admin_panel_settings</span
 										>
 										<span
-											class={`overflow-hidden px-0 text-xs font-semibold whitespace-nowrap text-gray-400 uppercase transition-all duration-100 ${isSidebarCollapsed ? 'lg:hidden' : ''}`}
+											class={`overflow-hidden px-0 text-xs font-semibold whitespace-nowrap text-gray-400 uppercase transition-all duration-100 ${!isSidebarExpanded ? 'lg:hidden' : ''}`}
 										>
 											System Management
 										</span>
 									</div>
 									<svg
-										class={`h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-200 ${isAdminMenuOpen ? 'rotate-90' : 'rotate-0'} ${isSidebarCollapsed ? 'lg:hidden' : ''}`}
+										class={`h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-200 ${isAdminMenuOpen ? 'rotate-90' : 'rotate-0'} ${!isSidebarExpanded ? 'lg:hidden' : ''}`}
 										xmlns="http://www.w3.org/2000/svg"
 										width="24"
 										height="24"
@@ -394,7 +424,7 @@
 									</svg>
 								</button>
 
-								{#if !isSidebarCollapsed && isAdminMenuOpen}
+								{#if isSidebarExpanded && isAdminMenuOpen}
 									<ul class="space-y-1 pt-1 pl-5" transition:slide>
 										<li>
 											<a
@@ -439,60 +469,6 @@
 										</li>
 									</ul>
 								{/if}
-
-								{#if isSidebarCollapsed && flyoutMenuId === -1}
-									<div
-										role="group"
-										class="absolute top-0 left-full z-40 ml-1 min-w-[200px] rounded-md border border-gray-200 bg-white p-2 shadow-xl"
-										onmouseenter={() => handleMouseEnter(-1)}
-										onmouseleave={handleMouseLeave}
-										transition:fade={{ duration: 100 }}
-									>
-										<ul class="space-y-1">
-											<li>
-												<a
-													href="/roles"
-													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
-														'/roles'
-													)
-														? 'bg-blue-100 text-blue-700'
-														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-													title="Roles & Permissions"
-													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
-														>shield_person</span
-													><span class="font-medium">Roles & Permissions</span></a
-												>
-											</li>
-											<li>
-												<a
-													href="/permissions"
-													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
-														'/permissions'
-													)
-														? 'bg-blue-100 text-blue-700'
-														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-													title="Permissions"
-													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
-														>verified_user</span
-													><span class="font-medium">Permissions</span></a
-												>
-											</li>
-											<li>
-												<a
-													href="/menus"
-													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
-														'/menus'
-													)
-														? 'bg-blue-100 text-blue-700'
-														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-													title="Menu Management"
-													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span
-													><span class="font-medium">Menu Management</span></a
-												>
-											</li>
-										</ul>
-									</div>
-								{/if}
 							</li>
 						{/if}
 					</nav>
@@ -502,21 +478,24 @@
 
 		<div
 			class="flex flex-1 flex-col transition-all duration-300 ease-in-out
-			{isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}"
+			{isSidebarPinned ? 'lg:pl-64' : 'lg:pl-20'}"
 		>
 			<header
 				class="sticky top-0 z-10 hidden h-16 items-center border-b border-gray-200 bg-white/90 px-4 shadow-sm backdrop-blur-sm lg:flex"
 			>
 				<button
-					onclick={() => (isSidebarCollapsed = !isSidebarCollapsed)}
+					onclick={() => {
+						isSidebarPinned = !isSidebarPinned;
+						isSidebarHovering = false;
+					}}
 					class="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-					title={isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
+					title={isSidebarPinned ? 'Unpin Sidebar' : 'Pin Sidebar'}
 				>
-					<span class="sr-only">{isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}</span>
-					{#if isSidebarCollapsed}
-						<span class="material-symbols-outlined h-6 w-6">menu</span>
-					{:else}
+					<span class="sr-only">{isSidebarPinned ? 'Unpin Sidebar' : 'Pin Sidebar'}</span>
+					{#if isSidebarPinned}
 						<span class="material-symbols-outlined h-6 w-6">menu_open</span>
+					{:else}
+						<span class="material-symbols-outlined h-6 w-6">menu</span>
 					{/if}
 				</button>
 				<div class="flex-grow"></div>
