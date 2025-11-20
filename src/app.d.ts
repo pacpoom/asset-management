@@ -1,5 +1,6 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
+import type { Session } from '@auth/sveltekit';
 declare global {
 	namespace App {
 		// Define the structure of the authenticated user
@@ -17,6 +18,7 @@ declare global {
 		// Locals interface for passing data between hooks, server routes, and pages
 		interface Locals {
 			user: User | null;
+			auth: () => Promise<Session | null>;
 		}
 		// interface PageData {}
 		// interface PageState {}

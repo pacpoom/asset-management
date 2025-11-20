@@ -46,7 +46,13 @@ async function saveLogo(logoFile: File): Promise<string | null> {
 		return relativePath;
 	} catch (uploadError: any) {
 		console.error(`saveLogo Error: ${uploadError.message}`, uploadError.stack);
-		if (uploadPath) { try { if (await fs.stat(uploadPath)) await fs.unlink(uploadPath); } catch (e) { /* ignore */ } }
+		if (uploadPath) {
+			try {
+				if (await fs.stat(uploadPath)) await fs.unlink(uploadPath);
+			} catch (e) {
+				/* ignore */
+			}
+		}
 		throw new Error(`Failed to save logo file "${logoFile.name}". Reason: ${uploadError.message}`);
 	}
 }
@@ -84,12 +90,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		if (rows.length > 0) {
 			companyData = rows[0];
 		} else {
-			// Provide default empty values if no record exists yet
-			companyData = { id: 1, name: '' };
+			companyData = { id: 1, name: '' } as Partial<CompanyData>;
 		}
 
 		return { company: companyData };
-
 	} catch (err: any) {
 		console.error('Failed to load company data:', err.message, err.stack);
 		throw error(500, `Failed to load company data. Error: ${err.message}`);
@@ -116,7 +120,7 @@ export const actions: Actions = {
 			phone: formData.get('phone')?.toString()?.trim() || null,
 			email: formData.get('email')?.toString()?.trim() || null,
 			website: formData.get('website')?.toString()?.trim() || null,
-			tax_id: formData.get('tax_id')?.toString()?.trim() || null,
+			tax_id: formData.get('tax_id')?.toString()?.trim() || null
 		};
 
 		// Basic validation
@@ -154,9 +158,18 @@ export const actions: Actions = {
                     phone = ?, email = ?, website = ?, tax_id = ?
                 WHERE id = ?`;
 			const [updateResult] = await connection.execute(updateSql, [
-				data.name, newLogoPath, data.address_line_1, data.address_line_2,
-				data.city, data.state_province, data.postal_code, data.country,
-				data.phone, data.email, data.website, data.tax_id,
+				data.name,
+				newLogoPath,
+				data.address_line_1,
+				data.address_line_2,
+				data.city,
+				data.state_province,
+				data.postal_code,
+				data.country,
+				data.phone,
+				data.email,
+				data.website,
+				data.tax_id,
 				1 // Always update ID 1
 			]);
 
@@ -169,20 +182,33 @@ export const actions: Actions = {
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 				await connection.execute(insertSql, [
 					1, // Always insert ID 1
-					data.name, newLogoPath, data.address_line_1, data.address_line_2, data.city, data.state_province,
-					data.postal_code, data.country, data.phone, data.email, data.website, data.tax_id
+					data.name,
+					newLogoPath,
+					data.address_line_1,
+					data.address_line_2,
+					data.city,
+					data.state_province,
+					data.postal_code,
+					data.country,
+					data.phone,
+					data.email,
+					data.website,
+					data.tax_id
 				]);
 			}
 
 			await connection.commit();
 
 			// Delete old logo only after successful commit
-			if (existingLogoPath && (newLogoPath !== existingLogoPath)) {
+			if (existingLogoPath && newLogoPath !== existingLogoPath) {
 				await deleteLogo(existingLogoPath);
 			}
 
-			return { success: true, message: 'Company details saved successfully.', logoPath: newLogoPath };
-
+			return {
+				success: true,
+				message: 'Company details saved successfully.',
+				logoPath: newLogoPath
+			};
 		} catch (err: any) {
 			await connection.rollback();
 			// If a new logo was saved but DB failed, delete the temporary logo file
@@ -190,9 +216,12 @@ export const actions: Actions = {
 				await deleteLogo(savedLogoTempPath);
 			}
 			console.error('Failed to save company details:', err.message, err.stack);
-			return fail(500, { success: false, message: `Failed to save company details. Error: ${err.message}` });
+			return fail(500, {
+				success: false,
+				message: `Failed to save company details. Error: ${err.message}`
+			});
 		} finally {
 			connection.release();
 		}
-	},
+	}
 };

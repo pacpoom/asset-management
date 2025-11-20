@@ -1,9 +1,52 @@
 import { type Actions, fail } from '@sveltejs/kit';
-import db from '$lib/server/database'; // สมมติว่านี่คือ connection pool จากไฟล์ `database.ts` ของคุณ
-// **แก้ไข 3: เพิ่ม 'readFile' ในการ import**
+import db from '$lib/server/database';
 import { writeFile, mkdir, unlink, stat, readFile } from 'fs/promises';
 import path from 'path';
-import mime from 'mime-types'; // ใช้สำหรับหา mime type
+import mime from 'mime-types';
+import type { RowDataPacket } from 'mysql2';
+
+interface Customer extends RowDataPacket {
+	id: number;
+	name: string;
+}
+
+interface User extends RowDataPacket {
+	id: number;
+	username: string;
+}
+
+interface ContractType extends RowDataPacket {
+	id: number;
+	name: string;
+}
+
+interface ContractDocument extends RowDataPacket {
+	id: number;
+	file_original_name: string;
+	file_system_name: string;
+	version: number;
+	uploaded_at: string | Date;
+}
+
+interface Contract extends RowDataPacket {
+	id: number;
+	title: string;
+	contract_number: string | null;
+	customer_id: number | null;
+	owner_user_id: number | null;
+	contract_type_id: number | null;
+	start_date: string | Date | null;
+	end_date: string | Date | null;
+	value: number | null;
+	status: 'Draft' | 'Active' | 'Expired' | 'Terminated';
+	description: string | null;
+	created_at: string | Date;
+	updated_at: string | Date;
+
+	customer_name: string;
+	owner_name: string;
+	type_name: string;
+}
 
 // กำหนด Path สำหรับอัปโหลด: ย้ายไปเก็บที่ root directory ของ Project/uploads/contracts
 // **ตามคำขอ: ย้ายไปเก็บที่ uploads/contracts (root directory เดียวกับ Project)**
@@ -26,8 +69,7 @@ const getContractQuery = `
 
 // Helper: ดึงเอกสารทั้งหมดของสัญญา
 async function getContractDocuments(contractId: string | number) {
-	// ดึงเอกสารทั้งหมดของสัญญา
-	const [documents]: [any[], any] = await db.query(
+	const [documents] = await db.query<ContractDocument[]>(
 		'SELECT id, file_original_name, file_system_name, file_mime_type, file_size_bytes, version, uploaded_at FROM contract_documents WHERE contract_id = ? ORDER BY version DESC',
 		[contractId]
 	);
@@ -57,30 +99,25 @@ function nullIfEmpty(value: string | number | null | undefined) {
 export async function load({ locals }) {
 	try {
 		// ดึงข้อมูลหลัก
-		const [
-			// @ts-ignore
-			contractsResult,
-			// @ts-ignore
-			customersResult,
-			// @ts-ignore
-			usersResult,
-			// @ts-ignore
-			contractTypesResult
-		] = await Promise.all([
-			db.query(`${getContractQuery} ORDER BY c.created_at DESC`),
-			db.query('SELECT id, name FROM customers ORDER BY name ASC'),
-			db.query('SELECT id, username as name FROM users ORDER BY username ASC'),
-			db.query('SELECT id, name FROM contract_types ORDER BY name ASC')
+		// --- FIX: ลบ @ts-ignore และใส่ Type ที่ถูกต้อง ---
+		const [contractsResult, customersResult, usersResult, contractTypesResult] = await Promise.all([
+			db.query<Contract[]>(`${getContractQuery} ORDER BY c.created_at DESC`),
+			db.query<Customer[]>('SELECT id, name FROM customers ORDER BY name ASC'),
+			// FIX: แก้ query ให้ตรงกับ Interface 'User' (username)
+			db.query<User[]>('SELECT id, username FROM users ORDER BY username ASC'),
+			db.query<ContractType[]>('SELECT id, name FROM contract_types ORDER BY name ASC')
 		]);
 
 		// ดึงเอกสารทั้งหมดสำหรับสัญญาแต่ละฉบับ
-		// @ts-ignore
+		// --- FIX: ลบ @ts-ignore และ (c: any) ---
+		// (Error 1 `.map` หายไป)
 		const contractsWithDocs = await Promise.all(
-			contractsResult[0].map(async (c: any) => {
+			contractsResult[0].map(async (c) => {
 				const documents = await getContractDocuments(c.id);
 				return {
 					...c,
-					documents: documents.map((d: any) => ({
+					// --- FIX: ลบ (d: any) (เพราะ getContractDocuments แก้ไขแล้ว) ---
+					documents: documents.map((d) => ({
 						id: d.id,
 						name: d.file_original_name,
 						system_name: d.file_system_name,
@@ -93,6 +130,7 @@ export async function load({ locals }) {
 
 		return {
 			contracts: JSON.parse(JSON.stringify(contractsWithDocs)),
+			// (Error 2 และ 3 หายไป)
 			customers: customersResult[0],
 			users: usersResult[0],
 			contractTypes: contractTypesResult[0]
@@ -195,7 +233,7 @@ export const actions: Actions = {
 
 			// --- 4. ดึงข้อมูลที่สร้างใหม่เพื่อส่งกลับไปอัปเดต UI ---
 			// @ts-ignore
-			const [newContractRows] = await db.query(`${getContractQuery} WHERE c.id = ?`, [
+			const [newContractRows] = await db.query<Contract[]>(`${getContractQuery} WHERE c.id = ?`, [
 				newContractId
 			]);
 			let newContract = newContractRows[0];
@@ -330,7 +368,10 @@ export const actions: Actions = {
 
 			// --- 4. ดึงข้อมูลที่อัปเดตแล้วส่งกลับ ---
 			// @ts-ignore
-			const [updatedContractRows] = await db.query(`${getContractQuery} WHERE c.id = ?`, [id]);
+			const [updatedContractRows] = await db.query<Contract[]>(
+				`${getContractQuery} WHERE c.id = ?`,
+				[id]
+			);
 			let updatedContract = updatedContractRows[0];
 
 			// ดึงเอกสารที่อัปโหลดมาแนบด้วย
@@ -453,12 +494,12 @@ export const actions: Actions = {
 			// **แก้ไข 3: เปลี่ยน 'fs.readFile' เป็น 'readFile'**
 			// อ่านไฟล์เป็น Buffer
 			const fileBuffer = await readFile(fullPath);
+			const uint8Array = new Uint8Array(fileBuffer);
 
 			// ส่งไฟล์กลับเป็น Response
-			return new Response(fileBuffer, {
+			return new Response(uint8Array, {
 				headers: {
 					'Content-Type': mimeType,
-					// ตั้งชื่อไฟล์ที่จะดาวน์โหลด
 					'Content-Disposition': `attachment; filename="${encodeURIComponent(originalFileName)}"`,
 					'Content-Length': fileStats.size.toString()
 				}

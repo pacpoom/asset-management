@@ -53,6 +53,7 @@
 	let vendor_contract_id = $state<number | undefined>(undefined);
 	let discountAmount = $state(0);
 	let whtRateValue = $state(0);
+	let vatRateValue = $state(0);
 	const withholdingTaxRate = $derived(whtRateValue === 0 ? 0.0 : whtRateValue);
 	const calculateWithholdingTax = $derived(whtRateValue !== 0);
 	// --- End of FIX ---
@@ -73,7 +74,10 @@
 		}))
 	);
 	const subTotal = $derived(
-		modalItems.reduce((sum, item: BillPaymentItem) => sum + item.line_total, 0)
+		modalItems.reduce((sum, item: BillPaymentItem) => {
+			const lineTotal = parseFloat(item.line_total as unknown as string) || 0;
+			return sum + lineTotal;
+		}, 0)
 	);
 	const totalAfterDiscount = $derived(subTotal - (discountAmount || 0));
 	const withholdingTaxAmount = $derived(
@@ -81,7 +85,23 @@
 			? parseFloat((totalAfterDiscount * (withholdingTaxRate / 100)).toFixed(2))
 			: 0
 	);
-	const grandTotal = $derived(totalAfterDiscount - withholdingTaxAmount);
+
+	const vatAmount = $derived(parseFloat((totalAfterDiscount * (vatRateValue / 100)).toFixed(2)));
+
+	const grandTotal = $derived(totalAfterDiscount + vatAmount - withholdingTaxAmount);
+
+	$effect(() => {
+		// เช็คก่อนว่า modalItems มีค่าหรือไม่
+		if (modalItems && modalItems.length > 0) {
+			modalItems.forEach((item) => {
+				const quantity = parseFloat(item.quantity as unknown as string) || 0;
+				const unitPrice = parseFloat(item.unit_price as unknown as string) || 0;
+				// สั่งอัปเดต line_total ของ item นั้นๆ
+				item.line_total = quantity * unitPrice;
+			});
+		}
+	});
+
 	const filteredContracts = $derived(
 		vendor_id ? data.contracts.filter((c: VendorContract) => c.vendor_id === vendor_id) : []
 	);
@@ -110,8 +130,6 @@
 			maximumFractionDigits: 2
 		}).format(value);
 	}
-	// ในส่วน <script lang="ts"> ของ +page.svelte
-	// ค้นหาฟังก์ชัน formatNumber ที่มีอยู่ แล้วแทนที่ด้วยโค้ดนี้
 
 	const formatNumber = (num: number | string | null | undefined): string => {
 		if (num === null || num === undefined) return '-';
@@ -219,8 +237,11 @@
 	}
 
 	function updateLineTotal(item: BillPaymentItem) {
-		item.line_total = (item.quantity || 0) * (item.unit_price || 0);
-		modalItems = [...modalItems];
+		const quantity = parseFloat(item.quantity as unknown as string) || 0;
+		const unitPrice = parseFloat(item.unit_price as unknown as string) || 0;
+
+		item.line_total = quantity * unitPrice;
+		// modalItems = [...modalItems];
 	}
 
 	function onProductSelectChange(item: BillPaymentItem) {
@@ -295,7 +316,7 @@
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					voucherId: paymentData.id
+					id: paymentData.id
 				})
 			});
 
@@ -313,11 +334,28 @@
 			const pdfBlob = await response.blob();
 			const pdfUrl = URL.createObjectURL(pdfBlob);
 
-			window.open(pdfUrl, '_blank');
+			// --- VVVV ส่วนที่เปลี่ยนแปลง VVVV ---
+
+			// 1. สร้างลิงก์ (<a>) ขึ้นมาในหน่วยความจำ
+			const link = document.createElement('a');
+			link.href = pdfUrl;
+
+			// 2. ตั้งชื่อไฟล์ที่จะดาวน์โหลด (สำคัญมาก)
+			link.setAttribute('download', `bill-payment-${paymentData.id}.pdf`);
+
+			// 3. เพิ่มลิงก์เข้าไปในหน้า (จำเป็นสำหรับบางเบราว์เซอร์)
+			document.body.appendChild(link);
+
+			// 4. สั่งให้เบราว์เซอร์คลิกที่ลิงก์นี้ (เพื่อเริ่มดาวน์โหลด)
+			link.click();
+
+			// 5. ลบลิงก์และ URL ทิ้ง (ทำความสะอาด)
+			document.body.removeChild(link);
 			URL.revokeObjectURL(pdfUrl);
+
+			// --- ^^^^ สิ้นสุดส่วนที่เปลี่ยนแปลง ^^^^ ---
 		} catch (error) {
 			console.error('Fetch Error:', error);
-
 			if (error instanceof Error) {
 				alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error.message);
 			} else {
@@ -327,7 +365,6 @@
 			isPrinting = false;
 		}
 	}
-
 	// --- Reactive Effects ---
 	$effect.pre(() => {
 		if (form?.action === 'updatePayment') {
@@ -424,18 +461,16 @@
 			{paymentData.status}
 		</span>
 
-		<button
-			type="button"
-			onclick={handlePrintPdf}
-			disabled={isPrinting || isSaving}
-			class="rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
-		>
-			{#if isPrinting}
-				<span>กำลังพิมพ์...</span>
-			{:else}
-				<span>พิมพ์ PDF</span>
-			{/if}
-		</button>
+		{#if paymentData.status === 'Submitted'}
+			<a
+				href="/bill-payments/generate-pdf?id={paymentData.id}"
+				target="_blank"
+				class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
+				role="button"
+			>
+				<span>พิมพ์ PDF (ดาวน์โหลด)</span>
+			</a>
+		{/if}
 
 		<button
 			onclick={openEditModal}
@@ -712,6 +747,14 @@
 					);
 					formData.set('discountAmount', (discountAmount || 0).toString());
 					formData.set('withholdingTaxRate', whtRateValue.toString());
+					formData.set('calculateWithholdingTax', calculateWithholdingTax.toString());
+					formData.set('vatRate', vatRateValue.toString());
+					formData.set('vatAmount', vatAmount.toString());
+
+					formData.set('subtotal', subTotal.toString());
+					formData.set('total_after_discount', totalAfterDiscount.toString());
+					formData.set('withholdingTaxAmount', withholdingTaxAmount.toString());
+					formData.set('total_amount', grandTotal.toString());
 
 					return async ({ update }) => {
 						await update({ reset: false });
@@ -938,14 +981,9 @@
 					</div>
 
 					<div class="space-y-6 p-6">
-						<!-- ... โค้ดส่วนบนของ Modal (Vendor, Date, Ref) ... -->
-
 						<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-							<!-- คอลัมน์ที่ 1: Summary และ Notes/Attachments -->
 							<div>
 								<div class="w-full space-y-2 text-sm">
-									<!-- ... โค้ดส่วน Subtotal, Discount, Total After Discount ... -->
-									<!-- ... โค้ดส่วน WHT Dropdown และ Withholding Tax Amount ... -->
 									<div class="flex items-center justify-between">
 										<span class="font-medium text-gray-600">รวมเป็นเงิน (Subtotal):</span>
 										<span class="text-base font-semibold text-gray-800"
@@ -975,20 +1013,38 @@
 											>{formatCurrency(totalAfterDiscount)}</span
 										>
 									</div>
-
+									<div class="flex items-center justify-between gap-4">
+										<label for="vat_rate_modal" class="font-medium text-gray-600"
+											>ภาษีมูลค่าเพิ่ม (VAT):</label
+										>
+										<select
+											id="vat_rate_modal"
+											name="vatRate"
+											bind:value={vatRateValue}
+											class="w-36 rounded-md border-gray-300 py-1 text-center text-sm shadow-sm"
+										>
+											<option value={0}>ไม่รวม VAT (-)</option>
+											<option value={7.0}>7%</option>
+										</select>
+									</div>
+									<div class="flex items-center justify-between gap-4">
+										<span class="font-medium text-gray-600">มูลค่า VAT:</span>
+										<span class="text-base font-semibold text-gray-800"
+											>{formatCurrency(vatAmount)}</span
+										>
+									</div>
 									<div class="flex items-center justify-between gap-4">
 										<label for="wht_rate_modal" class="font-medium text-gray-600"
 											>หักภาษี ณ ที่จ่าย (WHT):</label
 										>
 										<select
 											id="wht_rate_modal"
-											name="wht_rate_value"
+											name="withholdingTaxRate"
 											bind:value={whtRateValue}
-											class="w-36 rounded-md border-gray-300 py-1 text-right text-sm shadow-sm"
+											class="w-36 rounded-md border-gray-300 py-1 text-center text-sm shadow-sm"
 										>
 											<option value={0}>ไม่หักภาษี (-)</option>
 											<option value={3.0}>3.00% (บริการ/ค่าจ้าง)</option>
-											<option value={7.0}>7.00% (ค่าเช่า/อื่นๆ)</option>
 										</select>
 									</div>
 									<div class="flex items-center justify-between gap-4">
@@ -1083,7 +1139,6 @@
 								</div>
 							</div>
 
-							<!-- คอลัมน์ที่ 2 ว่างไว้ หรือมีเนื้อหาอื่น -->
 							<div>
 								{#if form?.message && !form.success && form.action === 'updatePayment'}
 									<div class="rounded-md bg-red-50 p-3 text-sm text-red-600">
@@ -1093,7 +1148,7 @@
 							</div>
 						</div>
 					</div>
-					<!-- !!! นี่คือจุดที่คุณต้องนำ Footer มาวาง: นอกเหนือจาก Grid Container ด้านบน !!! -->
+
 					<div class="sticky bottom-0 flex flex-shrink-0 justify-end gap-3 border-t bg-gray-50 p-4">
 						<button
 							type="button"

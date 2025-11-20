@@ -3,10 +3,10 @@
 @plugin '@tailwindcss/typography';
 
 @layer base {
-  button,
-  [type='button'],
-  [type='reset'],
-  [type='submit'] {
-    cursor: pointer;
-  }
+	button,
+	[type='button'],
+	[type='reset'],
+	[type='submit'] {
+		cursor: pointer;
+	}
 }

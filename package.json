@@ -46,6 +46,8 @@
 		"exceljs": "^4.4.0",
 		"express": "^4.19.2",
 		"file-type": "^21.0.0",
+		"jspdf": "^3.0.3",
+		"jspdf-autotable": "^5.0.2",
 		"mysql2": "^3.15.2",
 		"pdfmake": "^0.2.20",
 		"puppeteer": "^24.29.1",

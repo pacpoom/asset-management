@@ -6,7 +6,7 @@ import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
 // ---
-// 1. INTERFACES (อัปเดตให้ครบถ้วน)
+// 1. INTERFACES
 // ---
 
 interface CompanyData extends RowDataPacket {
@@ -28,7 +28,7 @@ interface VoucherData extends RowDataPacket {
 	payment_date: string;
 	vendor_id: string;
 
-	// ข้อมูลที่ Join มา (เหมือนหน้าพรีวิว)
+	// ข้อมูลที่ Join มา
 	vendor_name: string;
 	vendor_address: string | null;
 	vendor_tax_id: string | null;
@@ -51,12 +51,10 @@ interface ItemData {
 	line_total: number;
 }
 
-// ---
-// 2. ฟังก์ชัน BAHTTEXT (พร้อมตัวกัน NaN)
-// ---
+// ฟังก์ชัน BAHTTEXT
 
-function bahttext(num: number): string {
-	// (เพิ่มการป้องกัน NaN ที่เราเจอปัญหา)
+function bahttext(input: number | string): string {
+	let num = parseFloat(String(input));
 	if (isNaN(num)) {
 		console.error('bahttext: Received NaN, returning ศูนย์บาทถ้วน');
 		num = 0;
@@ -130,23 +128,18 @@ function bahttext(num: number): string {
 	}
 }
 
-// ---
-// 3. ฟังก์ชัน GETBILLHTML (แก้ไข Layout และการคำนวณ)
-// ---
-
 function getBillHtml(
 	companyData: CompanyData | null,
 	voucherData: VoucherData,
 	itemsData: ItemData[]
 ): string {
+	// --- 1. Helpers & Formatting
 	const subtotal = voucherData.subtotal || 0;
 	const discount = voucherData.discount_amount || 0;
 	const totalAfterDiscount = voucherData.total_after_discount || 0;
-	const vat = 0; // (ระบบนี้ไม่มี VAT)
+	const vat = 0;
 	const wht = voucherData.withholding_tax_amount || 0;
 	const netAmount = voucherData.total_amount || 0;
-
-	// *** แก้ไข: ป้องกัน Error 'num.toFixed' ***
 	const netAmountAsNumber = parseFloat(String(netAmount)) || 0;
 	const netAmountText = bahttext(netAmountAsNumber);
 
@@ -159,7 +152,6 @@ function getBillHtml(
 		});
 	};
 
-	// เพิ่มฟังก์ชัน formatDate (จำเป็นต้องใช้)
 	const formatDateOnly = (isoString: string | null | undefined): string => {
 		if (!isoString) return '-';
 		try {
@@ -173,192 +165,125 @@ function getBillHtml(
 		}
 	};
 
-	const itemsHtml = itemsData
-		.map(
-			(item: ItemData, index: number) => `
-        <tr class="border-b border-gray-300">
-            <td class="p-2 text-center align-middle h-10">${index + 1}</td>
-            <td class="p-2 align-middle h-10">${item.description || 'N/A'}</td>
-            <td class="p-2 text-center align-middle h-10">${formatNumber(item.quantity)}</td> 
-            <td class="p-2 text-center align-middle h-10">N/A</td> 
-            <td class="p-2 text-center align-middle h-10">${formatNumber(item.unit_price)}</td> 
-            <td class="p-2 text-center align-middle h-10">${formatNumber(item.line_total)}</td> 
-        </tr>
-    `
-		)
-		.join('');
+	// --- Blocks (Header, TableHeader, Footer) ---
 
-	const addressLines = (voucherData.vendor_address || 'No address provided.')
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter((line) => line.length > 0);
-	const addressHtml =
-		addressLines.length > 0
-			? addressLines.map((line) => `<p class="text-sm text-gray-600">${line}</p>`).join('')
-			: `<p class="text-sm text-gray-600">No address provided.</p>`;
-
-	return `
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Bill Payment Voucher - ${voucherData.id}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-            body { 
-                font-family: 'Sarabun', 'Arial', sans-serif; 
-                margin: 0; 
-                padding: 0;
-                -webkit-print-color-adjust: exact !important; /* Force print background colors */
-                print-color-adjust: exact !important;
-            }
-            .page-container {
-                width: 210mm;
-                min-height: 297mm;
-                margin: auto;
-                background: white;
-            }
-            @media print {
-                body, .page-container {
-                    margin: 0;
-                    box-shadow: none;
-                }
-            }
-        </style>
-    </head>
-    <body class="bg-gray-100">
-        <div class="page-container p-10 text-sm text-gray-800">
-
-            <div class="mb-6 rounded-lg border bg-white p-6 shadow-sm">
-                <div class="flex flex-col justify-between gap-4 border-b pb-4 md:flex-row">
-                    
-                    <div>
-                        ${
-													companyData?.logo_path
-														? `<img src="http://localhost:5173${companyData.logo_path}" alt="${companyData?.name || 'Company Logo'}" class="mb-2 h-16 max-w-xs object-contain" />`
-														: companyData?.name
-															? `<h2 class="text-2xl font-bold text-gray-800">${companyData.name}</h2>`
-															: ''
-												}
-                        
-                        <div class="mt-2 text-sm text-gray-500 space-y-0.5"> <p>${companyData?.address_line_1 || ''}</p>
-                            
-                            ${companyData?.address_line_2 ? `<p>${companyData.address_line_2}</p>` : ''}
-                            
-                            <p>
-                                ${companyData?.city || ''} ${companyData?.state_province || ''} ${companyData?.postal_code || ''}
-                            </p>
-                            
-                            <p>${companyData?.country || ''}</p>
-                            
-                            <p> <span class="font-semibold text-gray-700">Tax ID:</span>
-                        	${companyData?.tax_id || '-'}
-                    	</p>
-                	</div>
-            	</div>
-                    
-                    <div class="text-left md:text-right">
-                        
-                        <h1 class="text-2xl font-bold text-gray-800 uppercase">ใบสำคัญจ่าย</h1>
-                        <p class="text-sm text-gray-500">Bill Payment Voucher</p>
-                        
-                        <div class="mt-4 space-y-1">
-                            <div class="text-sm">
-                                <span class="font-semibold text-gray-600">เลขที่ / No.:</span>
-                                <span class="font-medium text-gray-800">#${voucherData.id}</span>
-                            </div>
-                            <div class="text-sm">
-                                <span class="font-semibold text-gray-600">วันที่ / Date:</span>
-                                <span class="font-medium text-gray-800">${formatDateOnly(voucherData.payment_date)}</span>
-                            </div>
-                            <div class="text-sm">
-                                <span class="font-semibold text-gray-600">อ้างอิง / Ref:</span>
-                                <span class="font-medium text-gray-800">${voucherData.payment_reference || '-'}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                    
-                    <div class="md:col-span-2">
-                <h3 ...>ซัพพลายเออร์ (Supplier)</h3>
-                <p ...>${voucherData.vendor_name}</p>
-                ${addressHtml} 
-                
-                <p class="text-sm"> <span class="font-semibold text-gray-700">Tax ID:</span>
-                    ${voucherData.vendor_tax_id || '-'}
-                </p>
-            </div>
-                    
-                    <div class="md:col-span-1">
-                        <h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
-                        
-                        <p class="mt-1 text-xs text-gray-600"> 
-                            <span class="font-semibold">ผู้เตรียม / Prepared By:</span>
-                            ${voucherData.prepared_by_user_name || '-'}
+	//  Header (ส่วนหัวที่จะโชว์ทุกหน้า)
+	const headerContent = `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; page-break-inside: avoid; font-size: 9pt;">
+            <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
+                    ${
+											companyData?.logo_path
+												? `<img src="http://localhost:5173${companyData.logo_path}" alt="${companyData?.name || 'Company Logo'}" style="max-height: 64px; margin-bottom: 8px;" />`
+												: companyData?.name
+													? `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData.name}</h2>`
+													: ''
+										}
+                    <div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
+                        <p style="margin:0;">${companyData?.address_line_1 || ''}</p>
+                        ${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
+                        <p style="margin:0;">
+                            ${companyData?.city || ''} ${companyData?.state_province || ''} ${companyData?.postal_code || ''}
                         </p>
-                        <p class="mt-1 text-xs text-gray-600"> 
-                            <span class="font-semibold">สัญญา / Contract:</span>
-                            ${voucherData.vendor_contract_number || '-'}
+                        <p style="margin:4px 0 0 0;">
+                            <span style="font-weight: 600; color: #374151;">Tax ID:</span>
+                            ${companyData?.tax_id || '-'}
                         </p>
                     </div>
-                </div>
-            </div>
-            <section class="mb-4">
-                <table class="w-full border-collapse border border-gray-400">
-                    <thead class="bg-gray-100">
-                        <tr class="border-b border-gray-400">
-                            <th class="p-2 w-12 text-center">ลำดับ</th>
-                            <th class="p-2 text-left">รายการ</th>
-                            <th class="p-2 w-20 text-center">จำนวน</th>
-                            <th class="p-2 w-16 text-center">หน่วย</th>
-                            <th class="p-2 w-28 text-center">ราคา/หน่วย</th> 
-                            <th class="p-2 w-32 text-center">จำนวนเงิน</th> 
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${itemsHtml}
-                        
-                        </tbody>
-                    
-                    <tfoot>
-                        <tr>
-                            <td colspan="4" rowspan="6" class="p-4 align-bottom">
-                                <span class="font-bold">จำนวนเงินสุทธิ (ตัวอักษร):</span>
-                                <span class="border-b border-dashed border-gray-500">
-                                    (${netAmountText})
-                                </span>
-                            </td>
-                            <td class="font-bold p-2 text-right border-l border-t border-gray-400">รวมเป็นเงิน</td>
-                            <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
-                            <td class="p-2 text-right">${formatNumber(discount)}</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
-                            <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (0%)</td>
-                            <td class="p-2 text-right">${formatNumber(vat)}</td>
-                        </tr>
-                        <tr>
-                            <td class="font-bold p-2 text-right border-l border-gray-400">หัก ณ ที่จ่าย (${voucherData.withholding_tax_rate ?? 0}%)</td>
-                            <td class="p-2 text-right text-red-600">(${formatNumber(wht)})</td>
-                        </tr>
-                        <tr class="bg-gray-100">
-                            <td class="font-bold p-2 text-right border-l border-t border-gray-400">จำนวนเงินสุทธิ</td>
-                            <td class="font-bold p-2 text-right border-t border-gray-400">${formatNumber(netAmount)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </section>
-            
-            <section class="border border-gray-400 rounded-lg p-4 mb-4">
+                </td>
+                <td style="width: 40%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
+                    <h1 style="font-size: 1.5rem; font-weight: bold; color: #1F2937; text-transform: uppercase; margin: 0;">ใบสำคัญจ่าย</h1>
+                    <div style="margin-top: 1rem; font-size: 8pt; line-height: 1.5;">
+                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">เลขที่ / No.:</span> <span style="font-weight: 500; color: #1F2937;">#${voucherData.id}</span></p>
+                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">วันที่ / Date:</span> <span style="font-weight: 500; color: #1F2937;">${formatDateOnly(voucherData.payment_date)}</span></p>
+                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">อ้างอิง / Ref:</span> <span style="font-weight: 500; color: #1F2937;">${voucherData.payment_reference || '-'}</span></p>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding-top: 1rem; vertical-align: top;">
+                    <h3 style="font-weight: 600; color: #6B7280; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ซัพพลายเออร์ (Supplier)</h3>
+                    <p style="font-weight: bold; color: #374151; margin: 0 0 4px 0;">${voucherData.vendor_name}</p>
+                    <div style="font-size: 8pt; color: #374151; line-height: 1.4;">
+                        ${(voucherData.vendor_address || 'No address provided.')
+													.split(/\r?\n/)
+													.map((line) => line.trim())
+													.filter((line) => line.length > 0)
+													.map((line) => `<p style="margin:0;">${line}</p>`)
+													.join('')}
+                    </div>
+                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600; color: #374151;">Tax ID:</span> ${voucherData.vendor_tax_id || '-'}</p>
+                </td>
+                <td style="padding-top: 1rem; vertical-align: top;">
+                    <h3 style="font-weight: 600; color: #6B7280; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ข้อมูลเพิ่มเติม (More Info)</h3>
+                    <p style="font-size: 8pt; margin: 4px 0;"><span style="font-weight: 600;">ผู้เตรียม / Prepared By:</span> ${voucherData.prepared_by_user_name || '-'}</p>
+                    <p style="font-size: 8pt; margin: 4px 0;"><span style="font-weight: 600;">สัญญา / Contract:</span> ${voucherData.vendor_contract_number || '-'}</p>
+                </td>
+            </tr>
+        </table>
+    `;
+
+	const itemTableHeadersHtml = `
+		<thead>
+			<tr class="items-header-row" style="background-color: #f3f4f6 !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
+				<th class="w-12 text-center p-2" style="font-size: 8pt; font-weight: bold;">ลำดับ</th>
+				<th class="text-left p-2" style="font-size: 8pt; font-weight: bold;">รายการ</th>
+				<th class="w-20 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวน</th>
+				<th class="w-16 text-center p-2" style="font-size: 8pt; font-weight: bold;">หน่วย</th>
+				<th class="w-28 text-center p-2" style="font-size: 8pt; font-weight: bold;">ราคา/หน่วย</th> 
+				<th class="w-32 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวนเงิน</th> 
+			</tr>
+		</thead>
+    `;
+
+	const financialSummaryBlock = `
+        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 1px;">
+            <colgroup>
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: 112px;"> <col style="width: 128px;">
+            </colgroup>
+            <tfoot class="bill-summary-footer">
+                <tr>
+                    <td colspan="4" class="p-2"></td> 
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 8pt; font-weight: bold;">รวมเป็นเงิน</td>
+                    <td class="p-2 text-right border-t border-gray-400" style="font-size: 8pt;">${formatNumber(subtotal)}</td>
+                </tr>
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ส่วนลด</td>
+                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(discount)}</td>
+                </tr>
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">หลังหักส่วนลด</td>
+                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(totalAfterDiscount)}</td>
+                </tr>
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ภาษีมูลค่าเพิ่ม (0%)</td>
+                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(vat)}</td>
+                </tr>
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">หัก ณ ที่จ่าย (${voucherData.withholding_tax_rate ?? 0}%)</td>
+                    <td class="p-2 text-right text-red-600" style="font-size: 8pt;">(${formatNumber(wht)})</td>
+                </tr>
+                <tr style="background-color: #f3f4f6;">
+                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
+                        (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
+                    </td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
+                    <td class="p-2 text-right border-t border-gray-400" style="font-size: 8pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                </tr>
+            </tfoot>
+        </table>
+    `;
+
+	const paymentAndSignatureBlock = `
+        <div class="payment-and-signature-block" style="page-break-inside: avoid !important;"> 
+            <section class="border border-gray-400 rounded-lg p-4 mt-4">
                 <h3 class="font-bold mb-2">ชำระโดย (Paid by):</h3>
-                <div class="flex space-x-6">
+                <div class="flex space-x-6"> 
                     <div><input type="checkbox" disabled> เงินสด (Cash)</div>
                     <div><input type="checkbox" disabled> เช็ค (Cheque)</div>
                     <div><input type="checkbox" disabled> โอนเงิน (Transfer)</div>
@@ -367,75 +292,226 @@ function getBillHtml(
                     <p>ธนาคาร: ...................... สาขา: ...................... เลขที่เช็ค/บัญชี: ......................</p>
                 </div>
             </section>
-
-            <section class="mt-8"> 
-                <div class="grid grid-cols-4 gap-8">
-                    
+            <section class="document-footer mt-4"> 
+                <div class="grid grid-cols-4 gap-8 text-xs"> 
                     <div class="text-center">
                         <p class="border-b border-dotted border-gray-500 pb-4">(..............................)</p>
                         <p class="mt-1">ผู้จัดทำ (Prepared by)</p>
                         <p class="mt-0 text-gray-500">(วันที่: ......../......../........)</p>
                     </div>
-                    
                     <div class="text-center">
                         <p class="border-b border-dotted border-gray-500 pb-4">(..............................)</p>
                         <p class="mt-1">ผู้ตรวจสอบ (Checked by)</p>
                         <p class="mt-0 text-gray-500">(วันที่: ......../......../........)</p>
                     </div>
-                    
                     <div class="text-center">
                         <p class="border-b border-dotted border-gray-500 pb-4">(..............................)</p>
                         <p class="mt-1">ผู้อนุมัติ (Approved by)</p>
                         <p class="mt-0 text-gray-500">(วันที่: ......../......../........)</p>
                     </div>
-                    
                     <div class="text-center">
                         <p class="border-b border-dotted border-gray-500 pb-4">(..............................)</p>
                         <p class="mt-1">ผู้รับเงิน (Received by)</p>
                         <p class="mt-0 text-gray-500">(วันที่: ......../......../........)</p>
                     </div>
-
                 </div>
             </section>
+        </div>
+    `;
 
-        </div> </body>
+	// --- Logic การแบ่งหน้าแบบ Force Empty Page ---
+	const MAX_WITH_FOOTER = 10;
+
+	// หน้าทั่วไป (ไม่มีลายเซ็น) ใส่ได้สูงสุดกี่รายการ?
+	const MAX_WITHOUT_FOOTER = 18;
+
+	const itemPages: ItemData[][] = [];
+	let remainingItems = [...itemsData];
+
+	if (remainingItems.length === 0) {
+		itemPages.push([]);
+	} else {
+		while (remainingItems.length > 0) {
+			// ถ้าจำนวนที่เหลือ "ใส่ในหน้าสุดท้ายได้พอดี" (พร้อมลายเซ็น)
+			if (remainingItems.length <= MAX_WITH_FOOTER) {
+				itemPages.push(remainingItems);
+				remainingItems = []; // จบ Loop
+			}
+			// ถ้าจำนวนเกินหน้าสุดท้าย แต่ยัง "ใส่ในหน้าเต็มๆ ได้" (เช่น 12 รายการ)
+			else if (remainingItems.length <= MAX_WITHOUT_FOOTER) {
+				// ใส่รายการทั้งหมด
+				itemPages.push(remainingItems);
+				remainingItems = [];
+				itemPages.push([]);
+			}
+			// ถ้าเยอะ เกินหน้าเต็ม -> ตัดมา 1 หน้าเต็มๆ แล้ววนลูปต่อ
+			else {
+				const chunk = remainingItems.slice(0, MAX_WITHOUT_FOOTER);
+				itemPages.push(chunk);
+				remainingItems = remainingItems.slice(MAX_WITHOUT_FOOTER);
+			}
+		}
+	}
+
+	const totalPages = itemPages.length;
+
+	// สร้าง HTML แต่ละหน้า
+	const pagesHtml = itemPages
+		.map((pageItems, pageIndex) => {
+			const isLastPage = pageIndex === totalPages - 1;
+			const pageNumber = pageIndex + 1;
+
+			// คำนวณ Running Number
+			let startIndex = 0;
+			for (let i = 0; i < pageIndex; i++) {
+				startIndex += itemPages[i].length;
+			}
+
+			// สร้างตารางรายการ)
+			const itemsHtml = pageItems
+				.map((item, itemIndex) => {
+					const globalIndex = startIndex + itemIndex + 1;
+					return `
+                    <tr class="border-b border-gray-300">
+                        <td class="p-2 text-center align-middle h-10" style="font-size: 8pt;">${globalIndex}</td>
+                        <td class="p-2 align-middle h-10" style="font-size: 8pt;">${item.description || 'N/A'}</td>
+                        <td class="p-2 text-center align-middle h-10" style="font-size: 8pt;">${formatNumber(item.quantity)}</td> 
+                        <td class="p-2 text-center align-middle h-10" style="font-size: 8pt;">N/A</td> 
+                        <td class="p-2 w-28 text-center align-middle h-10" style="font-size: 8pt;">${formatNumber(item.unit_price)}</td> 
+                        <td class="p-2 w-32 text-center align-middle h-10" style="font-size: 8pt;">${formatNumber(item.line_total)}</td> 
+                    </tr>
+                `;
+				})
+				.join('');
+
+			const tableContent =
+				pageItems.length > 0
+					? `
+                <table class="w-full border-collapse items-table" style="table-layout: fixed;">
+                    ${itemTableHeadersHtml}
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+            `
+					: `
+                <div style="height: 1px; border-top: 1px solid #eee; margin-bottom: 20px;"></div>
+            `;
+
+			// --- ส่วน Footer ---
+			let footerContent = '';
+
+			if (isLastPage) {
+				// หน้าสุดท้าย : แสดงสรุป + ลายเซ็น
+				footerContent = `
+                    ${financialSummaryBlock}
+                    ${paymentAndSignatureBlock}
+                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 20px;">
+                        หน้า ${pageNumber} / ${totalPages}
+                    </div>
+                `;
+			} else {
+				// หน้าทั่วไป: แสดงยอดยกไป
+				footerContent = `
+                    <div style="text-align: right; font-weight: bold; margin-top: 20px; padding-bottom: 20px; border-bottom: 1px dashed #ccc;">
+                        -- ยอดยกไป (Carried Forward) --
+                    </div>
+                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 20px;">
+                        หน้า ${pageNumber} / ${totalPages}
+                    </div>
+                `;
+			}
+
+			return `
+            <div class="document-page" style="${pageIndex > 0 ? 'page-break-before: always;' : ''}">
+                ${headerContent} ${tableContent}
+                
+                <div class="footer-container">
+                    ${footerContent}
+                </div>
+            </div>
+        `;
+		})
+		.join('');
+
+	// --- Main HTML Container ---
+	return `
+    <html>
+    <head>
+    <meta charset="UTF-8">
+    <title>Bill Payment Voucher - ${voucherData.id}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            font-family: 'Sarabun', 'Arial', sans-serif; 
+            margin: 0; padding: 0;
+            font-size: 9pt !important; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+            background-color: #FFFFFF; 
+            color: #333;
+        }
+        .page-container {
+            width: 210mm;
+            margin: auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .document-page {
+            padding: 40px; 
+            box-sizing: border-box;
+            position: relative;
+            min-height: 297mm; /* บังคับความสูงขั้นต่ำเพื่อให้ Footer อยู่ตำแหน่งสวยงาม */
+        }
+        .footer-container {
+            page-break-inside: avoid !important; 
+            margin-top: 10px;
+        }
+        .items-table thead {
+            display: table-header-group !important;
+        }
+        @media print {
+            body { background-color: #FFFFFF !important; }
+            .page-container { width: auto; margin: 0; box-shadow: none; }
+            .document-page { padding: 0; margin: 0; min-height: auto; }
+            @page { size: A4; margin: 40px; }
+        }
+    </style>
+    </head>
+    <body>
+        <div class="page-container">
+            ${pagesHtml}
+        </div> 
+    </body>
     </html>
     `;
 }
 
-// ---
-// 4. ฟังก์ชัน POST (แก้ไข Query ให้ครบ)
-// ---
+// ฟังก์ชัน POST
 
-export async function POST({ request }) {
-	console.log('ได้รับคำสั่ง... เริ่มสร้าง PDF (เวอร์ชัน DB จริง)...');
+import type { RequestHandler } from './$types';
 
-	// 4.1. ดึง voucherId (เหมือนเดิม)
-	let voucherId: string;
-	try {
-		const body = await request.json();
-		voucherId = body.voucherId;
-		if (!voucherId) {
-			throw new Error('voucherId is missing');
-		}
-		console.log(`กำลังค้นหาข้อมูลสำหรับ Voucher ID: ${voucherId}`);
-	} catch (e) {
-		return json(
-			{ success: false, message: 'Invalid request body. "voucherId" is required.' },
-			{ status: 400 }
-		);
+export const GET: RequestHandler = async ({ url }) => {
+	console.log('ได้รับคำสั่ง... เริ่มสร้าง PDF (GET Method)...');
+
+	// รับ ID จาก URL Query String
+	const voucherId = url.searchParams.get('id');
+
+	if (!voucherId) {
+		return json({ success: false, message: 'Missing voucherId in query string' }, { status: 400 });
 	}
+
+	console.log(`กำลังค้นหาข้อมูลสำหรับ Voucher ID: ${voucherId}`);
 
 	let voucherData: VoucherData;
 	let itemsData: ItemData[];
 	let companyData: CompanyData | null = null;
 	let connection;
 
-	// 4.2. ดึงข้อมูลจาก DB (แก้ไข Query)
+	// ดึงข้อมูลจาก DB
 	try {
 		connection = await db.getConnection();
 
-		// *** แก้ไข Query ของ Voucher (ให้เหมือนพรีวิว) ***
 		const [voucherRows] = await connection.execute<VoucherData[]>(
 			`
             SELECT 
@@ -462,16 +538,14 @@ export async function POST({ request }) {
 			);
 		}
 		voucherData = voucherRows[0];
-		console.log('ดึงข้อมูลหัวบิล (ชุดใหญ่) สำเร็จ!');
+		console.log('ดึงข้อมูลหัวบิลสำเร็จ!');
 
-		// *** เพิ่ม: Query ดึงข้อมูลบริษัท ***
 		const [companyRows] = await connection.execute<CompanyData[]>(
 			'SELECT * FROM company WHERE id = 1 LIMIT 1'
 		);
 		companyData = companyRows.length ? companyRows[0] : null;
 		console.log('ดึงข้อมูล Company สำเร็จ!');
 
-		// *** Query ของ Items (เหมือนเดิม) ***
 		const [itemsRows] = await connection.execute<RowDataPacket[]>(
 			'SELECT description, quantity, unit_price, line_total FROM bill_payment_items WHERE bill_payment_id = ?',
 			[voucherId]
@@ -487,11 +561,17 @@ export async function POST({ request }) {
 		}
 	}
 
-	// 4.3. สร้าง PDF (แก้ไข try...catch ให้ครอบคลุม)
+	// สร้าง PDF
 	try {
-		console.log('กำลังสร้าง HTML content...');
-		// *** แก้ไข: ส่ง companyData เข้าไปด้วย ***
-		const billHtmlContent = getBillHtml(companyData, voucherData, itemsData);
+		let billHtmlContent = getBillHtml(companyData, voucherData, itemsData);
+
+		// ดู debug html
+		try {
+			const debugHtmlPath = path.resolve('static', 'debug-voucher.html');
+			fs.writeFileSync(debugHtmlPath, billHtmlContent);
+		} catch (writeError: any) {
+			console.error('--- DEBUG: FAILED TO WRITE HTML FILE ---', writeError.message);
+		}
 
 		console.log('กำลังเปิดเบราว์เซอร์...');
 		const browser = await puppeteer.launch({
@@ -500,35 +580,34 @@ export async function POST({ request }) {
 		});
 		const page = await browser.newPage();
 
-		console.log('กำลังใส่ HTML (ข้อมูลจริง) ลงในหน้า...');
+		console.log('กำลังใส่ HTML ลงในหน้า...');
 		await page.setContent(billHtmlContent, { waitUntil: 'networkidle0' });
 
 		console.log('กำลังพิมพ์เป็น PDF...');
 		const pdfBuffer = await page.pdf({
 			format: 'A4',
-			printBackground: true // สำคัญมากสำหรับ Tailwind CSS
+			printBackground: true
 		});
 
 		await browser.close();
 		console.log('ปิดเบราว์เซอร์');
-
-		console.log('กำลังส่ง PDF buffer กลับไปยังเบราว์เซอร์...');
+		console.log('กำลังส่งไฟล์ PDF ให้ดาวน์โหลด...');
 
 		const pdfBlob = new Blob([pdfBuffer as any], { type: 'application/pdf' });
+		const downloadFilename = `voucher-${voucherData.id}.pdf`;
 
 		return new Response(pdfBlob, {
 			status: 200,
 			headers: {
 				'Content-Type': 'application/pdf',
-				'Content-Disposition': `inline; filename="voucher-${voucherData.id}.pdf"`
+				'Content-Disposition': `attachment; filename="${downloadFilename}"`
 			}
 		});
 	} catch (error: any) {
-		// (Catch block ที่ครอบคลุมทุก Error)
-		console.error('เกิดข้อผิดพลาดระหว่างสร้าง PDF (HTML or Puppeteer):', error);
+		console.error('เกิดข้อผิดพลาดระหว่างสร้าง PDF:', error);
 		return json(
 			{ success: false, message: 'Failed to generate PDF: ' + error.message },
 			{ status: 500 }
 		);
 	}
-}
+};

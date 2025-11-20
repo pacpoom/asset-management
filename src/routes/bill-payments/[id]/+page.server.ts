@@ -72,9 +72,6 @@ async function deleteFile(systemName: string | null | undefined) {
 		}
 	}
 }
-// --- (จบส่วน helpers) ---
-
-// --- Types ---
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -92,7 +89,6 @@ interface CompanyData extends RowDataPacket {
 	tax_id: string | null;
 }
 
-// ===== START: EDIT 1 (Fix BillPaymentDetailHeader Interface) =====
 interface BillPaymentDetailHeader extends RowDataPacket {
 	id: number;
 	payment_reference: string | null;
@@ -101,7 +97,7 @@ interface BillPaymentDetailHeader extends RowDataPacket {
 	status: 'Draft' | 'Submitted' | 'Paid' | 'Void';
 	vendor_id: number;
 	vendor_name: string;
-	vendor_address: string | null; // <--- CHANGED (กลับไปใช้ address ช่องเดียว)
+	vendor_address: string | null;
 	prepared_by_user_name: string;
 	vendor_contract_id: number | null;
 	vendor_contract_number: string | null;
@@ -113,7 +109,6 @@ interface BillPaymentDetailHeader extends RowDataPacket {
 	withholding_tax_amount: number;
 	vendor_tax_id: string | null;
 }
-// ===== END: EDIT 1 =====
 
 interface BillPaymentItemRow extends RowDataPacket {
 	id: number;
@@ -296,6 +291,7 @@ export const actions: Actions = {
 		const discountAmount = parseFloat(formData.get('discountAmount')?.toString() || '0');
 		const calculateWithholdingTax = formData.get('calculateWithholdingTax')?.toString() === 'true';
 		const withholdingTaxRate = parseFloat(formData.get('withholdingTaxRate')?.toString() || '7.00');
+		const vatRate = parseFloat(formData.get('vatRate')?.toString() || '0');
 
 		const itemsJson = formData.get('itemsJson')?.toString();
 		let items: BillPaymentItemData[] = [];
@@ -359,11 +355,13 @@ export const actions: Actions = {
 		);
 		const totalAfterDiscount = subTotal - discountAmount;
 
+		const calculatedVatAmount = parseFloat((totalAfterDiscount * (vatRate / 100)).toFixed(2));
+
 		const actualWhtRate = calculateWithholdingTax ? withholdingTaxRate : null;
 		const withholdingTaxAmount = calculateWithholdingTax
 			? parseFloat((totalAfterDiscount * (actualWhtRate! / 100)).toFixed(2))
 			: 0.0;
-		const grandTotal = totalAfterDiscount - withholdingTaxAmount;
+		const grandTotal = totalAfterDiscount + calculatedVatAmount - withholdingTaxAmount;
 
 		const connection = await pool.getConnection();
 		const savedFileInfos: {
@@ -379,9 +377,11 @@ export const actions: Actions = {
 			const headerSql = `UPDATE bill_payments SET
                 vendor_id = ?, vendor_contract_id = ?, payment_date = ?, payment_reference = ?, notes = ?, 
                  subtotal = ?, discount_amount = ?, total_after_discount = ?, 
+                 vat_rate = ?, vat_amount = ?, 
                  withholding_tax_rate = ?, withholding_tax_amount = ?, total_amount = ?, 
                  prepared_by_user_id = ?
                 WHERE id = ?`;
+
 			await connection.execute<any>(headerSql, [
 				parseInt(vendor_id),
 				vendor_contract_id ? parseInt(vendor_contract_id) : null,
@@ -391,6 +391,8 @@ export const actions: Actions = {
 				subTotal,
 				discountAmount,
 				totalAfterDiscount,
+				vatRate,
+				calculatedVatAmount,
 				actualWhtRate,
 				withholdingTaxAmount,
 				grandTotal,
