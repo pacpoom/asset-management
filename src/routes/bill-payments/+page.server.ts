@@ -48,8 +48,7 @@ interface BillPaymentHeader extends RowDataPacket {
 }
 
 interface BillPaymentItemData {
-	// account_id: number | null; // Removed account_id
-	product_id: number | null; // Added product_id
+	product_id: number | null;
 	description: string;
 	quantity: number;
 	unit_id: number | null;
@@ -61,7 +60,7 @@ interface BillPaymentAttachmentRow extends RowDataPacket {
 	id: number;
 	file_original_name: string;
 	file_system_name: string;
-	file_path: string; // Relative path
+	file_path: string;
 	uploaded_at: string;
 }
 
@@ -134,7 +133,7 @@ async function deleteFile(systemName: string | null | undefined) {
 
 // --- Load Function (MODIFIED) ---
 export const load: PageServerLoad = async ({ locals, url }) => {
-	checkPermission(locals, 'view bill payments'); // NEW: Added permission check
+	checkPermission(locals, 'view bill payments');
 
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';
@@ -144,7 +143,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const offset = (page - 1) * pageSize;
 
 	try {
-		// --- 1. Fetch List of Payments (Headers only) ---
+		// --- Fetch List of Payments (Headers only) ---
 		let whereClause = ' WHERE 1=1 ';
 		const params: (string | number)[] = [];
 
@@ -193,7 +192,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const fetchParams = [...params, pageSize, offset];
 		const [paymentRows] = await pool.query<BillPaymentHeader[]>(fetchSql, fetchParams);
 
-		// --- 2. Fetch Supporting Data for Dropdowns/Modals (Existing logic) ---
+		// ---  Fetch Supporting Data for Dropdowns/Modals (Existing logic) ---
 		const [vendorRows] = await pool.execute<Vendor[]>(
 			'SELECT id, name FROM vendors ORDER BY name ASC'
 		);
@@ -216,7 +215,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// Convert to JSON and back for safe serialization (deep copy)
 		const payments = JSON.parse(JSON.stringify(paymentRows));
 
-		// --- 3. Return Combined Data ---
+		// --- Return Combined Data ---
 		return {
 			// Data for list
 			payments,
@@ -224,7 +223,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			totalPages,
 			searchQuery,
 			filters: { vendor: filterVendor, status: filterStatus },
-			// Data for new/edit modal (original load data)
 			vendors: vendorRows,
 			units: unitRows,
 			products: productRows,
@@ -247,7 +245,7 @@ export const actions: Actions = {
 	 * Save Bill Payment (Header, Items, Attachments)
 	 */
 	savePayment: async ({ request, locals }) => {
-		checkPermission(locals, 'create bill payments'); // Or 'edit bill payments' if editing exists
+		checkPermission(locals, 'create bill payments');
 		const formData = await request.formData();
 		const files = formData.getAll('attachments') as File[];
 		const userId = locals.user?.id;
@@ -272,7 +270,6 @@ export const actions: Actions = {
 		const itemsJson = formData.get('itemsJson')?.toString();
 		let items: BillPaymentItemData[] = [];
 		try {
-			// *** FIX 3: The client now ensures item.product_id is a number before JSON.stringify (handled in client code) ***
 			items = JSON.parse(itemsJson || '[]');
 			if (!Array.isArray(items)) throw new Error('Items data is not an array.');
 		} catch (e: any) {
@@ -301,7 +298,7 @@ export const actions: Actions = {
 		}
 		// Validate each item (FIX 4)
 		for (const item of items) {
-			// Check 1: Product must be selected and be a valid number
+			// Product must be selected and be a valid number
 			if (
 				item.product_id === null ||
 				typeof item.product_id !== 'number' ||
@@ -314,8 +311,6 @@ export const actions: Actions = {
 				});
 			}
 
-			// *** FIX 4: Relaxed Quantity/Price Validation ***
-			// Check 2: Quantity must be a valid number (>= 0)
 			if (isNaN(item.quantity) || item.quantity < 0) {
 				return fail(400, {
 					action: 'savePayment',
@@ -324,7 +319,7 @@ export const actions: Actions = {
 				});
 			}
 
-			// Check 3: Unit Price must be a valid number (>= 0)
+			// Unit Price must be a valid number (>= 0)
 			if (isNaN(item.unit_price) || item.unit_price < 0) {
 				return fail(400, {
 					action: 'savePayment',
@@ -332,8 +327,6 @@ export const actions: Actions = {
 					message: 'Unit Price must be a valid non-negative number.'
 				});
 			}
-
-			// Note: If Quantity or Price is 0, it's allowed.
 		}
 
 		// --- Server-side Calculations ---
@@ -361,7 +354,7 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 1. Insert Header
+			// Insert Header
 			const headerSql = `INSERT INTO bill_payments
                 (vendor_id, vendor_contract_id, payment_date, payment_reference, notes, 
                  subtotal, discount_amount, total_after_discount, 
@@ -387,7 +380,7 @@ export const actions: Actions = {
 
 			if (!paymentId) throw new Error('Failed to create bill payment header.');
 
-			// 2. Insert Line Items
+			// Insert Line Items
 			if (items.length > 0) {
 				const itemSql = `INSERT INTO bill_payment_items
                     (bill_payment_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order)
@@ -395,7 +388,7 @@ export const actions: Actions = {
 
 				const itemValues = items.map((item, index) => [
 					paymentId,
-					item.product_id, // Already sanitized as number by client
+					item.product_id,
 					item.description || null,
 					item.quantity,
 					item.unit_id || null,
@@ -406,7 +399,7 @@ export const actions: Actions = {
 				await connection.query(itemSql, [itemValues]);
 			}
 
-			// 3. Handle File Uploads
+			// Handle File Uploads
 			const validFiles = files.filter((f) => f && f.size > 0);
 			if (validFiles.length > 0) {
 				const attachmentSql = `INSERT INTO bill_payment_attachments
@@ -440,9 +433,7 @@ export const actions: Actions = {
 		} catch (err: any) {
 			await connection.rollback();
 			console.error(`Database error saving bill payment: ${err.message}`, err.stack);
-			// Clean up saved files
 			for (const fileInfo of savedFileInfos) {
-				// Use the deleteFile helper
 				await deleteFile(fileInfo.systemName);
 			}
 			if (err.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -478,13 +469,13 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 1. Get files for cleanup
+			// Get files for cleanup
 			const [docsToDelete] = await connection.query<BillPaymentAttachmentRow[]>(
 				'SELECT file_system_name FROM bill_payment_attachments WHERE bill_payment_id = ?',
 				[paymentId]
 			);
 
-			// 2. Delete main record (assuming ON DELETE CASCADE)
+			// Delete main record (assuming ON DELETE CASCADE)
 			const [deleteResult] = await connection.execute('DELETE FROM bill_payments WHERE id = ?', [
 				paymentId
 			]);
@@ -500,7 +491,7 @@ export const actions: Actions = {
 
 			await connection.commit();
 
-			// 3. Delete files from disk AFTER DB commit
+			// Delete files from disk AFTER DB commit
 			for (const doc of docsToDelete) {
 				await deleteFile(doc.file_system_name);
 			}
