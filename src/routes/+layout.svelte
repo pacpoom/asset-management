@@ -6,28 +6,20 @@
 	import { slide, fade, fly } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
 
-	// Svelte 5 runes: Define props and reactive state
 	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>();
-	type Menu = LayoutServerData['menus'][0]; // Get the menu type
+	type Menu = LayoutServerData['menus'][0];
 
-	// สถานะสำหรับเมนูมือถือ (ซ้าย/ขวา)
 	let isSidebarOpen = $state(false);
 
-	// --- ===== START: NEW LOGIC ===== ---
-	// สถานะสำหรับ "ปักหมุด" (Pin) เมนู
-	let isSidebarPinned = $state(false); // (เข้ามาแทน isSidebarCollapsed)
+	let isSidebarPinned = $state(false);
 	// สถานะสำหรับ "โฮเวอร์" (Hover) เมนู
 	let isSidebarHovering = $state(false);
 	// สถานะที่บอกว่าเมนู "ขยายเต็ม" หรือไม่
 	const isSidebarExpanded = $derived(isSidebarPinned || isSidebarHovering);
-	// --- ===== END: NEW LOGIC ===== ---
 
 	// State for collapsible sub-menus (when not collapsed)
 	let openMenuIds = $state(new Set<number>());
 	let isAdminMenuOpen = $state(false);
-
-	// --- REMOVED: flyoutMenuId state ---
-	// --- REMOVED: flyoutTimeout logic ---
 
 	// ฟังก์ชันสร้างตัวย่อ (Initials)
 	function getInitials(nameOrEmail: string | null | undefined): string {
@@ -106,8 +98,6 @@
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 
-	// --- REMOVED: toggleFlyout function ---
-
 	// --- *** FIX ***: Check if a child link in a group is active
 	function isMenuSectionActive(menu: Menu): boolean {
 		if (!menu.children || menu.children.length === 0) {
@@ -144,7 +134,7 @@
 	{#if menus}
 		<ul
 			class="space-y-1 {level > 0 && !isFlyout
-				? !isSidebarExpanded // (logic changed)
+				? !(isSidebarExpanded || isSidebarOpen)
 					? 'hidden pl-0'
 					: 'pt-1 pl-5'
 				: ''} {isFlyout ? 'min-w-[200px]' : ''}"
@@ -153,7 +143,7 @@
 				<li>
 					{#if menu.route}
 						{#if menu.children && menu.children.length > 0}
-							{#if isSidebarExpanded}
+							{#if isSidebarExpanded || isSidebarOpen}
 								<div class="group relative">
 									<a
 										href={menu.route}
@@ -221,7 +211,7 @@
 								href={menu.route}
 								class="group flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
                                 {isLinkActive(menu.route)
-									? !isSidebarExpanded || isFlyout // (logic changed)
+									? !isSidebarExpanded || isFlyout
 										? 'bg-blue-100 text-blue-700'
 										: 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
