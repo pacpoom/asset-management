@@ -3,24 +3,22 @@
 	import type { PageData } from './$types';
 
 	export let data: PageData;
-	$: ({ receipt, existingItems, existingAttachments, customers, products, units } = data);
+	$: ({ quotation, existingItems, existingAttachments, customers, products, units } = data);
 
 	// กำหนดค่าเริ่มต้น
-	let receiptDate = '';
+	let quotationDate = '';
+	let validUntil = '';
 	let items: any[] = [];
 	let discountAmount = 0;
 	let vatRate = 7;
 	let whtRate = 0;
 	let selectedCustomerId: string | number = '';
 
-	// --- 🔥 ส่วนดึงข้อมูลเดิมมาใส่ (Logic ใหม่ที่ปลอดภัยกว่า) ---
-	$: if (receipt) {
-		console.log('Editing Receipt:', receipt);
-
-		// 1. แก้บั๊กชื่อลูกค้าไม่ขึ้น: ค้นหาใน list ให้เจอก่อน
-		if (receipt.customer_id != null) {
-			const targetId = Number(receipt.customer_id);
-			// ใช้ == เพื่อเทียบแบบยืดหยุ่น (เผื่อ string/number)
+	// --- 🔥 ส่วนดึงข้อมูลเดิมมาใส่ ---
+	$: if (quotation) {
+		// 1. แก้บั๊กชื่อลูกค้า: ค้นหาใน list ก่อน
+		if (quotation.customer_id != null) {
+			const targetId = Number(quotation.customer_id);
 			const foundCustomer = customers.find((c: any) => c.id == targetId);
 			if (foundCustomer) {
 				selectedCustomerId = foundCustomer.id;
@@ -28,13 +26,16 @@
 		}
 
 		// 2. แปลงวันที่และตัวเลข
-		receiptDate = new Date(receipt.receipt_date).toISOString().split('T')[0];
-		discountAmount = parseFloat(receipt.discount_amount || '0');
-		vatRate = parseFloat(receipt.vat_rate || '7');
-		whtRate = parseFloat(receipt.withholding_tax_rate || '0');
+		quotationDate = new Date(quotation.quotation_date).toISOString().split('T')[0];
+		validUntil = quotation.valid_until
+			? new Date(quotation.valid_until).toISOString().split('T')[0]
+			: '';
+		discountAmount = parseFloat(quotation.discount_amount || '0');
+		vatRate = parseFloat(quotation.vat_rate || '7');
+		whtRate = parseFloat(quotation.withholding_tax_rate || '0');
 	}
 
-	// ดึงรายการสินค้าเดิม (ทำครั้งเดียวเมื่อโหลด)
+	// ดึงรายการสินค้าเดิม
 	$: if (existingItems && items.length === 0) {
 		items = existingItems.map((item: any) => ({
 			product_id: item.product_id ? Number(item.product_id) : null,
@@ -45,7 +46,6 @@
 			line_total: parseFloat(item.line_total)
 		}));
 	}
-	// -----------------------------------------------------
 
 	// คำนวณเงิน
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
@@ -85,17 +85,23 @@
 		}
 	}
 
+	function setValidDays(days: number) {
+		const date = new Date(quotationDate);
+		date.setDate(date.getDate() + days);
+		validUntil = date.toISOString().split('T')[0];
+	}
+
 	let isSaving = false;
 </script>
 
 <svelte:head>
-	<title>แก้ไขใบเสร็จ {receipt?.receipt_number}</title>
+	<title>แก้ไขใบเสนอราคา {quotation?.quotation_number}</title>
 </svelte:head>
 
 <div class="mx-auto mb-10 max-w-5xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-800">แก้ไขใบเสร็จ: {receipt?.receipt_number}</h1>
-		<span class="text-sm text-gray-500">สถานะ: {receipt?.status}</span>
+		<h1 class="text-2xl font-bold text-gray-800">แก้ไขใบเสนอราคา: {quotation?.quotation_number}</h1>
+		<span class="text-sm text-gray-500">สถานะ: {quotation?.status}</span>
 	</div>
 
 	<form
@@ -128,18 +134,44 @@
 					{/each}
 				</select>
 			</div>
-			<div>
-				<label for="receipt_date" class="mb-1 block text-sm font-medium text-gray-700"
-					>วันที่เอกสาร <span class="text-red-500">*</span></label
-				>
-				<input
-					type="date"
-					id="receipt_date"
-					name="receipt_date"
-					bind:value={receiptDate}
-					required
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-				/>
+			<div class="grid grid-cols-2 gap-4">
+				<div>
+					<label for="quotation_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>วันที่เอกสาร <span class="text-red-500">*</span></label
+					>
+					<input
+						type="date"
+						id="quotation_date"
+						name="quotation_date"
+						bind:value={quotationDate}
+						required
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+					/>
+				</div>
+				<div>
+					<label for="valid_until" class="mb-1 block text-sm font-medium text-gray-700"
+						>ยืนยันราคาถึง</label
+					>
+					<input
+						type="date"
+						id="valid_until"
+						name="valid_until"
+						bind:value={validUntil}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+					/>
+					<div class="mt-1 flex gap-2 text-xs text-gray-500">
+						<button
+							type="button"
+							on:click={() => setValidDays(7)}
+							class="hover:text-blue-600 hover:underline">7 วัน</button
+						>
+						<button
+							type="button"
+							on:click={() => setValidDays(30)}
+							class="hover:text-blue-600 hover:underline">30 วัน</button
+						>
+					</div>
+				</div>
 			</div>
 			<div>
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
@@ -149,7 +181,7 @@
 					type="text"
 					id="reference_doc"
 					name="reference_doc"
-					value={receipt?.reference_doc || ''}
+					value={quotation?.reference_doc || ''}
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				/>
 			</div>
@@ -219,7 +251,7 @@
 									<div class="relative">
 										<select
 											bind:value={item.unit_id}
-											class="h-9 w-full appearance-none rounded-md border-gray-300 py-0 pr-2 pl-3 text-left text-sm focus:border-blue-500 focus:ring-blue-500"
+											class="h-9 w-full cursor-pointer appearance-none rounded-md border-gray-300 py-0 pr-2 pl-3 text-left text-sm focus:border-blue-500 focus:ring-blue-500"
 											style="-webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: none;"
 										>
 											<option value={null}>-</option>
@@ -227,22 +259,6 @@
 												<option value={u.id}>{u.symbol}</option>
 											{/each}
 										</select>
-										<div
-											class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												class="h-4 w-4"
-												viewBox="0 0 20 20"
-												fill="currentColor"
-											>
-												<path
-													fill-rule="evenodd"
-													d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-													clip-rule="evenodd"
-												/>
-											</svg>
-										</div>
 									</div>
 								</td>
 								<td class="px-3 py-2"
@@ -298,7 +314,7 @@
 						id="notes"
 						name="notes"
 						rows="3"
-						value={receipt?.notes || ''}
+						value={quotation?.notes || ''}
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					></textarea>
 				</div>
@@ -324,14 +340,12 @@
 										name="attachment_id"
 										value={file.id}
 										class="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700"
+										>ลบ</button
 									>
-										ลบ
-									</button>
 								</li>
 							{/each}
 						</ul>
 					{/if}
-
 					<div class="mt-4">
 						<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
 							>เพิ่มไฟล์แนบใหม่</label
@@ -363,34 +377,28 @@
 					/>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">
-						VAT
-						<select
+					<span class="text-gray-600"
+						>VAT <select
 							name="vat_rate"
 							bind:value={vatRate}
 							class="ml-2 h-7 cursor-pointer rounded-md border-gray-300 bg-white py-0 pr-7 pl-2 text-center text-sm focus:border-blue-500 focus:ring-blue-500"
-						>
-							<option value={0}>0%</option>
-							<option value={7}>7%</option>
-						</select>
-					</span>
+							><option value={0}>0%</option><option value={7}>7%</option></select
+						></span
+					>
 					<span class="font-medium">{vatAmount.toFixed(2)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 				<div class="flex items-center justify-between text-sm text-red-600">
-					<span class="flex items-center">
-						WHT
-						<select
+					<span class="flex items-center"
+						>WHT <select
 							name="wht_rate"
 							bind:value={whtRate}
 							class="ml-2 h-7 cursor-pointer rounded-md border-red-200 bg-red-50 py-0 pr-7 pl-2 text-center text-sm text-red-700 focus:border-red-500 focus:ring-red-500"
-						>
-							<option value={0}>0%</option>
-							<option value={1}>1%</option>
-							<option value={3}>3%</option>
-							<option value={5}>5%</option>
-						</select>
-					</span>
+							><option value={0}>0%</option><option value={1}>1%</option><option value={3}
+								>3%</option
+							><option value={5}>5%</option></select
+						></span
+					>
 					<span>- {whtAmount.toFixed(2)}</span>
 					<input type="hidden" name="wht_amount" value={whtAmount} />
 				</div>
@@ -412,7 +420,7 @@
 
 		<div class="flex justify-end gap-3">
 			<a
-				href="/receipts/{receipt?.id}"
+				href="/quotations/{quotation?.id}"
 				class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 				>ยกเลิก</a
 			>

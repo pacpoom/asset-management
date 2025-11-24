@@ -52,6 +52,7 @@
 	// *** FIX 2: Correct initialization to null to avoid ReferenceError ***
 	let attachments = $state<FileList | null>(null);
 	let discountAmount = $state(0);
+	let vat_selection = $state(7);
 	let wht_selection = $state(0);
 
 	// --- Detail/Action State ---
@@ -77,13 +78,19 @@
 	// --- Derived Calculations ---
 	const subTotal = $derived(items.reduce((sum, item) => sum + item.line_total, 0));
 	const totalAfterDiscount = $derived(subTotal - (discountAmount || 0));
+
+	// ✅ เพิ่มคำนวณ VAT Amount
+	const vatAmount = $derived(
+		vat_selection > 0 ? parseFloat((totalAfterDiscount * (vat_selection / 100)).toFixed(2)) : 0
+	);
+
 	const withholdingTaxAmount = $derived(
-		wht_selection > 0 // ถ้าเลือก 3% หรือ 7%
-			? parseFloat((totalAfterDiscount * (wht_selection / 100)).toFixed(2))
+		wht_selection > 0
+			? parseFloat((totalAfterDiscount * (wht_selection / 100)).toFixed(2)) // ✅ คิดจากยอดก่อน VAT (ฐานภาษี)
 			: 0
 	);
 
-	const grandTotal = $derived(totalAfterDiscount - withholdingTaxAmount);
+	const grandTotal = $derived(totalAfterDiscount + vatAmount - withholdingTaxAmount);
 
 	// --- Derived Contracts ---
 	const filteredContracts = $derived(
@@ -614,6 +621,7 @@
 						)
 					);
 					formData.set('discountAmount', (discountAmount || 0).toString());
+					formData.set('vatRate', vat_selection.toString());
 					const calculateWHT = wht_selection > 0;
 					const rate = wht_selection;
 
@@ -880,6 +888,23 @@
 										>{formatCurrency(totalAfterDiscount)}</span
 									>
 								</div>
+
+								<div class="flex items-center justify-between gap-4">
+									<div class="flex items-center">
+										<label for="vat_selection_modal" class="font-medium text-gray-600">VAT:</label>
+										<select
+											id="vat_selection_modal"
+											bind:value={vat_selection}
+											class="ml-2 w-24 rounded-md border-gray-300 py-1 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+										>
+											<option value={0}>0%</option>
+											<option value={7}>7%</option>
+										</select>
+									</div>
+									<span class="text-base font-semibold text-gray-800"
+										>+ {formatCurrency(vatAmount)}</span
+									>
+								</div>
 								<div class="flex items-center justify-between gap-4">
 									<div class="flex items-center">
 										<label for="wht_selection_modal" class="font-medium text-gray-600"
@@ -888,17 +913,18 @@
 										<select
 											id="wht_selection_modal"
 											bind:value={wht_selection}
-											class="ml-2 w-full rounded-md border-gray-300 py-1 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+											class="ml-2 h-7 w-32 cursor-pointer rounded-md border-gray-300 bg-white py-0 pr-7 pl-2 text-center text-sm focus:border-blue-500 focus:ring-blue-500"
 										>
 											<option value={0}>-- ไม่หัก --</option>
+											<option value={1}>หัก 1%</option>
 											<option value={3}>หัก 3%</option>
-											<option value={7}>หัก 7%</option>
+											<option value={5}>หัก 5%</option>
 										</select>
 									</div>
 
-									<span class="text-base font-semibold text-red-600"
-										>- {formatCurrency(withholdingTaxAmount)}</span
-									>
+									<span class="text-base font-semibold text-red-600">
+										- {formatCurrency(withholdingTaxAmount)}
+									</span>
 								</div>
 								<div class="mt-2 flex items-center justify-between border-t-2 border-gray-300 pt-2">
 									<span class="text-base font-bold text-gray-900">จำนวนเงินรวมทั้งสิ้น:</span>

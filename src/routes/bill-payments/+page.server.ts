@@ -263,6 +263,7 @@ export const actions: Actions = {
 
 		// --- Extract Calculation Data ---
 		const discountAmount = parseFloat(formData.get('discountAmount')?.toString() || '0');
+		const vatRate = parseFloat(formData.get('vatRate')?.toString() || '0');
 		const calculateWithholdingTax = formData.get('calculateWithholdingTax')?.toString() === 'true';
 		const withholdingTaxRate = parseFloat(formData.get('withholdingTaxRate')?.toString() || '7.00'); // Allow overriding the default rate
 
@@ -329,18 +330,19 @@ export const actions: Actions = {
 			}
 		}
 
-		// --- Server-side Calculations ---
 		const subTotal = items.reduce(
 			(sum, item) => sum + parseFloat(String(item.line_total) || '0'),
 			0
 		);
 		const totalAfterDiscount = subTotal - discountAmount;
+		const vatAmount = parseFloat((totalAfterDiscount * (vatRate / 100)).toFixed(2));
 
 		const actualWhtRate = calculateWithholdingTax ? withholdingTaxRate : null;
 		const withholdingTaxAmount = calculateWithholdingTax
 			? parseFloat((totalAfterDiscount * (actualWhtRate! / 100)).toFixed(2))
 			: 0.0;
-		const grandTotal = totalAfterDiscount - withholdingTaxAmount;
+
+		const grandTotal = totalAfterDiscount + vatAmount - withholdingTaxAmount;
 
 		const connection = await pool.getConnection();
 		const savedFileInfos: {
@@ -358,9 +360,9 @@ export const actions: Actions = {
 			const headerSql = `INSERT INTO bill_payments
                 (vendor_id, vendor_contract_id, payment_date, payment_reference, notes, 
                  subtotal, discount_amount, total_after_discount, 
-                 withholding_tax_rate, withholding_tax_amount, total_amount, 
+                 vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, total_amount, 
                  status, prepared_by_user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 			const [headerResult] = await connection.execute<any>(headerSql, [
 				parseInt(vendor_id),
 				vendor_contract_id ? parseInt(vendor_contract_id) : null,
@@ -370,7 +372,9 @@ export const actions: Actions = {
 				subTotal,
 				discountAmount,
 				totalAfterDiscount,
-				actualWhtRate, // Use actual rate or null
+				vatRate,
+				vatAmount,
+				actualWhtRate,
 				withholdingTaxAmount,
 				grandTotal,
 				'Draft',

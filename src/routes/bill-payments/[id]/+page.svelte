@@ -1044,7 +1044,8 @@
 											class="w-36 rounded-md border-gray-300 py-1 text-center text-sm shadow-sm"
 										>
 											<option value={0}>ไม่หักภาษี (-)</option>
-											<option value={3.0}>3.00% (บริการ/ค่าจ้าง)</option>
+											<option value={1}>1% (บริการ/ค่าจ้าง)</option>
+											<option value={3.0}>3% (บริการ/ค่าจ้าง)</option>
 										</select>
 									</div>
 									<div class="flex items-center justify-between gap-4">

@@ -3,82 +3,26 @@
 	import type { PageData } from './$types';
 
 	export let data: PageData;
-	$: ({ customers, products, units, prefilledData } = data);
+	$: ({ customers, products, units } = data);
 
-	interface ReceiptItem {
-		product_id: number | null;
-		description: string;
-		quantity: number;
-		unit_id: number | null;
-		unit_price: number;
-		line_total: number;
-	}
+	let quotationDate = new Date().toISOString().split('T')[0];
+	let validUntil = ''; // วันยืนยันราคา
 
-	let receiptDate = new Date().toISOString().split('T')[0];
-
-	// --- กำหนดค่าเริ่มต้น ---
-	let items: ReceiptItem[] = [
+	let items = [
 		{ product_id: null, description: '', quantity: 1, unit_id: null, unit_price: 0, line_total: 0 }
 	];
-	let selectedCustomerId: string | number = '';
-	let referenceDoc = '';
-	let notes = '';
+
 	let discountAmount = 0;
 	let vatRate = 7;
 	let whtRate = 0;
 
-	// 🔥 ตัวแปรกันลูป (จำไว้ว่าล่าสุดเราดึงข้อมูลจากเอกสารเบอร์ไหนมา)
-	let lastProcessedRef = '';
-
-	// --- 🔥 ส่วนจัดการข้อมูลจาก Invoice (Prefilled Data) ---
-	$: if (prefilledData) {
-		// เช็คว่า "เอกสารอ้างอิง" เปลี่ยนไปจากเดิมไหม? หรือยังไม่เคยทำ?
-		// ถ้าเหมือนเดิม (ทำไปแล้ว) ให้ข้ามไปเลย ไม่ต้องทำซ้ำ (หยุด Loop)
-		if (prefilledData.reference_doc && prefilledData.reference_doc !== lastProcessedRef) {
-			console.log('Processing Prefilled Data:', prefilledData.reference_doc);
-			lastProcessedRef = prefilledData.reference_doc; // จำค่าไว้
-
-			// 1. อัปเดตลูกค้า
-			if (prefilledData.customer_id != null) {
-				const targetId = Number(prefilledData.customer_id);
-				const foundCustomer = customers.find((c: any) => c.id == targetId);
-				if (foundCustomer) {
-					selectedCustomerId = foundCustomer.id;
-				}
-			}
-
-			// 2. อัปเดตข้อมูลทั่วไป
-			referenceDoc = prefilledData.reference_doc || '';
-			notes = prefilledData.notes || '';
-
-			// 3. อัปเดตตัวเลข
-			discountAmount = parseFloat(prefilledData.discount_amount || '0');
-			vatRate = parseFloat(prefilledData.vat_rate || '7');
-			whtRate = parseFloat(prefilledData.withholding_tax_rate || '0');
-
-			// 4. อัปเดตรายการสินค้า
-			if (prefilledData.items && prefilledData.items.length > 0) {
-				items = prefilledData.items.map((i: any) => ({
-					product_id: i.product_id ? Number(i.product_id) : null,
-					description: i.description,
-					quantity: parseFloat(i.quantity || '0'),
-					unit_id: i.unit_id ? Number(i.unit_id) : null,
-					unit_price: parseFloat(i.unit_price || '0'),
-					line_total: parseFloat(i.line_total || '0')
-				}));
-			}
-		}
-	}
-
-	// --- คำนวณยอดเงินแบบ Real-time ---
-	$: subtotal = items.reduce((sum: number, item: ReceiptItem) => sum + (item.line_total || 0), 0);
+	$: subtotal = items.reduce((sum, item) => sum + item.line_total, 0);
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
 	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
 	$: whtAmount = (totalAfterDiscount * whtRate) / 100;
 	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
 	$: itemsJson = JSON.stringify(items);
 
-	// --- ฟังก์ชันจัดการตาราง ---
 	function addItem() {
 		items = [
 			...items,
@@ -98,7 +42,7 @@
 	}
 
 	function updateLineTotal(index: number) {
-		items[index].line_total = (items[index].quantity || 0) * (items[index].unit_price || 0);
+		items[index].line_total = items[index].quantity * items[index].unit_price;
 	}
 
 	function onProductChange(index: number) {
@@ -112,15 +56,21 @@
 		}
 	}
 
+	function setValidDays(days: number) {
+		const date = new Date(quotationDate);
+		date.setDate(date.getDate() + days);
+		validUntil = date.toISOString().split('T')[0];
+	}
+
 	let isSaving = false;
 </script>
 
 <svelte:head>
-	<title>สร้างใบเสร็จรับเงินใหม่</title>
+	<title>สร้างใบเสนอราคาใหม่</title>
 </svelte:head>
 
 <div class="mx-auto max-w-5xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-	<h1 class="mb-6 text-2xl font-bold text-gray-800">สร้างใบเสร็จรับเงิน (New Receipt)</h1>
+	<h1 class="mb-6 text-2xl font-bold text-gray-800">สร้างใบเสนอราคา (New Quotation)</h1>
 
 	<form
 		method="POST"
@@ -142,7 +92,6 @@
 				<select
 					id="customer_id"
 					name="customer_id"
-					bind:value={selectedCustomerId}
 					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				>
@@ -152,30 +101,60 @@
 					{/each}
 				</select>
 			</div>
-			<div>
-				<label for="receipt_date" class="mb-1 block text-sm font-medium text-gray-700"
-					>วันที่เอกสาร <span class="text-red-500">*</span></label
-				>
-				<input
-					type="date"
-					id="receipt_date"
-					name="receipt_date"
-					bind:value={receiptDate}
-					required
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-				/>
+			<div class="grid grid-cols-2 gap-4">
+				<div>
+					<label for="quotation_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>วันที่เอกสาร <span class="text-red-500">*</span></label
+					>
+					<input
+						type="date"
+						id="quotation_date"
+						name="quotation_date"
+						bind:value={quotationDate}
+						required
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+					/>
+				</div>
+				<div>
+					<label for="valid_until" class="mb-1 block text-sm font-medium text-gray-700"
+						>ยืนยันราคาถึง</label
+					>
+					<input
+						type="date"
+						id="valid_until"
+						name="valid_until"
+						bind:value={validUntil}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+					/>
+					<div class="mt-1 flex gap-2 text-xs text-gray-500">
+						<button
+							type="button"
+							on:click={() => setValidDays(7)}
+							class="hover:text-blue-600 hover:underline">7 วัน</button
+						>
+						<button
+							type="button"
+							on:click={() => setValidDays(15)}
+							class="hover:text-blue-600 hover:underline">15 วัน</button
+						>
+						<button
+							type="button"
+							on:click={() => setValidDays(30)}
+							class="hover:text-blue-600 hover:underline">30 วัน</button
+						>
+					</div>
+				</div>
 			</div>
 			<div>
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>เอกสารอ้างอิง (เช่น ใบวางบิล)</label
+					>เอกสารอ้างอิง (RFQ)</label
 				>
 				<input
 					type="text"
 					id="reference_doc"
 					name="reference_doc"
-					bind:value={referenceDoc}
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-					placeholder="เช่น INV-2023..."
+					placeholder="เช่น RFQ-2023..."
 				/>
 			</div>
 			<div>
@@ -363,7 +342,7 @@
 				</div>
 				<div class="flex items-center justify-between text-sm text-red-600">
 					<span class="flex items-center">
-						หัก ณ ที่จ่าย (WHT)
+						WHT
 						<select
 							name="wht_rate"
 							bind:value={whtRate}
@@ -397,7 +376,6 @@
 			<textarea
 				id="notes"
 				name="notes"
-				bind:value={notes}
 				rows="3"
 				class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 			></textarea>
@@ -405,7 +383,7 @@
 
 		<div class="flex justify-end gap-3">
 			<a
-				href="/receipts"
+				href="/quotations"
 				class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 			>
 				ยกเลิก
