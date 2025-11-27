@@ -55,44 +55,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
-		let prefilledData = null;
-		const fromQuotationId = url.searchParams.get('from_quotation');
-
-		if (fromQuotationId) {
-			const [qtRows] = await pool.query<any[]>('SELECT * FROM quotations WHERE id = ?', [
-				fromQuotationId
-			]);
-			if (qtRows.length > 0) {
-				const qt = qtRows[0];
-				const [qtItems] = await pool.query<any[]>(
-					'SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY item_order ASC',
-					[fromQuotationId]
-				);
-
-				prefilledData = {
-					customer_id: qt.customer_id,
-					reference_doc: qt.quotation_number,
-					notes: qt.notes,
-					discount_amount: qt.discount_amount,
-					vat_rate: qt.vat_rate,
-					withholding_tax_rate: qt.withholding_tax_rate,
-					items: qtItems.map((item: any) => ({
-						product_id: item.product_id,
-						description: item.description,
-						quantity: item.quantity,
-						unit_id: item.unit_id,
-						unit_price: item.unit_price,
-						line_total: item.line_total
-					}))
-				};
-			}
-		}
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
-			prefilledData: JSON.parse(JSON.stringify(prefilledData))
+			prefilledData: null
 		};
 	} catch (error: any) {
 		console.error('Load error:', error);
@@ -196,18 +164,6 @@ export const actions: Actions = {
 							locals.user?.id
 						]
 					);
-				}
-			}
-
-			//อัปเดตสถานะ Quotation เป็น 'Invoiced'
-			if (reference_doc && reference_doc.toString().startsWith('QT-')) {
-				try {
-					await connection.execute(
-						"UPDATE quotations SET status = 'Invoiced' WHERE quotation_number = ? AND status != 'Invoiced'",
-						[reference_doc]
-					);
-				} catch (updateErr) {
-					console.error('Failed to auto-update quotation status:', updateErr);
 				}
 			}
 

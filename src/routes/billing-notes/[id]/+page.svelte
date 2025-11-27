@@ -96,30 +96,6 @@
 				ย้อนกลับ
 			</a>
 
-			{#if billingNote.status !== 'Paid' && billingNote.status !== 'Void'}
-				<a
-					href="/receipts/slip?from_billing_note={billingNote.id}"
-					class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke-width="1.5"
-						stroke="currentColor"
-						class="h-4 w-4"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.732 6.232a2.5 2.5 0 013.536 0 .75.75 0 101.06-1.06A4 4 0 006.5 8v.165c0 .364.034.728.1 1.085h-.35a.75.75 0 000 1.5h.737a5.25 5.25 0 01-.367 3.072l-.055.123a.75.75 0 001.37.614l.055-.123a3.75 3.75 0 00.256-2.186h1.508a.75.75 0 000-1.5H9.478a2.501 2.501 0 01-.746-2.437L8.732 6.232z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-					รับชำระเงิน
-				</a>
-			{/if}
-
 			<div class="relative">
 				<select
 					on:change={updateStatus}
@@ -215,64 +191,6 @@
 				</div>
 			</div>
 		</div>
-	</div>
-
-	<div class="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-		<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-			<h3 class="text-sm font-semibold text-gray-700">รายการใบแจ้งหนี้ (Invoices)</h3>
-		</div>
-		<table class="min-w-full divide-y divide-gray-200">
-			<thead class="bg-white">
-				<tr>
-					<th
-						class="w-12 px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-						>ลำดับ</th
-					>
-					<th class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-						>เลขที่ใบแจ้งหนี้</th
-					>
-					<th
-						class="px-6 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase"
-						>วันที่</th
-					>
-					<th
-						class="px-6 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase"
-						>ครบกำหนด</th
-					>
-					<th
-						class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
-						>จำนวนเงิน</th
-					>
-				</tr>
-			</thead>
-			<tbody class="divide-y divide-gray-200 bg-white">
-				{#each invoices as inv, i}
-					<tr>
-						<td class="px-6 py-4 text-sm text-gray-500">{i + 1}</td>
-						<td class="px-6 py-4 text-sm font-medium text-blue-600">
-							<a href="/invoices/{inv.invoice_id}" target="_blank" class="hover:underline"
-								>{inv.invoice_number}</a
-							>
-						</td>
-						<td class="px-6 py-4 text-center text-sm text-gray-600"
-							>{formatDate(inv.invoice_date)}</td
-						>
-						<td class="px-6 py-4 text-center text-sm text-gray-600"
-							>{formatDate(inv.invoice_due_date)}</td
-						>
-						<td class="px-6 py-4 text-right text-sm font-medium text-gray-900"
-							>{formatCurrency(inv.amount)}</td
-						>
-					</tr>
-				{/each}
-				<tr class="bg-gray-50 font-bold">
-					<td colspan="4" class="px-6 py-4 text-right text-gray-900">รวมทั้งสิ้น</td>
-					<td class="px-6 py-4 text-right text-lg text-blue-600"
-						>{formatCurrency(billingNote.total_amount)}</td
-					>
-				</tr>
-			</tbody>
-		</table>
 	</div>
 
 	{#if billingNote.notes}

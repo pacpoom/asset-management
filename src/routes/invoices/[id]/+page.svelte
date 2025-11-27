@@ -96,27 +96,6 @@
 				ย้อนกลับ
 			</a>
 
-			{#if invoice.status !== 'Paid' && invoice.status !== 'Void'}
-				<a
-					href="/receipts/slip?from_invoice={invoice.id}"
-					class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-						class="h-4 w-4"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.732 6.232a2.5 2.5 0 013.536 0 .75.75 0 101.06-1.06A4 4 0 006.5 8v.165c0 .364.034.728.1 1.085h-.35a.75.75 0 000 1.5h.737a5.25 5.25 0 01-.367 3.072l-.055.123a.75.75 0 001.37.614l.055-.123a3.75 3.75 0 00.256-2.186h1.508a.75.75 0 000-1.5H9.478a2.501 2.501 0 01-.746-2.437L8.732 6.232z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-					รับชำระเงิน
-				</a>
-			{/if}
-
 			<div class="relative">
 				<select
 					on:change={updateStatus}

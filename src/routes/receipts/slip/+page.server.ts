@@ -60,83 +60,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
 
-		let prefilledData = null;
-		const fromInvoiceId = url.searchParams.get('from_invoice');
-		const fromBillingNoteId = url.searchParams.get('from_billing_note');
-
-		// กรณีที่ 1: มาจาก Invoice (ใบเดียว)
-		if (fromInvoiceId) {
-			const [invRows] = await pool.query<any[]>('SELECT * FROM invoices WHERE id = ?', [
-				fromInvoiceId
-			]);
-			if (invRows.length > 0) {
-				const inv = invRows[0];
-				const [invItems] = await pool.query<any[]>(
-					'SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY item_order ASC',
-					[fromInvoiceId]
-				);
-
-				prefilledData = {
-					customer_id: inv.customer_id,
-					reference_doc: inv.invoice_number,
-					notes: inv.notes,
-					discount_amount: inv.discount_amount,
-					vat_rate: inv.vat_rate,
-					withholding_tax_rate: inv.withholding_tax_rate,
-					items: invItems.map((item: any) => ({
-						product_id: item.product_id,
-						description: item.description,
-						quantity: item.quantity,
-						unit_id: item.unit_id,
-						unit_price: item.unit_price,
-						line_total: item.line_total
-					}))
-				};
-			}
-		}
 		// กรณีที่ 2: มาจาก Billing Note (หลายใบ)
-		else if (fromBillingNoteId) {
-			const [bnRows] = await pool.query<any[]>('SELECT * FROM billing_notes WHERE id = ?', [
-				fromBillingNoteId
-			]);
-			if (bnRows.length > 0) {
-				const bn = bnRows[0];
-				// ดึงรายการใบแจ้งหนี้ที่อยู่ในใบวางบิลนี้
-				const [bnItems] = await pool.query<any[]>(
-					`
-                    SELECT bni.amount, i.invoice_number 
-                    FROM billing_note_invoices bni
-                    LEFT JOIN invoices i ON bni.invoice_id = i.id
-                    WHERE bni.billing_note_id = ?
-                `,
-					[fromBillingNoteId]
-				);
-
-				prefilledData = {
-					customer_id: bn.customer_id,
-					reference_doc: bn.billing_note_number, // อ้างอิงเลขใบวางบิล
-					notes: bn.notes,
-					discount_amount: 0,
-					vat_rate: 0, // ปกติใบวางบิลรวมยอดมาแล้ว เราอาจจะไม่คิด VAT ซ้ำ หรือ User ปรับเองได้
-					withholding_tax_rate: 0,
-					// แปลงรายการใบแจ้งหนี้ เป็น รายการในใบเสร็จ (1 Invoice = 1 บรรทัด)
-					items: bnItems.map((item: any) => ({
-						product_id: null,
-						description: `ชำระค่าใบแจ้งหนี้เลขที่ ${item.invoice_number}`,
-						quantity: 1,
-						unit_id: null,
-						unit_price: item.amount,
-						line_total: item.amount
-					}))
-				};
-			}
-		}
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
-			prefilledData: JSON.parse(JSON.stringify(prefilledData))
+			prefilledData: null
 		};
 	} catch (error: any) {
 		console.error('Load error:', error);
@@ -240,44 +170,6 @@ export const actions: Actions = {
 							locals.user?.id
 						]
 					);
-				}
-			}
-
-			// --- Auto Update Status Logic ---
-			if (reference_doc) {
-				const ref = reference_doc.toString();
-
-				// กรณีที่ 1: อ้างอิง Invoice (INV-...)
-				if (ref.startsWith('INV-')) {
-					await connection.execute(
-						"UPDATE invoices SET status = 'Paid' WHERE invoice_number = ? AND status != 'Paid'",
-						[ref]
-					);
-				}
-				// กรณีที่ 2: อ้างอิง Billing Note (BN-...)
-				else if (ref.startsWith('BN-')) {
-					// 2.1 อัปเดต Billing Note เป็น Paid
-					await connection.execute(
-						"UPDATE billing_notes SET status = 'Paid' WHERE billing_note_number = ? AND status != 'Paid'",
-						[ref]
-					);
-
-					// 2.2 หาว่า Billing Note นี้คุม Invoice ใบไหนบ้าง แล้วอัปเดต Invoice เหล่านั้นเป็น Paid ทั้งหมด
-					// (Sub-query หา id ของ invoice จาก billing_note_invoices)
-					await connection.execute(
-						`
-                        UPDATE invoices 
-                        SET status = 'Paid' 
-                        WHERE id IN (
-                            SELECT invoice_id 
-                            FROM billing_note_invoices 
-                            WHERE billing_note_id = (SELECT id FROM billing_notes WHERE billing_note_number = ? LIMIT 1)
-                        ) AND status != 'Paid'
-                    `,
-						[ref]
-					);
-
-					console.log(`Auto-updated Billing Note ${ref} and related Invoices to Paid.`);
 				}
 			}
 
