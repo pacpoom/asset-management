@@ -646,6 +646,11 @@
 				class="font-medium text-gray-800">{formatCurrency(paymentData.total_after_discount)}</span
 			>
 		</div>
+
+		<div class="flex items-center justify-between">
+			<span class="font-medium text-gray-600">VAT ({paymentData.vat_rate ?? 0}%):</span>
+			<span class="font-medium text-gray-800">{formatCurrency(paymentData.vat_amount)}</span>
+		</div>
 		<div class="flex items-center justify-between">
 			<span class="font-medium text-gray-600">WHT ({paymentData.withholding_tax_rate ?? 0}%):</span
 			><span class="font-medium text-red-600"

@@ -39,9 +39,11 @@ interface VoucherData extends RowDataPacket {
 	subtotal: number;
 	discount_amount: number;
 	total_after_discount: number;
+	vat_rate: number;
+	vat_amount: number;
 	withholding_tax_rate: number | null;
 	withholding_tax_amount: number;
-	total_amount: number; // Grand total
+	total_amount: number;
 }
 
 interface ItemData {
@@ -137,7 +139,8 @@ function getBillHtml(
 	const subtotal = voucherData.subtotal || 0;
 	const discount = voucherData.discount_amount || 0;
 	const totalAfterDiscount = voucherData.total_after_discount || 0;
-	const vat = 0;
+	const vat = voucherData.vat_amount || 0;
+	const vatRate = voucherData.vat_rate || 0;
 	const wht = voucherData.withholding_tax_amount || 0;
 	const netAmount = voucherData.total_amount || 0;
 	const netAmountAsNumber = parseFloat(String(netAmount)) || 0;
@@ -259,10 +262,10 @@ function getBillHtml(
                     <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ภาษีมูลค่าเพิ่ม (0%)</td>
-                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(vat)}</td>
-                </tr>
+					<td colspan="4" class="p-2"></td>
+					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+					<td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(vat)}</td>
+				</tr>
                 <tr>
                     <td colspan="4" class="p-2"></td>
                     <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">หัก ณ ที่จ่าย (${voucherData.withholding_tax_rate ?? 0}%)</td>
@@ -518,6 +521,7 @@ export const GET: RequestHandler = async ({ url }) => {
                 bp.id, bp.payment_reference, bp.payment_date, bp.vendor_id,
                 bp.notes, bp.status,
                 bp.subtotal, bp.discount_amount, bp.total_after_discount,
+				bp.vat_rate, bp.vat_amount,
                 bp.withholding_tax_rate, bp.withholding_tax_amount, bp.total_amount,
                 v.name AS vendor_name, v.address AS vendor_address, v.tax_id AS vendor_tax_id,
                 u.full_name AS prepared_by_user_name,
