@@ -44,18 +44,18 @@ export const load: PageServerLoad = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// 1. ดึงใบเสนอราคาเดิม
+		// ดึงใบเสนอราคาเดิม
 		const [rows] = await pool.query<any[]>('SELECT * FROM quotations WHERE id = ?', [id]);
 		if (rows.length === 0) throw error(404, 'Quotation not found');
 		const quotation = rows[0];
 
-		// 2. ดึงรายการสินค้าเดิม
+		// ดึงรายการสินค้าเดิม
 		const [itemRows] = await pool.query<any[]>(
 			'SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY item_order ASC',
 			[id]
 		);
 
-		// 3. ดึงไฟล์แนบเดิม
+		//  ดึงไฟล์แนบเดิม
 		const [attachmentRows] = await pool.query<any[]>(
 			'SELECT * FROM quotation_attachments WHERE quotation_id = ?',
 			[id]
@@ -65,7 +65,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			url: `/uploads/quotations/${f.file_system_name}`
 		}));
 
-		// 4. ดึงข้อมูล Dropdown
+		// ดึงข้อมูล Dropdown
 		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
@@ -115,7 +115,7 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 1. อัปเดตหัวเอกสาร
+			// อัปเดตหัวเอกสาร
 			await connection.execute(
 				`UPDATE quotations SET 
                  quotation_date = ?, valid_until = ?, customer_id = ?, reference_doc = ?, notes = ?,
@@ -140,7 +140,7 @@ export const actions: Actions = {
 				]
 			);
 
-			// 2. อัปเดตรายการสินค้า (ลบเก่า ใส่ใหม่)
+			// อัปเดตรายการสินค้า (ลบเก่า ใส่ใหม่)
 			await connection.execute('DELETE FROM quotation_items WHERE quotation_id = ?', [id]);
 
 			const items = JSON.parse(itemsJson);
@@ -164,7 +164,7 @@ export const actions: Actions = {
 				}
 			}
 
-			// 3. เพิ่มไฟล์แนบใหม่
+			// เพิ่มไฟล์แนบใหม่
 			const files = formData.getAll('attachments') as File[];
 			for (const file of files) {
 				const savedFile = await saveFile(file);

@@ -14,9 +14,8 @@
 	let whtRate = 0;
 	let selectedCustomerId: string | number = '';
 
-	// --- 🔥 ส่วนดึงข้อมูลเดิมมาใส่ ---
 	$: if (quotation) {
-		// 1. แก้บั๊กชื่อลูกค้า: ค้นหาใน list ก่อน
+		// แก้บั๊กชื่อลูกค้า: ค้นหาใน list ก่อน
 		if (quotation.customer_id != null) {
 			const targetId = Number(quotation.customer_id);
 			const foundCustomer = customers.find((c: any) => c.id == targetId);
@@ -25,7 +24,7 @@
 			}
 		}
 
-		// 2. แปลงวันที่และตัวเลข
+		// แปลงวันที่และตัวเลข
 		quotationDate = new Date(quotation.quotation_date).toISOString().split('T')[0];
 		validUntil = quotation.valid_until
 			? new Date(quotation.valid_until).toISOString().split('T')[0]
