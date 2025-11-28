@@ -193,7 +193,7 @@ function getBillingNoteHtml(
 	const itemTableHead = `
 		<thead>
 			<tr style="background-color: #f3f4f6; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
-				<th class="p-2 text-center w-12">#</th>
+				<th class="p-2 text-center w-12">ลำดับ</th>
 				<th class="p-2 text-left">เลขที่ใบแจ้งหนี้ (Invoice No.)</th>
 				<th class="p-2 text-center w-24">วันที่ (Date)</th>
 				<th class="p-2 text-center w-24">ครบกำหนด (Due)</th>
