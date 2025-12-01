@@ -5,12 +5,12 @@
 
 	let isSaving = false;
 
-	// ดึงค่าเดิมมาใส่ตัวแปร (แปลงเป็น Number เพื่อให้คำนวณได้)
+	// ดึงค่าเดิมมาใส่ตัวแปร
 	let subtotal = Number(voucher.subtotal || 0);
 	let vatRate = Number(voucher.vat_rate || 0);
 	let whtRate = Number(voucher.wht_rate || 0);
 
-	// คำนวณอัตโนมัติ (Reactive)
+	// คำนวณอัตโนมัติ
 	$: vatAmount = subtotal * (vatRate / 100);
 	$: whtAmount = subtotal * (whtRate / 100);
 	$: totalAmount = subtotal + vatAmount - whtAmount;

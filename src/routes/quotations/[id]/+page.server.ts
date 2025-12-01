@@ -7,7 +7,6 @@ export const load: PageServerLoad = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// 1. ดึงหัวเอกสาร
 		const [rows] = await pool.query<any[]>(
 			`
             SELECT q.*, 
@@ -24,7 +23,6 @@ export const load: PageServerLoad = async ({ params }) => {
 		if (rows.length === 0) throw error(404, 'Quotation not found');
 		const quotation = rows[0];
 
-		// 2. ดึงรายการสินค้า
 		const [items] = await pool.query<any[]>(
 			`
             SELECT qi.*, u.symbol as unit_symbol
@@ -36,7 +34,6 @@ export const load: PageServerLoad = async ({ params }) => {
 			[id]
 		);
 
-		// 3. ดึงไฟล์แนบ
 		const [attachments] = await pool.query<any[]>(
 			`
             SELECT * FROM quotation_attachments WHERE quotation_id = ?
@@ -49,11 +46,13 @@ export const load: PageServerLoad = async ({ params }) => {
 			url: `/uploads/quotations/${f.file_system_name}`
 		}));
 
+		const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
+
 		return {
 			quotation: JSON.parse(JSON.stringify(quotation)),
 			items: JSON.parse(JSON.stringify(items)),
 			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
-			// ส่ง status ให้หน้าเว็บเลือก
+			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			availableStatuses: ['Draft', 'Sent', 'Accepted', 'Rejected', 'Invoiced']
 		};
 	} catch (err: any) {
@@ -62,7 +61,6 @@ export const load: PageServerLoad = async ({ params }) => {
 	}
 };
 
-// Action เปลี่ยนสถานะ
 export const actions: Actions = {
 	updateStatus: async ({ request, params }) => {
 		const id = parseInt(params.id);

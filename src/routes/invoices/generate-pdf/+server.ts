@@ -5,7 +5,7 @@ import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- 1. INTERFACES ---
+// --- INTERFACES ---
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -24,7 +24,7 @@ interface InvoiceData extends RowDataPacket {
 	id: number;
 	invoice_number: string;
 	invoice_date: string;
-	due_date: string | null; // เพิ่มวันครบกำหนด
+	due_date: string | null;
 	reference_doc: string | null;
 
 	// ข้อมูลลูกค้า (Join)
@@ -51,7 +51,7 @@ interface ItemData {
 	line_total: number;
 }
 
-// --- 2. Helper Functions ---
+// --- Helper Functions ---
 
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
@@ -189,7 +189,7 @@ function getInvoiceHtml(
 
 	const itemTableHead = `
 		<thead>
-			<tr style="background-color: #f3f4f6; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
+			<tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
 				<th class="p-2 text-center w-12">ลำดับ</th>
 				<th class="p-2 text-left">รายการ (Description)</th>
 				<th class="p-2 text-right w-20">จำนวน</th>
@@ -203,7 +203,7 @@ function getInvoiceHtml(
 		<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
 			<tr>
                 <td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-					<div style="background-color: #f3f4f6; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
+					<div style="background-color: #ffffff; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
 						จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText}
 					</div>
 				</td>
@@ -223,7 +223,7 @@ function getInvoiceHtml(
 							<td class="p-1 text-right text-gray-900">${formatNumber(vatAmt)}</td>
 						</tr>
 						${whtAmt > 0 ? `<tr><td class="p-1 text-right text-red-600">หัก ณ ที่จ่าย ${whtRate}%</td><td class="p-1 text-right text-red-600">-${formatNumber(whtAmt)}</td></tr>` : ''}
-						<tr style="background-color: #f3f4f6; font-weight: bold; font-size: 9pt;">
+						<tr style="background-color: #ffffff; font-weight: bold; font-size: 9pt;">
 							<td class="p-2 text-right border-t border-gray-300 text-gray-800">จำนวนเงินสุทธิ</td>
 							<td class="p-2 text-right border-t border-gray-300 text-blue-600">${formatNumber(netAmount)}</td>
 						</tr>
@@ -248,7 +248,7 @@ function getInvoiceHtml(
 		</div>
 	`;
 
-	// --- 3. Pagination Logic (Dynamic) ---
+	// --- Pagination Logic (Dynamic) ---
 	const MAX_WITH_FOOTER = 10;
 	const MAX_WITHOUT_FOOTER = 18;
 	const itemPages: ItemData[][] = [];
@@ -263,7 +263,7 @@ function getInvoiceHtml(
 			} else if (remaining.length <= MAX_WITHOUT_FOOTER) {
 				itemPages.push(remaining);
 				remaining = [];
-				itemPages.push([]); // หน้าว่างสำหรับ Footer
+				itemPages.push([]);
 			} else {
 				itemPages.push(remaining.slice(0, MAX_WITHOUT_FOOTER));
 				remaining = remaining.slice(MAX_WITHOUT_FOOTER);
@@ -345,7 +345,7 @@ function getInvoiceHtml(
 	`;
 }
 
-// --- 4. Main Handler ---
+// --- Main Handler ---
 
 export const GET = async ({ url }) => {
 	const id = url.searchParams.get('id');
@@ -355,7 +355,7 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// 1. ดึง Invoice (แทน Receipt)
+		// ดึง Invoice (แทน Receipt)
 		const [rows] = await connection.execute<InvoiceData[]>(
 			`
 			SELECT i.*, c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, u.full_name as created_by_name
@@ -370,7 +370,7 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Invoice not found' }, { status: 404 });
 		const invoiceData = rows[0];
 
-		// 2. ดึง Items (จาก invoice_items)
+		//ดึง Items (จาก invoice_items)
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
 			SELECT description, quantity, unit_price, line_total FROM invoice_items WHERE invoice_id = ? ORDER BY item_order ASC
@@ -378,7 +378,7 @@ export const GET = async ({ url }) => {
 			[id]
 		);
 
-		// 3. ดึง Company
+		//ดึง Company
 		const [company] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
 
 		// สร้าง HTML

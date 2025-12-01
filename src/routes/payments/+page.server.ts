@@ -3,7 +3,7 @@ import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 
 export const load: PageServerLoad = async ({ url }) => {
-	const type = url.searchParams.get('type') || 'ALL'; // ALL, RV, PV
+	const type = url.searchParams.get('type') || 'ALL';
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const pageSize = 15;
 	const offset = (page - 1) * pageSize;

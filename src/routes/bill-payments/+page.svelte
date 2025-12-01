@@ -5,7 +5,6 @@
 	import { invalidateAll, goto } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
-	// --- NEW: PaymentDetailModal is NO LONGER needed here ---
 
 	// --- Types (Exported for use in the separate component) ---
 	export type Vendor = PageData['vendors'][0];
@@ -17,8 +16,8 @@
 	// *** MODIFIED: Added product_object for select binding ***
 	export interface BillPaymentItem {
 		id: string;
-		product_object: { value: number; label: string; product: Product } | null; // For svelte-select
-		product_id: number | null; // For server submission
+		product_object: { value: number; label: string; product: Product } | null;
+		product_id: number | null;
 		description: string;
 		quantity: number;
 		unit_id: number | null;
@@ -34,14 +33,8 @@
 	let filterVendor = $state(data.filters?.vendor ?? '');
 	let filterStatus = $state(data.filters?.status ?? '');
 
-	// *** === THIS IS THE FIX === ***
-	// We use $derived instead of $state.
-	// This ensures 'payments' will always reflect the current 'data.payments' prop.
-	// When invalidateAll() runs, 'data' updates, and $derived recalculates 'payments'.
 	const payments = $derived(data.payments || []);
-	// *** === END OF FIX === ***
 
-	// --- New Payment Form Fields (Moved to a New Modal) ---
 	let isCreateModalOpen = $state(false);
 	let vendor_id = $state<number | undefined>(undefined);
 	let vendor_contract_id = $state<number | undefined>(undefined);
@@ -79,7 +72,6 @@
 	const subTotal = $derived(items.reduce((sum, item) => sum + item.line_total, 0));
 	const totalAfterDiscount = $derived(subTotal - (discountAmount || 0));
 
-	// ✅ เพิ่มคำนวณ VAT Amount
 	const vatAmount = $derived(
 		vat_selection > 0 ? parseFloat((totalAfterDiscount * (vat_selection / 100)).toFixed(2)) : 0
 	);
@@ -267,10 +259,6 @@
 		if (fileInput) fileInput.value = '';
 	}
 
-	// --- Detail Modal Functions (Removed internal logic) ---
-	// openDetailModal and related detail states are REMOVED
-	// in favor of direct navigation to /bill-payments/[id]
-
 	// --- Reactive Effects for Form ---
 	$effect.pre(() => {
 		// Handle savePayment results
@@ -296,20 +284,16 @@
 				invalidateAll();
 			} else if (form.message) {
 				showGlobalMessage(form.message as string, 'error');
-				// Do not close modal on error, show the error inside the modal
 			}
-			// form.action = undefined; // Consuming form.action is done by enhance function/SvelteKit
 		}
 	});
 </script>
 
 <svelte:head>
 	<title>รายการจ่ายเงิน (Payments)</title>
-	<!-- CSS for svelte-select -->
 	<link rel="stylesheet" href="https://unpkg.com/svelte-select@latest/dist/stylesheet.css" />
 </svelte:head>
 
-<!-- Global Notifications -->
 {#if globalMessage}
 	<div
 		transition:fade
@@ -322,7 +306,6 @@
 	</div>
 {/if}
 
-<!-- Main Header -->
 <div class="mb-6 flex items-center justify-between">
 	<div>
 		<h1 class="text-2xl font-bold text-gray-800">รายการจ่ายเงิน (Payments)</h1>
@@ -348,7 +331,6 @@
 	</button>
 </div>
 
-<!-- Filters -->
 <div
 	class="mb-4 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-4"
 >
@@ -411,7 +393,6 @@
 	</div>
 </div>
 
-<!-- Payments Table -->
 <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
@@ -518,7 +499,6 @@
 	</table>
 </div>
 
-<!-- Pagination Controls -->
 {#if data.totalPages > 1}
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
 		<div>
@@ -582,7 +562,6 @@
 	</div>
 {/if}
 
-<!-- MODAL: Create New Bill Payment -->
 {#if isCreateModalOpen}
 	<div
 		transition:slide
@@ -596,7 +575,6 @@
 				<h2 class="text-lg font-bold text-gray-900">บันทึกรายการจ่ายเงินใหม่</h2>
 			</div>
 
-			<!-- Form -->
 			<form
 				method="POST"
 				action="?/savePayment"
@@ -605,7 +583,6 @@
 					isSaving = true;
 					globalMessage = null;
 
-					// Prepare JSON data for line items
 					formData.set(
 						'itemsJson',
 						JSON.stringify(
@@ -636,7 +613,6 @@
 				class="flex-1 overflow-y-auto"
 			>
 				<div class="space-y-6 p-6">
-					<!-- Header Section -->
 					<div class="grid grid-cols-1 gap-4 md:grid-cols-4">
 						<div>
 							<label for="vendor_id_modal" class="mb-1 block text-sm font-medium text-gray-700"
@@ -720,7 +696,6 @@
 										<th class="w-[25%] px-3 py-2 text-left font-semibold text-gray-400"
 											>สินค้า/บริการ (Product) <span class="text-red-500">*</span></th
 										>
-										<!-- *** MODIFIED WIDTH: min-w-[250px] *** -->
 										<th class="min-w-[250px] px-3 py-2 text-left font-semibold text-gray-600"
 											>รายละเอียด</th
 										>
@@ -755,7 +730,7 @@
 													bind:value={item.product_object}
 													on:change={() => onProductSelectChange(item)}
 													on:clear={() => {
-														item.product_object = null; // Manually clear for bind:value
+														item.product_object = null;
 														onProductSelectChange(item);
 													}}
 													placeholder="-- ค้นหา/เลือกสินค้า --"
@@ -854,9 +829,7 @@
 						</button>
 					</div>
 
-					<!-- Totals Summary & Notes -->
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-						<!-- Left Column: Totals -->
 						<div>
 							<div class="w-full space-y-2 text-sm">
 								<div class="flex items-center justify-between">
@@ -918,7 +891,6 @@
 											<option value={0}>-- ไม่หัก --</option>
 											<option value={1}>หัก 1%</option>
 											<option value={3}>หัก 3%</option>
-											<option value={5}>หัก 5%</option>
 										</select>
 									</div>
 
@@ -1043,11 +1015,10 @@
 				method="POST"
 				action="?/deletePayment"
 				use:enhance={() => {
-					isDeleting = true; // Set loading state locally
+					isDeleting = true;
 					return async ({ update }) => {
 						await update();
-						isDeleting = false; // Clear loading state
-						// The $effect.pre block now handles closing the modal on success
+						isDeleting = false;
 					};
 				}}
 				class="mt-6 flex justify-end gap-3"

@@ -228,7 +228,7 @@ function getBillHtml(
 
 	const itemTableHeadersHtml = `
 		<thead>
-			<tr class="items-header-row" style="background-color: #f3f4f6 !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
+			<tr class="items-header-row" style="background-color: #ffffff !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
 				<th class="w-12 text-center p-2" style="font-size: 8pt; font-weight: bold;">ลำดับ</th>
 				<th class="text-left p-2" style="font-size: 8pt; font-weight: bold;">รายการ</th>
 				<th class="w-20 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวน</th>
@@ -271,7 +271,7 @@ function getBillHtml(
                     <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">หัก ณ ที่จ่าย (${voucherData.withholding_tax_rate ?? 0}%)</td>
                     <td class="p-2 text-right text-red-600" style="font-size: 8pt;">(${formatNumber(wht)})</td>
                 </tr>
-                <tr style="background-color: #f3f4f6;">
+                <tr style="background-color: #ffffff;">
                     <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
                         (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
                     </td>
@@ -335,20 +335,14 @@ function getBillHtml(
 		itemPages.push([]);
 	} else {
 		while (remainingItems.length > 0) {
-			// ถ้าจำนวนที่เหลือ "ใส่ในหน้าสุดท้ายได้พอดี" (พร้อมลายเซ็น)
 			if (remainingItems.length <= MAX_WITH_FOOTER) {
 				itemPages.push(remainingItems);
-				remainingItems = []; // จบ Loop
-			}
-			// ถ้าจำนวนเกินหน้าสุดท้าย แต่ยัง "ใส่ในหน้าเต็มๆ ได้" (เช่น 12 รายการ)
-			else if (remainingItems.length <= MAX_WITHOUT_FOOTER) {
-				// ใส่รายการทั้งหมด
+				remainingItems = [];
+			} else if (remainingItems.length <= MAX_WITHOUT_FOOTER) {
 				itemPages.push(remainingItems);
 				remainingItems = [];
 				itemPages.push([]);
-			}
-			// ถ้าเยอะ เกินหน้าเต็ม -> ตัดมา 1 หน้าเต็มๆ แล้ววนลูปต่อ
-			else {
+			} else {
 				const chunk = remainingItems.slice(0, MAX_WITHOUT_FOOTER);
 				itemPages.push(chunk);
 				remainingItems = remainingItems.slice(MAX_WITHOUT_FOOTER);
@@ -405,7 +399,6 @@ function getBillHtml(
 			let footerContent = '';
 
 			if (isLastPage) {
-				// หน้าสุดท้าย : แสดงสรุป + ลายเซ็น
 				footerContent = `
                     ${financialSummaryBlock}
                     ${paymentAndSignatureBlock}
@@ -414,7 +407,6 @@ function getBillHtml(
                     </div>
                 `;
 			} else {
-				// หน้าทั่วไป: แสดงยอดยกไป
 				footerContent = `
                     <div style="text-align: right; font-weight: bold; margin-top: 20px; padding-bottom: 20px; border-bottom: 1px dashed #ccc;">
                         -- ยอดยกไป (Carried Forward) --
@@ -511,7 +503,6 @@ export const GET: RequestHandler = async ({ url }) => {
 	let companyData: CompanyData | null = null;
 	let connection;
 
-	// ดึงข้อมูลจาก DB
 	try {
 		connection = await db.getConnection();
 
@@ -569,7 +560,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		let billHtmlContent = getBillHtml(companyData, voucherData, itemsData);
 
-		// ดู debug html
+		//debug html
 		try {
 			const debugHtmlPath = path.resolve('static', 'debug-voucher.html');
 			fs.writeFileSync(debugHtmlPath, billHtmlContent);

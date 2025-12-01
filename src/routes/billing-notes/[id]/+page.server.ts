@@ -7,7 +7,6 @@ export const load: PageServerLoad = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// 1. ดึงหัวเอกสาร
 		const [rows] = await pool.query<any[]>(
 			`
             SELECT bn.*, 
@@ -24,21 +23,23 @@ export const load: PageServerLoad = async ({ params }) => {
 		if (rows.length === 0) throw error(404, 'Billing Note not found');
 		const billingNote = rows[0];
 
-		// 2. ดึงรายการใบแจ้งหนี้ที่วางบิล
 		const [invoices] = await pool.query<any[]>(
 			`
             SELECT bni.*, i.invoice_number, i.invoice_date, i.due_date as invoice_due_date
             FROM billing_note_invoices bni
             LEFT JOIN invoices i ON bni.invoice_id = i.id
             WHERE bni.billing_note_id = ?
+            ORDER BY i.invoice_date ASC
         `,
 			[id]
 		);
 
+		const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
+
 		return {
 			billingNote: JSON.parse(JSON.stringify(billingNote)),
 			invoices: JSON.parse(JSON.stringify(invoices)),
-			// ส่ง status ไปให้ Dropdown เปลี่ยนสถานะ
+			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			availableStatuses: ['Draft', 'Sent', 'Paid', 'Void']
 		};
 	} catch (err: any) {

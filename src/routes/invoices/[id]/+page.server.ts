@@ -1,15 +1,14 @@
-import { error } from '@sveltejs/kit';
-import type { Actions, PageServerLoad } from './$types';
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
+import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 
 export const load: PageServerLoad = async ({ params }) => {
-	const invoiceId = parseInt(params.id);
-	if (isNaN(invoiceId)) throw error(404, 'Invalid Invoice ID');
+	const id = parseInt(params.id);
+	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// 1. ดึงข้อมูลหัวใบแจ้งหนี้ + ลูกค้า
-		const [invoiceRows] = await pool.query<any[]>(
+		//ดึงข้อมูลใบแจ้งหนี้
+		const [rows] = await pool.query<any[]>(
 			`
             SELECT i.*, 
                    c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id,
@@ -19,14 +18,14 @@ export const load: PageServerLoad = async ({ params }) => {
             LEFT JOIN users u ON i.created_by_user_id = u.id
             WHERE i.id = ?
         `,
-			[invoiceId]
+			[id]
 		);
 
-		if (invoiceRows.length === 0) throw error(404, 'Invoice not found');
-		const invoice = invoiceRows[0];
+		if (rows.length === 0) throw error(404, 'Invoice not found');
+		const invoice = rows[0];
 
-		// 2. ดึงรายการสินค้า
-		const [itemRows] = await pool.query<any[]>(
+		//ดึงรายการสินค้า
+		const [items] = await pool.query<any[]>(
 			`
             SELECT ii.*, u.symbol as unit_symbol
             FROM invoice_items ii
@@ -34,49 +33,52 @@ export const load: PageServerLoad = async ({ params }) => {
             WHERE ii.invoice_id = ?
             ORDER BY ii.item_order ASC
         `,
-			[invoiceId]
+			[id]
 		);
 
-		// 3. ดึงไฟล์แนบ
-		const [attachmentRows] = await pool.query<any[]>(
+		//ดึงไฟล์แนบ
+		const [attachments] = await pool.query<any[]>(
 			`
             SELECT * FROM invoice_attachments WHERE invoice_id = ?
         `,
-			[invoiceId]
+			[id]
 		);
 
-		const attachments = attachmentRows.map((file: any) => ({
-			...file,
-			url: `/uploads/invoices/${file.file_system_name}`
+		const attachmentsWithUrl = attachments.map((f: any) => ({
+			...f,
+			url: `/uploads/invoices/${f.file_system_name}`
 		}));
+
+		//ดึงข้อมูลบริษัท
+		const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
 
 		return {
 			invoice: JSON.parse(JSON.stringify(invoice)),
-			items: JSON.parse(JSON.stringify(itemRows)),
-			attachments: JSON.parse(JSON.stringify(attachments)),
+			items: JSON.parse(JSON.stringify(items)),
+			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
+
+			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			availableStatuses: ['Draft', 'Sent', 'Paid', 'Overdue', 'Void']
 		};
 	} catch (err: any) {
-		console.error('Error loading invoice detail:', err);
+		console.error('Error loading invoice:', err);
 		throw error(500, err.message);
 	}
 };
 
+//เปลี่ยนสถานะ
 export const actions: Actions = {
 	updateStatus: async ({ request, params }) => {
-		const invoiceId = parseInt(params.id);
+		const id = parseInt(params.id);
 		const formData = await request.formData();
 		const status = formData.get('status')?.toString();
 
-		if (isNaN(invoiceId) || !status) {
-			return fail(400, { message: 'ข้อมูลไม่ครบถ้วน' });
-		}
+		if (!id || !status) return fail(400, { message: 'Invalid data' });
 
 		try {
-			await pool.execute('UPDATE invoices SET status = ? WHERE id = ?', [status, invoiceId]);
+			await pool.execute('UPDATE invoices SET status = ? WHERE id = ?', [status, id]);
 			return { success: true };
 		} catch (err: any) {
-			console.error('Update Status Error:', err);
 			return fail(500, { message: err.message });
 		}
 	}

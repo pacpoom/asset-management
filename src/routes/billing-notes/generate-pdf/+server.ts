@@ -5,8 +5,6 @@ import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- 1. INTERFACES ---
-
 interface CompanyData extends RowDataPacket {
 	id: number;
 	name: string;
@@ -39,7 +37,7 @@ interface BillingItemData extends RowDataPacket {
 	amount: number;
 }
 
-// Interface สำหรับยอดรวมสรุป (เพิ่มใหม่)
+// Interface สำหรับยอดรวมสรุป
 interface BillingSummary extends RowDataPacket {
 	sum_subtotal: number;
 	sum_vat: number;
@@ -47,7 +45,7 @@ interface BillingSummary extends RowDataPacket {
 	sum_total: number;
 }
 
-// --- 2. Helper Functions ---
+// --- Helper Functions ---
 
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
@@ -107,17 +105,14 @@ function getBillingNoteHtml(
 	itemsData: BillingItemData[],
 	summaryData: BillingSummary
 ): string {
-	// ✅ 1. เตรียมตัวเลข (แปลงเป็น Number ให้ชัวร์)
 	const subtotal = Number(summaryData.sum_subtotal || 0);
 	const vatAmt = Number(summaryData.sum_vat || 0);
 	const whtAmt = Number(summaryData.sum_wht || 0);
 
-	// ✅ 2. คำนวณยอดสุทธิ (Net Payment)
 	// สูตร: (ราคาก่อนภาษี + VAT) - WHT
 	const netAmount = subtotal + vatAmt - whtAmt;
 	const netAmountText = bahttext(netAmount);
 
-	// Helper Formatters (Local)
 	const formatNumber = (num: number | string) => {
 		const val = typeof num === 'string' ? parseFloat(num) : num;
 		return isNaN(val)
@@ -138,7 +133,7 @@ function getBillingNoteHtml(
 		}
 	};
 
-	// ✅ 3. สร้าง HTML ส่วน WHT (แสดงเฉพาะเมื่อมียอด > 0)
+	//สร้าง HTML ส่วน WHT (แสดงเฉพาะเมื่อมียอด > 0)
 	let whtRowHtml = '';
 	if (whtAmt > 0.001) {
 		whtRowHtml = `
@@ -192,7 +187,7 @@ function getBillingNoteHtml(
 
 	const itemTableHead = `
 		<thead>
-			<tr style="background-color: #f3f4f6; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
+			<tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
 				<th class="p-2 text-center w-12">ลำดับ</th>
 				<th class="p-2 text-left">เลขที่ใบแจ้งหนี้ (Invoice No.)</th>
 				<th class="p-2 text-center w-24">วันที่ (Date)</th>
@@ -206,7 +201,7 @@ function getBillingNoteHtml(
 		<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
 			<tr>
 				<td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-					<div style="background-color: #f3f4f6; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
+					<div style="background-color: #ffffff; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
 						จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText}
 					</div>
 				</td>
@@ -221,7 +216,7 @@ function getBillingNoteHtml(
 							<td class="p-1 text-right text-gray-900">${formatNumber(vatAmt)}</td>
 						</tr>
 
-                        ${whtRowHtml} <tr style="background-color: #f3f4f6; font-weight: bold; font-size: 9pt;">
+                        ${whtRowHtml} <tr style="background-color: #ffffff; font-weight: bold; font-size: 9pt;">
 							<td class="p-2 text-right border-t border-gray-300 text-gray-800">ยอดชำระสุทธิ (Net Payment)</td>
 							<td class="p-2 text-right border-t border-gray-300 text-blue-600">${formatNumber(netAmount)}</td>
 						</tr>
@@ -342,7 +337,7 @@ function getBillingNoteHtml(
 	`;
 }
 
-// --- 4. Main Handler ---
+// --- Main Handler ---
 
 export const GET = async ({ url }) => {
 	const id = url.searchParams.get('id');
@@ -352,7 +347,7 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// 1. ดึง Billing Note
+		// ดึง Billing Note
 		const [rows] = await connection.execute<BillingNoteData[]>(
 			`
 			SELECT bn.*, c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, u.full_name as created_by_name
@@ -367,7 +362,7 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Billing Note not found' }, { status: 404 });
 		const noteData = rows[0];
 
-		// 2. ดึงรายการ Invoice
+		// ดึงรายการ Invoice
 		const [items] = await connection.execute<BillingItemData[]>(
 			`
 			SELECT i.invoice_number, i.invoice_date, i.due_date, bni.amount

@@ -3,7 +3,7 @@ import puppeteer from 'puppeteer';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- 1. INTERFACES ---
+// --- INTERFACES ---
 interface CompanyData extends RowDataPacket {
 	name: string;
 	logo_path: string | null;
@@ -31,7 +31,7 @@ interface VoucherData extends RowDataPacket {
 	created_by_name: string;
 }
 
-// --- 2. Helper Functions (BahtText & Format) ---
+// --- Helper Functions  ---
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
 	if (isNaN(num)) {
@@ -129,7 +129,7 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
             .header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
             .content-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             .content-table th, .content-table td { border: 1px solid #ccc; padding: 8px; }
-            .content-table th { background-color: #f3f4f6; text-align: center; }
+            .content-table th { background-color: #ffffff; text-align: center; }
             .footer-section { position: absolute; bottom: 40px; left: 40px; right: 40px; }
             .summary-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             .summary-table td { padding: 4px 8px; }
@@ -186,7 +186,7 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
             <table class="summary-table">
                 <tr>
                     <td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-                        <div style="border: 1px solid #ccc; background-color: #f9fafb; font-weight: bold; text-align: center; padding: 8px;">
+                        <div style="border: 1px solid #ccc; background-color: #ffffff; font-weight: bold; text-align: center; padding: 8px;">
                             จำนวนเงินสุทธิเป็นตัวอักษร (${totalText})
                         </div>
                     </td>
@@ -216,7 +216,7 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
 																: ''
 														}
                             
-                            <tr style="background-color: #f3f4f6;">
+                            <tr style="background-color: #ffffff;">
                                 <td style="text-align: right; font-weight: bold;">${netTotalLabel}</td>
                                 <td style="text-align: right; font-weight: bold; font-size: 11pt; color: #2563eb;">${formatNumber(totalAmount)}</td>
                             </tr>
@@ -253,7 +253,7 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
     `;
 }
 
-// --- 3. Main Handler ---
+// --- Main Handler ---
 export const GET = async ({ url }) => {
 	const id = url.searchParams.get('id');
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });

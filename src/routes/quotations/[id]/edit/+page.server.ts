@@ -55,7 +55,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			[id]
 		);
 
-		//  ดึงไฟล์แนบเดิม
+		// ดึงไฟล์แนบเดิม
 		const [attachmentRows] = await pool.query<any[]>(
 			'SELECT * FROM quotation_attachments WHERE quotation_id = ?',
 			[id]
@@ -140,7 +140,7 @@ export const actions: Actions = {
 				]
 			);
 
-			// อัปเดตรายการสินค้า (ลบเก่า ใส่ใหม่)
+			// อัปเดตรายการสินค้า
 			await connection.execute('DELETE FROM quotation_items WHERE quotation_id = ?', [id]);
 
 			const items = JSON.parse(itemsJson);

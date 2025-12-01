@@ -48,6 +48,16 @@ async function generateInvoiceNumber(dateStr: string) {
 	return `${prefix}${String(nextNum).padStart(4, '0')}`;
 }
 
+interface PrefilledData {
+	reference_doc?: string;
+	customer_id?: string | number;
+	notes?: string;
+	discount_amount?: string;
+	vat_rate?: string;
+	withholding_tax_rate?: string;
+	items?: any[];
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
 	try {
 		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
@@ -60,7 +70,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
-			prefilledData: null
+			prefilledData: null as PrefilledData | null
 		};
 	} catch (error: any) {
 		console.error('Load error:', error);

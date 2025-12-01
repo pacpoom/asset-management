@@ -15,7 +15,6 @@
 	let selectedCustomerId: string | number = '';
 
 	$: if (quotation) {
-		// แก้บั๊กชื่อลูกค้า: ค้นหาใน list ก่อน
 		if (quotation.customer_id != null) {
 			const targetId = Number(quotation.customer_id);
 			const foundCustomer = customers.find((c: any) => c.id == targetId);

@@ -5,7 +5,7 @@ import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- 1. INTERFACES ---
+// --- INTERFACES ---
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -24,7 +24,7 @@ interface QuotationData extends RowDataPacket {
 	id: number;
 	quotation_number: string;
 	quotation_date: string;
-	valid_until: string | null; // วันยืนยันราคา
+	valid_until: string | null;
 	reference_doc: string | null;
 
 	customer_name: string;
@@ -49,7 +49,7 @@ interface ItemData {
 	line_total: number;
 }
 
-// --- 2. Helper Functions ---
+// --- Helper Functions ---
 
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
@@ -182,7 +182,7 @@ function getQuotationHtml(
 
 	const itemTableHead = `
 		<thead>
-			<tr style="background-color: #f3f4f6; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
+			<tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
 				<th class="p-2 text-center w-12">ลำดับ</th>
 				<th class="p-2 text-left">รายการ (Description)</th>
 				<th class="p-2 text-right w-20">จำนวน</th>
@@ -196,7 +196,7 @@ function getQuotationHtml(
 		<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
 			<tr>
 				<td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-					<div style="background-color: #f3f4f6; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
+					<div style="background-color: #ffffff; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
 						จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText}
 					</div>
 				</td>
@@ -225,7 +225,7 @@ function getQuotationHtml(
 								: ''
 						}	
 
-						<tr style="background-color: #f3f4f6; font-weight: bold; font-size: 9pt;">
+						<tr style="background-color: #ffffff; font-weight: bold; font-size: 9pt;">
 							<td class="p-2 text-right border-t border-gray-300 text-gray-800">จำนวนเงินสุทธิ</td>
 							<td class="p-2 text-right border-t border-gray-300 text-blue-600">${formatNumber(netAmount)}</td>
 						</tr>
@@ -235,7 +235,6 @@ function getQuotationHtml(
 		</table>
 	`;
 
-	// ลายเซ็น (ซ้าย: ลูกค้าเซ็นอนุมัติ / ขวา: ผู้มีอำนาจลงนามของบริษัท)
 	const signatureBlock = `
 		<div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
 			<div style="text-align: center; width: 40%;">

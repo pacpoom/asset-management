@@ -78,7 +78,6 @@ export const actions: Actions = {
 		if (!id) return fail(400, { message: 'ไม่พบรหัสเอกสาร' });
 
 		try {
-			// ลบใบแจ้งหนี้ (Items และ Attachments จะหายไปเองถ้าตั้ง Cascade ไว้ หรือจะลบแยกก็ได้)
 			await pool.execute('DELETE FROM invoices WHERE id = ?', [id]);
 			return { success: true };
 		} catch (err: any) {

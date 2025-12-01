@@ -356,7 +356,6 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// Insert Header
 			const headerSql = `INSERT INTO bill_payments
                 (vendor_id, vendor_contract_id, payment_date, payment_reference, notes, 
                  subtotal, discount_amount, total_after_discount, 
@@ -384,7 +383,6 @@ export const actions: Actions = {
 
 			if (!paymentId) throw new Error('Failed to create bill payment header.');
 
-			// Insert Line Items
 			if (items.length > 0) {
 				const itemSql = `INSERT INTO bill_payment_items
                     (bill_payment_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order)
@@ -403,7 +401,6 @@ export const actions: Actions = {
 				await connection.query(itemSql, [itemValues]);
 			}
 
-			// Handle File Uploads
 			const validFiles = files.filter((f) => f && f.size > 0);
 			if (validFiles.length > 0) {
 				const attachmentSql = `INSERT INTO bill_payment_attachments
@@ -495,12 +492,10 @@ export const actions: Actions = {
 
 			await connection.commit();
 
-			// Delete files from disk AFTER DB commit
 			for (const doc of docsToDelete) {
 				await deleteFile(doc.file_system_name);
 			}
 
-			// Return success with deleted ID for client-side update (no redirect from List Page delete)
 			return {
 				action: 'deletePayment',
 				success: true,

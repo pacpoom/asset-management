@@ -194,7 +194,7 @@ function getReceiptHtml(
 
 	const itemTableHead = `
 		<thead>
-			<tr style="background-color: #f3f4f6; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
+			<tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
 				<th class="p-2 text-center w-12">ลำดับ</th>
 				<th class="p-2 text-left">รายการ (Description)</th>
 				<th class="p-2 text-right w-20">จำนวน</th>
@@ -208,7 +208,7 @@ function getReceiptHtml(
 		<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
 			<tr>
 				<td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-					<div style="background-color: #f3f4f6; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
+					<div style="background-color: #ffffff; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
 						จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText}
 					</div>
 				</td>
@@ -230,7 +230,7 @@ function getReceiptHtml(
 						</tr>
 						${whtAmt > 0 ? `<tr><td class="p-1 text-right text-red-600">หัก ณ ที่จ่าย ${whtRate}%</td><td class="p-1 text-right text-red-600">-${formatNumber(whtAmt)}</td></tr>` : ''}
 						
-						<tr style="background-color: #f3f4f6; font-weight: bold; font-size: 9pt;">
+						<tr style="background-color: #ffffff; font-weight: bold; font-size: 9pt;">
 							<td class="p-2 text-right border-t border-gray-300 text-gray-800">จำนวนเงินสุทธิ</td>
 							<td class="p-2 text-right border-t border-gray-300 text-blue-600">${formatNumber(netAmount)}</td>
 						</tr>

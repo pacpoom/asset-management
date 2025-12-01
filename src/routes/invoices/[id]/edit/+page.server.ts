@@ -44,20 +44,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	if (isNaN(invoiceId)) throw error(404, 'Invalid Invoice ID');
 
 	try {
-		// 1. ดึงข้อมูลใบแจ้งหนี้เดิม
 		const [invoiceRows] = await pool.query<any[]>('SELECT * FROM invoices WHERE id = ?', [
 			invoiceId
 		]);
 		if (invoiceRows.length === 0) throw error(404, 'Invoice not found');
 		const invoice = invoiceRows[0];
 
-		// 2. ดึงรายการสินค้าเดิม
 		const [itemRows] = await pool.query<any[]>(
 			'SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY item_order ASC',
 			[invoiceId]
 		);
 
-		// 3. ดึงไฟล์แนบเดิม
 		const [attachmentRows] = await pool.query<any[]>(
 			'SELECT * FROM invoice_attachments WHERE invoice_id = ?',
 			[invoiceId]
@@ -67,9 +64,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			url: `/uploads/invoices/${f.file_system_name}`
 		}));
 
-		// 4. ดึงข้อมูล Dropdown
 		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
-		// ✅ ใช้ selling_price AS price
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
@@ -119,7 +114,7 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 1. อัปเดตหัวเอกสาร
+			//อัปเดตหัวเอกสาร
 			await connection.execute(
 				`UPDATE invoices SET 
                  invoice_date = ?, due_date = ?, customer_id = ?, reference_doc = ?, notes = ?,
@@ -144,7 +139,7 @@ export const actions: Actions = {
 				]
 			);
 
-			// 2. อัปเดตรายการสินค้า (ลบเก่า ใส่ใหม่)
+			//อัปเดตรายการสินค้า
 			await connection.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
 
 			const items = JSON.parse(itemsJson);
@@ -168,7 +163,7 @@ export const actions: Actions = {
 				}
 			}
 
-			// 3. เพิ่มไฟล์แนบใหม่
+			//เพิ่มไฟล์แนบใหม่
 			const files = formData.getAll('attachments') as File[];
 			for (const file of files) {
 				const savedFile = await saveFile(file);

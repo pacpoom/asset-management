@@ -6,9 +6,9 @@
 	// ตัวแปรสำหรับคำนวณ
 	let subtotal = 0;
 	let vatRate = 0; // 0 หรือ 7
-	let whtRate = 0; // 0, 1, 3, 5 etc.
+	let whtRate = 0; // 0, 1, 3, 5
 
-	// คำนวณอัตโนมัติ (Reactive Statement)
+	// คำนวณอัตโนมัติ
 	$: vatAmount = subtotal * (vatRate / 100);
 	$: whtAmount = subtotal * (whtRate / 100);
 	// สูตร: ยอดรวม = (ยอดก่อนภาษี + VAT) - หัก ณ ที่จ่าย
