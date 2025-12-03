@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
+import type { RequestHandler } from './$types';
 
 // ---
 // 1. INTERFACES
@@ -22,39 +23,51 @@ interface CompanyData extends RowDataPacket {
 	tax_id: string | null;
 }
 
-interface VoucherData extends RowDataPacket {
-	id: string; // id ของ bill_payment
-	payment_reference: string | null;
-	payment_date: string;
-	vendor_id: string;
+// ปรับจาก VoucherData เป็น PurchaseOrderData
+interface PurchaseOrderData extends RowDataPacket {
+	id: number;
+	po_number: string; // เลขที่ใบสั่งซื้อ
+	po_date: string; // วันที่สั่งซื้อ
+	vendor_id: number;
+
+	// ข้อมูลเพิ่มเติมของ PO
+	delivery_date: string | null;
+	payment_term: string | null;
+	contact_person: string | null;
+	remarks: string | null;
 
 	// ข้อมูลที่ Join มา
 	vendor_name: string;
 	vendor_address: string | null;
 	vendor_tax_id: string | null;
+	vendor_phone: string | null;
+	vendor_email: string | null;
 	prepared_by_user_name: string;
-	vendor_contract_number: string | null;
 
-	// ข้อมูลการเงิน (จาก DB)
+	// ข้อมูลการเงิน
 	subtotal: number;
-	discount_amount: number;
-	total_after_discount: number;
+	discount: number; // PO ใช้ชื่อ discount ไม่ใช่ discount_amount ในบางโครงสร้าง แต่ปรับให้ตรง query ได้
 	vat_rate: number;
 	vat_amount: number;
-	withholding_tax_rate: number | null;
-	withholding_tax_amount: number;
+	wht_rate: number; // PO ใช้ wht_rate
+	wht_amount: number; // PO ใช้ wht_amount
 	total_amount: number;
 }
 
-interface ItemData {
-	description: string;
+// ปรับ ItemData ให้รองรับฟิลด์ของ PO (เช่น หน่วย, ส่วนลดรายตัว)
+interface ItemData extends RowDataPacket {
+	product_name: string;
+	description: string | null;
 	quantity: number;
+	unit: string | null;
 	unit_price: number;
-	line_total: number;
+	discount: number;
+	total_price: number; // หรือ line_total
 }
 
-// ฟังก์ชัน BAHTTEXT
-
+// ---
+// 2. ฟังก์ชัน BAHTTEXT (คงเดิมเป๊ะๆ)
+// ---
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
 	if (isNaN(num)) {
@@ -130,19 +143,23 @@ function bahttext(input: number | string): string {
 	}
 }
 
-function getBillHtml(
+// ---
+// 3. HTML GENERATOR (ปรับเนื้อหาเป็นใบสั่งซื้อ แต่รักษาฟอร์แมต)
+// ---
+function getPOHtml(
 	companyData: CompanyData | null,
-	voucherData: VoucherData,
+	poData: PurchaseOrderData,
 	itemsData: ItemData[]
 ): string {
-	// --- 1. Helpers & Formatting
-	const subtotal = voucherData.subtotal || 0;
-	const discount = voucherData.discount_amount || 0;
-	const totalAfterDiscount = voucherData.total_after_discount || 0;
-	const vat = voucherData.vat_amount || 0;
-	const vatRate = voucherData.vat_rate || 0;
-	const wht = voucherData.withholding_tax_amount || 0;
-	const netAmount = voucherData.total_amount || 0;
+	// --- Helpers & Formatting ---
+	const subtotal = poData.subtotal || 0;
+	const discount = poData.discount || 0;
+	const totalAfterDiscount = subtotal - discount; // คำนวณเองให้ชัวร์
+	const vat = poData.vat_amount || 0;
+	const vatRate = poData.vat_rate || 0;
+	const wht = poData.wht_amount || 0;
+	const whtRate = poData.wht_rate || 0;
+	const netAmount = poData.total_amount || 0;
 	const netAmountAsNumber = parseFloat(String(netAmount)) || 0;
 	const netAmountText = bahttext(netAmountAsNumber);
 
@@ -168,9 +185,7 @@ function getBillHtml(
 		}
 	};
 
-	// --- Blocks (Header, TableHeader, Footer) ---
-
-	//  Header (ส่วนหัวที่จะโชว์ทุกหน้า)
+	// Header Content
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; page-break-inside: avoid; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
@@ -195,48 +210,51 @@ function getBillHtml(
                     </div>
                 </td>
                 <td style="width: 40%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
-                    <h1 style="font-size: 1.5rem; font-weight: bold; color: #1F2937; text-transform: uppercase; margin: 0;">ใบสำคัญจ่าย</h1>
+                    <h1 style="font-size: 1.5rem; font-weight: bold; color: #1F2937; text-transform: uppercase; margin: 0;">ใบสั่งซื้อ</h1>
                     <div style="margin-top: 1rem; font-size: 8pt; line-height: 1.5;">
-                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">เลขที่ / No.:</span> <span style="font-weight: 500; color: #1F2937;">#${voucherData.id}</span></p>
-                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">วันที่ / Date:</span> <span style="font-weight: 500; color: #1F2937;">${formatDateOnly(voucherData.payment_date)}</span></p>
-                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">อ้างอิง / Ref:</span> <span style="font-weight: 500; color: #1F2937;">${voucherData.payment_reference || '-'}</span></p>
+                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">เลขที่ / No.:</span> <span style="font-weight: 500; color: #1F2937;">${poData.po_number}</span></p>
+                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">วันที่ / Date:</span> <span style="font-weight: 500; color: #1F2937;">${formatDateOnly(poData.po_date)}</span></p>
+                        <p style="margin:0;"><span style="font-weight: 600; color: #4B5563;">กำหนดส่ง / Delivery:</span> <span style="font-weight: 500; color: #1F2937;">${formatDateOnly(poData.delivery_date)}</span></p>
                     </div>
                 </td>
             </tr>
             <tr>
                 <td style="padding-top: 1rem; vertical-align: top;">
-                    <h3 style="font-weight: 600; color: #6B7280; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ซัพพลายเออร์ (Supplier)</h3>
-                    <p style="font-weight: bold; color: #374151; margin: 0 0 4px 0;">${voucherData.vendor_name}</p>
+                    <h3 style="font-weight: 600; color: #6B7280; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ผู้จำหน่าย (Vendor)</h3>
+                    <p style="font-weight: bold; color: #374151; margin: 0 0 4px 0;">${poData.vendor_name}</p>
                     <div style="font-size: 8pt; color: #374151; line-height: 1.4;">
-                        ${(voucherData.vendor_address || 'No address provided.')
+                        ${(poData.vendor_address || 'No address provided.')
 													.split(/\r?\n/)
 													.map((line) => line.trim())
 													.filter((line) => line.length > 0)
 													.map((line) => `<p style="margin:0;">${line}</p>`)
 													.join('')}
                     </div>
-                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600; color: #374151;">Tax ID:</span> ${voucherData.vendor_tax_id || '-'}</p>
+                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600; color: #374151;">Tax ID:</span> ${poData.vendor_tax_id || '-'}</p>
+                    <p style="font-size: 8pt; margin:2px 0 0 0;"><span style="font-weight: 600; color: #374151;">ผู้ติดต่อ:</span> ${poData.contact_person || '-'}</p>
                 </td>
                 <td style="padding-top: 1rem; vertical-align: top;">
                     <h3 style="font-weight: 600; color: #6B7280; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ข้อมูลเพิ่มเติม (More Info)</h3>
-                    <p style="font-size: 8pt; margin: 4px 0;"><span style="font-weight: 600;">ผู้เตรียม / Prepared By:</span> ${voucherData.prepared_by_user_name || '-'}</p>
-                    <p style="font-size: 8pt; margin: 4px 0;"><span style="font-weight: 600;">สัญญา / Contract:</span> ${voucherData.vendor_contract_number || '-'}</p>
+                    <p style="font-size: 8pt; margin: 4px 0;"><span style="font-weight: 600;">ผู้จัดทำ / Prepared By:</span> ${poData.prepared_by_user_name || '-'}</p>
+                    <p style="font-size: 8pt; margin: 4px 0;"><span style="font-weight: 600;">เงื่อนไขชำระเงิน / Term:</span> ${poData.payment_term || '-'}</p>
                 </td>
             </tr>
         </table>
     `;
 
+	// เพิ่มคอลัมน์ Unit และ Discount ตามแบบ PO
 	const itemTableHeadersHtml = `
-		<thead>
-			<tr class="items-header-row" style="background-color: #ffffff !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
-				<th class="w-12 text-center p-2" style="font-size: 8pt; font-weight: bold;">ลำดับ</th>
-				<th class="text-left p-2" style="font-size: 8pt; font-weight: bold;">รายการ</th>
-				<th class="w-20 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวน</th>
-				<th class="w-16 text-center p-2" style="font-size: 8pt; font-weight: bold;">หน่วย</th>
-				<th class="w-28 text-center p-2" style="font-size: 8pt; font-weight: bold;">ราคา/หน่วย</th> 
-				<th class="w-32 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวนเงิน</th> 
-			</tr>
-		</thead>
+        <thead>
+            <tr class="items-header-row" style="background-color: #ffffff !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
+                <th class="w-12 text-center p-2" style="font-size: 8pt; font-weight: bold;">ลำดับ</th>
+                <th class="text-left p-2" style="font-size: 8pt; font-weight: bold;">รายการสินค้า / บริการ</th>
+                <th class="w-16 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวน</th>
+                <th class="w-16 text-center p-2" style="font-size: 8pt; font-weight: bold;">หน่วย</th>
+                <th class="w-24 text-right p-2" style="font-size: 8pt; font-weight: bold;">ราคา/หน่วย</th> 
+                <th class="w-20 text-right p-2" style="font-size: 8pt; font-weight: bold;">ส่วนลด</th> 
+                <th class="w-28 text-right p-2" style="font-size: 8pt; font-weight: bold;">จำนวนเงิน</th> 
+            </tr>
+        </thead>
     `;
 
 	const financialSummaryBlock = `
@@ -247,32 +265,39 @@ function getBillHtml(
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" class="p-2"></td> 
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 8pt; font-weight: bold;">รวมเป็นเงิน</td>
+                    <td colspan="4" class="p-2" style="vertical-align: top; border-right: 1px solid #9ca3af;">
+                        <div style="font-size: 8pt;">${poData.remarks}</div>
+                    </td> 
+                    <td class="font-bold p-2 text-right border-t border-gray-400" style="font-size: 8pt; font-weight: bold;">รวมเป็นเงิน</td>
                     <td class="p-2 text-right border-t border-gray-400" style="font-size: 8pt;">${formatNumber(subtotal)}</td>
                 </tr>
                 <tr>
-                    <td colspan="4" class="p-2"></td>
+                    <td colspan="4" class="p-2" style="border-right: 1px solid #9ca3af;"></td>
                     <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ส่วนลด</td>
-                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(discount)}</td>
+                    <td class="p-2 text-right" style="font-size: 8pt;">${discount > 0 ? '-' : ''}${formatNumber(discount)}</td>
                 </tr>
                 <tr>
-                    <td colspan="4" class="p-2"></td>
+                    <td colspan="4" class="p-2" style="border-right: 1px solid #9ca3af;"></td>
                     <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">หลังหักส่วนลด</td>
                     <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
                 <tr>
-					<td colspan="4" class="p-2"></td>
-					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
-					<td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(vat)}</td>
-				</tr>
-                <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600" style="font-size: 8pt; font-weight: bold;">หัก ณ ที่จ่าย (${voucherData.withholding_tax_rate ?? 0}%)</td>
-                    <td class="p-2 text-right text-red-600" style="font-size: 8pt;">${formatNumber(wht)}</td>
+                    <td colspan="4" class="p-2" style="border-right: 1px solid #9ca3af;"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(vat)}</td>
                 </tr>
+                ${
+									wht > 0
+										? `
+                <tr>
+                    <td colspan="4" class="p-2" style="border-right: 1px solid #9ca3af;"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600" style="font-size: 8pt; font-weight: bold;">หัก ณ ที่จ่าย (${whtRate}%)</td>
+                    <td class="p-2 text-right text-red-600" style="font-size: 8pt;">${formatNumber(wht)}</td>
+                </tr>`
+										: ''
+								}
                 <tr style="background-color: #ffffff;">
-                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
+                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center; border-top: 1px solid #9ca3af;">
                         (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
                     </td>
                     <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
@@ -322,10 +347,8 @@ function getBillHtml(
         </div>
     `;
 
-	// --- Logic การแบ่งหน้าแบบ Force Empty Page ---
+	// --- Logic การแบ่งหน้า ---
 	const MAX_WITH_FOOTER = 10;
-
-	// หน้าทั่วไป (ไม่มีลายเซ็น) ใส่ได้สูงสุดกี่รายการ?
 	const MAX_WITHOUT_FOOTER = 18;
 
 	const itemPages: ItemData[][] = [];
@@ -341,7 +364,7 @@ function getBillHtml(
 			} else if (remainingItems.length <= MAX_WITHOUT_FOOTER) {
 				itemPages.push(remainingItems);
 				remainingItems = [];
-				itemPages.push([]);
+				itemPages.push([]); // หน้าสุดท้ายว่างไว้ใส่ Footer
 			} else {
 				const chunk = remainingItems.slice(0, MAX_WITHOUT_FOOTER);
 				itemPages.push(chunk);
@@ -352,30 +375,31 @@ function getBillHtml(
 
 	const totalPages = itemPages.length;
 
-	// สร้าง HTML แต่ละหน้า
 	const pagesHtml = itemPages
 		.map((pageItems, pageIndex) => {
 			const isLastPage = pageIndex === totalPages - 1;
 			const pageNumber = pageIndex + 1;
 
-			// คำนวณ Running Number
 			let startIndex = 0;
 			for (let i = 0; i < pageIndex; i++) {
 				startIndex += itemPages[i].length;
 			}
 
-			// สร้างตารางรายการ)
 			const itemsHtml = pageItems
 				.map((item, itemIndex) => {
 					const globalIndex = startIndex + itemIndex + 1;
 					return `
                     <tr class="border-b border-gray-300">
-                        <td class="p-2 text-center align-middle h-10" style="font-size: 8pt;">${globalIndex}</td>
-                        <td class="p-2 align-middle h-10" style="font-size: 8pt;">${item.description || 'N/A'}</td>
-                        <td class="p-2 text-center align-middle h-10" style="font-size: 8pt;">${formatNumber(item.quantity)}</td> 
-                        <td class="p-2 text-center align-middle h-10" style="font-size: 8pt;">N/A</td> 
-                        <td class="p-2 w-28 text-center align-middle h-10" style="font-size: 8pt;">${formatNumber(item.unit_price)}</td> 
-                        <td class="p-2 w-32 text-center align-middle h-10" style="font-size: 8pt;">${formatNumber(item.line_total)}</td> 
+                        <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${globalIndex}</td>
+                        <td class="p-2 align-middle h-8" style="font-size: 8pt;">
+                            <div style="font-weight: 600;">${item.product_name}</div>
+                            ${item.description ? `<div style="font-size: 7pt; color: #666;">${item.description}</div>` : ''}
+                        </td>
+                        <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${formatNumber(item.quantity)}</td> 
+                        <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${item.unit || ''}</td> 
+                        <td class="p-2 text-right align-middle h-8" style="font-size: 8pt;">${formatNumber(item.unit_price)}</td> 
+                        <td class="p-2 text-right align-middle h-8" style="font-size: 8pt;">${item.discount > 0 ? formatNumber(item.discount) : '-'}</td> 
+                        <td class="p-2 text-right align-middle h-8" style="font-size: 8pt;">${formatNumber(item.total_price)}</td> 
                     </tr>
                 `;
 				})
@@ -395,7 +419,6 @@ function getBillHtml(
                 <div style="height: 1px; border-top: 1px solid #eee; margin-bottom: 20px;"></div>
             `;
 
-			// --- ส่วน Footer ---
 			let footerContent = '';
 
 			if (isLastPage) {
@@ -429,14 +452,14 @@ function getBillHtml(
 		})
 		.join('');
 
-	// --- Main HTML Container ---
 	return `
     <html>
     <head>
     <meta charset="UTF-8">
-    <title>Bill Payment Voucher - ${voucherData.id}</title>
+    <title>Purchase Order - ${poData.po_number}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
         body { 
             font-family: 'Sarabun', 'Arial', sans-serif; 
             margin: 0; padding: 0;
@@ -456,7 +479,7 @@ function getBillHtml(
             padding: 40px; 
             box-sizing: border-box;
             position: relative;
-            min-height: 297mm; /* บังคับความสูงขั้นต่ำเพื่อให้ Footer อยู่ตำแหน่งสวยงาม */
+            min-height: 297mm;
         }
         .footer-container {
             page-break-inside: avoid !important; 
@@ -482,23 +505,20 @@ function getBillHtml(
     `;
 }
 
-// ฟังก์ชัน POST
-
-import type { RequestHandler } from './$types';
+// ---
+// 4. MAIN HANDLER
+// ---
 
 export const GET: RequestHandler = async ({ url }) => {
-	console.log('ได้รับคำสั่ง... เริ่มสร้าง PDF (GET Method)...');
+	console.log('เริ่มสร้าง PDF Purchase Order...');
 
-	// รับ ID จาก URL Query String
-	const voucherId = url.searchParams.get('id');
+	const poId = url.searchParams.get('id');
 
-	if (!voucherId) {
-		return json({ success: false, message: 'Missing voucherId in query string' }, { status: 400 });
+	if (!poId) {
+		return json({ success: false, message: 'Missing PO ID' }, { status: 400 });
 	}
 
-	console.log(`กำลังค้นหาข้อมูลสำหรับ Voucher ID: ${voucherId}`);
-
-	let voucherData: VoucherData;
+	let poData: PurchaseOrderData;
 	let itemsData: ItemData[];
 	let companyData: CompanyData | null = null;
 	let connection;
@@ -506,90 +526,70 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		const [voucherRows] = await connection.execute<VoucherData[]>(
+		// 1. ดึงข้อมูล PO Header
+		const [poRows] = await connection.execute<PurchaseOrderData[]>(
 			`
             SELECT 
-                bp.id, bp.payment_reference, bp.payment_date, bp.vendor_id,
-                bp.notes, bp.status,
-                bp.subtotal, bp.discount_amount, bp.total_after_discount,
-				bp.vat_rate, bp.vat_amount,
-                bp.withholding_tax_rate, bp.withholding_tax_amount, bp.total_amount,
-                v.name AS vendor_name, v.address AS vendor_address, v.tax_id AS vendor_tax_id,
-                u.full_name AS prepared_by_user_name,
-                vc.contract_number AS vendor_contract_number
-            FROM bill_payments bp
-            LEFT JOIN vendors v ON bp.vendor_id = v.id
-            LEFT JOIN users u ON bp.prepared_by_user_id = u.id
-            LEFT JOIN vendor_contracts vc ON bp.vendor_contract_id = vc.id
-            WHERE bp.id = ?
+                po.*,
+                v.name AS vendor_name, v.address AS vendor_address, v.tax_id AS vendor_tax_id, v.phone AS vendor_phone, v.email AS vendor_email,
+                u.full_name AS prepared_by_user_name
+            FROM purchase_orders po
+            LEFT JOIN vendors v ON po.vendor_id = v.id
+            LEFT JOIN users u ON po.created_by = u.id
+            WHERE po.id = ?
             `,
-			[voucherId]
+			[poId]
 		);
 
-		if (voucherRows.length === 0) {
-			return json(
-				{ success: false, message: `Voucher not found with ID: ${voucherId}` },
-				{ status: 404 }
-			);
+		if (poRows.length === 0) {
+			return json({ success: false, message: 'PO not found' }, { status: 404 });
 		}
-		voucherData = voucherRows[0];
-		console.log('ดึงข้อมูลหัวบิลสำเร็จ!');
+		poData = poRows[0];
 
+		// 2. ดึงข้อมูล Company
 		const [companyRows] = await connection.execute<CompanyData[]>(
 			'SELECT * FROM company WHERE id = 1 LIMIT 1'
 		);
 		companyData = companyRows.length ? companyRows[0] : null;
-		console.log('ดึงข้อมูล Company สำเร็จ!');
 
+		// 3. ดึงข้อมูล Items
+		// หมายเหตุ: purchase_order_items ใน DB เดิมอาจไม่มี total_price หรือ line_total, เราใช้ total_price ตามสกีมาที่เคยสร้าง
 		const [itemsRows] = await connection.execute<RowDataPacket[]>(
-			'SELECT description, quantity, unit_price, line_total FROM bill_payment_items WHERE bill_payment_id = ?',
-			[voucherId]
+			`SELECT 
+                product_name, description, quantity, unit, unit_price, discount, total_price 
+             FROM purchase_order_items 
+             WHERE purchase_order_id = ? 
+             ORDER BY id ASC`,
+			[poId]
 		);
 		itemsData = itemsRows as ItemData[];
-		console.log(`ดึงข้อมูล Items สำเร็จ! (พบ ${itemsData.length} รายการ)`);
 	} catch (dbError: any) {
 		console.error('Database Error:', dbError);
 		return json({ success: false, message: 'Failed to query database' }, { status: 500 });
 	} finally {
-		if (connection) {
-			connection.release();
-		}
+		if (connection) connection.release();
 	}
 
-	// สร้าง PDF
 	try {
-		let billHtmlContent = getBillHtml(companyData, voucherData, itemsData);
+		const htmlContent = getPOHtml(companyData, poData, itemsData);
 
-		//debug html
-		try {
-			const debugHtmlPath = path.resolve('static', 'debug-voucher.html');
-			fs.writeFileSync(debugHtmlPath, billHtmlContent);
-		} catch (writeError: any) {
-			console.error('--- DEBUG: FAILED TO WRITE HTML FILE ---', writeError.message);
-		}
-
-		console.log('กำลังเปิดเบราว์เซอร์...');
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
 			headless: true
 		});
 		const page = await browser.newPage();
 
-		console.log('กำลังใส่ HTML ลงในหน้า...');
-		await page.setContent(billHtmlContent, { waitUntil: 'networkidle0' });
+		await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-		console.log('กำลังพิมพ์เป็น PDF...');
 		const pdfBuffer = await page.pdf({
 			format: 'A4',
 			printBackground: true
 		});
 
 		await browser.close();
-		console.log('ปิดเบราว์เซอร์');
-		console.log('กำลังส่งไฟล์ PDF ให้ดาวน์โหลด...');
 
 		const pdfBlob = new Blob([pdfBuffer as any], { type: 'application/pdf' });
-		const downloadFilename = `voucher-${voucherData.id}.pdf`;
+		const downloadFilename = `PO-${poData.po_number}.pdf`;
 
 		return new Response(pdfBlob, {
 			status: 200,
@@ -599,7 +599,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			}
 		});
 	} catch (error: any) {
-		console.error('เกิดข้อผิดพลาดระหว่างสร้าง PDF:', error);
+		console.error('PDF Generation Error:', error);
 		return json(
 			{ success: false, message: 'Failed to generate PDF: ' + error.message },
 			{ status: 500 }

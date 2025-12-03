@@ -1,15 +1,31 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	export let data: PageData;
 	$: ({ customers, products, units } = data);
+
+	$: productOptions = products.map((p: any) => ({
+		value: p.id,
+		label: `${p.sku} - ${p.name}`,
+		product: p // เก็บข้อมูลสินค้าเดิมไว้ใช้ดึงราคา/หน่วย
+	}));
 
 	let quotationDate = new Date().toISOString().split('T')[0];
 	let validUntil = ''; // วันยืนยันราคา
 
 	let items = [
-		{ product_id: null, description: '', quantity: 1, unit_id: null, unit_price: 0, line_total: 0 }
+		{
+			product_object: null, // เพิ่มตัวนี้
+			product_id: null,
+			description: '',
+			quantity: 1,
+			unit_id: null,
+			unit_price: 0,
+			line_total: 0
+		}
 	];
 
 	let discountAmount = 0;
@@ -27,6 +43,7 @@
 		items = [
 			...items,
 			{
+				product_object: null,
 				product_id: null,
 				description: '',
 				quantity: 1,
@@ -45,15 +62,24 @@
 		items[index].line_total = items[index].quantity * items[index].unit_price;
 	}
 
-	function onProductChange(index: number) {
-		const pId = items[index].product_id;
-		const product = products.find((p: any) => p.id == pId);
-		if (product) {
+	function onProductSelect(index: number, selected: any) {
+		items[index].product_object = selected;
+
+		if (selected) {
+			const product = selected.product;
+			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
-			updateLineTotal(index);
+		} else {
+			items[index].product_id = null;
+			items[index].description = '';
+			items[index].unit_price = 0;
+			items[index].unit_id = null;
 		}
+
+		updateLineTotal(index);
+		items = items;
 	}
 
 	function setValidDays(days: number) {
@@ -199,18 +225,21 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-3 py-2">
-									<select
-										bind:value={item.product_id}
-										on:change={() => onProductChange(index)}
-										class="w-full rounded-md border-gray-300 text-sm"
-									>
-										<option value={null}>-- เลือก --</option>
-										{#each products as p}
-											<option value={p.id}>{p.sku} - {p.name}</option>
-										{/each}
-									</select>
+								<td class="px-3 py-2" style="min-width: 250px;">
+									<Select
+										items={productOptions}
+										value={item.product_object}
+										on:change={(e) => onProductSelect(index, e.detail)}
+										on:clear={() => onProductSelect(index, null)}
+										placeholder="-- ค้นหา/เลือก --"
+										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+										container={browser ? document.body : null}
+										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+										--list="border-radius: 6px; font-size: 0.875rem;"
+										--itemIsActive="background: #e0f2fe;"
+									/>
 								</td>
+
 								<td class="px-3 py-2">
 									<input
 										type="text"

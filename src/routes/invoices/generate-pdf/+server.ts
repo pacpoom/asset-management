@@ -199,39 +199,53 @@ function getInvoiceHtml(
 		</thead>
 	`;
 
+	// *** ตารางสรุปยอดเงิน แบบเดียวกับ Bill Payment (รวมตารางซ้ายขวา) ***
 	const summaryBlock = `
-		<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-			<tr>
-                <td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-					<div style="background-color: #ffffff; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
-						จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText}
-					</div>
-				</td>
-                <td style="width: 40%;">
-					<table style="width: 100%; font-size: 8pt; border-collapse: collapse;">
-						<tr>
-							<td class="p-1 text-right font-bold text-gray-700">รวมเป็นเงิน</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(subtotal)}</td>
-						</tr>
-						${discount > 0 ? `<tr><td class="p-1 text-right text-red-600">ส่วนลด</td><td class="p-1 text-right text-red-600">-${formatNumber(discount)}</td></tr>` : ''}
-						<tr>
-							<td class="p-1 text-right font-bold text-gray-700">หลังหักส่วนลด</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(totalAfterDiscount)}</td>
-						</tr>
-						<tr>
-							<td class="p-1 text-right text-gray-600">VAT ${vatRate}%</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(vatAmt)}</td>
-						</tr>
-						${whtAmt > 0 ? `<tr><td class="p-1 text-right text-red-600">หัก ณ ที่จ่าย ${whtRate}%</td><td class="p-1 text-right text-red-600">-${formatNumber(whtAmt)}</td></tr>` : ''}
-						<tr style="background-color: #ffffff; font-weight: bold; font-size: 9pt;">
-							<td class="p-2 text-right border-t border-gray-300 text-gray-800">จำนวนเงินสุทธิ</td>
-							<td class="p-2 text-right border-t border-gray-300 text-blue-600">${formatNumber(netAmount)}</td>
-						</tr>
-					</table>
-				</td>
-			</tr>
-		</table>
-	`;
+        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
+            <colgroup>
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: 112px;"> <col style="width: 128px;">
+            </colgroup>
+            <tfoot class="bill-summary-footer">
+                <tr>
+                    <td colspan="4" class="p-2"></td> 
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-weight: bold;">รวมเป็นเงิน</td>
+                    <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
+                </tr>
+                
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(discount)}</td>
+                </tr>
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">หลังหักส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
+                </tr>
+
+                <tr>
+					<td colspan="4" class="p-2"></td>
+					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+					<td class="p-2 text-right">${formatNumber(vatAmt)}</td>
+				</tr>
+
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold; color: #dc2626;">หัก ณ ที่จ่าย (${whtRate}%)</td>
+                    <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
+                </tr>
+
+                <tr style="background-color: #ffffff;">
+                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
+                        (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
+                    </td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
+                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 8pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                </tr>
+            </tfoot>
+        </table>
+    `;
 
 	const signatureBlock = `
 		<div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
@@ -248,7 +262,6 @@ function getInvoiceHtml(
 		</div>
 	`;
 
-	// --- Pagination Logic (Dynamic) ---
 	const MAX_WITH_FOOTER = 10;
 	const MAX_WITHOUT_FOOTER = 18;
 	const itemPages: ItemData[][] = [];

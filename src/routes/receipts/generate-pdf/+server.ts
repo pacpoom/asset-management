@@ -5,7 +5,7 @@ import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- 1. INTERFACES ---
+// --- INTERFACES ---
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -50,21 +50,14 @@ interface ItemData {
 	line_total: number;
 }
 
-// --- 2. Helper Functions ---
+// --- Helper Functions ---
 
-// ✅ แก้ไข: รับค่าเป็น number หรือ string ก็ได้ และแปลงให้ชัวร์ก่อนใช้งาน
 function bahttext(input: number | string): string {
-	// แปลง input เป็นตัวเลขเสมอ (ป้องกัน Error toFixed is not a function)
 	let num = parseFloat(String(input));
-
-	if (isNaN(num)) {
-		num = 0;
-	}
-
+	if (isNaN(num)) num = 0;
 	const THAI_NUMBERS = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
 	const THAI_UNITS = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
 	const THAI_MILLION = 'ล้าน';
-
 	const numberStr = num.toFixed(2);
 	const [integerPart, decimalPart] = numberStr.split('.');
 
@@ -101,10 +94,8 @@ function bahttext(input: number | string): string {
 		if (numStr[0] === '1') result += numStr.length > 1 && numStr[1] !== '0' ? 'สิบ' : 'สิบ';
 		else if (numStr[0] === '2') result += 'ยี่สิบ';
 		else if (numStr[0] !== '0') result += THAI_NUMBERS[parseInt(numStr[0])] + 'สิบ';
-
 		if (numStr[1] === '1' && numStr[0] !== '0' && numStr[0] !== '1') result += 'เอ็ด';
 		else if (numStr[1] !== '0') result += THAI_NUMBERS[parseInt(numStr[1])];
-
 		return result;
 	}
 
@@ -126,8 +117,6 @@ function getReceiptHtml(
 	const whtRate = receiptData.withholding_tax_rate || 0;
 	const whtAmt = receiptData.withholding_tax_amount || 0;
 	const netAmount = receiptData.total_amount || 0;
-
-	// ตรงนี้ปลอดภัยแล้ว เพราะ bahttext เราแก้ให้รับ string ได้แล้ว
 	const netAmountText = bahttext(netAmount);
 
 	const formatNumber = (num: number | string) => {
@@ -152,7 +141,6 @@ function getReceiptHtml(
 
 	// --- HTML Blocks ---
 
-	// Header: แสดงทุกหน้า
 	const headerContent = `
 		<table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
 			<tr style="border-bottom: 1px solid #dee2e6;">
@@ -204,41 +192,53 @@ function getReceiptHtml(
 		</thead>
 	`;
 
+	// *** ตารางสรุปยอดเงิน (แก้ไขให้เหมือน Bill Payment) ***
 	const summaryBlock = `
-		<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-			<tr>
-				<td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-					<div style="background-color: #ffffff; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
-						จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText}
-					</div>
-				</td>
+        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
+            <colgroup>
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: 112px;"> <col style="width: 128px;">
+            </colgroup>
+            <tfoot class="bill-summary-footer">
+                <tr>
+                    <td colspan="4" class="p-2"></td> 
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-weight: bold;">รวมเป็นเงิน</td>
+                    <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
+                </tr>
+                
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(discount)}</td>
+                </tr>
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">หลังหักส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
+                </tr>
 
-				<td style="width: 40%; vertical-align: bottom;">
-					<table style="width: 100%; font-size: 8pt; border-collapse: collapse;">
-						<tr>
-							<td class="p-1 text-right font-bold text-gray-700">รวมเป็นเงิน</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(subtotal)}</td>
-						</tr>
-						${discount > 0 ? `<tr><td class="p-1 text-right text-red-600">ส่วนลด</td><td class="p-1 text-right text-red-600">-${formatNumber(discount)}</td></tr>` : ''}
-						<tr>
-							<td class="p-1 text-right font-bold text-gray-700">หลังหักส่วนลด</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(totalAfterDiscount)}</td>
-						</tr>
-						<tr>
-							<td class="p-1 text-right text-gray-600">VAT ${vatRate}%</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(vatAmt)}</td>
-						</tr>
-						${whtAmt > 0 ? `<tr><td class="p-1 text-right text-red-600">หัก ณ ที่จ่าย ${whtRate}%</td><td class="p-1 text-right text-red-600">-${formatNumber(whtAmt)}</td></tr>` : ''}
-						
-						<tr style="background-color: #ffffff; font-weight: bold; font-size: 9pt;">
-							<td class="p-2 text-right border-t border-gray-300 text-gray-800">จำนวนเงินสุทธิ</td>
-							<td class="p-2 text-right border-t border-gray-300 text-blue-600">${formatNumber(netAmount)}</td>
-						</tr>
-					</table>
-				</td>
-			</tr>
-		</table>
-	`;
+                <tr>
+					<td colspan="4" class="p-2"></td>
+					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+					<td class="p-2 text-right">${formatNumber(vatAmt)}</td>
+				</tr>
+
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600" style="font-weight: bold;">หัก ณ ที่จ่าย (${whtRate}%)</td>
+                    <td class="p-2 text-right text-red-600">(${formatNumber(whtAmt)})</td>
+                </tr>
+
+                <tr style="background-color: #ffffff;">
+                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
+                        (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
+                    </td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
+                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 8pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                </tr>
+            </tfoot>
+        </table>
+    `;
 
 	const signatureBlock = `
 		<div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
@@ -255,7 +255,6 @@ function getReceiptHtml(
 		</div>
 	`;
 
-	// --- 3. Pagination Logic (Dynamic) ---
 	const MAX_WITH_FOOTER = 10;
 	const MAX_WITHOUT_FOOTER = 18;
 	const itemPages: ItemData[][] = [];
@@ -270,7 +269,7 @@ function getReceiptHtml(
 			} else if (remaining.length <= MAX_WITHOUT_FOOTER) {
 				itemPages.push(remaining);
 				remaining = [];
-				itemPages.push([]); // หน้าว่างสำหรับ Footer
+				itemPages.push([]);
 			} else {
 				itemPages.push(remaining.slice(0, MAX_WITHOUT_FOOTER));
 				remaining = remaining.slice(MAX_WITHOUT_FOOTER);
@@ -352,7 +351,7 @@ function getReceiptHtml(
 	`;
 }
 
-// --- 4. Main Handler ---
+// --- Main Handler ---
 
 export const GET = async ({ url }) => {
 	const id = url.searchParams.get('id');
@@ -362,7 +361,7 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// ดึงข้อมูล Receipt
+		// ดึง Receipt
 		const [rows] = await connection.execute<ReceiptData[]>(
 			`
 			SELECT r.*, c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, u.full_name as created_by_name
@@ -391,7 +390,7 @@ export const GET = async ({ url }) => {
 		// สร้าง HTML
 		const html = getReceiptHtml(company[0] || null, receiptData, items as ItemData[]);
 
-		// สร้าง PDF ด้วย Puppeteer
+		// สร้าง PDF
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
 			headless: true
@@ -401,9 +400,7 @@ export const GET = async ({ url }) => {
 		const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
 		await browser.close();
 
-		// ✅ แก้ไข: แปลงเป็น Blob ก่อนส่ง
 		const pdfBlob = new Blob([pdfBuffer as any], { type: 'application/pdf' });
-
 		return new Response(pdfBlob, {
 			status: 200,
 			headers: {

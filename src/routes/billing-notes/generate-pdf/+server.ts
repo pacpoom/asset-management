@@ -1,7 +1,5 @@
 import { json } from '@sveltejs/kit';
 import puppeteer from 'puppeteer';
-import fs from 'fs';
-import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
@@ -40,6 +38,8 @@ interface BillingItemData extends RowDataPacket {
 // Interface สำหรับยอดรวมสรุป
 interface BillingSummary extends RowDataPacket {
 	sum_subtotal: number;
+	sum_discount: number;
+	sum_after_discount: number;
 	sum_vat: number;
 	sum_wht: number;
 	sum_total: number;
@@ -106,11 +106,26 @@ function getBillingNoteHtml(
 	summaryData: BillingSummary
 ): string {
 	const subtotal = Number(summaryData.sum_subtotal || 0);
+	const discount = Number(summaryData.sum_discount || 0);
+	const totalAfterDiscount = Number(summaryData.sum_after_discount || 0);
 	const vatAmt = Number(summaryData.sum_vat || 0);
 	const whtAmt = Number(summaryData.sum_wht || 0);
 
+	// คำนวณ VAT Rate และ WHT Rate (โดยประมาณ) เพื่อใช้แสดงผล
+	let vatRate = 7;
+	if (totalAfterDiscount > 0 && vatAmt > 0) {
+		vatRate = Math.round((vatAmt / totalAfterDiscount) * 100);
+	}
+	let whtRate = 0;
+	if (totalAfterDiscount > 0 && whtAmt > 0) {
+		whtRate = Math.round((whtAmt / totalAfterDiscount) * 100);
+	}
+
 	// สูตร: (ราคาก่อนภาษี + VAT) - WHT
-	const netAmount = subtotal + vatAmt - whtAmt;
+	const netAmount = subtotal - discount + vatAmt - whtAmt; // Adjust netAmount calculation logic if needed
+	// หรือใช้ totalAfterDiscount ถ้ามี
+	// const netAmount = totalAfterDiscount + vatAmt - whtAmt;
+
 	const netAmountText = bahttext(netAmount);
 
 	const formatNumber = (num: number | string) => {
@@ -132,17 +147,6 @@ function getBillingNoteHtml(
 			return '-';
 		}
 	};
-
-	//สร้าง HTML ส่วน WHT (แสดงเฉพาะเมื่อมียอด > 0)
-	let whtRowHtml = '';
-	if (whtAmt > 0.001) {
-		whtRowHtml = `
-            <tr>
-                <td class="p-1 text-right text-red-600">หัก ณ ที่จ่าย (WHT)</td>
-                <td class="p-1 text-right text-red-600">-${formatNumber(whtAmt)}</td>
-            </tr>
-        `;
-	}
 
 	// --- HTML Blocks ---
 
@@ -198,33 +202,57 @@ function getBillingNoteHtml(
 	`;
 
 	const summaryBlock = `
-		<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-			<tr>
-				<td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-					<div style="background-color: #ffffff; padding: 8px; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px; color: #374151;">
-						จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText}
-					</div>
-				</td>
-				<td style="width: 40%;">
-					<table style="width: 100%; font-size: 8pt; border-collapse: collapse;">
-						<tr>
-							<td class="p-1 text-right font-bold text-gray-700">รวมเป็นเงิน (Subtotal)</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(subtotal)}</td>
-						</tr>
-						<tr>
-							<td class="p-1 text-right text-gray-600">ภาษีมูลค่าเพิ่ม (VAT)</td>
-							<td class="p-1 text-right text-gray-900">${formatNumber(vatAmt)}</td>
-						</tr>
+        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
+            <colgroup>
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: 112px;"> <col style="width: 128px;">
+            </colgroup>
+            <tfoot class="bill-summary-footer">
+                <tr>
+                    <td colspan="4" class="p-2"></td> 
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-weight: bold;">รวมเป็นเงิน</td>
+                    <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
+                </tr>
+                
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ส่วนลด</td>
+                    <td class="p-2 text-right">${discount > 0 ? '-' : ''}${formatNumber(discount)}</td>
+                </tr>
 
-                        ${whtRowHtml} <tr style="background-color: #ffffff; font-weight: bold; font-size: 9pt;">
-							<td class="p-2 text-right border-t border-gray-300 text-gray-800">ยอดชำระสุทธิ (Net Payment)</td>
-							<td class="p-2 text-right border-t border-gray-300 text-blue-600">${formatNumber(netAmount)}</td>
-						</tr>
-					</table>
-				</td>
-			</tr>
-		</table>
-	`;
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">หลังหักส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
+                </tr>
+
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+                    <td class="p-2 text-right">${formatNumber(vatAmt)}</td>
+                </tr>
+
+                ${
+									whtAmt > 0
+										? `
+                <tr>
+                    <td colspan="4" class="p-2"></td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold; color: #dc2626;">หัก ณ ที่จ่าย (${whtRate}%)</td>
+                    <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
+                </tr>`
+										: ''
+								}
+
+                <tr style="background-color: #ffffff;">
+                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
+                        (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
+                    </td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
+                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 8pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                </tr>
+            </tfoot>
+        </table>
+    `;
 
 	const signatureBlock = `
 		<div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
@@ -378,6 +406,8 @@ export const GET = async ({ url }) => {
 			`
             SELECT 
                 SUM(i.subtotal) as sum_subtotal,
+                SUM(i.discount_amount) as sum_discount,       
+                SUM(i.total_after_discount) as sum_after_discount,
                 SUM(i.vat_amount) as sum_vat,
                 SUM(i.withholding_tax_amount) as sum_wht,
                 SUM(i.total_amount) as sum_total

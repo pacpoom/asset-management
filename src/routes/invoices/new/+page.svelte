@@ -1,11 +1,21 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	export let data: PageData;
 	$: ({ customers, products, units, prefilledData } = data);
 
+	// Options สำหรับ Select
+	$: productOptions = products.map((p: any) => ({
+		value: p.id,
+		label: `${p.sku} - ${p.name}`,
+		product: p
+	}));
+
 	interface InvoiceItem {
+		product_object: any;
 		product_id: number | null;
 		description: string;
 		quantity: number;
@@ -17,10 +27,19 @@
 	let invoiceDate = new Date().toISOString().split('T')[0];
 	let dueDate = '';
 
-	// กำหนดค่าเริ่มต้น
+	//ค่าเริ่มต้น product_object
 	let items: InvoiceItem[] = [
-		{ product_id: null, description: '', quantity: 1, unit_id: null, unit_price: 0, line_total: 0 }
+		{
+			product_object: null,
+			product_id: null,
+			description: '',
+			quantity: 1,
+			unit_id: null,
+			unit_price: 0,
+			line_total: 0
+		}
 	];
+
 	let selectedCustomerId: string | number = '';
 	let referenceDoc = '';
 	let notes = '';
@@ -28,14 +47,12 @@
 	let vatRate = 7;
 	let whtRate = 0;
 
-	// ตัวแปรกันลูป
+	//กันลูป
 	let lastProcessedRef = '';
 
-	// ---จัดการข้อมูลจาก Quotation (Prefilled Data) ---
 	$: if (prefilledData) {
 		if (prefilledData.reference_doc && prefilledData.reference_doc !== lastProcessedRef) {
 			lastProcessedRef = prefilledData.reference_doc;
-
 			// อัปเดตลูกค้า
 			if (prefilledData.customer_id != null) {
 				const targetId = Number(prefilledData.customer_id);
@@ -48,22 +65,33 @@
 			//อัปเดตข้อมูลทั่วไป
 			referenceDoc = prefilledData.reference_doc || '';
 			notes = prefilledData.notes || '';
-
-			// อัปเดตตัวเลข
+			//อัปเดตตัวเลข
 			discountAmount = parseFloat(prefilledData.discount_amount || '0');
 			vatRate = parseFloat(prefilledData.vat_rate || '7');
 			whtRate = parseFloat(prefilledData.withholding_tax_rate || '0');
 
 			//อัปเดตรายการสินค้า
 			if (prefilledData.items && prefilledData.items.length > 0) {
-				items = prefilledData.items.map((i: any) => ({
-					product_id: i.product_id ? Number(i.product_id) : null,
-					description: i.description,
-					quantity: parseFloat(i.quantity || '0'),
-					unit_id: i.unit_id ? Number(i.unit_id) : null,
-					unit_price: parseFloat(i.unit_price || '0'),
-					line_total: parseFloat(i.line_total || '0')
-				}));
+				items = prefilledData.items.map((i: any) => {
+					const foundProduct = products.find((p: any) => p.id == i.product_id);
+					const productObj = foundProduct
+						? {
+								value: foundProduct.id,
+								label: `${foundProduct.sku} - ${foundProduct.name}`,
+								product: foundProduct
+							}
+						: null;
+
+					return {
+						product_object: productObj,
+						product_id: i.product_id ? Number(i.product_id) : null,
+						description: i.description,
+						quantity: parseFloat(i.quantity || '0'),
+						unit_id: i.unit_id ? Number(i.unit_id) : null,
+						unit_price: parseFloat(i.unit_price || '0'),
+						line_total: parseFloat(i.line_total || '0')
+					};
+				});
 			}
 		}
 	}
@@ -79,6 +107,7 @@
 		items = [
 			...items,
 			{
+				product_object: null,
 				product_id: null,
 				description: '',
 				quantity: 1,
@@ -97,15 +126,24 @@
 		items[index].line_total = (items[index].quantity || 0) * (items[index].unit_price || 0);
 	}
 
-	function onProductChange(index: number) {
-		const pId = items[index].product_id;
-		const product = products.find((p: any) => p.id == pId);
-		if (product) {
+	function onProductChange(index: number, selected: any) {
+		items[index].product_object = selected;
+
+		if (selected) {
+			const product = selected.product;
+			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
-			updateLineTotal(index);
+		} else {
+			items[index].product_id = null;
+			items[index].description = '';
+			items[index].unit_price = 0;
+			items[index].unit_id = null;
 		}
+
+		updateLineTotal(index);
+		items = items;
 	}
 
 	function setCreditTerm(days: number) {
@@ -248,17 +286,19 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-3 py-2">
-									<select
-										bind:value={item.product_id}
-										on:change={() => onProductChange(index)}
-										class="w-full rounded-md border-gray-300 text-sm"
-									>
-										<option value={null}>-- เลือก --</option>
-										{#each products as p}
-											<option value={p.id}>{p.sku} - {p.name}</option>
-										{/each}
-									</select>
+								<td class="px-3 py-2" style="min-width: 250px;">
+									<Select
+										items={productOptions}
+										value={item.product_object}
+										on:change={(e) => onProductChange(index, e.detail)}
+										on:clear={() => onProductChange(index, null)}
+										placeholder="-- ค้นหา/เลือก --"
+										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+										container={browser ? document.body : null}
+										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+										--list="border-radius: 6px; font-size: 0.875rem;"
+										--itemIsActive="background: #e0f2fe;"
+									/>
 								</td>
 								<td class="px-3 py-2">
 									<input
@@ -425,7 +465,6 @@
 			<textarea
 				id="notes"
 				name="notes"
-				bind:value={notes}
 				rows="3"
 				class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 			></textarea>
@@ -440,29 +479,28 @@
 			</a>
 			<button
 				type="submit"
-				class="flex items-center rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
 				disabled={isSaving}
+				class="rounded-md bg-blue-600 px-6 py-2 text-sm text-white hover:bg-blue-700"
 			>
-				{#if isSaving}
-					<svg
-						class="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
-						xmlns="http://www.w3.org/2000/svg"
-						fill="none"
-						viewBox="0 0 24 24"
-					>
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
-						></circle>
-						<path
-							class="opacity-75"
-							fill="currentColor"
-							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-						></path>
-					</svg>
-					กำลังบันทึก...
-				{:else}
-					บันทึกรายการ
-				{/if}
+				{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
 			</button>
 		</div>
 	</form>
 </div>
+
+<style>
+	:global(div.svelte-select) {
+		min-height: 38px;
+		border: 1px solid #d1d5db !important;
+		border-radius: 0.375rem !important;
+	}
+	:global(div.svelte-select .input) {
+		font-size: 0.875rem;
+	}
+	:global(div.svelte-select .list) {
+		border-radius: 0.375rem;
+		border-color: #d1d5db;
+		z-index: 9999 !important;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+</style>
