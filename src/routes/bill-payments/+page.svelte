@@ -691,7 +691,7 @@
 							<table class="min-w-full divide-y divide-gray-200 text-sm">
 								<thead class="bg-gray-50">
 									<tr>
-										<th class="w-10 px-3 py-2 text-left font-medium text-gray-500">#</th>
+										<th class="w-10 px-3 py-2 text-left font-medium text-gray-500">ลำดับ</th>
 										<!-- *** MODIFIED WIDTH: w-[25%] *** -->
 										<th class="w-[25%] px-3 py-2 text-left font-semibold text-gray-400"
 											>สินค้า/บริการ (Product) <span class="text-red-500">*</span></th
@@ -736,6 +736,7 @@
 													placeholder="-- ค้นหา/เลือกสินค้า --"
 													required
 													container={browser ? document.body : null}
+													floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 													--inputStyles="padding: 2px 0;"
 													--itemIsActive="background: #e0f2fe;"
 													--list="border-radius: 6px;"
@@ -1063,7 +1064,7 @@
 	:global(div.svelte-select .list) {
 		border-radius: 0.375rem;
 		border-color: #d1d5db;
-		z-index: 9999;
+		z-index: 9999 !important;
 	}
 	:global(div.svelte-select .item) {
 		font-size: 0.875rem;
@@ -1071,5 +1072,22 @@
 	:global(div.svelte-select .item.isActive) {
 		background: #e0f2fe;
 		color: #0c4a6e;
+	}
+
+	:global(div.svelte-select .list) {
+		border-radius: 0.375rem;
+		border-color: #d1d5db;
+		z-index: 9999 !important; /* บังคับให้ลอยอยู่บนสุด */
+		max-height: 200px; /* กำหนดความสูงสูงสุดเพื่อให้ Scroll ได้ถ้ารายการเยอะ */
+		overflow-y: auto;
+
+		/* ถ้าต้องการบังคับให้มันเด้งลงล่างเสมอ (อาจจะต้องดูบริบทหน้าจอด้วย) */
+		top: 100% !important;
+		bottom: auto !important;
+	}
+
+	/* ถ้า Container ของ Select ถูก clip หรือซ่อน overflow ไว้ ให้แก้ที่ parent ด้วย */
+	:global(.selectContainer) {
+		overflow: visible !important;
 	}
 </style>
