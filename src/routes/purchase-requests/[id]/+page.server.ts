@@ -8,14 +8,18 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	try {
 		// 1. ดึงข้อมูล PR Header + ข้อมูลผู้ขอ (Requester)
-		// *** แก้ไข: ลบ u.position ออก เพื่อแก้ Error ***
 		const [prRows] = await pool.query<any[]>(
 			`
             SELECT pr.*, 
                    u.full_name as requester_name, 
-                   u.email as requester_email
+                   u.email as requester_email,
+                   v.name as vendor_name,             -- [เพิ่ม] ชื่อผู้ติดต่อ Vendor
+                   v.company_name as vendor_company,  -- [เพิ่ม] ชื่อบริษัท Vendor
+                   v.phone as vendor_phone,           -- [เพิ่ม] เบอร์โทร Vendor (เผื่อใช้)
+                   v.email as vendor_email            -- [เพิ่ม] อีเมล Vendor (เผื่อใช้)
             FROM purchase_requests pr
             LEFT JOIN users u ON pr.requester_id = u.id
+            LEFT JOIN vendors v ON pr.vendor_id = v.id  -- [เพิ่ม] Join ตาราง Vendors
             WHERE pr.id = ?
         `,
 			[id]
@@ -24,13 +28,13 @@ export const load: PageServerLoad = async ({ params }) => {
 		if (prRows.length === 0) throw error(404, 'Purchase Request not found');
 		const pr = prRows[0];
 
-		// 2. ดึงรายการสินค้า (PR Items)
+		//ดึงรายการสินค้า
 		const [items] = await pool.query<any[]>(
 			`SELECT * FROM purchase_request_items WHERE purchase_request_id = ? ORDER BY id ASC`,
 			[id]
 		);
 
-		// 3. ดึงข้อมูลบริษัท (Company) สำหรับหัวเอกสาร (ถ้าต้องการแสดง Logo)
+		// ดึงข้อมูลบริษัท (Company)
 		const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
 
 		return {
@@ -45,7 +49,6 @@ export const load: PageServerLoad = async ({ params }) => {
 };
 
 export const actions: Actions = {
-	// เปลี่ยนสถานะ (Approve / Reject)
 	updateStatus: async ({ request, params }) => {
 		const id = parseInt(params.id);
 		const formData = await request.formData();
@@ -61,7 +64,6 @@ export const actions: Actions = {
 		}
 	},
 
-	// ลบใบขอซื้อ
 	delete: async ({ params }) => {
 		const id = parseInt(params.id);
 		if (!id) return fail(400, { message: 'Invalid ID' });
@@ -70,7 +72,6 @@ export const actions: Actions = {
 			const connection = await pool.getConnection();
 			await connection.beginTransaction();
 
-			// ลบรายการและใบ PR
 			await connection.execute('DELETE FROM purchase_request_items WHERE purchase_request_id = ?', [
 				id
 			]);

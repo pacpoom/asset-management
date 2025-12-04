@@ -236,7 +236,7 @@
 		</div>
 	</div>
 
-	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 		<div>
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้ขอซื้อ (Requester)</h3>
 			<p class="font-semibold text-gray-800">{pr.requester_name}</p>
@@ -249,13 +249,24 @@
 		</div>
 
 		<div>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้ขาย / แนะนำ (Vendor)</h3>
+			<p class="font-semibold text-gray-800">{pr.vendor_name || '-'}</p>
+			{#if pr.vendor_company}
+				<p class="text-sm text-gray-600">{pr.vendor_company}</p>
+			{/if}
+			{#if pr.vendor_phone}
+				<p class="text-sm text-gray-600">Tel: {pr.vendor_phone}</p>
+			{/if}
+		</div>
+
+		<div>
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">
 				รายละเอียดเพิ่มเติม (Description)
 			</h3>
 			<p
 				class="min-h-[60px] rounded-md border border-gray-100 bg-gray-50 p-2 text-sm whitespace-pre-wrap text-gray-700"
 			>
-				{pr.description || '-'}
+				{pr.description || ''}
 			</p>
 		</div>
 	</div>

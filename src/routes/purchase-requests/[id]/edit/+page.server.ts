@@ -20,6 +20,12 @@ interface Unit extends RowDataPacket {
 	name: string;
 	symbol: string | null;
 }
+// [เพิ่ม] Interface
+interface Vendor extends RowDataPacket {
+	id: number;
+	name: string;
+	company_name: string | null;
+}
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	checkPermission(locals, 'view vendors');
@@ -41,12 +47,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			[id]
 		);
 
-		// 3. ดึงรายชื่อแผนก (สำหรับ Datalist)
+		// 3. ดึงรายชื่อแผนก
 		const [departments] = await pool.query<Department[]>(
 			'SELECT name FROM departments ORDER BY name ASC'
 		);
 
-		// 4. (แก้ไข) ดึงสินค้า ใช้ p.purchase_cost AS price
+		// 4. ดึงสินค้า
 		const [products] = await pool.query<Product[]>(`
             SELECT 
                 p.id, 
@@ -66,12 +72,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			'SELECT id, name, symbol FROM units ORDER BY name ASC'
 		);
 
+		// 6. [เพิ่ม] ดึงข้อมูล Vendor
+		const [vendors] = await pool.query<Vendor[]>(
+			'SELECT id, name, company_name FROM vendors ORDER BY name ASC'
+		);
+
 		return {
 			pr: JSON.parse(JSON.stringify(pr)),
 			items: JSON.parse(JSON.stringify(itemRows)),
 			departments: JSON.parse(JSON.stringify(departments)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
+			vendors: JSON.parse(JSON.stringify(vendors)), // ส่งไปหน้าเว็บ
 			user: locals.user
 		};
 	} catch (err: any) {
@@ -90,6 +102,11 @@ export const actions: Actions = {
 		const request_date = formData.get('request_date') as string;
 		const department = (formData.get('department') as string) || '';
 		const description = (formData.get('description') as string) || '';
+
+		// [เพิ่ม] รับค่า Vendor ID
+		const vendor_id = formData.get('vendor_id')
+			? parseInt(formData.get('vendor_id') as string)
+			: null;
 
 		const itemsJson = formData.get('items_json') as string;
 		let items = [];
@@ -110,15 +127,15 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 1. Update หัวเอกสาร (PR)
+			// 1. Update หัวเอกสาร (PR) - [แก้ไข] เพิ่ม vendor_id=?
 			await connection.execute(
 				`UPDATE purchase_requests 
-                 SET request_date=?, department=?, description=?, total_amount=?, updated_at=NOW()
+                 SET request_date=?, department=?, vendor_id=?, description=?, total_amount=?, updated_at=NOW()
                  WHERE id=?`,
-				[request_date, department, description, total_amount, id]
+				[request_date, department, vendor_id, description, total_amount, id]
 			);
 
-			// 2. Update รายการสินค้า (ลบของเก่าแล้วลงใหม่)
+			// 2. Update รายการสินค้า
 			await connection.execute('DELETE FROM purchase_request_items WHERE purchase_request_id = ?', [
 				id
 			]);

@@ -110,15 +110,25 @@
 
 	// ฟังก์ชันคำนวณเงินรวม
 	function calculateTotals() {
-		subtotal = items.reduce((sum: number, item: any) => {
+		let tempGrossTotal = 0;
+		let tempTotalDiscount = 0;
+
+		items = items.map((item) => {
 			const qty = parseFloat(String(item.quantity || 0));
 			const price = parseFloat(String(item.unit_price || 0));
-			const discount = parseFloat(String(item.discount || 0));
+			const disc = parseFloat(String(item.discount || 0));
 
-			const lineTotal = qty * price - discount;
+			const lineTotal = qty * price - disc;
 			item.total_price = lineTotal > 0 ? lineTotal : 0;
-			return sum + item.total_price;
-		}, 0);
+
+			tempGrossTotal += qty * price;
+			tempTotalDiscount += disc;
+
+			return item;
+		});
+
+		subtotal = tempGrossTotal;
+		discountGlobal = tempTotalDiscount;
 
 		const afterDiscount = subtotal - discountGlobal;
 		const baseAmount = afterDiscount > 0 ? afterDiscount : 0;
@@ -126,8 +136,6 @@
 		vatAmount = (baseAmount * vatRate) / 100;
 		whtAmount = (baseAmount * whtRate) / 100;
 		totalAmount = baseAmount + vatAmount - whtAmount;
-
-		items = items; // Trigger Reactivity
 	}
 
 	function addItem() {

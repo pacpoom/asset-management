@@ -4,17 +4,21 @@
 	import { browser } from '$app/environment';
 
 	let { data } = $props();
-	const { products, units, departments } = data; // รับ departments เข้ามา
+	const { products, units, departments, vendors } = data; // รับ vendors
 
 	let today = $state(new Date().toISOString().split('T')[0]);
 
-	// ตัวแปรสำหรับแผนก
-	let department = $state(''); // ค่า string สำหรับส่ง form
-	let departmentObject = $state(null); // ค่า object สำหรับ svelte-select
+	// ตัวแปร Department
+	let department = $state('');
+	let departmentObject = $state(null);
+
+	// [เพิ่ม] ตัวแปร Vendor
+	let vendorId = $state<number | null>(null);
+	let vendorObject = $state(null);
 
 	let description = $state('');
 
-	// 1. เตรียม Options สำหรับสินค้า (เหมือนเดิม)
+	// Options
 	let productOptions = $derived(
 		products.map((p: any) => ({
 			value: p.id,
@@ -23,11 +27,19 @@
 		}))
 	);
 
-	// 2. เตรียม Options สำหรับแผนก (เพิ่มใหม่)
 	let departmentOptions = $derived(
 		departments.map((d: any) => ({
 			value: d.name,
 			label: d.name
+		}))
+	);
+
+	// [เพิ่ม] Options สำหรับ Vendor
+	let vendorOptions = $derived(
+		vendors.map((v: any) => ({
+			value: v.id,
+			label: v.name + (v.company_name ? ` (${v.company_name})` : ''),
+			...v
 		}))
 	);
 
@@ -47,7 +59,6 @@
 
 	let totalAmount = $state(0);
 
-	// ฟังก์ชันจัดการเมื่อเลือกแผนก
 	function onDepartmentChange(selection: any) {
 		if (selection) {
 			departmentObject = selection;
@@ -55,6 +66,17 @@
 		} else {
 			departmentObject = null;
 			department = '';
+		}
+	}
+
+	// [เพิ่ม] ฟังก์ชันเลือก Vendor
+	function onVendorChange(selection: any) {
+		if (selection) {
+			vendorObject = selection;
+			vendorId = selection.value;
+		} else {
+			vendorObject = null;
+			vendorId = null;
 		}
 	}
 
@@ -195,6 +217,30 @@
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
 				</div>
+
+				<div>
+					<label for="vendor_id" class="block text-sm font-medium text-gray-700"
+						>ผู้ขาย / ผู้จัดจำหน่าย (Vendor) (ถ้ามี)</label
+					>
+					<div class="mt-1">
+						<Select
+							items={vendorOptions}
+							value={vendorObject}
+							on:change={(e) => onVendorChange(e.detail)}
+							on:clear={() => onVendorChange(null)}
+							placeholder="-- เลือกผู้ขาย (ถ้าทราบ) --"
+							floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+							container={browser ? document.body : null}
+							--inputStyles="padding: 6px 0; font-size: 0.875rem;"
+							--list="border-radius: 6px; font-size: 0.875rem;"
+							--itemIsActive="background: #e0f2fe;"
+							--border="1px solid #d1d5db"
+							--border-radius="0.375rem"
+						/>
+						<input type="hidden" name="vendor_id" value={vendorId} />
+					</div>
+				</div>
+
 				<div>
 					<label for="description" class="block text-sm font-medium text-gray-700"
 						>หมายเหตุ / รายละเอียดเพิ่มเติม (Remarks)</label
@@ -203,7 +249,7 @@
 						id="description"
 						name="description"
 						bind:value={description}
-						rows="4"
+						rows="3"
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					></textarea>
 				</div>

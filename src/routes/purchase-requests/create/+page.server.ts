@@ -4,6 +4,7 @@ import pool from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
+// Type Definitions
 interface Department extends RowDataPacket {
 	name: string;
 }
@@ -19,6 +20,12 @@ interface Unit extends RowDataPacket {
 	id: number;
 	name: string;
 	symbol: string | null;
+}
+// [เพิ่ม] Interface สำหรับ Vendor
+interface Vendor extends RowDataPacket {
+	id: number;
+	name: string;
+	company_name: string | null;
 }
 
 async function generatePRNumber(): Promise<string> {
@@ -47,12 +54,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	try {
 		const nextPRNumber = await generatePRNumber();
 
-		// ดึงแผนก
+		// 1. ดึงแผนก
 		const [departments] = await pool.query<Department[]>(
 			'SELECT name FROM departments ORDER BY name ASC'
 		);
 
-		// ดึงสินค้า
+		// 2. ดึงสินค้า
 		const [products] = await pool.query<Product[]>(`
             SELECT 
                 p.id, 
@@ -67,9 +74,14 @@ export const load: PageServerLoad = async ({ locals }) => {
             ORDER BY p.name ASC
         `);
 
-		//ดึงหน่วยนับ
+		// 3. ดึงหน่วยนับ
 		const [units] = await pool.query<Unit[]>(
 			'SELECT id, name, symbol FROM units ORDER BY name ASC'
+		);
+
+		// 4. [เพิ่ม] ดึงข้อมูล Vendor
+		const [vendors] = await pool.query<Vendor[]>(
+			'SELECT id, name, company_name FROM vendors ORDER BY name ASC'
 		);
 
 		return {
@@ -77,11 +89,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 			departments: JSON.parse(JSON.stringify(departments)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
+			vendors: JSON.parse(JSON.stringify(vendors)), // ส่งไปหน้าเว็บ
 			user: locals.user
 		};
 	} catch (err: any) {
 		console.error('Failed to load Create PR data:', err);
-		return { nextPRNumber: '', departments: [], products: [], units: [] };
+		return { nextPRNumber: '', departments: [], products: [], units: [], vendors: [] };
 	}
 };
 
@@ -94,6 +107,11 @@ export const actions: Actions = {
 		const request_date = formData.get('request_date') as string;
 		const department = (formData.get('department') as string) || '';
 		const description = (formData.get('description') as string) || '';
+
+		// [เพิ่ม] รับค่า Vendor ID
+		const vendor_id = formData.get('vendor_id')
+			? parseInt(formData.get('vendor_id') as string)
+			: null;
 
 		const itemsJson = formData.get('items_json') as string;
 		let items = [];
@@ -114,11 +132,12 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
+			// [แก้ไข] เพิ่ม vendor_id ลงใน INSERT
 			const [result] = await connection.execute<ResultSetHeader>(
 				`INSERT INTO purchase_requests 
-				(pr_number, request_date, requester_id, department, description, status, total_amount, created_at)
-				 VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW())`,
-				[pr_number, request_date, locals.user?.id, department, description, total_amount]
+				(pr_number, request_date, requester_id, department, vendor_id, description, status, total_amount, created_at)
+				 VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, NOW())`,
+				[pr_number, request_date, locals.user?.id, department, vendor_id, description, total_amount]
 			);
 			const prId = result.insertId;
 
