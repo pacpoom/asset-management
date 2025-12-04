@@ -23,6 +23,7 @@ interface VoucherData extends RowDataPacket {
 	contact_name: string;
 	description: string | null;
 	subtotal: number;
+	discount: number;
 	vat_rate: number;
 	vat_amount: number;
 	wht_rate: number;
@@ -91,6 +92,9 @@ function bahttext(input: number | string): string {
 
 function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): string {
 	const subtotal = Number(voucher.subtotal || 0);
+	const discount = Number(voucher.discount || 0); // ดึงค่าส่วนลด (ถ้าไม่มีให้เป็น 0)
+	const totalAfterDiscount = subtotal - discount; // คำนวณยอดหลังหักส่วนลด
+
 	const vatRate = Number(voucher.vat_rate || 0);
 	const vatAmount = Number(voucher.vat_amount || 0);
 	const whtRate = Number(voucher.wht_rate || 0);
@@ -117,6 +121,65 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
 		});
 	};
 
+	let rightRowsCount = 4;
+	if (vatAmount > 0) rightRowsCount++;
+	if (whtAmount > 0) rightRowsCount++;
+
+	const summaryBlock = `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 8pt; border: 1px solid #9ca3af;">
+            <colgroup>
+                <col style="width: auto;"> 
+                <col style="width: 130px;"> 
+                <col style="width: 120px;">
+            </colgroup>
+            <tfoot>
+                <tr>
+                    <td rowspan="${rightRowsCount}" style="vertical-align: bottom; padding: 10px; border-right: 1px solid #9ca3af; text-align: center;">
+                         <div style="font-size: 9pt; color: #374151; font-weight: bold;">
+                            จำนวนเงินสุทธิเป็นตัวอักษร: <span style="color: #111827;">${totalText}</span>
+                        </div>
+                    </td>
+
+                    <td style="padding: 4px 8px; text-align: right; font-weight: bold; color: #374151;">รวมเป็นเงิน (Subtotal)</td>
+                    <td style="padding: 4px 8px; text-align: right; color: #111827;">${formatNumber(subtotal)}</td>
+                </tr>
+                
+                <tr>
+                    <td style="padding: 4px 8px; text-align: right; font-weight: bold; color: #374151;">ส่วนลด (Discount)</td>
+                    <td style="padding: 4px 8px; text-align: right; color: #111827;">${discount > 0 ? '-' : ''}${formatNumber(discount)}</td>
+                </tr>
+
+                <tr>
+                    <td style="padding: 4px 8px; text-align: right; font-weight: bold; color: #374151;">หลังหักส่วนลด</td>
+                    <td style="padding: 4px 8px; text-align: right; color: #111827;">${formatNumber(totalAfterDiscount)}</td>
+                </tr>
+                
+                ${
+									vatAmount > 0
+										? `<tr>
+                            <td style="padding: 4px 8px; text-align: right; color: #4b5563;">ภาษีมูลค่าเพิ่ม ${vatRate}%</td>
+                            <td style="padding: 4px 8px; text-align: right; color: #111827;">${formatNumber(vatAmount)}</td>
+                        </tr>`
+										: ''
+								}
+                
+                ${
+									whtAmount > 0
+										? `<tr>
+                            <td style="padding: 4px 8px; text-align: right; color: #dc2626; font-weight: bold;">หัก ณ ที่จ่าย ${whtRate}%</td>
+                            <td style="padding: 4px 8px; text-align: right; color: #dc2626;">-${formatNumber(whtAmount)}</td>
+                        </tr>`
+										: ''
+								}
+
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 8px; text-align: right; font-weight: bold; color: #1f2937; border-top: 1px solid #9ca3af;">${netTotalLabel}</td>
+                    <td style="padding: 8px; text-align: right; font-weight: bold; color: #2563eb; font-size: 10pt; border-top: 1px solid #9ca3af;">${formatNumber(totalAmount)}</td>
+                </tr>
+            </tfoot>
+        </table>
+    `;
+
 	return `
     <html>
     <head>
@@ -131,8 +194,6 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
             .content-table th, .content-table td { border: 1px solid #ccc; padding: 8px; }
             .content-table th { background-color: #ffffff; text-align: center; }
             .footer-section { position: absolute; bottom: 40px; left: 40px; right: 40px; }
-            .summary-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            .summary-table td { padding: 4px 8px; }
         </style>
     </head>
     <body>
@@ -183,47 +244,7 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
                 </tbody>
             </table>
 
-            <table class="summary-table">
-                <tr>
-                    <td style="width: 60%; vertical-align: bottom; padding-right: 10px;">
-                        <div style="border: 1px solid #ccc; background-color: #ffffff; font-weight: bold; text-align: center; padding: 8px;">
-                            จำนวนเงินสุทธิเป็นตัวอักษร (${totalText})
-                        </div>
-                    </td>
-                    
-                    <td style="width: 40%; padding: 0;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="text-align: right; border-bottom: 1px solid #eee;">ยอดรวม (Subtotal)</td>
-                                <td style="text-align: right; font-weight: bold; border-bottom: 1px solid #eee;">${formatNumber(subtotal)}</td>
-                            </tr>
-                            ${
-															vatAmount > 0
-																? `
-                            <tr>
-                                <td style="text-align: right; border-bottom: 1px solid #eee;">VAT ${vatRate}%</td>
-                                <td style="text-align: right; border-bottom: 1px solid #eee;">${formatNumber(vatAmount)}</td>
-                            </tr>`
-																: ''
-														}
-                            ${
-															whtAmount > 0
-																? `
-                            <tr>
-                                <td style="text-align: right; border-bottom: 1px solid #eee; color: #dc2626;">หัก ณ ที่จ่าย ${whtRate}%</td>
-                                <td style="text-align: right; border-bottom: 1px solid #eee; color: #dc2626;">- ${formatNumber(whtAmount)}</td>
-                            </tr>`
-																: ''
-														}
-                            
-                            <tr style="background-color: #ffffff;">
-                                <td style="text-align: right; font-weight: bold;">${netTotalLabel}</td>
-                                <td style="text-align: right; font-weight: bold; font-size: 11pt; color: #2563eb;">${formatNumber(totalAmount)}</td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
+            ${summaryBlock}
 
             <div class="footer-section">
                 <div style="display: flex; justify-content: space-between; text-align: center;">

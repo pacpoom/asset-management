@@ -1,11 +1,21 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	export let data: PageData;
 	$: ({ customers, products, units, prefilledData } = data);
 
+	// Options
+	$: productOptions = products.map((p: any) => ({
+		value: p.id,
+		label: `${p.sku} - ${p.name}`,
+		product: p
+	}));
+
 	interface ReceiptItem {
+		product_object: any;
 		product_id: number | null;
 		description: string;
 		quantity: number;
@@ -15,10 +25,17 @@
 	}
 
 	let receiptDate = new Date().toISOString().split('T')[0];
-
 	// --- กำหนดค่าเริ่มต้น ---
 	let items: ReceiptItem[] = [
-		{ product_id: null, description: '', quantity: 1, unit_id: null, unit_price: 0, line_total: 0 }
+		{
+			product_object: null,
+			product_id: null,
+			description: '',
+			quantity: 1,
+			unit_id: null,
+			unit_price: 0,
+			line_total: 0
+		}
 	];
 	let selectedCustomerId: string | number = '';
 	let referenceDoc = '';
@@ -27,18 +44,14 @@
 	let vatRate = 7;
 	let whtRate = 0;
 
-	// 🔥 ตัวแปรกันลูป (จำไว้ว่าล่าสุดเราดึงข้อมูลจากเอกสารเบอร์ไหนมา)
+	//กันลูป
 	let lastProcessedRef = '';
 
-	// --- 🔥 ส่วนจัดการข้อมูลจาก Invoice (Prefilled Data) ---
 	$: if (prefilledData) {
-		// เช็คว่า "เอกสารอ้างอิง" เปลี่ยนไปจากเดิมไหม? หรือยังไม่เคยทำ?
-		// ถ้าเหมือนเดิม (ทำไปแล้ว) ให้ข้ามไปเลย ไม่ต้องทำซ้ำ (หยุด Loop)
 		if (prefilledData.reference_doc && prefilledData.reference_doc !== lastProcessedRef) {
 			console.log('Processing Prefilled Data:', prefilledData.reference_doc);
-			lastProcessedRef = prefilledData.reference_doc; // จำค่าไว้
+			lastProcessedRef = prefilledData.reference_doc;
 
-			// 1. อัปเดตลูกค้า
 			if (prefilledData.customer_id != null) {
 				const targetId = Number(prefilledData.customer_id);
 				const foundCustomer = customers.find((c: any) => c.id == targetId);
@@ -47,25 +60,33 @@
 				}
 			}
 
-			// 2. อัปเดตข้อมูลทั่วไป
 			referenceDoc = prefilledData.reference_doc || '';
 			notes = prefilledData.notes || '';
-
-			// 3. อัปเดตตัวเลข
 			discountAmount = parseFloat(prefilledData.discount_amount || '0');
 			vatRate = parseFloat(prefilledData.vat_rate || '7');
 			whtRate = parseFloat(prefilledData.withholding_tax_rate || '0');
 
-			// 4. อัปเดตรายการสินค้า
 			if (prefilledData.items && prefilledData.items.length > 0) {
-				items = prefilledData.items.map((i: any) => ({
-					product_id: i.product_id ? Number(i.product_id) : null,
-					description: i.description,
-					quantity: parseFloat(i.quantity || '0'),
-					unit_id: i.unit_id ? Number(i.unit_id) : null,
-					unit_price: parseFloat(i.unit_price || '0'),
-					line_total: parseFloat(i.line_total || '0')
-				}));
+				items = prefilledData.items.map((i: any) => {
+					const foundProduct = products.find((p: any) => p.id == i.product_id);
+					const productObj = foundProduct
+						? {
+								value: foundProduct.id,
+								label: `${foundProduct.sku} - ${foundProduct.name}`,
+								product: foundProduct
+							}
+						: null;
+
+					return {
+						product_object: productObj,
+						product_id: i.product_id ? Number(i.product_id) : null,
+						description: i.description,
+						quantity: parseFloat(i.quantity || '0'),
+						unit_id: i.unit_id ? Number(i.unit_id) : null,
+						unit_price: parseFloat(i.unit_price || '0'),
+						line_total: parseFloat(i.line_total || '0')
+					};
+				});
 			}
 		}
 	}
@@ -83,6 +104,7 @@
 		items = [
 			...items,
 			{
+				product_object: null,
 				product_id: null,
 				description: '',
 				quantity: 1,
@@ -101,15 +123,25 @@
 		items[index].line_total = (items[index].quantity || 0) * (items[index].unit_price || 0);
 	}
 
-	function onProductChange(index: number) {
-		const pId = items[index].product_id;
-		const product = products.find((p: any) => p.id == pId);
-		if (product) {
+	// 5. ปรับฟังก์ชันเลือกสินค้า (Manual Handle)
+	function onProductChange(index: number, selected: any) {
+		items[index].product_object = selected;
+
+		if (selected) {
+			const product = selected.product;
+			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
-			updateLineTotal(index);
+		} else {
+			items[index].product_id = null;
+			items[index].description = '';
+			items[index].unit_price = 0;
+			items[index].unit_id = null;
 		}
+
+		updateLineTotal(index);
+		items = items; // Trigger reactivity
 	}
 
 	let isSaving = false;
@@ -220,17 +252,19 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-3 py-2">
-									<select
-										bind:value={item.product_id}
-										on:change={() => onProductChange(index)}
-										class="w-full rounded-md border-gray-300 text-sm"
-									>
-										<option value={null}>-- เลือก --</option>
-										{#each products as p}
-											<option value={p.id}>{p.sku} - {p.name}</option>
-										{/each}
-									</select>
+								<td class="px-3 py-2" style="min-width: 250px;">
+									<Select
+										items={productOptions}
+										value={item.product_object}
+										on:change={(e) => onProductChange(index, e.detail)}
+										on:clear={() => onProductChange(index, null)}
+										placeholder="-- ค้นหา/เลือก --"
+										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+										container={browser ? document.body : null}
+										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+										--list="border-radius: 6px; font-size: 0.875rem;"
+										--itemIsActive="background: #e0f2fe;"
+									/>
 								</td>
 								<td class="px-3 py-2">
 									<input
@@ -438,3 +472,20 @@
 		</div>
 	</form>
 </div>
+
+<style>
+	:global(div.svelte-select) {
+		min-height: 38px;
+		border: 1px solid #d1d5db !important;
+		border-radius: 0.375rem !important;
+	}
+	:global(div.svelte-select .input) {
+		font-size: 0.875rem;
+	}
+	:global(div.svelte-select .list) {
+		border-radius: 0.375rem;
+		border-color: #d1d5db;
+		z-index: 9999 !important;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+</style>

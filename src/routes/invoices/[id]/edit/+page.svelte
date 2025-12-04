@@ -1,9 +1,17 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	export let data: PageData;
 	$: ({ invoice, existingItems, existingAttachments, customers, products, units } = data);
+
+	$: productOptions = products.map((p: any) => ({
+		value: p.id,
+		label: `${p.sku} - ${p.name}`,
+		product: p
+	}));
 
 	let invoiceDate = '';
 	let dueDate = '';
@@ -12,7 +20,6 @@
 	let vatRate = 7;
 	let whtRate = 0;
 
-	// Initialize ค่าเริ่มต้น
 	$: if (invoice) {
 		invoiceDate = new Date(invoice.invoice_date).toISOString().split('T')[0];
 		dueDate = invoice.due_date ? new Date(invoice.due_date).toISOString().split('T')[0] : '';
@@ -20,15 +27,29 @@
 		vatRate = parseFloat(invoice.vat_rate);
 		whtRate = parseFloat(invoice.withholding_tax_rate);
 	}
+
+	// ปรับการดึงข้อมูลเดิมสร้าง product_object
 	$: if (existingItems && items.length === 0) {
-		items = existingItems.map((item: any) => ({
-			product_id: item.product_id,
-			description: item.description,
-			quantity: parseFloat(item.quantity),
-			unit_id: item.unit_id,
-			unit_price: parseFloat(item.unit_price),
-			line_total: parseFloat(item.line_total)
-		}));
+		items = existingItems.map((item: any) => {
+			const foundProduct = products.find((p: any) => p.id == item.product_id);
+			const productObj = foundProduct
+				? {
+						value: foundProduct.id,
+						label: `${foundProduct.sku} - ${foundProduct.name}`,
+						product: foundProduct
+					}
+				: null;
+
+			return {
+				product_object: productObj,
+				product_id: item.product_id,
+				description: item.description,
+				quantity: parseFloat(item.quantity),
+				unit_id: item.unit_id,
+				unit_price: parseFloat(item.unit_price),
+				line_total: parseFloat(item.line_total)
+			};
+		});
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + item.line_total, 0);
@@ -42,6 +63,7 @@
 		items = [
 			...items,
 			{
+				product_object: null,
 				product_id: null,
 				description: '',
 				quantity: 1,
@@ -57,15 +79,25 @@
 	function updateLineTotal(index: number) {
 		items[index].line_total = items[index].quantity * items[index].unit_price;
 	}
-	function onProductChange(index: number) {
-		const pId = items[index].product_id;
-		const product = products.find((p: any) => p.id == pId);
-		if (product) {
+
+	//ปรับฟังก์ชันเลือกสินค้า
+	function onProductChange(index: number, selected: any) {
+		items[index].product_object = selected;
+
+		if (selected) {
+			const product = selected.product;
+			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
-			updateLineTotal(index);
+		} else {
+			items[index].product_id = null;
+			items[index].description = '';
+			items[index].unit_price = 0;
+			items[index].unit_id = null;
 		}
+		updateLineTotal(index);
+		items = items;
 	}
 
 	function setCreditTerm(days: number) {
@@ -200,17 +232,19 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-3 py-2">
-									<select
-										bind:value={item.product_id}
-										on:change={() => onProductChange(index)}
-										class="w-full rounded-md border-gray-300 text-sm"
-									>
-										<option value={null}>-- เลือก --</option>
-										{#each products as p}
-											<option value={p.id}>{p.sku} - {p.name}</option>
-										{/each}
-									</select>
+								<td class="px-3 py-2" style="min-width: 250px;">
+									<Select
+										items={productOptions}
+										value={item.product_object}
+										on:change={(e) => onProductChange(index, e.detail)}
+										on:clear={() => onProductChange(index, null)}
+										placeholder="-- ค้นหา/เลือก --"
+										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+										container={browser ? document.body : null}
+										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+										--list="border-radius: 6px; font-size: 0.875rem;"
+										--itemIsActive="background: #e0f2fe;"
+									/>
 								</td>
 								<td class="px-3 py-2"
 									><input
@@ -242,6 +276,22 @@
 												<option value={u.id}>{u.symbol}</option>
 											{/each}
 										</select>
+										<div
+											class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+											>
+												<path
+													fill-rule="evenodd"
+													d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+													clip-rule="evenodd"
+												/>
+											</svg>
+										</div>
 									</div>
 								</td>
 								<td class="px-3 py-2"
@@ -421,3 +471,20 @@
 		</div>
 	</form>
 </div>
+
+<style>
+	:global(div.svelte-select) {
+		min-height: 38px;
+		border: 1px solid #d1d5db !important;
+		border-radius: 0.375rem !important;
+	}
+	:global(div.svelte-select .input) {
+		font-size: 0.875rem;
+	}
+	:global(div.svelte-select .list) {
+		border-radius: 0.375rem;
+		border-color: #d1d5db;
+		z-index: 9999 !important;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+</style>

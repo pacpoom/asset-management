@@ -7,15 +7,10 @@
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 
-	// ***
-	// *** Interface แก้ไขแล้ว (FIXED: Added intermediate type for Indexed Access Type)
-	// ***
 	type PagePaymentType = PageData['payment'];
 	interface BillPaymentDetailHeader extends PagePaymentType {
-		// <-- FIX: extends ตัวใหม่
 		vendor_tax_id: string | null;
 	}
-
 	type BillPaymentItemRow = PageData['items'][0];
 	type Attachment = PageData['attachments'][0];
 	type Vendor = PageData['vendors'][0];
@@ -36,7 +31,6 @@
 		_db_id: number | null;
 	}
 
-	// --- Props & State (Svelte 5 Runes) ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let paymentData = $state<BillPaymentDetailHeader>(data.payment);
@@ -45,7 +39,6 @@
 	let isEditModalOpen = $state(false);
 	let modalItems = $state<BillPaymentItem[]>([]);
 	let newAttachments = $state<FileList | null>(null);
-	// FIX: Initialise state locally
 	let payment_reference = $state('');
 	let payment_date = $state(new Date().toISOString().split('T')[0]);
 	let notes = $state('');
@@ -56,8 +49,6 @@
 	let vatRateValue = $state(0);
 	const withholdingTaxRate = $derived(whtRateValue === 0 ? 0.0 : whtRateValue);
 	const calculateWithholdingTax = $derived(whtRateValue !== 0);
-	// --- End of FIX ---
-
 	let isSaving = $state(false);
 	let isPrinting = $state(false);
 	let globalMessage = $state<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -66,6 +57,7 @@
 	let deletePaymentTarget = $state<BillPaymentDetailHeader | null>(null);
 	let updateStatusForm: HTMLFormElement;
 	let statusToUpdate = $state('');
+
 	const productOptions = $derived(
 		data.products.map((p: Product) => ({
 			value: p.id,
@@ -73,6 +65,7 @@
 			product: p
 		}))
 	);
+
 	const subTotal = $derived(
 		modalItems.reduce((sum, item: BillPaymentItem) => {
 			const lineTotal = parseFloat(item.line_total as unknown as string) || 0;
@@ -85,18 +78,14 @@
 			? parseFloat((totalAfterDiscount * (withholdingTaxRate / 100)).toFixed(2))
 			: 0
 	);
-
 	const vatAmount = $derived(parseFloat((totalAfterDiscount * (vatRateValue / 100)).toFixed(2)));
-
 	const grandTotal = $derived(totalAfterDiscount + vatAmount - withholdingTaxAmount);
 
 	$effect(() => {
-		// เช็คก่อนว่า modalItems มีค่าหรือไม่
 		if (modalItems && modalItems.length > 0) {
 			modalItems.forEach((item) => {
 				const quantity = parseFloat(item.quantity as unknown as string) || 0;
 				const unitPrice = parseFloat(item.unit_price as unknown as string) || 0;
-				// สั่งอัปเดต line_total ของ item นั้นๆ
 				item.line_total = quantity * unitPrice;
 			});
 		}
@@ -105,10 +94,6 @@
 	const filteredContracts = $derived(
 		vendor_id ? data.contracts.filter((c: VendorContract) => c.vendor_id === vendor_id) : []
 	);
-	// ***
-	// *** 1. แก้ไข Error Implicit 'any' แล้ว ***
-	// ***
-
 	const formattedAddress = $derived(
 		(() => {
 			const address = paymentData.vendor_address || 'No address provided.';
@@ -120,7 +105,6 @@
 		})()
 	);
 
-	// --- General Functions ---
 	function formatCurrency(value: number | null | undefined, currency: string = 'THB') {
 		if (value === null || value === undefined) return '-';
 		return new Intl.NumberFormat('th-TH', {
@@ -191,6 +175,8 @@
 		vendor_contract_id = paymentData.vendor_contract_id ?? undefined;
 		discountAmount = paymentData.discount_amount;
 		whtRateValue = paymentData.withholding_tax_rate ?? 0;
+		vatRateValue = paymentData.vat_rate ?? 0;
+
 		modalItems = data.items.map((item: BillPaymentItemRow) => {
 			const productOption = productOptions.find(
 				(p: { value: number }) => p.value === item.product_id
@@ -239,22 +225,21 @@
 	function updateLineTotal(item: BillPaymentItem) {
 		const quantity = parseFloat(item.quantity as unknown as string) || 0;
 		const unitPrice = parseFloat(item.unit_price as unknown as string) || 0;
-
 		item.line_total = quantity * unitPrice;
-		// modalItems = [...modalItems];
 	}
 
-	function onProductSelectChange(item: BillPaymentItem) {
-		const selectedOption = item.product_object;
-		if (!selectedOption) {
+	function onProductSelectChange(item: BillPaymentItem, selected: any) {
+		item.product_object = selected;
+
+		if (!selected) {
 			item.product_id = null;
 			item.description = '';
 			item.unit_id = null;
 			item.unit_price = 0;
 		} else {
-			const selectedProduct = selectedOption.product;
+			const selectedProduct = selected.product;
 			if (selectedProduct) {
-				item.product_id = selectedOption.value;
+				item.product_id = selected.value;
 				item.description = selectedProduct.name;
 				item.unit_id = selectedProduct.unit_id;
 				item.unit_price = selectedProduct.purchase_cost ?? 0;
@@ -319,7 +304,6 @@
 					id: paymentData.id
 				})
 			});
-
 			if (!response.ok || response.headers.get('Content-Type') !== 'application/pdf') {
 				try {
 					const errorData = await response.json();
@@ -333,27 +317,13 @@
 
 			const pdfBlob = await response.blob();
 			const pdfUrl = URL.createObjectURL(pdfBlob);
-
-			// --- VVVV ส่วนที่เปลี่ยนแปลง VVVV ---
-
-			// 1. สร้างลิงก์ (<a>) ขึ้นมาในหน่วยความจำ
 			const link = document.createElement('a');
 			link.href = pdfUrl;
-
-			// 2. ตั้งชื่อไฟล์ที่จะดาวน์โหลด (สำคัญมาก)
 			link.setAttribute('download', `bill-payment-${paymentData.id}.pdf`);
-
-			// 3. เพิ่มลิงก์เข้าไปในหน้า (จำเป็นสำหรับบางเบราว์เซอร์)
 			document.body.appendChild(link);
-
-			// 4. สั่งให้เบราว์เซอร์คลิกที่ลิงก์นี้ (เพื่อเริ่มดาวน์โหลด)
 			link.click();
-
-			// 5. ลบลิงก์และ URL ทิ้ง (ทำความสะอาด)
 			document.body.removeChild(link);
 			URL.revokeObjectURL(pdfUrl);
-
-			// --- ^^^^ สิ้นสุดส่วนที่เปลี่ยนแปลง ^^^^ ---
 		} catch (error) {
 			console.error('Fetch Error:', error);
 			if (error instanceof Error) {
@@ -365,7 +335,7 @@
 			isPrinting = false;
 		}
 	}
-	// --- Reactive Effects ---
+
 	$effect.pre(() => {
 		if (form?.action === 'updatePayment') {
 			if (form.success) {
@@ -391,6 +361,7 @@
 			isSaving = false;
 		}
 	});
+
 	$effect(() => {
 		paymentData = data.payment;
 		attachments = data.attachments;
@@ -562,23 +533,18 @@
 	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 		<div class="md:col-span-2">
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">ซัพพลายเออร์ (Supplier)</h3>
-
 			<p class="font-semibold text-gray-800">{paymentData.vendor_name}</p>
-
 			<p class="text-sm whitespace-pre-wrap text-gray-600">
 				{formattedAddress}
 			</p>
-
 			<p class="text-sm">
 				<span class="font-semibold text-gray-700">Tax ID:</span>
-
 				{paymentData.vendor_tax_id || '-'}
 			</p>
 		</div>
 
 		<div class="md:col-span-1">
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
-
 			<p class="mt-1 text-xs text-gray-600">
 				<span class="font-semibold">ผู้เตรียม / Prepared By:</span>
 				{paymentData.prepared_by_user_name}
@@ -590,6 +556,7 @@
 		</div>
 	</div>
 </div>
+
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
 		รายการสินค้า/บริการ ({data.items.length})
@@ -716,6 +683,7 @@
 		</div>
 	</div>
 </div>
+
 {#if isEditModalOpen}
 	<div
 		transition:slide
@@ -760,7 +728,6 @@
 					formData.set('total_after_discount', totalAfterDiscount.toString());
 					formData.set('withholdingTaxAmount', withholdingTaxAmount.toString());
 					formData.set('total_amount', grandTotal.toString());
-
 					return async ({ update }) => {
 						await update({ reset: false });
 						isSaving = false;
@@ -879,19 +846,17 @@
 											<td class="px-3 py-2">
 												<Select
 													items={productOptions}
-													bind:value={item.product_object}
+													value={item.product_object}
 													label={'label'}
-													on:change={() => onProductSelectChange(item)}
-													on:clear={() => {
-														item.product_object = null;
-														onProductSelectChange(item);
-													}}
+													on:change={(e) => onProductSelectChange(item, e.detail)}
+													on:clear={() => onProductSelectChange(item, null)}
 													placeholder="-- ค้นหา/เลือกสินค้า --"
 													required
 													container={browser ? document.body : null}
-													--inputStyles={'padding: 2px 0;'}
+													floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+													--inputStyles={'padding: 2px 0; font-size: 0.875rem;'}
 													--itemIsActive={'background: #e0f2fe;'}
-													--list={'border-radius: 6px;'}
+													--list={'border-radius: 6px; font-size: 0.875rem;'}
 												></Select>
 											</td>
 											<td class="px-3 py-2">
@@ -955,8 +920,9 @@
 														class="h-4 w-4"
 														><path
 															fill-rule="evenodd"
-															d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.566 19h4.868a2.75 2.75 0 0 0 2.71-2.529l.841-10.518.149.022a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193v-.443A2.75 2.75 0 0 0 11.25 
-											1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75a1.25 1.25 0 0 0-1.25-1.25h-2.5A1.25 1.25 0 0 0 7.5 3.75v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.84 0a.75.75 0 0 1-1.5-.06l-.3 7.5a.75.75 0 1 1 1.5.06l-.3-7-5Z"
+															d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.566 19h4.868a2.75 2.75 0 0 0 2.71-2.529l.841-10.518.149.022a.75.75 0 0 0 .23-1.482A41.03 
+                                                            41.03 0 0 0 14 4.193v-.443A2.75 2.75 0 0 0 11.25 
+											                1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75a1.25 1.25 0 0 0-1.25-1.25h-2.5A1.25 1.25 0 0 0 7.5 3.75v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.84 0a.75.75 0 0 1-1.5-.06l-.3 7.5a.75.75 0 1 1 1.5.06l-.3-7-5Z"
 															clip-rule="evenodd"
 														></path></svg
 													>
@@ -991,8 +957,9 @@
 								<div class="w-full space-y-2 text-sm">
 									<div class="flex items-center justify-between">
 										<span class="font-medium text-gray-600">รวมเป็นเงิน (Subtotal):</span>
-										<span class="text-base font-semibold text-gray-800"
-											>{formatCurrency(subTotal)}</span
+										<span
+											class="text-base font-semibold
+                                        text-gray-800">{formatCurrency(subTotal)}</span
 										>
 									</div>
 									<div class="flex items-center justify-between gap-4">
@@ -1077,7 +1044,8 @@
 										name="notes"
 										rows="4"
 										bind:value={notes}
-										class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300
+                                        shadow-sm focus:border-blue-500 focus:ring-blue-500"
 									></textarea>
 
 									<div class="mt-4 mb-1 block text-sm font-medium text-gray-700">
@@ -1200,7 +1168,8 @@
 									></path>
 									<path
 										fill-rule="evenodd"
-										d="M15.5 3.5h-11a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2ZM12 9a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 1 0v-1a.5.5 0 0 0-.5-.5Zm-5.5 1.5c0-.276.224-.5.5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5Z"
+										d="M15.5 3.5h-11a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2ZM12 9a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 1 0v-1a.5.5 0 0 0-.5-.5Zm-5.5 1.5c0-.276.224-.5.5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 
+                                        0 0 1-.5-.5Z"
 										clip-rule="evenodd"
 									></path></svg
 								>
@@ -1290,9 +1259,10 @@
 {/if}
 
 <style>
-	/* Styles for svelte-select to match the general theme */
 	:global(div.svelte-select) {
 		min-height: 38px;
+		border: 1px solid #d1d5db !important; /* Force border color */
+		border-radius: 0.375rem !important;
 	}
 	:global(div.svelte-select .input) {
 		padding: 2px 0;
@@ -1307,7 +1277,8 @@
 	:global(div.svelte-select .list) {
 		border-radius: 0.375rem;
 		border-color: #d1d5db;
-		z-index: 9999;
+		z-index: 9999 !important; /* Force z-index to stay on top */
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 	}
 	:global(div.svelte-select .item) {
 		font-size: 0.875rem;

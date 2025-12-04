@@ -1,11 +1,19 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	export let data: PageData;
 	$: ({ quotation, existingItems, existingAttachments, customers, products, units } = data);
 
-	// กำหนดค่าเริ่มต้น
+	//เตรียม Options สำหรับ Select
+	$: productOptions = products.map((p: any) => ({
+		value: p.id,
+		label: `${p.sku} - ${p.name}`,
+		product: p
+	}));
+
 	let quotationDate = '';
 	let validUntil = '';
 	let items: any[] = [];
@@ -23,7 +31,6 @@
 			}
 		}
 
-		// แปลงวันที่และตัวเลข
 		quotationDate = new Date(quotation.quotation_date).toISOString().split('T')[0];
 		validUntil = quotation.valid_until
 			? new Date(quotation.valid_until).toISOString().split('T')[0]
@@ -33,19 +40,30 @@
 		whtRate = parseFloat(quotation.withholding_tax_rate || '0');
 	}
 
-	// ดึงรายการสินค้าเดิม
+	// ดึงรายการสินค้า
 	$: if (existingItems && items.length === 0) {
-		items = existingItems.map((item: any) => ({
-			product_id: item.product_id ? Number(item.product_id) : null,
-			description: item.description,
-			quantity: parseFloat(item.quantity),
-			unit_id: item.unit_id ? Number(item.unit_id) : null,
-			unit_price: parseFloat(item.unit_price),
-			line_total: parseFloat(item.line_total)
-		}));
+		items = existingItems.map((item: any) => {
+			const foundProduct = products.find((p: any) => p.id == item.product_id);
+			const productObj = foundProduct
+				? {
+						value: foundProduct.id,
+						label: `${foundProduct.sku} - ${foundProduct.name}`,
+						product: foundProduct
+					}
+				: null;
+
+			return {
+				product_object: productObj,
+				product_id: item.product_id ? Number(item.product_id) : null,
+				description: item.description,
+				quantity: parseFloat(item.quantity),
+				unit_id: item.unit_id ? Number(item.unit_id) : null,
+				unit_price: parseFloat(item.unit_price),
+				line_total: parseFloat(item.line_total)
+			};
+		});
 	}
 
-	// คำนวณเงิน
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
 	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
@@ -57,6 +75,7 @@
 		items = [
 			...items,
 			{
+				product_object: null,
 				product_id: null,
 				description: '',
 				quantity: 1,
@@ -66,21 +85,33 @@
 			}
 		];
 	}
+
 	function removeItem(index: number) {
 		items = items.filter((_, i) => i !== index);
 	}
+
 	function updateLineTotal(index: number) {
 		items[index].line_total = (items[index].quantity || 0) * (items[index].unit_price || 0);
 	}
-	function onProductChange(index: number) {
-		const pId = items[index].product_id;
-		const product = products.find((p: any) => p.id == pId);
-		if (product) {
+
+	function onProductSelect(index: number, selected: any) {
+		items[index].product_object = selected;
+
+		if (selected) {
+			const product = selected.product;
+			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
-			updateLineTotal(index);
+		} else {
+			items[index].product_id = null;
+			items[index].description = '';
+			items[index].unit_price = 0;
+			items[index].unit_id = null;
 		}
+
+		updateLineTotal(index);
+		items = items; // Trigger reactivity
 	}
 
 	function setValidDays(days: number) {
@@ -215,17 +246,19 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-3 py-2">
-									<select
-										bind:value={item.product_id}
-										on:change={() => onProductChange(index)}
-										class="w-full rounded-md border-gray-300 text-sm"
-									>
-										<option value={null}>-- เลือก --</option>
-										{#each products as p}
-											<option value={p.id}>{p.sku} - {p.name}</option>
-										{/each}
-									</select>
+								<td class="px-3 py-2" style="min-width: 250px;">
+									<Select
+										items={productOptions}
+										value={item.product_object}
+										on:change={(e) => onProductSelect(index, e.detail)}
+										on:clear={() => onProductSelect(index, null)}
+										placeholder="-- ค้นหา/เลือก --"
+										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+										container={browser ? document.body : null}
+										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+										--list="border-radius: 6px; font-size: 0.875rem;"
+										--itemIsActive="background: #e0f2fe;"
+									/>
 								</td>
 								<td class="px-3 py-2"
 									><input
@@ -436,3 +469,20 @@
 		</div>
 	</form>
 </div>
+
+<style>
+	:global(div.svelte-select) {
+		min-height: 38px;
+		border: 1px solid #d1d5db !important;
+		border-radius: 0.375rem !important;
+	}
+	:global(div.svelte-select .input) {
+		font-size: 0.875rem;
+	}
+	:global(div.svelte-select .list) {
+		border-radius: 0.375rem;
+		border-color: #d1d5db;
+		z-index: 9999 !important;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+</style>

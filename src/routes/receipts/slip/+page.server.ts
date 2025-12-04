@@ -5,6 +5,16 @@ import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
 
+interface PrefilledData {
+	reference_doc?: string;
+	customer_id?: string | number;
+	notes?: string;
+	discount_amount?: string;
+	vat_rate?: string;
+	withholding_tax_rate?: string;
+	items?: any[];
+}
+
 const UPLOAD_DIR = path.resolve('uploads', 'receipts');
 
 async function saveFile(file: File) {
@@ -54,23 +64,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const [customers] = await pool.query(
 			'SELECT id, name, address, tax_id FROM customers ORDER BY name ASC'
 		);
-		// ใช้ selling_price AS price
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
 
-		// กรณีที่ 2: มาจาก Billing Note (หลายใบ)
-
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
-			prefilledData: null
+			prefilledData: null as PrefilledData | null
 		};
 	} catch (error: any) {
 		console.error('Load error:', error);
-		return { customers: [], products: [], units: [], prefilledData: null };
+		return {
+			customers: [],
+			products: [],
+			units: [],
+			prefilledData: null as PrefilledData | null
+		};
 	}
 };
 
