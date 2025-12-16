@@ -5,14 +5,14 @@
 
 	// รับ Props
 	let { data } = $props();
-	const { pr, departments, user, products, units } = data;
+	const { pr, departments, user, products, units, vendors } = data;
 
 	// State Variables
 	let today = $state(pr.request_date ? new Date(pr.request_date).toISOString().split('T')[0] : '');
 	let department = $state(pr.department || '');
 	let description = $state(pr.description || '');
 
-	// เตรียม Options สำหรับ svelte-select
+	// เตรียม Options
 	let productOptions = $derived(
 		products.map((p: any) => ({
 			value: p.id,
@@ -21,7 +21,34 @@
 		}))
 	);
 
-	// Map items และ pre-select ค่าลงใน Dropdown
+	let departmentOptions = $derived(
+		departments.map((d: any) => ({
+			value: d.name,
+			label: d.name
+		}))
+	);
+
+	let vendorOptions = $derived(
+		vendors.map((v: any) => ({
+			value: v.id,
+			label: v.name + (v.company_name ? ` (${v.company_name})` : ''),
+			...v
+		}))
+	);
+
+	const foundVendor = pr.vendor_id ? vendors.find((v: any) => v.id === pr.vendor_id) : null;
+	let initialVendorObject = foundVendor
+		? {
+				value: foundVendor.id,
+				label: foundVendor.name + (foundVendor.company_name ? ` (${foundVendor.company_name})` : '')
+			}
+		: null;
+
+	// กำหนด State
+	let vendorId = $state<number | null>(pr.vendor_id || null);
+	let vendorObject = $state(initialVendorObject);
+
+	// Map items
 	let initialItems = data.items.map((i: any) => {
 		const foundProduct = products.find((p: any) => p.name === i.product_name);
 		const productObj = foundProduct
@@ -37,7 +64,7 @@
 		return {
 			product_object: productObj,
 			product_name: i.product_name,
-			description: '', // field description รายบรรทัด (ถ้ามีใน DB ให้ใส่ตรงนี้)
+			description: '',
 			quantity: parseFloat(String(i.quantity || 1)),
 			unit: i.unit || 'ชิ้น',
 			expected_price: parseFloat(String(i.expected_price || 0)),
@@ -112,6 +139,16 @@
 		calculateTotals();
 	}
 
+	function onVendorChange(selection: any) {
+		if (selection) {
+			vendorObject = selection;
+			vendorId = selection.value;
+		} else {
+			vendorObject = null;
+			vendorId = null;
+		}
+	}
+
 	calculateTotals();
 </script>
 
@@ -167,21 +204,23 @@
 					<label for="department" class="block text-sm font-medium text-gray-700"
 						>แผนก (Department)</label
 					>
-					<input
-						type="text"
-						id="department"
-						name="department"
-						bind:value={department}
-						list="dept-list"
-						placeholder="พิมพ์เพื่อค้นหาหรือเลือก..."
-						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-						autocomplete="off"
-					/>
-					<datalist id="dept-list">
-						{#each departments as dept}
-							<option value={dept.name}></option>
-						{/each}
-					</datalist>
+					<div class="mt-1">
+						<Select
+							items={departmentOptions}
+							value={department ? { value: department, label: department } : null}
+							on:change={(e) => (department = e.detail.value)}
+							on:clear={() => (department = '')}
+							placeholder="-- เลือกแผนก --"
+							floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+							container={browser ? document.body : null}
+							--inputStyles="padding: 6px 0; font-size: 0.875rem;"
+							--list="border-radius: 6px; font-size: 0.875rem;"
+							--itemIsActive="background: #e0f2fe;"
+							--border="1px solid #d1d5db"
+							--border-radius="0.375rem"
+						/>
+						<input type="hidden" name="department" value={department} />
+					</div>
 				</div>
 			</div>
 
@@ -199,6 +238,30 @@
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
 				</div>
+
+				<div>
+					<label for="vendor_id" class="block text-sm font-medium text-gray-700"
+						>ผู้ขาย / ผู้จัดจำหน่าย (Vendor)</label
+					>
+					<div class="mt-1">
+						<Select
+							items={vendorOptions}
+							value={vendorObject}
+							on:change={(e) => onVendorChange(e.detail)}
+							on:clear={() => onVendorChange(null)}
+							placeholder="-- เลือกผู้ขาย (ถ้าทราบ) --"
+							floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+							container={browser ? document.body : null}
+							--inputStyles="padding: 6px 0; font-size: 0.875rem;"
+							--list="border-radius: 6px; font-size: 0.875rem;"
+							--itemIsActive="background: #e0f2fe;"
+							--border="1px solid #d1d5db"
+							--border-radius="0.375rem"
+						/>
+						<input type="hidden" name="vendor_id" value={vendorId} />
+					</div>
+				</div>
+
 				<div>
 					<label for="description" class="block text-sm font-medium text-gray-700"
 						>หมายเหตุ / รายละเอียดเพิ่มเติม (Remarks)</label
@@ -207,14 +270,12 @@
 						id="description"
 						name="description"
 						bind:value={description}
-						rows="4"
+						rows="3"
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					></textarea>
 				</div>
 			</div>
 		</div>
-
-		<hr class="border-gray-200" />
 
 		<hr class="border-gray-200" />
 
@@ -225,7 +286,7 @@
 						<th class="w-80 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
 							>สินค้า/บริการ</th
 						>
-						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
+						<th class="w-64 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
 							>รายละเอียด</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
@@ -400,8 +461,8 @@
 			>
 			<button
 				type="submit"
-				class="rounded-md border border-transparent bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-				>บันทึกการแก้ไข (Update)</button
+				class="rounded-md border border-transparent bg-blue-600 px-6 py-2
+text-sm font-medium text-white shadow-sm hover:bg-blue-700">บันทึกการแก้ไข (Update)</button
 			>
 		</div>
 	</form>

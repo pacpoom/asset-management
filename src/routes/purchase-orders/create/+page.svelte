@@ -19,9 +19,8 @@
 		prItems: any[];
 	};
 
-	// --- [แก้ไข 1] เพิ่ม Interface เพื่อกำหนด Type ให้ชัดเจน ---
 	interface POItem {
-		product_object: any; // ยอมรับทั้ง Object จาก svelte-select และ null
+		product_object: any;
 		product_name: string;
 		description: string;
 		quantity: number;
@@ -36,6 +35,9 @@
 	let delivery_date = '';
 	let payment_term = '';
 
+	// รับค่า vendor_id จาก PR (ถ้ามี)
+	let vendor_id = data.fromPR?.vendor_id || '';
+
 	let remarks = data.fromPR ? `อ้างอิงใบขอซื้อเลขที่ (Ref PR): ${data.fromPR.pr_number}` : '';
 
 	let defaultUnit = data.units.length > 0 ? data.units[0].name : 'ชิ้น';
@@ -46,7 +48,6 @@
 		...p
 	}));
 
-	// --- [แก้ไข 2] กำกับ Type : POItem[] ให้ตัวแปร items ---
 	let items: POItem[] =
 		data.prItems && data.prItems.length > 0
 			? data.prItems.map((i) => {
@@ -74,7 +75,7 @@
 			: [
 					{
 						product_name: '',
-						product_object: null, // ตรงนี้ที่เป็น null จะไม่ error แล้วเพราะ interface รองรับ any
+						product_object: null,
 						description: '',
 						quantity: 1,
 						unit: defaultUnit,
@@ -110,11 +111,25 @@
 	}
 
 	function calculateTotals() {
-		subtotal = items.reduce((sum, item) => {
-			const lineTotal = item.quantity * item.unit_price - (item.discount || 0);
+		let tempGrossTotal = 0;
+		let tempTotalDiscount = 0;
+
+		items = items.map((item) => {
+			const qty = parseFloat(String(item.quantity || 0));
+			const price = parseFloat(String(item.unit_price || 0));
+			const disc = parseFloat(String(item.discount || 0));
+
+			const lineTotal = qty * price - disc;
 			item.total_price = lineTotal > 0 ? lineTotal : 0;
-			return sum + item.total_price;
-		}, 0);
+
+			tempGrossTotal += qty * price;
+			tempTotalDiscount += disc;
+
+			return item;
+		});
+
+		subtotal = tempGrossTotal;
+		discountGlobal = tempTotalDiscount;
 
 		const afterDiscount = subtotal - discountGlobal;
 		const baseAmount = afterDiscount > 0 ? afterDiscount : 0;
@@ -122,8 +137,6 @@
 		vatAmount = (baseAmount * vatRate) / 100;
 		whtAmount = (baseAmount * whtRate) / 100;
 		totalAmount = baseAmount + vatAmount - whtAmount;
-
-		items = items;
 	}
 
 	function addItem() {
@@ -195,8 +208,10 @@
 					<select
 						id="vendor_id"
 						name="vendor_id"
+						bind:value={vendor_id}
 						required
-						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						disabled={!!data.fromPR}
+						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
 					>
 						<option value="">-- เลือกผู้ขาย --</option>
 						{#each data.vendors as vendor}
@@ -205,6 +220,10 @@
 							>
 						{/each}
 					</select>
+
+					{#if data.fromPR}
+						<input type="hidden" name="vendor_id" value={vendor_id} />
+					{/if}
 				</div>
 				<div>
 					<label for="contact_person" class="block text-sm font-medium text-gray-700"
@@ -268,13 +287,13 @@
 			<table class="min-w-full divide-y divide-gray-200">
 				<thead class="bg-gray-50">
 					<tr>
-						<th class="w-80 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
 							>สินค้า/บริการ</th
 						>
-						<th class="w-64 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
 							>รายละเอียด</th
 						>
-						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
+						<th class="w-24 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
 							>จำนวน</th
 						>
 						<th class="w-32 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
@@ -295,7 +314,7 @@
 				<tbody class="divide-y divide-gray-200 bg-white">
 					{#each items as item, index}
 						<tr>
-							<td class="px-3 py-2" style="width: 320px; max-width: 320px;">
+							<td class="px-3 py-2" style="min-width: 250px;">
 								<Select
 									items={productOptions}
 									value={item.product_object}
@@ -307,13 +326,9 @@
 									--inputStyles="padding: 2px 0; font-size: 0.875rem;"
 									--list="border-radius: 6px; font-size: 0.875rem;"
 									--itemIsActive="background: #e0f2fe;"
-									--value-container-overflow="hidden"
-									--selected-item-overflow="hidden"
-									--selected-item-text-overflow="ellipsis"
-									--selected-item-white-space="nowrap"
 								/>
 							</td>
-							<td class="px-3 py-2" style="width: 250px; max-width: 250px;">
+							<td class="px-3 py-2">
 								<input
 									type="text"
 									bind:value={item.description}
@@ -379,7 +394,7 @@
 									class="w-full rounded-md border-gray-300 text-right text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</td>
-							<td class="px-3 py-2 text-right font-medium text-gray-900">
+							<td class="px-3 py-2 text-right font-medium text-gray-700">
 								{item.total_price.toLocaleString('en-US', {
 									minimumFractionDigits: 2,
 									maximumFractionDigits: 2
@@ -390,7 +405,7 @@
 									<button
 										type="button"
 										on:click={() => removeItem(index)}
-										class="text-red-500 hover:text-red-700"
+										class="text-red-600 hover:text-red-900"
 										aria-label="ลบรายการสินค้า"
 									>
 										<svg
@@ -456,14 +471,14 @@
 					>
 				</div>
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-gray-600">ส่วนลดท้ายบิล (Discount)</span>
+					<span class="text-sm text-gray-600">ส่วนลดรวม (Total Discount)</span>
 					<input
 						aria-label="ส่วนลดท้ายบิล"
 						type="number"
 						step="0.01"
 						bind:value={discountGlobal}
-						on:input={calculateTotals}
-						class="w-32 rounded-md border-gray-300 p-1 text-right text-sm shadow-sm"
+						readonly
+						class="w-32 cursor-not-allowed rounded-md border-gray-300 bg-gray-100 p-1 text-right text-sm text-gray-600 shadow-sm"
 					/>
 				</div>
 
