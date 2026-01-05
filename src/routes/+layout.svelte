@@ -92,10 +92,7 @@
 
 	function isLinkActive(href: string | null) {
 		if (!href) return false;
-		if (href === '/') {
-			return $page.url.pathname === '/';
-		}
-		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
+		return $page.url.pathname === href;
 	}
 
 	// --- *** FIX ***: Check if a child link in a group is active
