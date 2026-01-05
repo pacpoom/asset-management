@@ -58,7 +58,6 @@ function getRepairHtml(companyData: CompanyData | null, repairData: RepairData):
 		return map[status] || status;
 	};
 
-	// --- (ส่วนหัว & ข้อมูลทรัพย์สิน) ---
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
@@ -110,7 +109,6 @@ function getRepairHtml(companyData: CompanyData | null, repairData: RepairData):
         </table>
     `;
 
-	// --- (ตารางรายการ) ---
 	const contentHtml = `
         <div style="flex-grow: 1;">
             
@@ -163,7 +161,6 @@ function getRepairHtml(companyData: CompanyData | null, repairData: RepairData):
         </div>
     `;
 
-	// (ลายเซ็น) ---
 	const signatureBlock = `
         <div style="margin-top: 40px; page-break-inside: avoid;"> 
             <section style="border-top: 1px dotted #ccc; padding-top: 20px;"> 
