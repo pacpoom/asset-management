@@ -83,7 +83,7 @@
 		<p class="mt-1 text-sm text-gray-500">เอกสารสรุปรายการเรียกเก็บเงิน</p>
 	</div>
 	<a
-		href="/billing-notes/slip"
+		href="/billing-notes/create"
 		class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
 	>
 		<svg

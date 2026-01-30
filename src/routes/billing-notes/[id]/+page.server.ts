@@ -6,45 +6,49 @@ export const load: PageServerLoad = async ({ params }) => {
 	const id = parseInt(params.id);
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
+	let connection;
 	try {
-		const [rows] = await pool.query<any[]>(
-			`
-            SELECT bn.*, 
-                   c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id,
-                   u.full_name as created_by_name
-            FROM billing_notes bn
-            LEFT JOIN customers c ON bn.customer_id = c.id
-            LEFT JOIN users u ON bn.created_by_user_id = u.id
-            WHERE bn.id = ?
-        `,
+		connection = await pool.getConnection();
+
+		const [bnRows] = await connection.query<any[]>(`SELECT * FROM billing_notes WHERE id = ?`, [
+			id
+		]);
+		if (bnRows.length === 0) throw error(404, 'Not found');
+		const billingNote = bnRows[0];
+
+		let customer = { name: '-', address: '-', tax_id: '-' };
+		if (billingNote.customer_id) {
+			const [cRows] = await connection.query<any[]>(`SELECT * FROM customers WHERE id = ?`, [
+				billingNote.customer_id
+			]);
+			if (cRows.length > 0) customer = cRows[0];
+		}
+		billingNote.customer_name = customer.name;
+		billingNote.customer_address = customer.address;
+		billingNote.customer_tax_id = customer.tax_id;
+
+		const [uRows] = await connection.query<any[]>(`SELECT full_name FROM users WHERE id = ?`, [
+			billingNote.created_by_user_id || 0
+		]);
+		billingNote.created_by_name = uRows[0]?.full_name || '-';
+
+		const [items] = await connection.query<any[]>(
+			`SELECT * FROM billing_note_items WHERE billing_note_id = ? ORDER BY id ASC`,
 			[id]
 		);
 
-		if (rows.length === 0) throw error(404, 'Billing Note not found');
-		const billingNote = rows[0];
-
-		const [invoices] = await pool.query<any[]>(
-			`
-            SELECT bni.*, i.invoice_number, i.invoice_date, i.due_date as invoice_due_date
-            FROM billing_note_invoices bni
-            LEFT JOIN invoices i ON bni.invoice_id = i.id
-            WHERE bni.billing_note_id = ?
-            ORDER BY i.invoice_date ASC
-        `,
-			[id]
-		);
-
-		const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
+		const [companyRows] = await connection.query<any[]>(`SELECT * FROM company LIMIT 1`);
 
 		return {
 			billingNote: JSON.parse(JSON.stringify(billingNote)),
-			invoices: JSON.parse(JSON.stringify(invoices)),
-			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
-			availableStatuses: ['Draft', 'Sent', 'Paid', 'Void']
+			items: JSON.parse(JSON.stringify(items)),
+			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null
 		};
 	} catch (err: any) {
-		console.error('Error loading billing note:', err);
+		console.error('Error:', err);
 		throw error(500, err.message);
+	} finally {
+		if (connection) connection.release();
 	}
 };
 

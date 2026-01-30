@@ -1,3 +1,4 @@
+// ไฟล์: src/routes/invoices/generate-pdf/+server.ts
 import { json } from '@sveltejs/kit';
 import puppeteer from 'puppeteer';
 import fs from 'fs';
@@ -26,6 +27,7 @@ interface InvoiceData extends RowDataPacket {
 	invoice_date: string;
 	due_date: string | null;
 	reference_doc: string | null;
+	notes: string | null; // เพิ่ม field notes
 
 	// ข้อมูลลูกค้า (Join)
 	customer_name: string;
@@ -199,7 +201,7 @@ function getInvoiceHtml(
 		</thead>
 	`;
 
-	// *** ตารางสรุปยอดเงิน แบบเดียวกับ Bill Payment (รวมตารางซ้ายขวา) ***
+	// *** ตารางสรุปยอดเงิน (แก้ไขแล้ว: มี Notes และย้ายตัวอักษรเงินมาในกรอบซ้าย) ***
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
@@ -208,40 +210,43 @@ function getInvoiceHtml(
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" class="p-2"></td> 
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-weight: bold;">รวมเป็นเงิน</td>
+                    <td colspan="4" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+                        <div>
+                            <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
+                            <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${invoiceData.notes || '-'}</div>
+                        </div>
+                        <div style="position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-weight: bold;">
+                            (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
+                        </div>
+                    </td> 
+                    
+                    <td class="font-bold p-2 text-right border-t border-gray-400">รวมเป็นเงิน</td>
                     <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
                 
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ส่วนลด</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
                     <td class="p-2 text-right">${formatNumber(discount)}</td>
                 </tr>
+                
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">หลังหักส่วนลด</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
                     <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
 
                 <tr>
-					<td colspan="4" class="p-2"></td>
-					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+					<td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
 					<td class="p-2 text-right">${formatNumber(vatAmt)}</td>
 				</tr>
 
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold; color: #dc2626;">หัก ณ ที่จ่าย (${whtRate}%)</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่าย (${whtRate}%)</td>
                     <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
                 </tr>
 
                 <tr style="background-color: #ffffff;">
-                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
-                        (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
-                    </td>
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
-                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 8pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt;">จำนวนเงินสุทธิ</td>
+                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 9pt; font-weight: bold;">${formatNumber(netAmount)}</td>
                 </tr>
             </tfoot>
         </table>

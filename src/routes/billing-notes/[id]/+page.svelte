@@ -18,13 +18,20 @@
 		tax_id: string | null;
 	}
 
+	// กำหนด Type สำหรับ Item ใหม่ (ไม่ใช่ Invoice แล้ว)
+	interface BillingItem {
+		item_name: string;
+		quantity: number;
+		unit_price: number;
+		amount: number;
+	}
+
 	type BillingNoteHeader = PageData['billingNote'];
-	type BillingNoteInvoice = PageData['invoices'][0];
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let billingNote = $state<BillingNoteHeader>(data.billingNote);
-	let invoices = $state<BillingNoteInvoice[]>(data.invoices);
+	let items = $state<BillingItem[]>(data.items); // เปลี่ยนจาก invoices เป็น items
 	let companyData = $state<Company>(data.company);
 
 	let isSaving = $state(false);
@@ -33,7 +40,7 @@
 
 	$effect(() => {
 		billingNote = data.billingNote;
-		invoices = data.invoices;
+		items = data.items;
 		companyData = data.company;
 	});
 
@@ -226,57 +233,56 @@
 		</div>
 	</div>
 
-	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-		<div>
+	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+		<div class="md:col-span-2">
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">ลูกค้า (Customer)</h3>
 			<p class="font-semibold text-gray-800">{billingNote.customer_name}</p>
-			<p class="text-sm whitespace-pre-wrap text-gray-600">{billingNote.customer_address || '-'}</p>
+
+			<p class="text-sm whitespace-pre-wrap text-gray-600">
+				{billingNote.customer_address || '-'}
+			</p>
+
 			<p class="mt-1 text-sm">
 				<span class="font-semibold text-gray-700">Tax ID:</span>
 				{billingNote.customer_tax_id || '-'}
 			</p>
-		</div>
-
-		<div class="md:text-right">
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้เตรียมเอกสาร (Prepared By)</h3>
-			<p class="text-sm text-gray-800">{billingNote.created_by_name}</p>
 		</div>
 	</div>
 </div>
 
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
-		รายการใบแจ้งหนี้ ({invoices.length})
+		รายการวางบิล ({items.length})
 	</h3>
 	<div class="overflow-x-auto">
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-3 py-2 text-left font-medium text-gray-500">Invoice No.</th>
-					<th class="px-3 py-2 text-left font-medium text-gray-500">Date</th>
-					<th class="px-3 py-2 text-left font-medium text-gray-500">Due Date</th>
-					<th class="px-3 py-2 text-right font-medium text-gray-500">Amount</th>
+					<th class="w-12 px-3 py-2 text-center font-medium text-gray-500">#</th>
+					<th class="px-3 py-2 text-left font-medium text-gray-500">รายการ (Description)</th>
+					<th class="px-3 py-2 text-center font-medium text-gray-500">จำนวน (Qty)</th>
+					<th class="px-3 py-2 text-right font-medium text-gray-500">ราคา/หน่วย</th>
+					<th class="px-3 py-2 text-right font-medium text-gray-500">รวมเงิน</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
-				{#each invoices as inv}
+				{#each items as item, i}
 					<tr>
-						<td class="px-3 py-2 text-blue-600">
-							<a href="/invoices/{inv.invoice_id}" class="hover:underline" target="_blank">
-								{inv.invoice_number}
-							</a>
-						</td>
-						<td class="px-3 py-2 text-gray-700">{formatDate(inv.invoice_date)}</td>
-						<td class="px-3 py-2 text-gray-700">{formatDate(inv.invoice_due_date)}</td>
+						<td class="px-3 py-2 text-center text-gray-500">{i + 1}</td>
+						<td class="px-3 py-2 font-medium text-gray-900">{item.item_name}</td>
+						<td class="px-3 py-2 text-center text-gray-700">{item.quantity}</td>
+						<td class="px-3 py-2 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
 						<td class="px-3 py-2 text-right font-medium text-gray-800"
-							>{formatCurrency(inv.amount)}</td
+							>{formatCurrency(item.amount)}</td
 						>
 					</tr>
 				{/each}
 			</tbody>
 			<tfoot class="bg-gray-50">
 				<tr>
-					<td colspan="3" class="px-3 py-2 text-right font-bold text-gray-700">Total Amount:</td>
+					<td colspan="4" class="px-3 py-2 text-right font-bold text-gray-700"
+						>รวมเป็นเงินทั้งสิ้น (Total):</td
+					>
 					<td class="px-3 py-2 text-right font-bold text-blue-700">
 						{formatCurrency(billingNote.total_amount)}
 					</td>
@@ -286,7 +292,11 @@
 	</div>
 </div>
 
-<div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
-	<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">Notes</h3>
-	<p class="text-sm whitespace-pre-wrap text-gray-600">{billingNote.notes || 'No notes.'}</p>
+<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-12">
+	<div class="md:col-span-8">
+		<div class="h-full rounded-lg border bg-white p-4 shadow-sm">
+			<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">หมายเหตุ (Notes)</h3>
+			<p class="text-sm whitespace-pre-wrap text-gray-600">{billingNote.notes || '-'}</p>
+		</div>
+	</div>
 </div>

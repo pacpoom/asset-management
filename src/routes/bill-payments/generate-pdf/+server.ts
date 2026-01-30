@@ -23,10 +23,11 @@ interface CompanyData extends RowDataPacket {
 }
 
 interface VoucherData extends RowDataPacket {
-	id: string; // id ของ bill_payment
+	id: string;
 	payment_reference: string | null;
 	payment_date: string;
 	vendor_id: string;
+	notes: string | null;
 
 	// ข้อมูลที่ Join มา
 	vendor_name: string;
@@ -240,43 +241,47 @@ function getBillHtml(
     `;
 
 	const financialSummaryBlock = `
-        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 1px;">
+        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 1px; width: 100%; font-size: 8pt;">
             <colgroup>
                 <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
                 <col style="width: 112px;"> <col style="width: 128px;">
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" class="p-2"></td> 
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 8pt; font-weight: bold;">รวมเป็นเงิน</td>
-                    <td class="p-2 text-right border-t border-gray-400" style="font-size: 8pt;">${formatNumber(subtotal)}</td>
+                    <td colspan="4" rowspan="5" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top;">
+                         <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
+                         <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${voucherData.notes || '-'}</div>
+                    </td>
+                    <td class="font-bold p-2 text-right border-t border-gray-400">รวมเป็นเงิน</td>
+                    <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
+                
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ส่วนลด</td>
-                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(discount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(discount)}</td>
                 </tr>
+
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">หลังหักส่วนลด</td>
-                    <td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(totalAfterDiscount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
+
                 <tr>
-					<td colspan="4" class="p-2"></td>
-					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-size: 8pt; font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
-					<td class="p-2 text-right" style="font-size: 8pt;">${formatNumber(vat)}</td>
+					<td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+					<td class="p-2 text-right">${formatNumber(vat)}</td>
 				</tr>
+
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600" style="font-size: 8pt; font-weight: bold;">หัก ณ ที่จ่าย (${voucherData.withholding_tax_rate ?? 0}%)</td>
-                    <td class="p-2 text-right text-red-600" style="font-size: 8pt;">${formatNumber(wht)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่าย (${voucherData.withholding_tax_rate ?? 0}%)</td>
+                    <td class="p-2 text-right text-red-600">${formatNumber(wht)}</td>
                 </tr>
+
                 <tr style="background-color: #ffffff;">
-                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
+                    <td colspan="4" class="p-2 text-center font-bold border-l border-b border-r border-gray-400" style="font-size: 9pt; border-top: none;">
                         (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
                     </td>
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
-                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 8pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt;">จำนวนเงินสุทธิ</td>
+                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 9pt; font-weight: bold;">${formatNumber(netAmount)}</td>
                 </tr>
             </tfoot>
         </table>

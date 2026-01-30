@@ -26,6 +26,7 @@ interface QuotationData extends RowDataPacket {
 	quotation_date: string;
 	valid_until: string | null;
 	reference_doc: string | null;
+	notes: string | null;
 
 	customer_name: string;
 	customer_address: string | null;
@@ -200,40 +201,40 @@ function getQuotationHtml(
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" class="p-2"></td> 
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-weight: bold;">รวมเป็นเงิน</td>
+                    <td colspan="4" rowspan="5" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top;">
+                         <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
+                         <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${qtData.notes || '-'}</div>
+                    </td>
+                    <td class="font-bold p-2 text-right border-t border-gray-400">รวมเป็นเงิน</td>
                     <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
                 
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ส่วนลด</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
                     <td class="p-2 text-right">${formatNumber(discount)}</td>
                 </tr>
+
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">หลังหักส่วนลด</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
                     <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
 
                 <tr>
-					<td colspan="4" class="p-2"></td>
-					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+					<td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
 					<td class="p-2 text-right">${formatNumber(vatAmt)}</td>
 				</tr>
 
                 <tr>
-                    <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600" style="font-weight: bold;">หัก ณ ที่จ่าย (${whtRate}%)</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่าย (${whtRate}%)</td>
                     <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
                 </tr>
 
                 <tr style="background-color: #ffffff;">
-                    <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
+                    <td colspan="4" class="p-2 text-center font-bold border-l border-b border-r border-gray-400" style="font-size: 9pt; border-top: none;">
                         (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
                     </td>
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt; font-weight: bold;">จำนวนเงินสุทธิ</td>
-                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 8pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400">จำนวนเงินสุทธิ</td>
+                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 9pt; font-weight: bold;">${formatNumber(netAmount)}</td>
                 </tr>
             </tfoot>
         </table>
@@ -313,7 +314,7 @@ function getQuotationHtml(
 			let footerHtml = '';
 			if (isLastPage) {
 				footerHtml = `
-				${summaryBlock}
+                ${summaryBlock}
 				${signatureBlock}
 				<div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">หน้า ${pageNum} / ${totalPages}</div>
 			`;

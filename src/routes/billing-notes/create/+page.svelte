@@ -1,53 +1,19 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import type { PageData } from './$types';
+	import type { PageData } from '../create/$types';
 
 	export let data: PageData;
-	$: ({ billingNote, customers, products, existingItems } = data);
+	$: ({ customers, products } = data);
 
-	let billingDate = '';
+	let billingDate = new Date().toISOString().split('T')[0];
 	let dueDate = '';
+	let selectedCustomerId: string | number = '';
 	let notes = '';
 
-	// ตัวแปรสำหรับ Dropdown ลูกค้า
-	let selectedCustomerId: string | number = '';
-
-	// [เพิ่มตัวแปรนี้] ใช้จำว่าเราโหลดข้อมูลของ Billing Note ID ไหนมาแล้ว
-	let loadedBillingNoteId: number | null = null;
-
-	// ตัวแปรสำหรับระบบสินค้า
 	let searchQuery = '';
 	let showDropdown = false;
 	let selectedItems: any[] = [];
 	let isSaving = false;
-
-	// --- [แก้ไขจุดนี้] ---
-	// ใช้เงื่อนไขเช็ค ID แทนเช็คค่าว่าง เพื่อความชัวร์ 100%
-	$: if (billingNote && billingNote.id !== loadedBillingNoteId) {
-		loadedBillingNoteId = billingNote.id; // จำ ID ไว้ ว่าโหลดแล้ว
-
-		// ใส่ค่าเริ่มต้นทันที โดยไม่ต้องเช็ค if (!selectedCustomerId)
-		selectedCustomerId = billingNote.customer_id;
-
-		billingDate = new Date(billingNote.billing_date).toISOString().split('T')[0];
-		dueDate = billingNote.due_date
-			? new Date(billingNote.due_date).toISOString().split('T')[0]
-			: '';
-		notes = billingNote.notes || '';
-	}
-	// ----------------------
-
-	let initialized = false;
-	$: if (existingItems && !initialized) {
-		selectedItems = existingItems.map((item: any) => ({
-			product_id: item.product_id,
-			item_name: item.item_name,
-			quantity: Number(item.quantity),
-			unit_price: Number(item.unit_price),
-			amount: Number(item.amount)
-		}));
-		initialized = true;
-	}
 
 	$: filteredProducts = (products || []).filter(
 		(p: any) =>
@@ -85,20 +51,15 @@
 </script>
 
 <svelte:head>
-	<title>แก้ไขใบวางบิล {billingNote?.billing_note_number}</title>
+	<title>สร้างใบวางบิลใหม่</title>
 </svelte:head>
 
-<div class="mx-auto mb-10 max-w-4xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-800">
-			แก้ไขใบวางบิล: {billingNote?.billing_note_number}
-		</h1>
-		<span class="text-sm text-gray-500">สถานะ: {billingNote?.status}</span>
-	</div>
+<div class="mx-auto max-w-4xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+	<h1 class="mb-6 text-2xl font-bold text-gray-800">สร้างใบวางบิล (New Billing Note)</h1>
 
 	<form
 		method="POST"
-		action="?/update"
+		action="?/create"
 		use:enhance={() => {
 			isSaving = true;
 			return async ({ update }) => {
@@ -109,23 +70,26 @@
 	>
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div>
-				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700">ลูกค้า</label>
+				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>ลูกค้า <span class="text-red-500">*</span></label
+				>
 				<select
 					id="customer_id"
 					name="customer_id"
 					bind:value={selectedCustomerId}
+					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				>
+					<option value="">-- เลือกลูกค้า --</option>
 					{#each customers as customer}
 						<option value={customer.id}>{customer.name}</option>
 					{/each}
 				</select>
 			</div>
-
 			<div class="grid grid-cols-2 gap-4">
 				<div>
 					<label for="billing_date" class="mb-1 block text-sm font-medium text-gray-700"
-						>วันที่วางบิล</label
+						>วันที่วางบิล <span class="text-red-500">*</span></label
 					>
 					<input
 						type="date"
@@ -157,12 +121,11 @@
 			<h3 class="mb-3 text-lg font-semibold text-gray-800">รายการสินค้า (Items)</h3>
 
 			<div class="relative mb-4">
-				<label for="search_product" class="mb-1 block text-sm font-medium text-gray-700"
+				<label for="product_search" class="mb-1 block text-sm font-medium text-gray-700"
 					>ค้นหาและเพิ่มสินค้า</label
 				>
 				<input
 					type="text"
-					id="search_product"
 					placeholder="พิมพ์ชื่อสินค้า..."
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					bind:value={searchQuery}
@@ -174,16 +137,20 @@
 					<div
 						class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white shadow-lg"
 					>
-						{#each filteredProducts as p}
-							<button
-								type="button"
-								class="flex w-full justify-between px-4 py-2 text-left text-sm hover:bg-blue-50"
-								on:mousedown={() => selectProduct(p)}
-							>
-								<span class="font-medium text-gray-800">{p.name}</span>
-								<span class="text-gray-500">{Number(p.price).toLocaleString()} ฿</span>
-							</button>
-						{/each}
+						{#if filteredProducts.length === 0}
+							<div class="p-3 text-sm text-gray-500">ไม่พบสินค้า</div>
+						{:else}
+							{#each filteredProducts as p}
+								<button
+									type="button"
+									class="flex w-full justify-between px-4 py-2 text-left text-sm hover:bg-blue-50"
+									on:mousedown={() => selectProduct(p)}
+								>
+									<span class="font-medium text-gray-800">{p.name}</span>
+									<span class="text-gray-500">{Number(p.price).toLocaleString()} ฿</span>
+								</button>
+							{/each}
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -240,7 +207,10 @@
 							</tr>
 						{/each}
 						{#if selectedItems.length === 0}
-							<tr><td colspan="5" class="p-4 text-center text-gray-500">ไม่มีรายการสินค้า</td></tr>
+							<tr
+								><td colspan="5" class="p-4 text-center text-gray-500">กรุณาเพิ่มรายการสินค้า</td
+								></tr
+							>
 						{/if}
 					</tbody>
 					<tfoot class="bg-gray-50 font-bold">
@@ -264,6 +234,7 @@
 				bind:value={notes}
 				rows="3"
 				class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				placeholder="ระบุหมายเหตุ..."
 			></textarea>
 		</div>
 
@@ -271,7 +242,7 @@
 
 		<div class="flex justify-end gap-3">
 			<a
-				href="/billing-notes/{billingNote?.id}"
+				href="/billing-notes"
 				class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 			>
 				ยกเลิก
@@ -284,7 +255,7 @@
 				{#if isSaving}
 					กำลังบันทึก...
 				{:else}
-					บันทึกการแก้ไข
+					บันทึกใบวางบิล
 				{/if}
 			</button>
 		</div>
