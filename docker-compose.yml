@@ -1,6 +1,5 @@
 version: '3.8'
 services:
-  # SVELTE/NODE.JS APPLICATION SERVICE
   web:
     build: .
     container_name: svelte_app
@@ -8,42 +7,16 @@ services:
       - "4173:3000"
     environment:
       NODE_ENV: production
-      ORIGIN: https://siambids.com # เปลี่ยนเป็น URL ที่ถูกต้องของแอปพลิเคชัน
-      # ✅ แก้ไข: เปลี่ยน DB_HOST เป็นชื่อ service 'db'
-      DB_HOST: db
-      DB_USER: root
-      DB_PASSWORD: Anji@12345
-      DB_NAME: siam_db
-      DB_PORT: 3306 # Port ภายใน Container ของ MySQL คือ 3306
-    # ✅ แก้ไข: เปลี่ยนจาก bind mount เป็น named volume 'uploads_data'
+      ORIGIN: http://localhost:4173
+      
+      DB_HOST: 192.168.111.57  
+      DB_PORT: 8081             
+      DB_NAME: bizcore          
+      DB_USER: root             
+      DB_PASSWORD: Anji@12345   
+      
     volumes:
       - uploads_data:/app/static/uploads
-    depends_on:
-      db:
-        condition: service_healthy
-
-  # MYSQL DATABASE SERVICE
-  db:
-    image: mysql:8.0
-    container_name: mysql_db
-    # ⚠️ คำเตือนด้านความปลอดภัย:
-    # การใช้ MYSQL_ALLOW_EMPTY_PASSWORD หรือรหัสผ่านที่คาดเดาง่าย
-    # เป็นความเสี่ยงอย่างยิ่งเมื่อใช้งานจริง (Production)
-    # แนะนำให้ตั้ง MYSQL_ROOT_PASSWORD เป็นรหัสผ่านที่คาดเดายาก
-    environment:
-      MYSQL_ROOT_PASSWORD: Anji@12345 # <--- แนะนำให้ตั้งรหัสผ่านที่คาดเดายาก
-      MYSQL_DATABASE: siam_db
-    ports:
-      - "3308:3306"
-    volumes:
-      - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pAnji@12345"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 volumes:
-  mysql-data:
-  # ✅ เพิ่ม: ประกาศ named volume สำหรับเก็บไฟล์ uploads
   uploads_data:
