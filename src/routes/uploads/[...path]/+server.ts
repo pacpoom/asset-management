@@ -4,33 +4,34 @@ import path from 'path';
 import { fileTypeFromBuffer } from 'file-type';
 
 export async function GET({ locals, params }) {
-	if (!locals.user) {
-		throw error(401, 'Unauthorized');
-	}
+    const isPublic = params.path.startsWith('company/') || params.path.startsWith('company\\');
 
-	const filePath = path.resolve('uploads', params.path);
+    if (!isPublic && !locals.user) {
+        throw error(401, 'Unauthorized');
+    }
 
-	if (!fs.existsSync(filePath)) {
-		throw error(404, 'Not Found');
-	}
+    const filePath = path.resolve('uploads', params.path);
 
-	try {
-		const fileBuffer = fs.readFileSync(filePath);
+    if (!fs.existsSync(filePath)) {
+        throw error(404, 'Not Found');
+    }
 
-		const mimeTypeResult = await fileTypeFromBuffer(fileBuffer);
-		const mimeType = mimeTypeResult ? mimeTypeResult.mime : 'application/octet-stream';
+    try {
+        const fileBuffer = fs.readFileSync(filePath);
 
-		return new Response(fileBuffer, {
-			status: 200,
-			headers: {
-				'Content-Type': mimeType,
-				'Content-Length': fileBuffer.length.toString(),
+        const mimeTypeResult = await fileTypeFromBuffer(fileBuffer);
+        const mimeType = mimeTypeResult ? mimeTypeResult.mime : 'application/octet-stream';
 
-				'Cache-Control': 'public, max-age=3600'
-			}
-		});
-	} catch (e) {
-		console.error('Failed to read file:', e);
-		throw error(500, 'Internal Server Error');
-	}
+        return new Response(fileBuffer, {
+            status: 200,
+            headers: {
+                'Content-Type': mimeType,
+                'Content-Length': fileBuffer.length.toString(),
+                'Cache-Control': 'public, max-age=3600'
+            }
+        });
+    } catch (e) {
+        console.error('Failed to read file:', e);
+        throw error(500, 'Internal Server Error');
+    }
 }
