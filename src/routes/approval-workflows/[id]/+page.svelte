@@ -18,7 +18,6 @@
 		return async ({ result }) => {
 			if (result.type === 'success' && result.data?.success) {
 				toast.success(result.data.message);
-				// Trigger reload of data
 				location.reload();
 			} else if (result.type === 'failure') {
 				toast.error(result.data?.message || 'An error occurred.');
