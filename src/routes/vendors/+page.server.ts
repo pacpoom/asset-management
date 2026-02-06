@@ -281,6 +281,10 @@ export const actions: Actions = {
 				[vendorId]
 			);
 
+			await connection.execute('DELETE FROM vendor_notes WHERE vendor_id = ?', [vendorId]);
+
+			await connection.execute('DELETE FROM vendor_documents WHERE vendor_id = ?', [vendorId]);
+
 			await connection.execute('DELETE FROM vendors WHERE id = ?', [vendorId]);
 
 			await connection.commit();
@@ -288,15 +292,18 @@ export const actions: Actions = {
 
 			const deletePromises = docsToDelete.map((doc) => deleteFile(doc.file_path));
 			await Promise.all(deletePromises);
+
+			return { action: 'deleteVendor', success: true };
 		} catch (error: any) {
 			await connection.rollback();
 			connection.release();
 			console.error(`Delete Vendor Error: ${error.message}`);
+
 			if (error.code === 'ER_ROW_IS_REFERENCED_2') {
 				return fail(409, {
 					action: 'deleteVendor',
 					success: false,
-					message: 'Cannot delete vendor. Referenced by other records.'
+					message: 'ไม่สามารถลบได้: ข้อมูลนี้ถูกใช้งานอยู่ในส่วนอื่น (เช่น ใบสั่งซื้อ หรือ สัญญา)'
 				});
 			}
 			return fail(500, {
@@ -305,8 +312,6 @@ export const actions: Actions = {
 				message: `Failed to delete. Error: ${error.message}`
 			});
 		}
-
-		throw redirect(303, '/vendors');
 	},
 
 	uploadDocument: async ({ request, locals }) => {
