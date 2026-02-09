@@ -3,8 +3,8 @@
 	import type { PageData, ActionData } from './$types';
 	import { slide, fade } from 'svelte/transition';
 	import { invalidateAll } from '$app/navigation';
-	import Select from 'svelte-select'; // [NEW] นำเข้า Select
-	import { browser } from '$app/environment'; // [NEW] นำเข้า browser
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	// --- Types ---
 	type Customer = { id: number; name: string };
@@ -33,12 +33,12 @@
 		documents: ContractDocument[];
 	};
 
-	// --- Props & State (Svelte 5) ---
+	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let contracts = $state<Contract[]>(data.contracts || []);
 	let customers = $state<Customer[]>(data.customers || []);
-	let users = $state<User[]>(data.users || []);
+	let users = $state<User[]>(data.users || []); // ข้อมูลพนักงานจากตาราง users
 	let contractTypes = $state<ContractType[]>(data.contractTypes || []);
 
 	let modalElement = $state<HTMLDialogElement | null>(null);
@@ -46,17 +46,20 @@
 	let isLoading = $state(false);
 	let formError = $state<string | null>(null);
 
-	// --- [NEW] Logic สำหรับ Searchable Dropdowns ---
+	// --- [FIX] Searchable Dropdown Options พร้อมระบุ Type ชัดเจน ---
 	const customerOptions = $derived(
 		customers.map((c: Customer) => ({ value: c.id, label: c.name }))
 	);
 	const contractTypeOptions = $derived(
 		contractTypes.map((ct: ContractType) => ({ value: ct.id, label: ct.name }))
 	);
+	const userOptions = $derived(users.map((u: User) => ({ value: u.id, label: u.username })));
 
 	let selectedCustomerObj = $state<any>(null);
 	let selectedContractTypeObj = $state<any>(null);
+	let selectedUserObj = $state<any>(null);
 
+	// --- Handlers สำหรับ Select ---
 	function handleCustomerChange(event: any) {
 		const selected = event?.detail || null;
 		selectedCustomerObj = selected;
@@ -67,6 +70,12 @@
 		const selected = event?.detail || null;
 		selectedContractTypeObj = selected;
 		currentContract.contract_type_id = selected ? selected.value : null;
+	}
+
+	function handleUserChange(event: any) {
+		const selected = event?.detail || null;
+		selectedUserObj = selected;
+		currentContract.owner_user_id = selected ? selected.value : null;
 	}
 
 	// --- Contract Form State ---
@@ -86,7 +95,7 @@
 	let currentContract = $state<Contract>(createEmptyContract());
 	let fileInput = $state<HTMLInputElement | null>(null);
 
-	// State สำหรับการกรองตาราง
+	// Filters
 	let filterStatus = $state('');
 	let filterCustomer = $state('');
 	let filterSearch = $state('');
@@ -108,12 +117,13 @@
 		return filtered;
 	});
 
-	// --- Functions ---
+	// --- Modal Functions ---
 	function openAddModal() {
 		isEditing = false;
 		currentContract = createEmptyContract();
 		selectedCustomerObj = null;
 		selectedContractTypeObj = null;
+		selectedUserObj = null;
 		formError = null;
 		if (fileInput) fileInput.value = '';
 		modalElement?.showModal();
@@ -129,11 +139,12 @@
 			end_date: contract.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : ''
 		};
 
-		// ตั้งค่าเริ่มต้นให้ Searchable Dropdowns
+		// ตั้งค่าเริ่มต้นให้กับ Select components [FIXED implicit any]
 		selectedCustomerObj = customerOptions.find((opt: any) => opt.value === contract.customer_id);
 		selectedContractTypeObj = contractTypeOptions.find(
 			(opt: any) => opt.value === contract.contract_type_id
 		);
+		selectedUserObj = userOptions.find((opt: any) => opt.value === contract.owner_user_id);
 
 		formError = null;
 		if (fileInput) fileInput.value = '';
@@ -160,16 +171,13 @@
 				if (form.source === 'cud') modalElement?.showModal();
 			}
 			if (form.success) {
-				if (form.source === 'delete') {
-					contracts = contracts.filter((c) => c.id !== form.deletedId);
-				} else if (form.source === 'cud') {
+				if (form.source === 'delete') contracts = contracts.filter((c) => c.id !== form.deletedId);
+				else if (form.source === 'cud') {
 					const newOrUpdated = (form.newContract || form.updatedContract) as Contract;
 					if (newOrUpdated) {
-						if (isEditing) {
+						if (isEditing)
 							contracts = contracts.map((c) => (c.id === newOrUpdated.id ? newOrUpdated : c));
-						} else {
-							contracts = [newOrUpdated, ...contracts];
-						}
+						else contracts = [newOrUpdated, ...contracts];
 					}
 					closeModal();
 				}
@@ -179,20 +187,17 @@
 	});
 </script>
 
-<svelte:head>
-	<title>ระบบจัดการสัญญา</title>
-</svelte:head>
+<svelte:head><title>ระบบจัดการสัญญา</title></svelte:head>
 
 <div class="min-h-screen bg-gray-50 p-6 font-sans">
 	<div class="mb-6 flex items-center justify-between">
 		<h1 class="text-3xl font-bold text-gray-800">ระบบจัดการสัญญา (Contract Management)</h1>
 		<button
 			onclick={openAddModal}
-			class="flex transform items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-md transition duration-300 hover:-translate-y-0.5 hover:bg-blue-700"
+			class="flex transform items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-md transition duration-300 hover:bg-blue-700"
 			aria-label="เพิ่มสัญญาใหม่"
 		>
-			{@html Icon.plus}
-			<span>เพิ่มสัญญาใหม่</span>
+			{@html Icon.plus}<span>เพิ่มสัญญาใหม่</span>
 		</button>
 	</div>
 
@@ -204,7 +209,7 @@
 				id="search"
 				bind:value={filterSearch}
 				placeholder="ค้นหาชื่อ, เลขที่, หรือลูกค้า..."
-				class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 focus:border-blue-500 focus:ring-blue-500"
+				class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 focus:ring-blue-500"
 			/>
 			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pt-6 pl-3">
 				{@html Icon.search}
@@ -215,14 +220,11 @@
 			<select
 				id="filterStatus"
 				bind:value={filterStatus}
-				class="w-full rounded-lg border border-gray-300 p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				class="w-full rounded-lg border border-gray-300 p-2 shadow-sm focus:ring-blue-500"
 			>
-				<option value="">-- ทุกสถานะ --</option>
-				<option value="Draft">Draft</option>
-				<option value="In Review">In Review</option>
-				<option value="Active">Active</option>
-				<option value="Expired">Expired</option>
-				<option value="Terminated">Terminated</option>
+				<option value="">-- ทุกสถานะ --</option><option value="Draft">Draft</option><option
+					value="Active">Active</option
+				><option value="Expired">Expired</option><option value="Terminated">Terminated</option>
 			</select>
 		</div>
 		<div>
@@ -231,89 +233,59 @@
 			<select
 				id="filterCustomer"
 				bind:value={filterCustomer}
-				class="w-full rounded-lg border border-gray-300 p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				class="w-full rounded-lg border border-gray-300 p-2 shadow-sm focus:ring-blue-500"
 			>
 				<option value="">-- ทุกลูกค้า --</option>
-				{#each customers as customer (customer.id)}
-					<option value={customer.id}>{customer.name}</option>
-				{/each}
+				{#each customers as customer (customer.id)}<option value={customer.id}
+						>{customer.name}</option
+					>{/each}
 			</select>
 		</div>
 	</div>
 
 	<div class="overflow-x-auto rounded-lg bg-white shadow-lg">
-		<table class="min-w-full divide-y divide-gray-200">
+		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-100">
 				<tr>
-					<th class="px-6 py-3 text-left text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>ชื่อสัญญา</th
-					>
-					<th class="px-6 py-3 text-left text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>ลูกค้า</th
-					>
-					<th class="px-6 py-3 text-left text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>ประเภท</th
-					>
-					<th class="px-6 py-3 text-left text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>สถานะ</th
-					>
-					<th class="px-6 py-3 text-left text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>วันเริ่มต้น</th
-					>
-					<th class="px-6 py-3 text-left text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>วันสิ้นสุด</th
-					>
-					<th class="px-6 py-3 text-left text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>เอกสาร</th
-					>
-					<th class="px-6 py-3 text-center text-xs font-bold tracking-wider text-gray-600 uppercase"
-						>จัดการ</th
-					>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">ชื่อสัญญา</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">ลูกค้า</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">สถานะ</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">วันเริ่มต้น</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">วันสิ้นสุด</th>
+					<th class="px-6 py-3 text-center font-bold text-gray-600 uppercase">จัดการ</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#each filteredContracts as contract (contract.id)}
 					<tr class="transition-colors hover:bg-gray-50">
-						<td class="px-6 py-4 whitespace-nowrap">
-							<div class="text-sm font-medium text-gray-900">{contract.title}</div>
-							<div class="text-xs text-gray-500">{contract.contract_number}</div>
-						</td>
-						<td class="px-6 py-4 text-sm whitespace-nowrap text-gray-700"
-							>{contract.customer_name ?? '-'}</td
+						<td class="px-6 py-4"
+							><div class="font-medium text-gray-900">{contract.title}</div>
+							<div class="text-xs text-gray-500">{contract.contract_number}</div></td
 						>
-						<td class="px-6 py-4 text-sm whitespace-nowrap text-gray-700"
-							>{contract.type_name ?? '-'}</td
-						>
-						<td class="px-6 py-4 whitespace-nowrap">
-							<span
+						<td class="px-6 py-4">{contract.customer_name ?? '-'}</td>
+						<td class="px-6 py-4"
+							><span
 								class="inline-flex rounded-full px-3 py-1 text-xs leading-5 font-semibold {contract.status ===
 								'Draft'
 									? 'bg-yellow-100 text-yellow-800'
-									: contract.status === 'Active'
-										? 'bg-green-100 text-green-800'
-										: 'bg-red-100 text-red-800'}"
-							>
-								{contract.status}
-							</span>
-						</td>
-						<td class="px-6 py-4 text-sm whitespace-nowrap text-gray-700"
+									: 'bg-green-100 text-green-800'}">{contract.status}</span
+							></td
+						>
+						<td class="px-6 py-4 text-nowrap"
 							>{contract.start_date
 								? new Date(contract.start_date).toLocaleDateString('th-TH')
 								: '-'}</td
 						>
-						<td class="px-6 py-4 text-sm whitespace-nowrap text-gray-700"
+						<td class="px-6 py-4 text-nowrap"
 							>{contract.end_date
 								? new Date(contract.end_date).toLocaleDateString('th-TH')
 								: '-'}</td
 						>
-						<td class="px-6 py-4 text-sm whitespace-nowrap text-gray-700"
-							>{contract.documents.length} ไฟล์</td
-						>
-						<td class="px-6 py-4 text-center text-sm font-medium whitespace-nowrap">
+						<td class="px-6 py-4 text-center">
 							<div class="flex items-center justify-center gap-2">
 								<button
 									onclick={() => openEditModal(contract)}
-									class="text-blue-600 transition hover:text-blue-900"
+									class="text-blue-600 hover:text-blue-900"
 									aria-label="แก้ไขสัญญา">{@html Icon.edit}</button
 								>
 								<form
@@ -325,21 +297,16 @@
 									}}
 								>
 									<input type="hidden" name="id" value={contract.id} />
-									<button
-										type="submit"
-										class="text-red-600 transition hover:text-red-900"
-										aria-label="ลบสัญญา">{@html Icon.delete}</button
+									<button type="submit" class="text-red-600 hover:text-red-900" aria-label="ลบสัญญา"
+										>{@html Icon.delete}</button
 									>
 								</form>
 							</div>
 						</td>
 					</tr>
-				{:else}
-					<tr
-						><td colspan="8" class="px-6 py-12 text-center text-gray-500">ไม่พบข้อมูลสัญญา...</td
-						></tr
-					>
-				{/each}
+				{:else}<tr
+						><td colspan="6" class="py-12 text-center text-gray-500">ไม่พบข้อมูลสัญญา...</td></tr
+					>{/each}
 			</tbody>
 		</table>
 	</div>
@@ -367,7 +334,7 @@
 			{isEditing ? 'แก้ไขสัญญา' : 'เพิ่มสัญญาใหม่'}
 		</h2>
 		{#if formError}<div
-				class="relative mb-4 rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-red-700"
+				class="mb-4 rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-red-700"
 				transition:slide
 			>
 				<strong>Error:</strong>
@@ -379,33 +346,31 @@
 			<div class="space-y-4 lg:col-span-2">
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="title" class="block text-sm font-medium text-gray-700">ชื่อสัญญา *</label
-						><input
+						<label for="title" class="text-sm font-medium text-gray-700">ชื่อสัญญา *</label><input
 							type="text"
 							id="title"
 							name="title"
 							bind:value={currentContract.title}
 							required
-							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
+							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
 						/>
 					</div>
 					<div>
-						<label for="contract_number" class="block text-sm font-medium text-gray-700"
+						<label for="contract_number" class="text-sm font-medium text-gray-700"
 							>เลขที่สัญญา</label
 						><input
 							type="text"
 							id="contract_number"
 							name="contract_number"
 							bind:value={currentContract.contract_number}
-							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
+							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
 						/>
 					</div>
 				</div>
 
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="customer_id" class="block text-sm font-medium text-gray-700">ลูกค้า *</label
-						>
+						<label for="customer_id" class="text-sm font-medium text-gray-700">ลูกค้า *</label>
 						<input type="hidden" name="customer_id" value={currentContract.customer_id} />
 						<Select
 							items={customerOptions}
@@ -413,15 +378,11 @@
 							on:change={handleCustomerChange}
 							on:clear={() => handleCustomerChange(null)}
 							placeholder="-- ค้นหา/เลือกลูกค้า --"
-							floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 							container={browser ? document.body : null}
-							--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-							--list="border-radius: 6px; font-size: 0.875rem;"
-							--itemIsActive="background: #e0f2fe;"
 						/>
 					</div>
 					<div>
-						<label for="contract_type_id" class="block text-sm font-medium text-gray-700"
+						<label for="contract_type_id" class="text-sm font-medium text-gray-700"
 							>ประเภทสัญญา *</label
 						>
 						<input type="hidden" name="contract_type_id" value={currentContract.contract_type_id} />
@@ -431,33 +392,26 @@
 							on:change={handleContractTypeChange}
 							on:clear={() => handleContractTypeChange(null)}
 							placeholder="-- ค้นหา/เลือกประเภท --"
-							floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 							container={browser ? document.body : null}
-							--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-							--list="border-radius: 6px; font-size: 0.875rem;"
-							--itemIsActive="background: #e0f2fe;"
 						/>
 					</div>
 				</div>
 
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="status" class="block text-sm font-medium text-gray-700">สถานะ *</label>
-						<select
+						<label for="status" class="text-sm font-medium text-gray-700">สถานะ *</label><select
 							id="status"
 							name="status"
 							bind:value={currentContract.status}
 							required
-							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
+							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
+							><option value="Draft">Draft</option><option value="Active">Active</option><option
+								value="Expired">Expired</option
+							><option value="Terminated">Terminated</option></select
 						>
-							<option value="Draft">Draft</option><option value="In Review">In Review</option
-							><option value="Active">Active</option><option value="Expired">Expired</option><option
-								value="Terminated">Terminated</option
-							>
-						</select>
 					</div>
 					<div>
-						<label for="contract_value" class="block text-sm font-medium text-gray-700"
+						<label for="contract_value" class="text-sm font-medium text-gray-700"
 							>มูลค่าสัญญา (บาท)</label
 						><input
 							type="number"
@@ -465,73 +419,70 @@
 							id="contract_value"
 							name="contract_value"
 							bind:value={currentContract.contract_value}
-							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
+							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
 						/>
 					</div>
 				</div>
 
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="start_date" class="block text-sm font-medium text-gray-700"
-							>วันเริ่มต้น</label
+						<label for="start_date" class="text-sm font-medium text-gray-700">วันเริ่มต้น</label
 						><input
 							type="date"
 							id="start_date"
 							name="start_date"
 							bind:value={currentContract.start_date}
-							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
+							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
 						/>
 					</div>
 					<div>
-						<label for="end_date" class="block text-sm font-medium text-gray-700">วันสิ้นสุด</label
-						><input
+						<label for="end_date" class="text-sm font-medium text-gray-700">วันสิ้นสุด</label><input
 							type="date"
 							id="end_date"
 							name="end_date"
 							bind:value={currentContract.end_date}
-							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
+							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
 						/>
 					</div>
 				</div>
 
 				<div>
-					<label for="owner_user_id" class="block text-sm font-medium text-gray-700"
-						>ผู้รับผิดชอบ</label
-					>
-					<select
-						id="owner_user_id"
-						name="owner_user_id"
-						bind:value={currentContract.owner_user_id}
-						class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none"
-					>
-						<option value={null}>-- ไม่ระบุ --</option>
-						{#each users as user (user.id)}<option value={user.id}>{user.username}</option>{/each}
-					</select>
+					<label for="owner_user_id" class="text-sm font-medium text-gray-700">ผู้รับผิดชอบ</label>
+					<input type="hidden" name="owner_user_id" value={currentContract.owner_user_id} />
+					<Select
+						items={userOptions}
+						value={selectedUserObj}
+						on:change={handleUserChange}
+						on:clear={() => handleUserChange(null)}
+						placeholder="-- ค้นหา/เลือกพนักงาน --"
+						container={browser ? document.body : null}
+						--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+						--list="border-radius: 6px; font-size: 0.875rem;"
+						--itemIsActive="background: #e0f2fe;"
+					/>
 				</div>
 
 				<div class="pt-2">
-					<label for="contractFiles" class="block text-sm font-medium text-gray-700"
+					<label for="contractFiles" class="text-sm font-medium text-gray-700"
 						>ไฟล์เอกสารสัญญา {#if !isEditing}<span class="text-red-500">*</span>{/if}</label
-					>
-					<input
+					><input
 						type="file"
 						id="contractFiles"
 						name="contractFiles"
 						multiple
 						accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png"
-						class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+						class="mt-1 block w-full text-sm text-gray-500 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 					/>
 				</div>
 			</div>
 
 			<div class="max-h-96 overflow-y-auto rounded-lg border bg-gray-50 p-4 lg:col-span-1">
 				<h3 class="mb-3 text-lg font-semibold text-gray-700">
-					เอกสารที่อัปโหลดแล้ว ({currentContract.documents.length})
+					เอกสารแนบ ({currentContract.documents.length})
 				</h3>
 				{#if currentContract.documents.length > 0}
 					<ul class="space-y-3">
-						{#each currentContract.documents as doc (doc.id)}
-							<li
+						{#each currentContract.documents as doc (doc.id)}<li
 								class="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3 text-sm"
 							>
 								<div class="mr-2 truncate">
@@ -545,17 +496,13 @@
 								<a
 									href="/uploads/contracts/{doc.system_name}"
 									target="_blank"
-									rel="noopener noreferrer"
 									download={doc.name}
 									class="rounded-full p-1 text-green-600 transition hover:bg-green-50 hover:text-green-800"
 									aria-label="ดาวน์โหลดไฟล์">{@html Icon.download}</a
 								>
-							</li>
-						{/each}
+							</li>{/each}
 					</ul>
-				{:else}
-					<p class="text-sm text-gray-500 italic">ยังไม่มีเอกสารอัปโหลด</p>
-				{/if}
+				{:else}<p class="text-sm text-gray-500 italic">ยังไม่มีเอกสารอัปโหลด</p>{/if}
 			</div>
 		</div>
 
@@ -588,22 +535,11 @@
 		overflow-y: auto;
 		max-height: calc(100vh - 8rem);
 	}
-	@media (max-width: 768px) {
-		dialog.max-w-4xl {
-			margin-top: 2rem;
-			width: calc(100% - 2rem);
-			max-height: calc(100vh - 4rem);
-		}
-	}
-
 	:global(div.svelte-select) {
 		min-height: 38px;
 		border: 1px solid #d1d5db !important;
 		border-radius: 0.375rem !important;
 		margin-top: 0.25rem;
-	}
-	:global(div.svelte-select .input) {
-		font-size: 0.875rem;
 	}
 	:global(div.svelte-select .list) {
 		border-radius: 0.375rem;

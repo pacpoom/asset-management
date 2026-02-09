@@ -160,6 +160,17 @@
 				documentToDelete = null;
 			}
 		}
+
+		if (form?.action === 'deleteVendor') {
+			if (form.success) {
+				showGlobalMessage({ success: true, text: 'ลบข้อมูลสำเร็จ', type: 'success' });
+				vendorToDelete = null;
+				invalidateAll();
+			} else if (form.message) {
+				showGlobalMessage({ success: false, text: form.message, type: 'error' });
+				vendorToDelete = null;
+			}
+		}
 	});
 
 	// --- Pagination ---

@@ -59,7 +59,7 @@ const getContractQuery = `
     SELECT
         c.*,
         cust.name as customer_name,
-        u.username as owner_name,
+        u.username as owner_name, -- [CHECK] ดึงจาก users
         ct.name as type_name
     FROM contracts c
     LEFT JOIN customers cust ON c.customer_id = cust.id
@@ -98,25 +98,32 @@ function nullIfEmpty(value: string | number | null | undefined) {
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ locals }) {
 	try {
-		// ดึงข้อมูลหลัก
-		// --- FIX: ลบ @ts-ignore และใส่ Type ที่ถูกต้อง ---
+		// ดึงข้อมูลหลักจากฐานข้อมูล โดยใช้ Promise.all เพื่อความรวดเร็ว
 		const [contractsResult, customersResult, usersResult, contractTypesResult] = await Promise.all([
+			// ดึงข้อมูลสัญญาพร้อม Join ชื่อลูกค้าและชื่อผู้ดูแล
 			db.query<Contract[]>(`${getContractQuery} ORDER BY c.created_at DESC`),
+
+			// ดึงรายชื่อลูกค้าเพื่อใช้ใน Dropdown
 			db.query<Customer[]>('SELECT id, name FROM customers ORDER BY name ASC'),
-			// FIX: แก้ query ให้ตรงกับ Interface 'User' (username)
+
 			db.query<User[]>('SELECT id, username FROM users ORDER BY username ASC'),
+
+			// ดึงประเภทสัญญา
 			db.query<ContractType[]>('SELECT id, name FROM contract_types ORDER BY name ASC')
 		]);
 
-		// ดึงเอกสารทั้งหมดสำหรับสัญญาแต่ละฉบับ
-		// --- FIX: ลบ @ts-ignore และ (c: any) ---
-		// (Error 1 `.map` หายไป)
+		console.log('--- DEBUG USERS DATA ---');
+		console.log('Total Users Found:', usersResult[0].length);
+		console.log('First 5 Users:', usersResult[0].slice(0, 5));
+		console.log('------------------------');
+
+		// วนลูปเพื่อดึงรายการเอกสารแนบสำหรับสัญญาแต่ละฉบับ
 		const contractsWithDocs = await Promise.all(
 			contractsResult[0].map(async (c) => {
 				const documents = await getContractDocuments(c.id);
 				return {
 					...c,
-					// --- FIX: ลบ (d: any) (เพราะ getContractDocuments แก้ไขแล้ว) ---
+					// แปลงรูปแบบข้อมูลเอกสารให้ Frontend ใช้งานได้ง่าย
 					documents: documents.map((d) => ({
 						id: d.id,
 						name: d.file_original_name,
@@ -128,15 +135,16 @@ export async function load({ locals }) {
 			})
 		);
 
+		// ส่งข้อมูลกลับไปยังหน้า UI (+page.svelte)
 		return {
 			contracts: JSON.parse(JSON.stringify(contractsWithDocs)),
-			// (Error 2 และ 3 หายไป)
 			customers: customersResult[0],
 			users: usersResult[0],
 			contractTypes: contractTypesResult[0]
 		};
 	} catch (error) {
 		console.error('Error loading contracts data:', error);
+		// กรณีเกิดข้อผิดพลาด ส่งสถานะ 500 กลับไป
 		return fail(500, {
 			error: 'ไม่สามารถโหลดข้อมูลสัญญาได้'
 		});
