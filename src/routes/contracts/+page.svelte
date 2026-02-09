@@ -38,15 +38,16 @@
 
 	let contracts = $state<Contract[]>(data.contracts || []);
 	let customers = $state<Customer[]>(data.customers || []);
-	let users = $state<User[]>(data.users || []); // ข้อมูลพนักงานจากตาราง users
+	let users = $state<User[]>(data.users || []);
 	let contractTypes = $state<ContractType[]>(data.contractTypes || []);
 
 	let modalElement = $state<HTMLDialogElement | null>(null);
 	let isEditing = $state(false);
 	let isLoading = $state(false);
 	let formError = $state<string | null>(null);
+	let contractToDelete = $state<Contract | null>(null);
+	let isDeleting = $state(false);
 
-	// --- [FIX] Searchable Dropdown Options พร้อมระบุ Type ชัดเจน ---
 	const customerOptions = $derived(
 		customers.map((c: Customer) => ({ value: c.id, label: c.name }))
 	);
@@ -164,25 +165,8 @@
 	};
 
 	$effect(() => {
-		if (form) {
-			if (form.error) {
-				formError = form.error as string;
-				isLoading = false;
-				if (form.source === 'cud') modalElement?.showModal();
-			}
-			if (form.success) {
-				if (form.source === 'delete') contracts = contracts.filter((c) => c.id !== form.deletedId);
-				else if (form.source === 'cud') {
-					const newOrUpdated = (form.newContract || form.updatedContract) as Contract;
-					if (newOrUpdated) {
-						if (isEditing)
-							contracts = contracts.map((c) => (c.id === newOrUpdated.id ? newOrUpdated : c));
-						else contracts = [newOrUpdated, ...contracts];
-					}
-					closeModal();
-				}
-				invalidateAll();
-			}
+		if (data.contracts) {
+			contracts = data.contracts;
 		}
 	});
 </script>
@@ -288,19 +272,13 @@
 									class="text-blue-600 hover:text-blue-900"
 									aria-label="แก้ไขสัญญา">{@html Icon.edit}</button
 								>
-								<form
-									method="POST"
-									action="?/delete"
-									use:enhance
-									onsubmit={(e) => {
-										if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสัญญานี้?')) e.preventDefault();
-									}}
+								<button
+									onclick={() => (contractToDelete = contract)}
+									class="text-red-600 hover:text-red-900"
+									aria-label="ลบสัญญา"
 								>
-									<input type="hidden" name="id" value={contract.id} />
-									<button type="submit" class="text-red-600 hover:text-red-900" aria-label="ลบสัญญา"
-										>{@html Icon.delete}</button
-									>
-								</form>
+									{@html Icon.delete}
+								</button>
 							</div>
 						</td>
 					</tr>
@@ -323,9 +301,15 @@
 		use:enhance={() => {
 			isLoading = true;
 			formError = null;
-			return async ({ update }) => {
+			return async ({ update, result }) => {
 				await update({ reset: false });
 				isLoading = false;
+
+				if (result.type === 'success') {
+					closeModal();
+				} else if (result.type === 'failure') {
+					formError = result.data?.error as string;
+				}
 			};
 		}}
 		class="p-6"
@@ -528,6 +512,57 @@
 		</div>
 	</form>
 </dialog>
+
+{#if contractToDelete}
+	<div
+		transition:fade
+		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+		role="alertdialog"
+	>
+		<div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl transition-all">
+			<h3 class="text-lg font-bold text-gray-900">ยืนยันการลบสัญญา</h3>
+			<p class="mt-2 text-sm text-gray-600">
+				คุณแน่ใจหรือไม่ที่จะลบสัญญา "<strong>{contractToDelete.title}</strong>"?<br />
+				<span class="text-xs text-red-500"
+					>การดำเนินการนี้จะลบข้อมูลสัญญาและเอกสารแนบทั้งหมด ไม่สามารถย้อนกลับได้</span
+				>
+			</p>
+			<form
+				method="POST"
+				action="?/delete"
+				use:enhance={() => {
+					isDeleting = true;
+					return async ({ update, result }) => {
+						await update(); // โหลดข้อมูลใหม่
+						isDeleting = false;
+
+						if (result.type === 'success') {
+							contractToDelete = null; // ปิด Modal เมื่อสำเร็จ
+						}
+					};
+				}}
+				class="mt-6 flex justify-end gap-3"
+			>
+				<input type="hidden" name="id" value={contractToDelete.id} />
+				<button
+					type="button"
+					onclick={() => (contractToDelete = null)}
+					class="rounded border px-4 py-2 text-sm font-medium hover:bg-gray-50"
+					disabled={isDeleting}
+				>
+					ยกเลิก
+				</button>
+				<button
+					type="submit"
+					class="rounded bg-red-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-red-700 disabled:bg-red-300"
+					disabled={isDeleting}
+				>
+					{#if isDeleting}กำลังลบ...{:else}ลบข้อมูล{/if}
+				</button>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <style>
 	dialog.max-w-4xl {
