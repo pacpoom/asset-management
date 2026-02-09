@@ -544,14 +544,12 @@
 									isUploadingDocument = false;
 
 									if (result.type === 'success') {
-										// 1. ล้างค่า Input และตัวแปร State
 										if (fileInputRef) {
 											fileInputRef.value = '';
 										}
 										isFileSelected = false;
 										selectedFileName = '';
 
-										// 2. [เพิ่มใหม่] อัปเดตรายการไฟล์บนหน้าจอทันที
 										const actionResult = result.data as any;
 										if (actionResult.newDocument) {
 											documentsForSelectedCustomer = [
@@ -560,14 +558,12 @@
 											];
 										}
 
-										// 3. แสดงข้อความแจ้งเตือนความสำเร็จ
 										showGlobalMessage({
 											success: true,
 											text: 'อัปโหลดเอกสารเรียบร้อยแล้ว',
 											type: 'success'
 										});
 									} else if (result.type === 'failure') {
-										// จัดการกรณี Error (ถ้ามี)
 										showGlobalMessage({
 											success: false,
 											text: (result.data?.message as string) ?? 'เกิดข้อผิดพลาดในการอัปโหลด',
