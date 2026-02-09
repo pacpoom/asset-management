@@ -6,7 +6,6 @@ import type { RowDataPacket } from 'mysql2';
 import fs from 'fs/promises';
 import path from 'path';
 
-// --- Types ---
 interface Customer extends RowDataPacket {
 	id: number;
 	name: string;
@@ -200,13 +199,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	}
 };
 
-// --- Actions --- (Keep existing actions unchanged)
 export const actions: Actions = {
 	saveCustomer: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 		const name = data.get('name')?.toString()?.trim();
-		const company_name = data.get('company_name')?.toString()?.trim() || null; // NEW: Get company name
+		const company_name = data.get('company_name')?.toString()?.trim() || null;
 		const email = data.get('email')?.toString()?.trim() || null;
 		const phone = data.get('phone')?.toString()?.trim() || null;
 		const address = data.get('address')?.toString()?.trim() || null;
@@ -245,7 +243,7 @@ export const actions: Actions = {
 				const [result] = await pool.execute(
 					`INSERT INTO customers
                         (name, company_name, email, phone, address, tax_id, notes, assigned_to_user_id, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`, // Added company_name
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
 					[name, company_name, email, phone, address, tax_id, notes, assignedUserId]
 				);
 				const insertId = (result as any).insertId;
