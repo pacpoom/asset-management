@@ -1,6 +1,7 @@
-// ไฟล์: src/routes/billing-notes/generate-pdf/+server.ts
 import { json } from '@sveltejs/kit';
 import puppeteer from 'puppeteer';
+import fs from 'fs';
+import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
@@ -40,6 +41,30 @@ interface BillingItemData extends RowDataPacket {
 }
 
 // --- HELPER FUNCTIONS ---
+
+function getLogoBase64(logoPath: string | null): string | null {
+	if (!logoPath) return null;
+	const tryPaths = [
+		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
+		path.resolve(process.cwd(), 'uploads/company/logo.png'),
+		path.resolve(process.cwd(), 'static/logo.png')
+	];
+
+	for (const p of tryPaths) {
+		try {
+			if (fs.existsSync(p)) {
+				const fileData = fs.readFileSync(p);
+				const ext = path.extname(p).replace('.', '');
+				return `data:image/${ext};base64,${fileData.toString('base64')}`;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	return null;
+}
 
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
@@ -93,12 +118,11 @@ function bahttext(input: number | string): string {
 	return decimalText ? `${integerText}บาท${decimalText}สตางค์` : `${integerText}บาทถ้วน`;
 }
 
-// --- HTML GENERATOR ---
-
 function getBillingNoteHtml(
 	companyData: CompanyData | null,
 	noteData: BillingNoteData,
-	itemsData: BillingItemData[]
+	itemsData: BillingItemData[],
+	logoBase64: string | null
 ): string {
 	const subtotal = itemsData.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 	const vatRate = 7;
@@ -127,11 +151,10 @@ function getBillingNoteHtml(
 		}
 	};
 
-	const logoHtml = companyData?.logo_path
-		? `<img src="http://localhost:5173${companyData.logo_path}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" onError="this.style.display='none'" />`
+	const logoHtml = logoBase64
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
 		: `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData?.name || ''}</h2>`;
 
-	// --- 1. Header ---
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
@@ -171,7 +194,6 @@ function getBillingNoteHtml(
         </table>
     `;
 
-	// --- 2. Table Headers ---
 	const itemTableHeadersHtml = `
 		<thead>
 			<tr class="items-header-row" style="background-color: #ffffff !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
@@ -184,7 +206,6 @@ function getBillingNoteHtml(
 		</thead>
     `;
 
-	// --- 3. Summary Block (EDITED) ---
 	const financialSummaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 1px; width: 100%; font-size: 8pt;">
             <colgroup>
@@ -222,7 +243,6 @@ function getBillingNoteHtml(
         </table>
     `;
 
-	// --- 4. Signature Block ---
 	const signatureBlock = `
         <div class="payment-and-signature-block" style="page-break-inside: avoid !important;"> 
             <section class="document-footer mt-8"> 
@@ -242,7 +262,6 @@ function getBillingNoteHtml(
         </div>
     `;
 
-	// --- Pagination ---
 	const MAX_WITH_FOOTER = 10;
 	const MAX_WITHOUT_FOOTER = 18;
 	const itemPages: BillingItemData[][] = [];
@@ -382,8 +401,6 @@ function getBillingNoteHtml(
     `;
 }
 
-// --- Main Handler ---
-
 export const GET = async ({ url }) => {
 	const id = url.searchParams.get('id');
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });
@@ -427,8 +444,11 @@ export const GET = async ({ url }) => {
 		);
 
 		const [company] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
+		const companyData = company[0] || null;
 
-		const html = getBillingNoteHtml(company[0] || null, noteData, items);
+		const logoBase64 = getLogoBase64(companyData?.logo_path);
+
+		const html = getBillingNoteHtml(companyData, noteData, items, logoBase64);
 
 		const browser = await puppeteer.launch({
 			args: [

@@ -6,10 +6,6 @@ import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 import type { RequestHandler } from './$types';
 
-// ---
-// 1. INTERFACES
-// ---
-
 interface CompanyData extends RowDataPacket {
 	id: number;
 	name: string;
@@ -23,20 +19,17 @@ interface CompanyData extends RowDataPacket {
 	tax_id: string | null;
 }
 
-// ปรับจาก VoucherData เป็น PurchaseOrderData
 interface PurchaseOrderData extends RowDataPacket {
 	id: number;
-	po_number: string; // เลขที่ใบสั่งซื้อ
-	po_date: string; // วันที่สั่งซื้อ
+	po_number: string;
+	po_date: string;
 	vendor_id: number;
 
-	// ข้อมูลเพิ่มเติมของ PO
 	delivery_date: string | null;
 	payment_term: string | null;
 	contact_person: string | null;
 	remarks: string | null;
 
-	// ข้อมูลที่ Join มา
 	vendor_name: string;
 	vendor_address: string | null;
 	vendor_tax_id: string | null;
@@ -44,17 +37,15 @@ interface PurchaseOrderData extends RowDataPacket {
 	vendor_email: string | null;
 	prepared_by_user_name: string;
 
-	// ข้อมูลการเงิน
 	subtotal: number;
-	discount: number; // PO ใช้ชื่อ discount ไม่ใช่ discount_amount ในบางโครงสร้าง แต่ปรับให้ตรง query ได้
+	discount: number;
 	vat_rate: number;
 	vat_amount: number;
-	wht_rate: number; // PO ใช้ wht_rate
-	wht_amount: number; // PO ใช้ wht_amount
+	wht_rate: number;
+	wht_amount: number;
 	total_amount: number;
 }
 
-// ปรับ ItemData ให้รองรับฟิลด์ของ PO (เช่น หน่วย, ส่วนลดรายตัว)
 interface ItemData extends RowDataPacket {
 	product_name: string;
 	description: string | null;
@@ -62,12 +53,33 @@ interface ItemData extends RowDataPacket {
 	unit: string | null;
 	unit_price: number;
 	discount: number;
-	total_price: number; // หรือ line_total
+	total_price: number;
 }
 
-// ---
-// 2. ฟังก์ชัน BAHTTEXT (คงเดิมเป๊ะๆ)
-// ---
+function getLogoBase64(logoPath: string | null): string | null {
+	if (!logoPath) return null;
+	const tryPaths = [
+		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
+		path.resolve(process.cwd(), 'uploads/company/logo.png'),
+		path.resolve(process.cwd(), 'static/logo.png')
+	];
+
+	for (const p of tryPaths) {
+		try {
+			if (fs.existsSync(p)) {
+				const fileData = fs.readFileSync(p);
+				const ext = path.extname(p).replace('.', '');
+				return `data:image/${ext};base64,${fileData.toString('base64')}`;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	return null;
+}
+
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
 	if (isNaN(num)) {
@@ -143,18 +155,15 @@ function bahttext(input: number | string): string {
 	}
 }
 
-// ---
-// 3. HTML GENERATOR (ปรับเนื้อหาเป็นใบสั่งซื้อ แต่รักษาฟอร์แมต)
-// ---
 function getPOHtml(
 	companyData: CompanyData | null,
 	poData: PurchaseOrderData,
-	itemsData: ItemData[]
+	itemsData: ItemData[],
+	logoBase64: string | null
 ): string {
-	// --- Helpers & Formatting ---
 	const subtotal = poData.subtotal || 0;
 	const discount = poData.discount || 0;
-	const totalAfterDiscount = subtotal - discount; // คำนวณเองให้ชัวร์
+	const totalAfterDiscount = subtotal - discount;
 	const vat = poData.vat_amount || 0;
 	const vatRate = poData.vat_rate || 0;
 	const wht = poData.wht_amount || 0;
@@ -185,18 +194,17 @@ function getPOHtml(
 		}
 	};
 
-	// Header Content
+	const logoHtml = logoBase64
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
+		: companyData?.name
+			? `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData.name}</h2>`
+			: '';
+
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; page-break-inside: avoid; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
                 <td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
-                    ${
-											companyData?.logo_path
-												? `<img src="http://localhost:5173${companyData.logo_path}" alt="${companyData?.name || 'Company Logo'}" style="max-height: 64px; margin-bottom: 8px;" />`
-												: companyData?.name
-													? `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData.name}</h2>`
-													: ''
-										}
+                    ${logoHtml}
                     <div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
                         <p style="margin:0;">${companyData?.address_line_1 || ''}</p>
                         ${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
@@ -242,7 +250,6 @@ function getPOHtml(
         </table>
     `;
 
-	// เพิ่มคอลัมน์ Unit และ Discount ตามแบบ PO
 	const itemTableHeadersHtml = `
         <thead>
             <tr class="items-header-row" style="background-color: #ffffff !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
@@ -347,7 +354,6 @@ function getPOHtml(
         </div>
     `;
 
-	// --- Logic การแบ่งหน้า ---
 	const MAX_WITH_FOOTER = 10;
 	const MAX_WITHOUT_FOOTER = 18;
 
@@ -364,7 +370,7 @@ function getPOHtml(
 			} else if (remainingItems.length <= MAX_WITHOUT_FOOTER) {
 				itemPages.push(remainingItems);
 				remainingItems = [];
-				itemPages.push([]); // หน้าสุดท้ายว่างไว้ใส่ Footer
+				itemPages.push([]);
 			} else {
 				const chunk = remainingItems.slice(0, MAX_WITHOUT_FOOTER);
 				itemPages.push(chunk);
@@ -505,10 +511,6 @@ function getPOHtml(
     `;
 }
 
-// ---
-// 4. MAIN HANDLER
-// ---
-
 export const GET: RequestHandler = async ({ url }) => {
 	console.log('เริ่มสร้าง PDF Purchase Order...');
 
@@ -526,7 +528,6 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// 1. ดึงข้อมูล PO Header
 		const [poRows] = await connection.execute<PurchaseOrderData[]>(
 			`
             SELECT 
@@ -546,14 +547,11 @@ export const GET: RequestHandler = async ({ url }) => {
 		}
 		poData = poRows[0];
 
-		// 2. ดึงข้อมูล Company
 		const [companyRows] = await connection.execute<CompanyData[]>(
 			'SELECT * FROM company WHERE id = 1 LIMIT 1'
 		);
 		companyData = companyRows.length ? companyRows[0] : null;
 
-		// 3. ดึงข้อมูล Items
-		// หมายเหตุ: purchase_order_items ใน DB เดิมอาจไม่มี total_price หรือ line_total, เราใช้ total_price ตามสกีมาที่เคยสร้าง
 		const [itemsRows] = await connection.execute<RowDataPacket[]>(
 			`SELECT 
                 product_name, description, quantity, unit, unit_price, discount, total_price 
@@ -571,7 +569,9 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const htmlContent = getPOHtml(companyData, poData, itemsData);
+		const logoBase64 = getLogoBase64(companyData?.logo_path ?? null);
+
+		const htmlContent = getPOHtml(companyData, poData, itemsData, logoBase64);
 
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],

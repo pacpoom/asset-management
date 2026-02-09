@@ -4,10 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
-
-// ---
-// 1. INTERFACES
-// ---
+import type { RequestHandler } from './$types';
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -29,14 +26,12 @@ interface VoucherData extends RowDataPacket {
 	vendor_id: string;
 	notes: string | null;
 
-	// ข้อมูลที่ Join มา
 	vendor_name: string;
 	vendor_address: string | null;
 	vendor_tax_id: string | null;
 	prepared_by_user_name: string;
 	vendor_contract_number: string | null;
 
-	// ข้อมูลการเงิน (จาก DB)
 	subtotal: number;
 	discount_amount: number;
 	total_after_discount: number;
@@ -54,7 +49,29 @@ interface ItemData {
 	line_total: number;
 }
 
-// ฟังก์ชัน BAHTTEXT
+function getLogoBase64(logoPath: string | null | undefined): string | null {
+	if (!logoPath) return null;
+	const tryPaths = [
+		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
+		path.resolve(process.cwd(), 'uploads/company/logo.png'),
+		path.resolve(process.cwd(), 'static/logo.png')
+	];
+
+	for (const p of tryPaths) {
+		try {
+			if (fs.existsSync(p)) {
+				const fileData = fs.readFileSync(p);
+				const ext = path.extname(p).replace('.', '');
+				return `data:image/${ext};base64,${fileData.toString('base64')}`;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	return null;
+}
 
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
@@ -134,9 +151,9 @@ function bahttext(input: number | string): string {
 function getBillHtml(
 	companyData: CompanyData | null,
 	voucherData: VoucherData,
-	itemsData: ItemData[]
+	itemsData: ItemData[],
+	logoBase64: string | null
 ): string {
-	// --- 1. Helpers & Formatting
 	const subtotal = voucherData.subtotal || 0;
 	const discount = voucherData.discount_amount || 0;
 	const totalAfterDiscount = voucherData.total_after_discount || 0;
@@ -169,20 +186,17 @@ function getBillHtml(
 		}
 	};
 
-	// --- Blocks (Header, TableHeader, Footer) ---
+	const logoHtml = logoBase64
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
+		: companyData?.name
+			? `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData.name}</h2>`
+			: '';
 
-	//  Header (ส่วนหัวที่จะโชว์ทุกหน้า)
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; page-break-inside: avoid; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
                 <td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
-                    ${
-											companyData?.logo_path
-												? `<img src="http://localhost:5173${companyData.logo_path}" alt="${companyData?.name || 'Company Logo'}" style="max-height: 64px; margin-bottom: 8px;" />`
-												: companyData?.name
-													? `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData.name}</h2>`
-													: ''
-										}
+                    ${logoHtml}
                     <div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
                         <p style="margin:0;">${companyData?.address_line_1 || ''}</p>
                         ${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
@@ -327,10 +341,8 @@ function getBillHtml(
         </div>
     `;
 
-	// --- Logic การแบ่งหน้าแบบ Force Empty Page ---
 	const MAX_WITH_FOOTER = 10;
 
-	// หน้าทั่วไป (ไม่มีลายเซ็น) ใส่ได้สูงสุดกี่รายการ?
 	const MAX_WITHOUT_FOOTER = 18;
 
 	const itemPages: ItemData[][] = [];
@@ -357,19 +369,16 @@ function getBillHtml(
 
 	const totalPages = itemPages.length;
 
-	// สร้าง HTML แต่ละหน้า
 	const pagesHtml = itemPages
 		.map((pageItems, pageIndex) => {
 			const isLastPage = pageIndex === totalPages - 1;
 			const pageNumber = pageIndex + 1;
 
-			// คำนวณ Running Number
 			let startIndex = 0;
 			for (let i = 0; i < pageIndex; i++) {
 				startIndex += itemPages[i].length;
 			}
 
-			// สร้างตารางรายการ)
 			const itemsHtml = pageItems
 				.map((item, itemIndex) => {
 					const globalIndex = startIndex + itemIndex + 1;
@@ -400,7 +409,6 @@ function getBillHtml(
                 <div style="height: 1px; border-top: 1px solid #eee; margin-bottom: 20px;"></div>
             `;
 
-			// --- ส่วน Footer ---
 			let footerContent = '';
 
 			if (isLastPage) {
@@ -434,7 +442,6 @@ function getBillHtml(
 		})
 		.join('');
 
-	// --- Main HTML Container ---
 	return `
     <html>
     <head>
@@ -487,14 +494,9 @@ function getBillHtml(
     `;
 }
 
-// ฟังก์ชัน POST
-
-import type { RequestHandler } from './$types';
-
 export const GET: RequestHandler = async ({ url }) => {
 	console.log('ได้รับคำสั่ง... เริ่มสร้าง PDF (GET Method)...');
 
-	// รับ ID จาก URL Query String
 	const voucherId = url.searchParams.get('id');
 
 	if (!voucherId) {
@@ -561,17 +563,10 @@ export const GET: RequestHandler = async ({ url }) => {
 		}
 	}
 
-	// สร้าง PDF
 	try {
-		let billHtmlContent = getBillHtml(companyData, voucherData, itemsData);
+		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		//debug html
-		try {
-			const debugHtmlPath = path.resolve('static', 'debug-voucher.html');
-			fs.writeFileSync(debugHtmlPath, billHtmlContent);
-		} catch (writeError: any) {
-			console.error('--- DEBUG: FAILED TO WRITE HTML FILE ---', writeError.message);
-		}
+		let billHtmlContent = getBillHtml(companyData, voucherData, itemsData, logoBase64);
 
 		console.log('กำลังเปิดเบราว์เซอร์...');
 		const browser = await puppeteer.launch({

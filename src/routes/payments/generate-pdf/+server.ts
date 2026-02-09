@@ -1,9 +1,10 @@
 import { json } from '@sveltejs/kit';
 import puppeteer from 'puppeteer';
+import fs from 'fs';
+import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- INTERFACES ---
 interface CompanyData extends RowDataPacket {
 	name: string;
 	logo_path: string | null;
@@ -32,7 +33,30 @@ interface VoucherData extends RowDataPacket {
 	created_by_name: string;
 }
 
-// --- Helper Functions  ---
+function getLogoBase64(logoPath: string | null | undefined): string | null {
+	if (!logoPath) return null;
+	const tryPaths = [
+		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
+		path.resolve(process.cwd(), 'uploads/company/logo.png'),
+		path.resolve(process.cwd(), 'static/logo.png')
+	];
+
+	for (const p of tryPaths) {
+		try {
+			if (fs.existsSync(p)) {
+				const fileData = fs.readFileSync(p);
+				const ext = path.extname(p).replace('.', '');
+				return `data:image/${ext};base64,${fileData.toString('base64')}`;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	return null;
+}
+
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
 	if (isNaN(num)) {
@@ -90,10 +114,14 @@ function bahttext(input: number | string): string {
 	return decimalText ? `${integerText}บาท${decimalText}สตางค์` : `${integerText}บาทถ้วน`;
 }
 
-function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): string {
+function getVoucherHtml(
+	company: CompanyData | null,
+	voucher: VoucherData,
+	logoBase64: string | null
+): string {
 	const subtotal = Number(voucher.subtotal || 0);
-	const discount = Number(voucher.discount || 0); // ดึงค่าส่วนลด (ถ้าไม่มีให้เป็น 0)
-	const totalAfterDiscount = subtotal - discount; // คำนวณยอดหลังหักส่วนลด
+	const discount = Number(voucher.discount || 0);
+	const totalAfterDiscount = subtotal - discount;
 
 	const vatRate = Number(voucher.vat_rate || 0);
 	const vatAmount = Number(voucher.vat_amount || 0);
@@ -120,6 +148,10 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
 			day: 'numeric'
 		});
 	};
+
+	const logoHtml = logoBase64
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 60px; margin-bottom: 5px;" />`
+		: `<h2 style="font-size: 16pt; font-weight: bold;">${company?.name || 'My Company'}</h2>`;
 
 	let rightRowsCount = 4;
 	if (vatAmount > 0) rightRowsCount++;
@@ -201,12 +233,7 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
             <table class="header-table">
                 <tr>
                     <td style="width: 60%; vertical-align: top;">
-                         ${
-														company?.logo_path
-															? `<img src="http://localhost:5173${company.logo_path}" alt="Logo" style="max-height: 60px; margin-bottom: 5px;" />`
-															: `<h2 style="font-size: 16pt; font-weight: bold;">${company?.name || 'My Company'}</h2>`
-													}
-                        <p style="font-size: 9pt; margin: 0;">${company?.address_line_1 || ''} ${company?.address_line_2 || ''}</p>
+                         ${logoHtml} <p style="font-size: 9pt; margin: 0;">${company?.address_line_1 || ''} ${company?.address_line_2 || ''}</p>
                         <p style="font-size: 9pt; margin: 0;">${company?.city || ''} ${company?.state_province || ''} ${company?.postal_code || ''}</p>
                         <p style="font-size: 9pt; margin: 0;"><b>Tax ID:</b> ${company?.tax_id || '-'}</p>
                     </td>
@@ -274,7 +301,6 @@ function getVoucherHtml(company: CompanyData | null, voucher: VoucherData): stri
     `;
 }
 
-// --- Main Handler ---
 export const GET = async ({ url }) => {
 	const id = url.searchParams.get('id');
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });
@@ -295,7 +321,9 @@ export const GET = async ({ url }) => {
 		const [cRows] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
 		const company = cRows.length > 0 ? cRows[0] : null;
 
-		const html = getVoucherHtml(company, voucher);
+		const logoBase64 = getLogoBase64(company?.logo_path ?? null);
+
+		const html = getVoucherHtml(company, voucher, logoBase64);
 
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],

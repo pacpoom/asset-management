@@ -3,9 +3,7 @@
 	import { slide, fade } from 'svelte/transition';
 	import { invalidateAll } from '$app/navigation';
 
-	// --- Props & State ---
 	let { data, form } = $props();
-
 	let modalMode = $state<'add' | 'edit' | null>(null);
 	let selectedVendor = $state<any>(null);
 	let vendorToDelete = $state<any>(null);
@@ -17,13 +15,9 @@
 		type: 'success' | 'error';
 	} | null>(null);
 	let messageTimeout: NodeJS.Timeout;
-
-	// --- State for Notes in Modal ---
 	let notesForSelectedVendor = $state<any[]>([]);
 	let newNote = $state('');
 	let isAddingNote = $state(false);
-
-	// --- State for Documents in Modal ---
 	let documentsForSelectedVendor = $state<any[]>([]);
 	let isUploadingDocument = $state(false);
 	let uploadError = $state<string | null>(null);
@@ -110,7 +104,6 @@
 
 	// --- Reactive Effects ---
 	$effect.pre(() => {
-		// Handle saveVendor
 		if (form?.action === 'saveVendor') {
 			if (form.success) {
 				closeModal();
@@ -118,46 +111,6 @@
 				invalidateAll();
 			} else if (form.message) {
 				showGlobalMessage({ success: false, text: form.message ?? 'Error', type: 'error' });
-			}
-		}
-
-		// Handle addNote
-		if (form?.action === 'addNote' && modalMode === 'edit') {
-			if (form.success && form.newNote) {
-				notesForSelectedVendor = [form.newNote, ...notesForSelectedVendor];
-				newNote = '';
-			}
-		}
-
-		// Handle deleteNote
-		if (form?.action === 'deleteNote' && modalMode === 'edit') {
-			if (form.success && form.deletedNoteId) {
-				notesForSelectedVendor = notesForSelectedVendor.filter((n) => n.id !== form.deletedNoteId);
-			}
-		}
-
-		// Handle uploadDocument
-		if (form?.action === 'uploadDocument' && modalMode === 'edit') {
-			if (form.success && form.newDocument) {
-				documentsForSelectedVendor = [form.newDocument, ...documentsForSelectedVendor];
-				uploadError = null;
-				if (fileInputRef) fileInputRef.value = '';
-				isFileSelected = false;
-			} else if (form.message) {
-				uploadError = form.message ?? 'Upload failed';
-			}
-		}
-
-		// Handle deleteDocument
-		if (form?.action === 'deleteDocument' && modalMode === 'edit') {
-			if (form.success && form.deletedDocumentId) {
-				documentsForSelectedVendor = documentsForSelectedVendor.filter(
-					(d) => d.id !== form.deletedDocumentId
-				);
-				documentToDelete = null;
-			} else if (form.message) {
-				showGlobalMessage({ success: false, text: form.message ?? '', type: 'error' });
-				documentToDelete = null;
 			}
 		}
 
@@ -173,7 +126,6 @@
 		}
 	});
 
-	// --- Pagination ---
 	let paginationRange = $derived.by(() => {
 		const delta = 1;
 		const left = data.currentPage - delta;
@@ -497,9 +449,25 @@
 							enctype="multipart/form-data"
 							use:enhance={() => {
 								isUploadingDocument = true;
-								return async ({ update }) => {
+								return async ({ result, update }) => {
 									await update();
 									isUploadingDocument = false;
+
+									const actionResult = result as any;
+
+									if (actionResult.type === 'success' && actionResult.data?.newDocument) {
+										const newDoc = actionResult.data.newDocument;
+
+										if (!documentsForSelectedVendor.some((d: any) => d.id === newDoc.id)) {
+											documentsForSelectedVendor = [newDoc, ...documentsForSelectedVendor];
+										}
+
+										uploadError = null;
+										if (fileInputRef) fileInputRef.value = '';
+										isFileSelected = false;
+									} else if (actionResult.type === 'failure') {
+										uploadError = (actionResult.data?.message as string) ?? 'Upload failed';
+									}
 								};
 							}}
 							class="mb-3 flex gap-2"
@@ -534,7 +502,7 @@
 									<button
 										onclick={() => (documentToDelete = doc)}
 										class="text-red-500 hover:text-red-700"
-										type="button">ลบ</button
+										type="button">ลบเอกสาร</button
 									>
 								</li>
 							{/each}
@@ -646,20 +614,52 @@
 				action="?/deleteDocument"
 				use:enhance={() => {
 					isDeletingDocument = true;
-					return async ({ update }) => {
+					return async ({ result, update }) => {
 						await update();
 						isDeletingDocument = false;
+
+						const actionResult = result as any;
+
+						if (actionResult.type === 'success') {
+							if (actionResult.data?.deletedDocumentId) {
+								documentsForSelectedVendor = documentsForSelectedVendor.filter(
+									(d: any) => d.id !== actionResult.data.deletedDocumentId
+								);
+							}
+							documentToDelete = null;
+						} else if (actionResult.type === 'failure') {
+							showGlobalMessage({
+								success: false,
+								text: (actionResult.data?.message as string) ?? 'Error',
+								type: 'error'
+							});
+						}
 					};
 				}}
 				class="mt-4 flex justify-end gap-2"
 			>
 				<input type="hidden" name="document_id" value={documentToDelete.id} />
+
 				<button
 					type="button"
 					onclick={() => (documentToDelete = null)}
-					class="rounded border px-3 py-1 text-sm">ยกเลิก</button
+					class="rounded border px-3 py-1 text-sm hover:bg-gray-100"
+					disabled={isDeletingDocument}
 				>
-				<button class="rounded bg-red-600 px-3 py-1 text-sm text-white">ลบ</button>
+					ยกเลิก
+				</button>
+
+				<button
+					type="submit"
+					class="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+					disabled={isDeletingDocument}
+				>
+					{#if isDeletingDocument}
+						กำลังลบ...
+					{:else}
+						ลบเอกสาร
+					{/if}
+				</button>
 			</form>
 		</div>
 	</div>
