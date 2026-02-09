@@ -43,9 +43,8 @@
 	let isDeletingDocument = $state(false);
 	let fileInputRef: HTMLInputElement | null = $state(null);
 	let isFileSelected = $state(false);
+	let selectedFileName = $state('');
 
-	// --- Logic สำหรับ Searchable Dropdown (ผู้ดูแล) ---
-	// [FIX] ระบุ Type 'u: User' เพื่อแก้ปัญหา Implicit any
 	const userOptions = data.users.map((u: User) => ({
 		value: u.id,
 		label: `${u.full_name} (${u.email})`,
@@ -96,6 +95,7 @@
 		if (fileInputRef) {
 			fileInputRef.value = '';
 			isFileSelected = false;
+			selectedFileName = '';
 		}
 
 		if (mode === 'edit' && customer) {
@@ -125,6 +125,17 @@
 		selectedUserObject = null;
 	}
 
+	function showGlobalMessage(
+		message: { success: boolean; text: string; type: 'success' | 'error' },
+		duration: number = 5000
+	) {
+		clearTimeout(messageTimeout);
+		globalMessage = message;
+		messageTimeout = setTimeout(() => {
+			globalMessage = null;
+		}, duration);
+	}
+
 	function formatDateTime(isoString: string | Date | null | undefined): string {
 		if (!isoString) return 'N/A';
 		try {
@@ -152,58 +163,20 @@
 
 	function handleFileChange(event: Event) {
 		const input = event.target as HTMLInputElement;
-		isFileSelected = (input.files?.length ?? 0) > 0;
+		if (input.files && input.files.length > 0) {
+			isFileSelected = true;
+			selectedFileName = input.files[0].name;
+		} else {
+			isFileSelected = false;
+			selectedFileName = '';
+		}
 	}
 
-	// --- Effects ---
 	$effect.pre(() => {
 		if (form?.action === 'saveCustomer') {
 			if (form.success) {
 				closeModal();
 				invalidateAll();
-			}
-			form.action = undefined;
-		}
-		if (
-			form?.action === 'addNote' &&
-			modalMode === 'edit' &&
-			selectedCustomer?.id === form.newNote?.customer_id
-		) {
-			if (form.success && form.newNote) {
-				notesForSelectedCustomer = [...notesForSelectedCustomer, form.newNote as CustomerNote].sort(
-					(a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-				);
-				newNote = '';
-			}
-			form.action = undefined;
-		}
-		if (form?.action === 'uploadDocument' && modalMode === 'edit') {
-			if (form.success && form.newDocument) {
-				documentsForSelectedCustomer = [
-					form.newDocument as CustomerDocument,
-					...documentsForSelectedCustomer
-				];
-				if (fileInputRef) {
-					fileInputRef.value = '';
-					isFileSelected = false;
-				}
-			}
-			form.action = undefined;
-		}
-		if (form?.action === 'deleteDocument' && modalMode === 'edit') {
-			if (form.success && form.deletedDocumentId) {
-				documentsForSelectedCustomer = documentsForSelectedCustomer.filter(
-					(d) => d.id !== form.deletedDocumentId
-				);
-				documentToDelete = null;
-			}
-			form.action = undefined;
-		}
-		if (form?.action === 'deleteNote' && modalMode === 'edit') {
-			if (form.success && form.deletedNoteId) {
-				notesForSelectedCustomer = notesForSelectedCustomer.filter(
-					(n) => n.id !== form.deletedNoteId
-				);
 			}
 			form.action = undefined;
 		}
@@ -566,9 +539,37 @@
 							enctype="multipart/form-data"
 							use:enhance={() => {
 								isUploadingDocument = true;
-								return async ({ update }) => {
+								return async ({ update, result }) => {
 									await update();
 									isUploadingDocument = false;
+
+									if (result.type === 'success') {
+										if (fileInputRef) {
+											fileInputRef.value = '';
+										}
+										isFileSelected = false;
+										selectedFileName = '';
+
+										const actionResult = result.data as any;
+										if (actionResult.newDocument) {
+											documentsForSelectedCustomer = [
+												actionResult.newDocument,
+												...documentsForSelectedCustomer
+											];
+										}
+
+										showGlobalMessage({
+											success: true,
+											text: 'อัปโหลดเอกสารเรียบร้อยแล้ว',
+											type: 'success'
+										});
+									} else if (result.type === 'failure') {
+										showGlobalMessage({
+											success: false,
+											text: (result.data?.message as string) ?? 'เกิดข้อผิดพลาดในการอัปโหลด',
+											type: 'error'
+										});
+									}
 								};
 							}}
 							class="rounded-lg border-2 {isFileSelected
@@ -587,8 +588,8 @@
 							<label for="document_upload" class="flex cursor-pointer flex-col items-center py-2">
 								<span
 									class="text-sm {isFileSelected ? 'font-bold text-green-700' : 'text-gray-600'}"
-									>{#if isFileSelected}ไฟล์: {fileInputRef?.files?.[0]
-											?.name}{:else}คลิกเพื่อเลือกไฟล์ หรือ ลากมาวาง{/if}</span
+									>{#if isFileSelected}ไฟล์: {selectedFileName}{:else}คลิกเพื่อเลือกไฟล์ หรือ
+										ลากมาวาง{/if}</span
 								>
 							</label>
 							<button
@@ -766,9 +767,34 @@
 				action="?/deleteDocument"
 				use:enhance={() => {
 					isDeletingDocument = true;
-					return async ({ update }) => {
-						await update();
+					return async ({ result, update }) => {
+						// [1] เพิ่ม update เข้ามา
 						isDeletingDocument = false;
+
+						const actionResult = result as any;
+						if (actionResult.type === 'success') {
+							// ลบ Logic การ filter array แบบ manual ออก หรือเก็บไว้ก็ได้ แต่สำคัญที่สุดคือต้องเรียก update()
+
+							// [2] บังคับให้โหลดข้อมูลใหม่จาก Server เพื่อให้ data.customers เป็นปัจจุบัน
+							await update();
+
+							// ถ้าอยากให้ UI ใน Modal อัปเดตทันที (เผื่อ update ทำงานช้า)
+							// สามารถคง code filter ไว้ได้ แต่จริงๆ update() ก็เพียงพอแล้ว
+							if (documentToDelete) {
+								const idToDelete = documentToDelete.id;
+								documentsForSelectedCustomer = documentsForSelectedCustomer.filter(
+									(d) => d.id !== idToDelete
+								);
+							}
+
+							documentToDelete = null;
+						} else if (actionResult.type === 'failure') {
+							showGlobalMessage({
+								success: false,
+								text: (actionResult.data?.message as string) ?? 'Error',
+								type: 'error'
+							});
+						}
 					};
 				}}
 				class="mt-6 flex justify-end gap-3"
@@ -783,8 +809,10 @@
 				<button
 					type="submit"
 					class="rounded bg-red-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-red-700 disabled:opacity-50"
-					disabled={isDeletingDocument}>{isDeletingDocument ? 'กำลังลบ...' : 'ลบไฟล์'}</button
+					disabled={isDeletingDocument}
 				>
+					{#if isDeletingDocument}กำลังลบ...{:else}ลบไฟล์{/if}
+				</button>
 			</form>
 		</div>
 	</div>

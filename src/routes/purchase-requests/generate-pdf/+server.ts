@@ -1,10 +1,10 @@
 import { json } from '@sveltejs/kit';
 import puppeteer from 'puppeteer';
+import fs from 'fs';
+import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 import type { RequestHandler } from './$types';
-
-// --- 1. INTERFACES ---
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -28,11 +28,9 @@ interface PurchaseRequestData extends RowDataPacket {
 	status: string;
 	total_amount: number;
 
-	// ข้อมูลผู้ขอ (Requester)
 	requester_name: string;
 	requester_email: string | null;
 
-	// [เพิ่มใหม่] ข้อมูลผู้ขาย (Vendor)
 	vendor_name: string | null;
 	vendor_company: string | null;
 }
@@ -45,7 +43,30 @@ interface PRItem extends RowDataPacket {
 	total_price: number;
 }
 
-// --- 2. BAHTTEXT Helper ---
+function getLogoBase64(logoPath: string | null | undefined): string | null {
+	if (!logoPath) return null;
+	const tryPaths = [
+		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
+		path.resolve(process.cwd(), 'uploads/company/logo.png'),
+		path.resolve(process.cwd(), 'static/logo.png')
+	];
+
+	for (const p of tryPaths) {
+		try {
+			if (fs.existsSync(p)) {
+				const fileData = fs.readFileSync(p);
+				const ext = path.extname(p).replace('.', '');
+				return `data:image/${ext};base64,${fileData.toString('base64')}`;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	return null;
+}
+
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
 	if (isNaN(num)) num = 0;
@@ -98,11 +119,11 @@ function bahttext(input: number | string): string {
 	return decimalText ? `${integerText}บาท${decimalText}สตางค์` : `${integerText}บาทถ้วน`;
 }
 
-// --- 3. HTML GENERATOR ---
 function getPRHtml(
 	companyData: CompanyData | null,
 	prData: PurchaseRequestData,
-	itemsData: PRItem[]
+	itemsData: PRItem[],
+	logoBase64: string | null
 ): string {
 	const totalAmount = prData.total_amount || 0;
 	const netAmountText = bahttext(totalAmount);
@@ -130,18 +151,17 @@ function getPRHtml(
 		}
 	};
 
-	// [แก้ไข] ส่วน Header HTML ให้แสดง Vendor
+	const logoHtml = logoBase64
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
+		: companyData?.name
+			? `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData.name}</h2>`
+			: '';
+
 	const headerContent = `
 		<table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; page-break-inside: avoid; font-size: 9pt;">
 			<tr style="border-bottom: 1px solid #dee2e6;">
 				<td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
-					${
-						companyData?.logo_path
-							? `<img src="http://localhost:5173${companyData.logo_path}" alt="${companyData?.name}" style="max-height: 64px; margin-bottom: 8px;" />`
-							: companyData?.name
-								? `<h2 style="font-size: 1.25rem; font-weight: bold; color: #1F2937;">${companyData.name}</h2>`
-								: ''
-					}
+					${logoHtml}
 					<div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
 						<p style="margin:0;">${companyData?.address_line_1 || ''}</p>
 						${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
@@ -231,7 +251,6 @@ function getPRHtml(
         </div>
     `;
 
-	// --- Pagination Logic ---
 	const MAX_WITH_FOOTER = 10;
 	const MAX_WITHOUT_FOOTER = 18;
 	const itemPages: PRItem[][] = [];
@@ -310,7 +329,6 @@ function getPRHtml(
     </html>`;
 }
 
-// --- 4. MAIN HANDLER ---
 export const GET: RequestHandler = async ({ url }) => {
 	const id = url.searchParams.get('id');
 	if (!id) return json({ success: false, message: 'Missing ID' }, { status: 400 });
@@ -319,16 +337,15 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// [แก้ไข] เพิ่มการ JOIN ตาราง vendors และดึงข้อมูล vendor
 		const [prRows] = await connection.execute<PurchaseRequestData[]>(
 			`SELECT pr.*, 
                     u.full_name as requester_name, 
                     u.email as requester_email,
-                    v.name as vendor_name,            -- [เพิ่ม]
-                    v.company_name as vendor_company  -- [เพิ่ม]
+                    v.name as vendor_name,
+                    v.company_name as vendor_company
              FROM purchase_requests pr
              LEFT JOIN users u ON pr.requester_id = u.id
-             LEFT JOIN vendors v ON pr.vendor_id = v.id  -- [เพิ่ม] JOIN
+             LEFT JOIN vendors v ON pr.vendor_id = v.id
              WHERE pr.id = ?`,
 			[id]
 		);
@@ -341,8 +358,11 @@ export const GET: RequestHandler = async ({ url }) => {
 			[id]
 		);
 		const [cRows] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
+		const companyData = cRows.length > 0 ? cRows[0] : null;
 
-		const htmlContent = getPRHtml(cRows.length > 0 ? cRows[0] : null, prRows[0], itemsRows);
+		const logoBase64 = getLogoBase64(companyData?.logo_path);
+
+		const htmlContent = getPRHtml(companyData, prRows[0], itemsRows, logoBase64);
 
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],

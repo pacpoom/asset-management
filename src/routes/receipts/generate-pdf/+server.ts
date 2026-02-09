@@ -26,13 +26,11 @@ interface ReceiptData extends RowDataPacket {
 	receipt_date: string;
 	reference_doc: string | null;
 
-	// ข้อมูลลูกค้า (Join)
 	customer_name: string;
 	customer_address: string | null;
 	customer_tax_id: string | null;
 	created_by_name: string;
 
-	// ตัวเลขการเงิน
 	subtotal: number;
 	discount_amount: number;
 	total_after_discount: number;
@@ -50,7 +48,29 @@ interface ItemData {
 	line_total: number;
 }
 
-// --- Helper Functions ---
+function getLogoBase64(logoPath: string | null): string | null {
+	if (!logoPath) return null;
+	const tryPaths = [
+		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
+		path.resolve(process.cwd(), 'uploads/company/logo.png'),
+		path.resolve(process.cwd(), 'static/logo.png')
+	];
+
+	for (const p of tryPaths) {
+		try {
+			if (fs.existsSync(p)) {
+				const fileData = fs.readFileSync(p);
+				const ext = path.extname(p).replace('.', '');
+				return `data:image/${ext};base64,${fileData.toString('base64')}`;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	return null;
+}
 
 function bahttext(input: number | string): string {
 	let num = parseFloat(String(input));
@@ -107,7 +127,8 @@ function bahttext(input: number | string): string {
 function getReceiptHtml(
 	companyData: CompanyData | null,
 	receiptData: ReceiptData,
-	itemsData: ItemData[]
+	itemsData: ItemData[],
+	logoBase64: string | null
 ): string {
 	const subtotal = receiptData.subtotal || 0;
 	const discount = receiptData.discount_amount || 0;
@@ -139,13 +160,17 @@ function getReceiptHtml(
 		}
 	};
 
+	const logoHtml = logoBase64
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
+		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
+
 	// --- HTML Blocks ---
 
 	const headerContent = `
 		<table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
 			<tr style="border-bottom: 1px solid #dee2e6;">
 				<td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
-					${companyData?.logo_path ? `<img src="http://localhost:5173${companyData.logo_path}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />` : `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`}
+					${logoHtml}
 					<div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
 						<p style="margin:0;">${companyData?.address_line_1 || ''}</p>
 						${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
@@ -192,7 +217,6 @@ function getReceiptHtml(
 		</thead>
 	`;
 
-	// *** ตารางสรุปยอดเงิน (แก้ไขให้เหมือน Bill Payment) ***
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
@@ -361,7 +385,6 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// ดึง Receipt
 		const [rows] = await connection.execute<ReceiptData[]>(
 			`
 			SELECT r.*, c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, u.full_name as created_by_name
@@ -376,7 +399,6 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Receipt not found' }, { status: 404 });
 		const receiptData = rows[0];
 
-		// ดึงรายการสินค้า
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
 			SELECT description, quantity, unit_price, line_total FROM receipt_items WHERE receipt_id = ? ORDER BY item_order ASC
@@ -384,13 +406,13 @@ export const GET = async ({ url }) => {
 			[id]
 		);
 
-		// ดึงข้อมูลบริษัท
 		const [company] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
+		const companyData = company[0] || null;
 
-		// สร้าง HTML
-		const html = getReceiptHtml(company[0] || null, receiptData, items as ItemData[]);
+		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		// สร้าง PDF
+		const html = getReceiptHtml(companyData, receiptData, items as ItemData[], logoBase64);
+
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
 			headless: true

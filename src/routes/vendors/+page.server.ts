@@ -363,47 +363,69 @@ export const actions: Actions = {
 	},
 
 	deleteDocument: async ({ request, locals }) => {
-		checkPermission(locals, 'delete vendor documents');
 		const data = await request.formData();
 		const document_id = data.get('document_id')?.toString();
 
-		if (!document_id)
+		if (!document_id) {
 			return fail(400, { action: 'deleteDocument', success: false, message: 'Invalid ID.' });
+		}
 
-		const documentId = parseInt(document_id);
-		let filePath: string | null = null;
+		const docId = parseInt(document_id);
+		let connection;
 
 		try {
-			const [docResult] = await pool.execute<VendorDocument[]>(
+			connection = await pool.getConnection();
+			await connection.beginTransaction();
+
+			const [docs] = await connection.execute<VendorDocument[]>(
 				'SELECT file_path FROM vendor_documents WHERE id = ?',
-				[documentId]
+				[docId]
 			);
 
-			if (docResult.length === 0)
+			if (docs.length === 0) {
+				await connection.rollback();
 				return fail(404, {
 					action: 'deleteDocument',
 					success: false,
 					message: 'Document not found.'
 				});
-			filePath = docResult[0].file_path;
+			}
 
-			await pool.execute('DELETE FROM vendor_documents WHERE id = ?', [documentId]);
+			const filePath = docs[0].file_path;
 
-			await deleteFile(filePath);
+			await connection.execute('DELETE FROM vendor_documents WHERE id = ?', [docId]);
+
+			await connection.commit();
+
+			if (filePath) {
+				try {
+					const filename = path.basename(filePath);
+					const fullPath = path.join(process.cwd(), 'uploads', 'vendor_docs', filename);
+
+					await fs.unlink(fullPath);
+				} catch (fileErr: any) {
+					if (fileErr.code !== 'ENOENT') {
+						console.error('Failed to delete physical file:', fileErr);
+					}
+				}
+			}
 
 			return {
 				action: 'deleteDocument',
 				success: true,
 				message: 'Document deleted.',
-				deletedDocumentId: documentId
+				deletedDocumentId: docId
 			};
 		} catch (err: any) {
+			if (connection) await connection.rollback();
 			console.error(`Delete Document Error: ${err.message}`);
 			return fail(500, {
 				action: 'deleteDocument',
 				success: false,
 				message: `Failed to delete. Error: ${err.message}`
 			});
+		} finally {
+			if (connection) connection.release();
 		}
 	},
 

@@ -1,7 +1,10 @@
 import { json } from '@sveltejs/kit';
 import puppeteer from 'puppeteer';
+import fs from 'fs';
+import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
+import type { RequestHandler } from './$types';
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -32,7 +35,35 @@ interface RepairData extends RowDataPacket {
 	contact_info: string | null;
 }
 
-function getRepairHtml(companyData: CompanyData | null, repairData: RepairData): string {
+function getLogoBase64(logoPath: string | null | undefined): string | null {
+	if (!logoPath) return null;
+	const tryPaths = [
+		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
+		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
+		path.resolve(process.cwd(), 'uploads/company/logo.png'),
+		path.resolve(process.cwd(), 'static/logo.png')
+	];
+
+	for (const p of tryPaths) {
+		try {
+			if (fs.existsSync(p)) {
+				const fileData = fs.readFileSync(p);
+				const ext = path.extname(p).replace('.', '');
+				return `data:image/${ext};base64,${fileData.toString('base64')}`;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	return null;
+}
+
+function getRepairHtml(
+	companyData: CompanyData | null,
+	repairData: RepairData,
+	logoBase64: string | null
+): string {
 	const formatDateOnly = (isoString: string | null | undefined): string => {
 		if (!isoString) return '-';
 		try {
@@ -58,15 +89,15 @@ function getRepairHtml(companyData: CompanyData | null, repairData: RepairData):
 		return map[status] || status;
 	};
 
+	const logoHtml = logoBase64
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 50px; margin-bottom: 5px;" />`
+		: `<h2 style="font-size: 18px; font-weight: bold;">${companyData?.name || 'Company Name'}</h2>`;
+
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
                 <td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
-                    ${
-											companyData?.logo_path
-												? `<img src="http://localhost:5173${companyData.logo_path}" alt="Logo" style="max-height: 50px; margin-bottom: 5px;" />`
-												: `<h2 style="font-size: 18px; font-weight: bold;">${companyData?.name || 'Company Name'}</h2>`
-										}
+                    ${logoHtml}
                     <div style="font-size: 10px; color: #555; line-height: 1.4;">
                     ${companyData?.address_line_1 || ''}
                     ${companyData?.address_line_2 ? `<br>${companyData.address_line_2}` : ''}
@@ -229,8 +260,6 @@ function getRepairHtml(companyData: CompanyData | null, repairData: RepairData):
     `;
 }
 
-import type { RequestHandler } from './$types';
-
 export const GET: RequestHandler = async ({ params }) => {
 	const repairId = params.id;
 
@@ -268,7 +297,9 @@ export const GET: RequestHandler = async ({ params }) => {
 		);
 		const companyData = companyRows.length ? companyRows[0] : null;
 
-		const htmlContent = getRepairHtml(companyData, repairData);
+		const logoBase64 = getLogoBase64(companyData?.logo_path);
+
+		const htmlContent = getRepairHtml(companyData, repairData, logoBase64);
 
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],

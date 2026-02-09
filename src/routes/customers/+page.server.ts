@@ -6,18 +6,17 @@ import type { RowDataPacket } from 'mysql2';
 import fs from 'fs/promises';
 import path from 'path';
 
-// --- Types ---
 interface Customer extends RowDataPacket {
 	id: number;
 	name: string;
-	company_name: string | null; // NEW: Added company name
+	company_name: string | null;
 	email: string | null;
 	phone: string | null;
 	address: string | null;
 	tax_id: string | null;
 	notes: string | null;
 	assigned_to_user_id: number | null;
-	assigned_user_name: string | null; // From JOIN
+	assigned_user_name: string | null;
 	created_at: string;
 	updated_at: string;
 	documents: CustomerDocument[];
@@ -28,7 +27,7 @@ interface CustomerNote extends RowDataPacket {
 	customer_id: number;
 	note: string;
 	user_id: number;
-	user_full_name: string; // From JOIN
+	user_full_name: string;
 	created_at: string;
 }
 
@@ -48,22 +47,20 @@ interface User extends RowDataPacket {
 	email: string;
 }
 
-// --- File Handling Helpers ---
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'customer_docs');
 
-// Updated saveFile to improve error logging
 async function saveFile(file: File): Promise<{ filePath: string; originalName: string } | null> {
 	if (!file || file.size === 0) {
 		console.log('saveFile: No file or empty file provided.');
 		return null;
 	}
-	let uploadPath = ''; // Define uploadPath outside try block for potential cleanup
+	let uploadPath = '';
 	try {
 		await fs.mkdir(UPLOADS_DIR, { recursive: true });
 		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
 		const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
 		const filename = `${uniqueSuffix}-${sanitizedOriginalName}`;
-		uploadPath = path.join(UPLOADS_DIR, filename); // Assign path here
+		uploadPath = path.join(UPLOADS_DIR, filename);
 
 		console.log(`saveFile: Attempting to write file to ${uploadPath}`);
 		await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
@@ -76,27 +73,21 @@ async function saveFile(file: File): Promise<{ filePath: string; originalName: s
 			`saveFile: Error during file upload process for path ${uploadPath}. Error: ${uploadError.message}`,
 			uploadError.stack
 		);
-		// Attempt to clean up partially written file if it exists
 		if (uploadPath) {
 			try {
-				// Check if file exists before attempting unlink
-				await fs.stat(uploadPath); // This will throw if it doesn't exist
+				await fs.stat(uploadPath);
 				await fs.unlink(uploadPath);
 				console.log(`saveFile: Cleaned up partially written file ${uploadPath}`);
 			} catch (cleanupError: any) {
-				// Log cleanup error but prioritize throwing the original upload error
-				// Ignore ENOENT (file not found) errors during cleanup
 				if (cleanupError.code !== 'ENOENT') {
 					console.error(`saveFile: Error cleaning up file ${uploadPath}: ${cleanupError.message}`);
 				}
 			}
 		}
-		// Re-throw a more specific error to be caught by the action
 		throw new Error(`Failed to save uploaded file "${file.name}". Reason: ${uploadError.message}`);
 	}
 }
 
-// No changes needed for deleteFile, assuming it works correctly.
 async function deleteFile(filePath: string | null | undefined) {
 	if (!filePath) return;
 	try {
@@ -120,7 +111,6 @@ async function deleteFile(filePath: string | null | undefined) {
 	}
 }
 
-// --- Load Function ---
 export const load: PageServerLoad = async ({ url, locals }) => {
 	checkPermission(locals, 'view customers');
 
@@ -131,7 +121,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 	try {
 		let whereClause = ' WHERE 1=1 ';
-		const params: (string | number)[] = []; // Intentionally broad type, but only strings are added for search
+		const params: (string | number)[] = [];
 
 		if (searchQuery) {
 			whereClause += ` AND (
@@ -143,25 +133,20 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 u.full_name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			// Ensure 6 params are added if searchQuery exists
 			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
-		// --- Logging for Count Query ---
 		const countSql = `SELECT COUNT(*) as total
              FROM customers c
              LEFT JOIN users u ON c.assigned_to_user_id = u.id
              ${whereClause}`;
 		console.log('[DEBUG] Count SQL:', countSql);
 		console.log('[DEBUG] Count Params:', JSON.stringify(params));
-		// --- End Logging ---
 
-		// Get total count
 		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / pageSize);
 
-		// --- Logging for Fetch Query ---
 		const fetchSql = `SELECT
                 c.id, c.name, c.company_name, c.email, c.phone, c.address, c.tax_id, c.notes, -- Fetched company_name
                 c.assigned_to_user_id, u.full_name AS assigned_user_name,
@@ -174,22 +159,17 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const fetchParams = [...params, pageSize, offset];
 		console.log('[DEBUG] Fetch SQL:', fetchSql);
 		console.log('[DEBUG] Fetch Params:', JSON.stringify(fetchParams));
-		// --- End Logging ---
 
-		// Fetch customers
-		// *** SWITCHED from pool.execute to pool.query ***
 		const [customerRows] = await pool.query<Customer[]>(fetchSql, fetchParams);
 
-		// Fetch documents (No placeholders, no parameters needed)
 		const documentSql = `
             SELECT id, customer_id, file_name, file_path, uploaded_by_user_id, uploaded_at
             FROM customer_documents
             ORDER BY uploaded_at DESC
         `;
-		console.log('[DEBUG] Document SQL:', documentSql); // Log SQL just in case
+		console.log('[DEBUG] Document SQL:', documentSql);
 		const [documentRows] = await pool.execute<CustomerDocument[]>(documentSql);
 
-		// Map documents (No DB calls)
 		const documentsByCustomerId = new Map<number, CustomerDocument[]>();
 		documentRows.forEach((doc) => {
 			const list = documentsByCustomerId.get(doc.customer_id) || [];
@@ -197,12 +177,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			documentsByCustomerId.set(doc.customer_id, list);
 		});
 
-		// Fetch users (No placeholders, no parameters needed)
 		const userSql = 'SELECT id, full_name, email FROM users ORDER BY full_name';
-		console.log('[DEBUG] User SQL:', userSql); // Log SQL just in case
+		console.log('[DEBUG] User SQL:', userSql);
 		const [userRows] = await pool.execute<User[]>(userSql);
 
-		// Map customers with docs (No DB calls)
 		const customersWithDocs = customerRows.map((cust) => ({
 			...cust,
 			documents: documentsByCustomerId.get(cust.id) || []
@@ -216,23 +194,17 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			searchQuery
 		};
 	} catch (err: any) {
-		// Catch specific error
 		console.error('Failed to load customers data:', err.message, err.stack);
-		// Ensure the error message includes the original reason
 		throw error(500, `Failed to load data from the server. Error: ${err.message}`);
 	}
 };
 
-// --- Actions --- (Keep existing actions unchanged)
 export const actions: Actions = {
-	/**
-	 * Save (Add or Edit) Customer Details
-	 */
 	saveCustomer: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 		const name = data.get('name')?.toString()?.trim();
-		const company_name = data.get('company_name')?.toString()?.trim() || null; // NEW: Get company name
+		const company_name = data.get('company_name')?.toString()?.trim() || null;
 		const email = data.get('email')?.toString()?.trim() || null;
 		const phone = data.get('phone')?.toString()?.trim() || null;
 		const address = data.get('address')?.toString()?.trim() || null;
@@ -258,7 +230,6 @@ export const actions: Actions = {
 			const assignedUserId = assigned_to_user_id ? parseInt(assigned_to_user_id) : null;
 
 			if (id) {
-				// Edit
 				checkPermission(locals, 'edit customers');
 				await pool.execute(
 					`UPDATE customers SET
@@ -268,12 +239,11 @@ export const actions: Actions = {
 				);
 				return { action: 'saveCustomer', success: true, message: 'Customer updated successfully!' };
 			} else {
-				// Add
 				checkPermission(locals, 'create customers');
 				const [result] = await pool.execute(
 					`INSERT INTO customers
                         (name, company_name, email, phone, address, tax_id, notes, assigned_to_user_id, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`, // Added company_name
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
 					[name, company_name, email, phone, address, tax_id, notes, assignedUserId]
 				);
 				const insertId = (result as any).insertId;
@@ -304,9 +274,6 @@ export const actions: Actions = {
 		}
 	},
 
-	/**
-	 * Delete Customer
-	 */
 	deleteCustomer: async ({ request, locals }) => {
 		checkPermission(locals, 'delete customers');
 		const data = await request.formData();
@@ -340,7 +307,7 @@ export const actions: Actions = {
 			throw redirect(303, '/customers');
 		} catch (error: any) {
 			await connection.rollback();
-			if (error.status === 303) throw error; // Handle redirect correctly
+			if (error.status === 303) throw error;
 
 			console.error(`Error deleting customer ID ${customerId}: ${error.message}`, error.stack);
 			if (error.code === 'ER_ROW_IS_REFERENCED_2') {
@@ -360,9 +327,6 @@ export const actions: Actions = {
 		}
 	},
 
-	/**
-	 * Upload Customer Document
-	 */
 	uploadDocument: async ({ request, locals }) => {
 		checkPermission(locals, 'upload customer documents');
 
@@ -451,78 +415,73 @@ export const actions: Actions = {
 		}
 	},
 
-	/**
-	 * Delete Customer Document
-	 */
 	deleteDocument: async ({ request, locals }) => {
-		// Assume 'delete customer documents' permission exists
-		checkPermission(locals, 'delete customer documents');
 		const data = await request.formData();
 		const document_id = data.get('document_id')?.toString();
 
 		if (!document_id) {
-			return fail(400, {
-				action: 'deleteDocument',
-				success: false,
-				message: 'Invalid document ID.'
-			});
+			return fail(400, { action: 'deleteDocument', success: false, message: 'Invalid ID.' });
 		}
 
-		const documentId = parseInt(document_id);
-		let filePath: string | null = null; // Store filePath for deletion
+		const docId = parseInt(document_id);
+		let connection;
 
 		try {
-			// Use a transaction for consistency
-			const connection = await pool.getConnection();
+			connection = await pool.getConnection();
 			await connection.beginTransaction();
 
-			const [docResult] = await connection.execute<CustomerDocument[]>(
-				'SELECT file_path FROM customer_documents WHERE id = ? FOR UPDATE', // Lock row
-				[documentId]
+			const [docs] = await connection.execute<any[]>(
+				'SELECT file_path FROM customer_documents WHERE id = ?',
+				[docId]
 			);
 
-			if (docResult.length === 0) {
+			if (docs.length === 0) {
 				await connection.rollback();
-				connection.release();
 				return fail(404, {
 					action: 'deleteDocument',
 					success: false,
-					message: 'Document not found.'
+					message: 'Document not found in database.'
 				});
 			}
-			filePath = docResult[0].file_path;
 
-			// Delete DB record first
-			await connection.execute('DELETE FROM customer_documents WHERE id = ?', [documentId]);
-			console.log(`deleteDocument: DB record deleted for ID ${documentId}`);
+			const filePath = docs[0].file_path;
 
-			// Commit transaction before attempting file deletion
+			await connection.execute('DELETE FROM customer_documents WHERE id = ?', [docId]);
+
 			await connection.commit();
-			connection.release();
 
-			// Delete the actual file AFTER DB commit
-			await deleteFile(filePath);
+			if (filePath) {
+				try {
+					const filename = path.basename(filePath);
+					const fullPath = path.join(process.cwd(), 'uploads', 'customer_docs', filename);
+
+					await fs.unlink(fullPath);
+				} catch (fileErr: any) {
+					if (fileErr.code !== 'ENOENT') {
+						console.error('Failed to delete physical file:', fileErr);
+					}
+				}
+			}
 
 			return {
 				action: 'deleteDocument',
 				success: true,
-				message: 'Document deleted successfully.',
-				deletedDocumentId: documentId
+				message: 'Document deleted.',
+				deletedDocumentId: docId
 			};
 		} catch (err: any) {
-			// Rollback if transaction was started and failed before commit
-			// Note: If deleteFile fails after commit, DB change is permanent, but file might remain.
-			console.error(`Error deleting document ID ${documentId}: ${err.message}`, err.stack);
-			// Attempt to inform user about potential file remnant if DB delete succeeded but file delete failed?
+			if (connection) await connection.rollback();
+			console.error(`Delete Document Error: ${err.message}`);
 			return fail(500, {
 				action: 'deleteDocument',
 				success: false,
-				message: `Failed to delete document. Error: ${err.message}`
+				message: `Failed to delete. Error: ${err.message}`
 			});
+		} finally {
+			if (connection) connection.release();
 		}
 	},
 
-	// --- Note Actions (No changes needed) ---
 	addNote: async ({ request, locals }) => {
 		checkPermission(locals, 'add customer notes');
 		const data = await request.formData();
