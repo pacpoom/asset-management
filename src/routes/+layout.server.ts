@@ -15,8 +15,10 @@ interface Menu extends RowDataPacket {
 	children: Menu[]; // To hold nested children (REQUIRED for the tree structure)
 }
 
-// Type for company logo data
-interface CompanyLogo extends RowDataPacket {
+// Type for company data
+interface CompanyData extends RowDataPacket {
+    name: string;
+    system_name: string | null;
     logo_path: string | null;
 }
 
@@ -42,7 +44,7 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 		menuMap.set(menu.id, menuWithChildren);
 	});
 
-    // Convert Map values back to array for the next loop (important if the map altered object references, though Svelte's behavior is often fine without this step)
+    // Convert Map values back to array for the next loop
     const menusWithChildren = Array.from(menuMap.values());
 
 	// Second pass: link children to their parents
@@ -80,7 +82,7 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 /**
  * LayoutServerLoad function to check login status and load dynamic,
  * permission-based menus for the sidebar on every page.
- * ADDED: Also loads company logo path.
+ * ADDED: Also loads company logo path and name/system_name.
  */
 export const load: LayoutServerLoad = async ({ url, locals }) => {
 	// If user is not logged in and not on the login page, redirect them.
@@ -89,9 +91,10 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 	}
 
 	let menus: Menu[] = [];
-    let companyLogoPath: string | null = null; // Variable to store logo path
+    let companyLogoPath: string | null = null;
+    let systemName: string = 'Core Business'; // Default fallback name
 
-	// If the user is logged in, fetch menus and company logo
+	// If the user is logged in, fetch menus and company data
 	if (locals.user) {
 		try {
             // --- Fetch Menus ---
@@ -142,24 +145,30 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
             }
 			menus = buildMenuTree(menuRows as Menu[]);
 
-            // --- Fetch Company Logo ---
-            const [companyRows] = await pool.execute<CompanyLogo[]>(
-                `SELECT logo_path FROM company WHERE id = ? LIMIT 1`,
+            // --- Fetch Company Info (Name & Logo) ---
+            const [companyRows] = await pool.execute<CompanyData[]>(
+                `SELECT name, system_name, logo_path FROM company WHERE id = ? LIMIT 1`,
                 [1] // Assuming company ID is always 1
             );
             if (companyRows.length > 0) {
                 companyLogoPath = companyRows[0].logo_path;
+                // Prefer system_name, fallback to name, then default
+                if (companyRows[0].system_name) {
+                    systemName = companyRows[0].system_name;
+                } else if (companyRows[0].name) {
+                    systemName = companyRows[0].name;
+                }
             }
 
 		} catch (err) {
 			console.error('[+layout.server.ts] Database error during data fetch:', err);
-            // Don't crash the layout, just log the error. Menus/logo might be missing.
 		}
 	}
 
 	return {
 		user: locals.user,
 		menus: menus,
-        companyLogoPath: companyLogoPath // Pass logo path to the layout
+        companyLogoPath,
+        systemName // Renamed from companyName to indicate intent
 	};
 };
