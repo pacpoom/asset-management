@@ -10,6 +10,7 @@ import path from 'path';
 interface CompanyData extends RowDataPacket {
 	id: number;
 	name: string;
+	system_name: string | null; // Added
 	logo_path: string | null;
 	address_line_1: string | null;
 	address_line_2: string | null;
@@ -90,7 +91,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		if (rows.length > 0) {
 			companyData = rows[0];
 		} else {
-			companyData = { id: 1, name: '' } as Partial<CompanyData>;
+			companyData = { id: 1, name: '', system_name: '' } as Partial<CompanyData>;
 		}
 
 		return { company: companyData };
@@ -111,6 +112,7 @@ export const actions: Actions = {
 
 		const data = {
 			name: formData.get('name')?.toString()?.trim() || '',
+			system_name: formData.get('system_name')?.toString()?.trim() || null, // Added
 			address_line_1: formData.get('address_line_1')?.toString()?.trim() || null,
 			address_line_2: formData.get('address_line_2')?.toString()?.trim() || null,
 			city: formData.get('city')?.toString()?.trim() || null,
@@ -153,12 +155,13 @@ export const actions: Actions = {
 			// Upsert logic: Try to update first, if no rows affected, insert.
 			const updateSql = `
                 UPDATE company SET
-                    name = ?, logo_path = ?, address_line_1 = ?, address_line_2 = ?,
+                    name = ?, system_name = ?, logo_path = ?, address_line_1 = ?, address_line_2 = ?,
                     city = ?, state_province = ?, postal_code = ?, country = ?,
                     phone = ?, email = ?, website = ?, tax_id = ?
                 WHERE id = ?`;
 			const [updateResult] = await connection.execute(updateSql, [
 				data.name,
+				data.system_name, // Added
 				newLogoPath,
 				data.address_line_1,
 				data.address_line_2,
@@ -177,12 +180,13 @@ export const actions: Actions = {
 			if ((updateResult as any).affectedRows === 0) {
 				const insertSql = `
                     INSERT INTO company (
-                        id, name, logo_path, address_line_1, address_line_2, city, state_province,
+                        id, name, system_name, logo_path, address_line_1, address_line_2, city, state_province,
                         postal_code, country, phone, email, website, tax_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 				await connection.execute(insertSql, [
 					1, // Always insert ID 1
 					data.name,
+					data.system_name, // Added
 					newLogoPath,
 					data.address_line_1,
 					data.address_line_2,

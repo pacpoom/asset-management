@@ -12,7 +12,7 @@
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// Initialize company state from loaded data or defaults
-	let company = $state<CompanyData>(data.company || ({ id: 1, name: '' } as CompanyData));
+	let company = $state<CompanyData>(data.company || ({ id: 1, name: '', system_name: '' } as CompanyData));
 	let isSaving = $state(false);
 	let message = $state<{ text: string; type: 'success' | 'error' } | null>(null);
 	let messageTimeout: NodeJS.Timeout;
@@ -223,6 +223,21 @@
 						name="name"
 						bind:value={company.name}
 						required
+						class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+					/>
+				</div>
+				
+				<!-- System Name Input -->
+				<div>
+					<label for="system_name" class="mb-1 block text-sm font-medium text-gray-600"
+						>System Name (Header) <span class="text-xs font-normal text-gray-400">(ถ้าไม่ระบุจะใช้ชื่อบริษัท)</span></label
+					>
+					<input
+						type="text"
+						id="system_name"
+						name="system_name"
+						bind:value={company.system_name}
+						placeholder="ชื่อที่จะแสดงบนแถบเมนู..."
 						class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
 					/>
 				</div>

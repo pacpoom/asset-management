@@ -311,7 +311,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Core Business</title>
+	<title>{data.systemName || 'Core Business'}</title>
 	<style>
 		.material-symbols-outlined {
 			font-variation-settings:
@@ -343,24 +343,36 @@
 			onmouseleave={() => (isSidebarHovering = false)}
 		>
 			<div class="flex h-full flex-col overflow-x-hidden overflow-y-auto">
+				<!-- Sidebar Header -->
 				<div
-					class="mb-6 flex h-16 flex-shrink-0 items-center gap-3 px-2 {isSidebarExpanded
-						? ''
-						: 'justify-center'}"
+					class="mb-6 flex flex-shrink-0 items-center gap-3 px-2 transition-all duration-300 {isSidebarExpanded ||
+					isSidebarOpen
+						? 'flex-col py-6'
+						: 'h-16 justify-center'}"
 				>
-					<div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg">
+					<!-- Logo -->
+					<div
+						class="{isSidebarExpanded || isSidebarOpen
+							? 'h-24 w-24'
+							: 'h-10 w-10'} flex flex-shrink-0 items-center justify-center rounded-lg transition-all duration-300"
+					>
 						{#if data.companyLogoPath}
-							<img src={data.companyLogoPath} alt="Company Logo" class="h-8 w-8 object-contain" />
+							<img src={data.companyLogoPath} alt="Company Logo" class="h-full w-full object-contain" />
 						{:else}
-							<img src="/logo.png" alt="Default Logo" class="h-8 w-8 object-contain" />
+							<img src="/logo.png" alt="Default Logo" class="h-full w-full object-contain" />
 						{/if}
 					</div>
+
+					<!-- System Name -->
 					<span
-						class={`overflow-hidden text-xl font-bold whitespace-nowrap text-gray-900 transition-all duration-100 ${!isSidebarExpanded ? 'lg:hidden' : ''}`}
+						class={`text-center font-bold text-gray-900 transition-all duration-100 ${
+							isSidebarExpanded || isSidebarOpen ? 'block text-lg leading-tight' : 'hidden lg:hidden'
+						}`}
 					>
-						Core Business
+						{data.systemName || 'Core Business'}
 					</span>
 				</div>
+
 				<div class="flex-grow">
 					<nav>
 						{@render menuList(data.menus, 0)}
@@ -516,8 +528,9 @@
 				{/if}
 			</header>
 
+			<!-- Mobile Header -->
 			<header
-				class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 shadow-sm backdrop-blur-sm lg:hidden"
+				class="sticky top-0 z-10 flex min-h-[4rem] items-center justify-between border-b border-gray-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur-sm lg:hidden"
 			>
 				<button
 					onclick={() => (isSidebarOpen = true)}
@@ -526,13 +539,15 @@
 					<span class="sr-only">Open sidebar</span>
 					<span class="material-symbols-outlined h-6 w-6">menu</span>
 				</button>
-				<div class="flex items-center gap-2">
+				<div class="flex items-center gap-3">
 					{#if data.companyLogoPath}
-						<img src={data.companyLogoPath} alt="Company Logo" class="h-6 w-6 object-contain" />
+						<img src={data.companyLogoPath} alt="Company Logo" class="h-10 w-10 object-contain" />
 					{:else}
-						<img src="/logo.png" alt="Default Logo" class="h-6 w-6 object-contain" />
+						<img src="/logo.png" alt="Default Logo" class="h-10 w-10 object-contain" />
 					{/if}
-					<span class="text-lg font-bold text-gray-800">Core Business</span>
+					<span class="text-sm font-bold leading-tight text-gray-800"
+						>{data.systemName || 'Core Business'}</span
+					>
 				</div>
 				<div class="w-10"></div>
 			</header>

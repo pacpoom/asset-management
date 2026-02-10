@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { fade, fly, slide } from 'svelte/transition';
+	import { fade, fly, slide, scale } from 'svelte/transition';
 
 	let { data } = $props();
 
@@ -9,6 +9,10 @@
 	let showEditModal = $state(false);
 	let repairToDelete = $state<any>(null);
 	let isUpdating = $state(false);
+
+	// --- Image Viewer State ---
+	let showImageModal = $state(false);
+	let viewingImageUrl = $state<string | null>(null);
 
 	let historySearchTerm = $state('');
 	let isHistoryDropdownOpen = $state(false);
@@ -80,6 +84,17 @@
 		selectedRepair.asset_tag = asset.asset_tag;
 		assetEditSearchTerm = asset.asset_tag;
 		isAssetEditDropdownOpen = false;
+	}
+
+	function openImageViewer(url: string) {
+		if (!url) return;
+		viewingImageUrl = url;
+		showImageModal = true;
+	}
+
+	function closeImageViewer() {
+		showImageModal = false;
+		setTimeout(() => (viewingImageUrl = null), 200);
 	}
 </script>
 
@@ -188,6 +203,7 @@
 			<table class="w-full text-left text-sm text-gray-600">
 				<thead class="border-b bg-gray-50 text-xs font-bold tracking-wider text-gray-500 uppercase">
 					<tr>
+						<th class="px-6 py-4 text-center">รูปภาพ</th>
 						<th class="px-6 py-4">Ticket / วันที่</th>
 						<th class="px-6 py-4">อุปกรณ์ / สถานที่</th>
 						<th class="px-6 py-4">ชื่อ-นามสกุล</th>
@@ -199,6 +215,58 @@
 				<tbody class="divide-y divide-gray-200">
 					{#each data.repairs as repair}
 						<tr class="transition-colors hover:bg-gray-50/50">
+							<td class="px-6 py-4 text-center">
+								{#if repair.image_url}
+									<button
+										onclick={(e) => {
+											e.stopPropagation();
+											openImageViewer(repair.image_url);
+										}}
+										class="relative h-14 w-14 overflow-hidden rounded-lg border border-gray-200 shadow-sm transition-transform hover:scale-105"
+										title="คลิกเพื่อดูรูปขนาดใหญ่"
+									>
+										<img
+											src={repair.image_url}
+											alt="Repair"
+											class="h-full w-full object-cover"
+										/>
+										<div
+											class="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity hover:bg-black/10 hover:opacity-100"
+										>
+											<svg
+												class="h-5 w-5 text-white drop-shadow-md"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												><path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+												/></svg
+											>
+										</div>
+									</button>
+								{:else}
+									<div
+										class="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-gray-100 text-gray-300"
+									>
+										<svg
+											class="h-6 w-6"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+											/>
+										</svg>
+									</div>
+								{/if}
+							</td>
 							<td class="px-6 py-4">
 								<div class="font-bold text-blue-600">#{repair.ticket_code}</div>
 								<div class="text-[10px] font-medium text-gray-400">
@@ -363,11 +431,17 @@
 				</div>
 				{#if selectedRepair.image_url}<div>
 						<p class="mb-2 text-xs font-bold text-gray-400 uppercase">รูปถ่ายจากผู้แจ้ง:</p>
-						<img
-							src={selectedRepair.image_url}
-							alt="User reported"
-							class="w-full rounded-lg border shadow-sm"
-						/>
+						<button
+							type="button"
+							class="w-full overflow-hidden rounded-lg border shadow-sm transition-opacity hover:opacity-90"
+							onclick={() => openImageViewer(selectedRepair.image_url)}
+						>
+							<img
+								src={selectedRepair.image_url}
+								alt="User reported"
+								class="h-full w-full object-cover"
+							/>
+						</button>
 					</div>{/if}
 
 				{#if selectedRepair.latitude && selectedRepair.longitude}
@@ -398,11 +472,17 @@
 				{#if selectedRepair.completion_image_url}
 					<div class="rounded-xl border border-green-100 bg-green-50 p-4">
 						<p class="mb-2 text-xs font-bold text-green-600 uppercase">✅ ผลการดำเนินการ:</p>
-						<img
-							src={selectedRepair.completion_image_url}
-							alt="Admin resolved"
-							class="mb-2 w-full rounded-lg border-2 border-white shadow-sm"
-						/>
+						<button
+							type="button"
+							class="w-full overflow-hidden rounded-lg border-2 border-white shadow-sm transition-opacity hover:opacity-90"
+							onclick={() => openImageViewer(selectedRepair.completion_image_url)}
+						>
+							<img
+								src={selectedRepair.completion_image_url}
+								alt="Admin resolved"
+								class="mb-2 w-full"
+							/>
+						</button>
 						{#if selectedRepair.admin_notes}<p class="text-sm font-medium text-green-800">
 								{selectedRepair.admin_notes}
 							</p>{/if}
@@ -611,5 +691,41 @@
 				</form>
 			</div>
 		</div>
+	</div>
+{/if}
+
+<!-- Image Viewer Modal -->
+{#if showImageModal && viewingImageUrl}
+	<div
+		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm"
+		transition:fade
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeImageViewer();
+		}}
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+		onkeydown={(e) => e.key === 'Escape' && closeImageViewer()}
+	>
+		<button
+			class="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-white/20 hover:text-white"
+			onclick={closeImageViewer}
+			aria-label="Close image viewer"
+		>
+			<svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+				><path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M6 18L18 6M6 6l12 12"
+				/></svg
+			>
+		</button>
+		<img
+			src={viewingImageUrl}
+			alt="Full size view"
+			class="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl"
+			transition:scale={{ start: 0.9, duration: 300 }}
+		/>
 	</div>
 {/if}

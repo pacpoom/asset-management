@@ -15,6 +15,34 @@
 	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
+	// --- Pagination State ---
+	let currentPage = $state(1);
+	let itemsPerPage = $state(10);
+	const pageSizeOptions = [10, 50, 100, 500];
+
+	// Derived Pagination Data
+	let totalItems = $derived(data.users.length);
+	let totalPages = $derived(Math.ceil(totalItems / itemsPerPage));
+	let startItem = $derived(totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1);
+	let endItem = $derived(Math.min(currentPage * itemsPerPage, totalItems));
+	
+	let paginatedUsers = $derived(
+		data.users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+	);
+
+	// Reset page if data changes or is out of bounds
+	$effect(() => {
+		if (currentPage > totalPages && totalPages > 0) {
+			currentPage = totalPages;
+		}
+	});
+
+	function goToPage(page: number) {
+		if (page >= 1 && page <= totalPages) {
+			currentPage = page;
+		}
+	}
+
 	// User Modal State
 	let modalMode = $state<'add' | 'edit' | null>(null);
 	let selectedUser = $state<(Partial<User> & { password?: string }) | null>(null);
@@ -316,21 +344,22 @@
 	</div>
 {/if}
 
+<!-- Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
 		<h1 class="text-2xl font-bold text-gray-800">Users Management</h1>
-		<p class="mt-1 text-sm text-gray-500"></p>
+		<p class="mt-1 text-sm text-gray-500">จัดการผู้ใช้งานในระบบ</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<button
 			onclick={openDepartmentManager}
-			class="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+			class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
 		>
 			Manage Departments
 		</button>
 		<button
 			onclick={openPositionManager}
-			class="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+			class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
 		>
 			Manage Positions
 		</button>
@@ -352,103 +381,156 @@
 	</div>
 </div>
 
-<div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-	<table class="min-w-full divide-y divide-gray-200 text-sm">
-		<thead class="bg-gray-50">
-			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Full Name</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Employee ID</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Email</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Username</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Department</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Position</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Role</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Actions</th>
-			</tr>
-		</thead>
-		<tbody class="divide-y divide-gray-200 bg-white">
-			{#if data.users.length === 0}
-				<tr>
-					<td colspan="8" class="py-12 text-center text-gray-500"> No users found. </td>
-				</tr>
-			{:else}
-				{#each data.users as user (user.id)}
-					<tr class="hover:bg-gray-50">
-						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900">{user.full_name}</td>
-						<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-700">
-							{user.emp_id ?? 'N/A'}
-						</td>
-						<td class="px-4 py-3 whitespace-nowrap text-gray-600">{user.email}</td>
-						<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-700">
-							{user.username}
-						</td>
-						<td class="px-4 py-3 whitespace-nowrap text-gray-600">
-							{user.department_name ?? 'N/A'}
-						</td>
-						<td class="px-4 py-3 whitespace-nowrap text-gray-600">
-							{user.position_name ?? 'N/A'}
-						</td>
-						<td class="px-4 py-3 whitespace-nowrap">
-							<span
-								class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {user.role ===
-								'admin'
-									? 'bg-purple-100 text-purple-800'
-									: 'bg-gray-100 text-gray-800'}"
-							>
-								{user.role}
-							</span>
-						</td>
-						<td class="px-4 py-3 whitespace-nowrap">
-							<div class="flex items-center gap-2">
-								<button
-									onclick={() => openUserModal('edit', user)}
-									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-blue-600"
-									aria-label="Edit user"
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="24"
-										height="24"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										class="h-4 w-4"
-										><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path
-											d="m15 5 4 4"
-										/></svg
-									>
-								</button>
-								<button
-									onclick={() => (userToDelete = user)}
-									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-600"
-									aria-label="Delete user"
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="24"
-										height="24"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										class="h-4 w-4"
-										><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path
-											d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-										/></svg
-									>
-								</button>
-							</div>
-						</td>
+<!-- Main Table Container -->
+<div class="flex flex-col gap-4">
+	<div class="w-full overflow-hidden rounded-lg border border-gray-500 bg-white shadow-sm">
+		<div class="overflow-x-auto">
+			<table class="min-w-full divide-y divide-gray-500 text-sm">
+				<thead class="bg-gray-50">
+					<tr>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Full Name</th>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Emp ID</th>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Email</th>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Username</th>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Department</th>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Position</th>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role</th>
+						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Actions</th>
 					</tr>
-				{/each}
-			{/if}
-		</tbody>
-	</table>
+				</thead>
+				<tbody class="divide-y divide-gray-200 bg-white">
+					{#if paginatedUsers.length === 0}
+						<tr>
+							<td colspan="8" class="py-12 text-center text-gray-500"> No users found. </td>
+						</tr>
+					{:else}
+						{#each paginatedUsers as user (user.id)}
+							<tr class="hover:bg-gray-50 transition-colors">
+								<td class="px-6 py-4 font-medium whitespace-nowrap text-gray-900">{user.full_name}</td>
+								<td class="px-6 py-4 font-mono text-xs whitespace-nowrap text-gray-700">
+									{user.emp_id ?? '-'}
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-gray-600">{user.email}</td>
+								<td class="px-6 py-4 font-mono text-xs whitespace-nowrap text-gray-700">
+									{user.username}
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-gray-600">
+									{user.department_name ?? '-'}
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-gray-600">
+									{user.position_name ?? '-'}
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap">
+									<span
+										class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border {user.role ===
+										'admin'
+											? 'bg-purple-50 text-purple-700 border-purple-200'
+											: 'bg-gray-50 text-gray-700 border-gray-200'}"
+									>
+										{user.role}
+									</span>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap">
+									<div class="flex items-center gap-3">
+										<button
+											onclick={() => openUserModal('edit', user)}
+											class="text-gray-400 hover:text-blue-600 transition-colors"
+											title="Edit user"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												width="24"
+												height="24"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												class="h-5 w-5"
+												><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path
+													d="m15 5 4 4"
+												/></svg
+											>
+										</button>
+										<button
+											onclick={() => (userToDelete = user)}
+											class="text-gray-400 hover:text-red-600 transition-colors"
+											title="Delete user"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												width="24"
+												height="24"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												class="h-5 w-5"
+												><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path
+													d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+												/></svg
+											>
+										</button>
+									</div>
+								</td>
+							</tr>
+						{/each}
+					{/if}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<!-- Pagination Controls -->
+	<div class="flex flex-col items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row">
+		<div class="text-sm text-gray-600">
+			Showing <span class="font-semibold text-gray-900">{startItem}</span> to <span
+				class="font-semibold text-gray-900">{endItem}</span
+			>
+			of <span class="font-semibold text-gray-900">{totalItems}</span> entries
+		</div>
+
+		<div class="flex items-center gap-4">
+			<div class="flex items-center gap-2">
+				<label for="itemsPerPage" class="text-sm text-gray-600">Rows per page:</label>
+				<select
+					id="itemsPerPage"
+					bind:value={itemsPerPage}
+					onchange={() => currentPage = 1}
+					class="rounded-md border-gray-300 py-1 pl-2 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
+				>
+					{#each pageSizeOptions as size}
+						<option value={size}>{size}</option>
+					{/each}
+				</select>
+			</div>
+
+			<div class="flex gap-1">
+				<button
+					onclick={() => goToPage(currentPage - 1)}
+					disabled={currentPage === 1}
+					class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					Previous
+				</button>
+				
+				<div class="flex items-center px-2">
+					<span class="text-sm text-gray-600">Page {currentPage} of {totalPages || 1}</span>
+				</div>
+
+				<button
+					onclick={() => goToPage(currentPage + 1)}
+					disabled={currentPage === totalPages || totalPages === 0}
+					class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					Next
+				</button>
+			</div>
+		</div>
+	</div>
 </div>
 
 {#if modalMode && selectedUser}

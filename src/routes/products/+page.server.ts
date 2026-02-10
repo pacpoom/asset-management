@@ -155,8 +155,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';
-	const pageSize = 16; // <<< CHANGED pageSize to 16
-	const offset = (page - 1) * pageSize;
+
+	// *** Handle Dynamic Page Size ***
+	let limit = parseInt(url.searchParams.get('limit') || '10', 10);
+	const allowedLimits = [10, 20, 50, 200];
+	if (!allowedLimits.includes(limit)) {
+		limit = 10; // Default fallback if invalid
+	}
+	const offset = (page - 1) * limit;
 
 	try {
 		let whereClause = ' WHERE 1=1 ';
@@ -184,7 +190,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		// ... existing count logic ...
 		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
-		const totalPages = Math.ceil(total / pageSize);
+		const totalPages = Math.ceil(total / limit);
 
 		// Fetch products with joins - Added more joins for detail modal
 		// *** MODIFIED: Interpolate LIMIT and OFFSET directly ***
@@ -213,9 +219,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             LEFT JOIN chart_of_accounts coa_expense ON p.expense_account_id = coa_expense.id
             ${whereClause}
             ORDER BY p.created_at DESC
-            LIMIT ${pageSize} OFFSET ${offset}
+            LIMIT ${limit} OFFSET ${offset}
         `; // <-- Interpolated LIMIT/OFFSET
-		// ... existing fetch logic ...
+		
 		// *** MODIFIED: Pass only search params to execute ***
 		const [productRows] = await pool.execute<Product[]>(productsSql, params); // <-- Removed pageSize, offset
 
@@ -241,6 +247,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			accounts: accountRows,
 			currentPage: page,
 			totalPages,
+			limit, // *** Added limit to return data ***
 			searchQuery
 		};
 	} catch (err: any) {

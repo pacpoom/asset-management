@@ -5,12 +5,14 @@
 	import { invalidateAll, goto } from '$app/navigation';
 	import { compressImage } from '$lib/utils/image-compressor';
 
+	// --- Types ---
 	type Product = PageData['products'][0];
 	type ProductCategory = PageData['categories'][0];
 	type Unit = PageData['units'][0];
 	type Vendor = PageData['vendors'][0];
 	type ChartOfAccount = PageData['accounts'][0];
 
+	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let modalMode = $state<'add' | 'edit' | null>(null);
@@ -24,28 +26,38 @@
 	);
 	let messageTimeout: NodeJS.Timeout;
 
+	// Search State
 	let searchQuery = $state(data.searchQuery ?? '');
-	let searchTimer: NodeJS.Timeout;
+	let searchTimer: NodeJS.Timeout; // ตัวจับเวลาสำหรับ Live Search
 
+	// Image handling state
 	let compressedImageFile = $state<File | null>(null);
 	let isCompressing = $state(false);
 	let compressionError = $state<string | null>(null);
 	let imagePreviewUrl = $state<string | null>(null);
 	let removeImageFlag = $state(false);
 
+	// --- Derived Data ---
+	// [แก้ไข] ใช้ข้อมูลจาก Server โดยตรง ไม่ต้องกรองซ้ำที่หน้าจอ
+	// เพราะ Live Search จะสั่ง Server ให้กรองมาให้แล้ว
 	const filteredProducts = $derived(data.products || []);
 
+	// --- Functions ---
+
+	// [เพิ่มใหม่] ฟังก์ชัน Live Search
 	function handleSearchInput() {
 		clearTimeout(searchTimer);
+		// รอ 400ms หลังพิมพ์เสร็จ ค่อยส่งคำสั่งค้นหา
 		searchTimer = setTimeout(() => {
 			const params = new URLSearchParams();
 			if (searchQuery) params.set('search', searchQuery);
-			params.set('page', '1');
+			params.set('page', '1'); // รีเซ็ตไปหน้า 1 เสมอเมื่อค้นหาใหม่
 
+			// สั่งโหลดหน้าใหม่แบบไม่รีเฟรช (AJAX)
 			goto(`/products?${params.toString()}`, {
-				keepFocus: true,
-				noScroll: true,
-				replaceState: true
+				keepFocus: true, // เก็บ cursor ไว้ในช่องค้นหา
+				noScroll: true, // ไม่ต้องเด้งไปบนสุด
+				replaceState: true // ไม่ต้องเก็บประวัติการพิมพ์ทุกตัวอักษร
 			});
 		}, 400);
 	}
@@ -97,6 +109,7 @@
 		}, duration);
 	}
 
+	// --- Image Handling ---
 	async function onFileSelected(event: Event) {
 		const input = event.target as HTMLInputElement;
 		removeImageFlag = false;
@@ -160,6 +173,7 @@
 		}).format(value);
 	}
 
+	// --- Reactive Effects ---
 	$effect.pre(() => {
 		if (form?.action === 'saveProduct') {
 			if (form.success) {
@@ -191,6 +205,7 @@
 		};
 	});
 
+	// --- Pagination Logic ---
 	const paginationRange = $derived.by(() => {
 		const delta = 1;
 		const left = data.currentPage - delta;
@@ -217,6 +232,7 @@
 		return rangeWithDots;
 	});
 
+	// [แก้ไข] แก้บั๊ก window is not defined ด้วยการใช้ตัวแปร state แทน
 	function getPageUrl(pageNum: number) {
 		const params = new URLSearchParams();
 		if (searchQuery) params.set('search', searchQuery);
