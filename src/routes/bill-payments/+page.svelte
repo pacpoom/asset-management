@@ -996,7 +996,6 @@
 	</div>
 {/if}
 
-<!-- MODAL: Delete Confirmation -->
 {#if paymentToDelete}
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -1047,7 +1046,6 @@
 {/if}
 
 <style>
-	/* Styles for svelte-select to match the general theme */
 	:global(div.svelte-select) {
 		min-height: 38px;
 	}
@@ -1077,16 +1075,13 @@
 	:global(div.svelte-select .list) {
 		border-radius: 0.375rem;
 		border-color: #d1d5db;
-		z-index: 9999 !important; /* บังคับให้ลอยอยู่บนสุด */
-		max-height: 200px; /* กำหนดความสูงสูงสุดเพื่อให้ Scroll ได้ถ้ารายการเยอะ */
+		z-index: 9999 !important;
+		max-height: 200px;
 		overflow-y: auto;
 
-		/* ถ้าต้องการบังคับให้มันเด้งลงล่างเสมอ (อาจจะต้องดูบริบทหน้าจอด้วย) */
 		top: 100% !important;
 		bottom: auto !important;
 	}
-
-	/* ถ้า Container ของ Select ถูก clip หรือซ่อน overflow ไว้ ให้แก้ที่ parent ด้วย */
 	:global(.selectContainer) {
 		overflow: visible !important;
 	}

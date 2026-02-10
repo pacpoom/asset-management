@@ -20,6 +20,7 @@ interface CompanyData extends RowDataPacket {
 	tax_id: string | null;
 }
 
+// [แก้ไข] เพิ่ม Field ที่จำเป็นสำหรับการคำนวณเงิน
 interface BillingNoteData extends RowDataPacket {
 	id: number;
 	billing_note_number: string;
@@ -29,12 +30,21 @@ interface BillingNoteData extends RowDataPacket {
 	customer_address: string | null;
 	customer_tax_id: string | null;
 	created_by_name: string;
-	total_amount: number;
 	notes: string | null;
+
+	// Financial Fields
+	subtotal: number;
+	discount_amount: number;
+	vat_rate: number;
+	vat_amount: number;
+	withholding_tax_rate: number;
+	withholding_tax_amount: number;
+	total_amount: number;
 }
 
+// [แก้ไข] เปลี่ยน item_name เป็น description ให้ตรงกับ Database
 interface BillingItemData extends RowDataPacket {
-	item_name: string;
+	description: string;
 	quantity: number;
 	unit_price: number;
 	amount: number;
@@ -124,11 +134,18 @@ function getBillingNoteHtml(
 	itemsData: BillingItemData[],
 	logoBase64: string | null
 ): string {
-	const subtotal = itemsData.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-	const vatRate = 7;
-	const vatAmount = 0;
-	const whtAmount = 0;
-	const netAmount = subtotal + vatAmount - whtAmount;
+	// [แก้ไข] ดึงค่าคำนวณจริงจาก Database แทนการ Hardcode
+	const subtotal = Number(noteData.subtotal) || 0;
+	const discountAmount = Number(noteData.discount_amount) || 0;
+	const afterDiscount = subtotal - discountAmount;
+
+	const vatRate = Number(noteData.vat_rate) || 0;
+	const vatAmount = Number(noteData.vat_amount) || 0;
+
+	const whtRate = Number(noteData.withholding_tax_rate) || 0;
+	const whtAmount = Number(noteData.withholding_tax_amount) || 0;
+
+	const netAmount = Number(noteData.total_amount) || 0;
 	const netAmountText = bahttext(netAmount);
 
 	const formatNumber = (num: number | string) => {
@@ -206,6 +223,7 @@ function getBillingNoteHtml(
 		</thead>
     `;
 
+	// [แก้ไข] ส่วนสรุปยอดเงิน แสดง Discount, VAT, WHT ให้ถูกต้อง
 	const financialSummaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 1px; width: 100%; font-size: 8pt;">
             <colgroup>
@@ -214,7 +232,7 @@ function getBillingNoteHtml(
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" rowspan="3" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+                    <td colspan="4" rowspan="${3 + (discountAmount > 0 ? 1 : 0) + (vatRate > 0 ? 1 : 0) + (whtRate > 0 ? 1 : 0)}" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
                          
                         <div>
                             <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
@@ -230,10 +248,40 @@ function getBillingNoteHtml(
                     <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
                 
+                ${
+									discountAmount > 0
+										? `
+                <tr>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
+                    <td class="p-2 text-right text-red-600">-${formatNumber(discountAmount)}</td>
+                </tr>
+                <tr>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
+                    <td class="p-2 text-right">${formatNumber(afterDiscount)}</td>
+                </tr>
+                `
+										: ''
+								}
+
+                ${
+									vatRate > 0
+										? `
                 <tr>
 					<td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
 					<td class="p-2 text-right">${formatNumber(vatAmount)}</td>
-				</tr>
+				</tr>`
+										: ''
+								}
+
+                ${
+									whtRate > 0
+										? `
+                <tr>
+					<td class="font-bold p-2 text-right border-l border-gray-400">หัก ณ ที่จ่าย (${whtRate}%)</td>
+					<td class="p-2 text-right text-red-600">-${formatNumber(whtAmount)}</td>
+				</tr>`
+										: ''
+								}
 
                 <tr style="background-color: #ffffff;">
                     <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt;">จำนวนเงินสุทธิ</td>
@@ -301,7 +349,7 @@ function getBillingNoteHtml(
 					return `
                     <tr class="border-b border-gray-300">
                         <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${globalIndex}</td>
-                        <td class="p-2 align-middle h-8" style="font-size: 8pt;">${item.item_name || '-'}</td>
+						<td class="p-2 align-middle h-8" style="font-size: 8pt;">${item.description || '-'}</td>
                         <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${formatNumber(item.quantity)}</td> 
                         <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${formatNumber(item.unit_price)}</td> 
                         <td class="p-2 text-right align-middle h-8" style="font-size: 8pt;">${formatNumber(item.amount)}</td> 
@@ -409,6 +457,7 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
+		// ดึงข้อมูล Header ปกติ (เพิ่ม select * ก็จะมาครบทุก field)
 		const [rows] = await connection.execute<any[]>(`SELECT * FROM billing_notes WHERE id = ?`, [
 			id
 		]);
@@ -435,8 +484,9 @@ export const GET = async ({ url }) => {
 		}
 		noteData.created_by_name = createdByName;
 
+		// [แก้ไข] SQL เปลี่ยนจาก select item_name เป็น description
 		const [items] = await connection.execute<BillingItemData[]>(
-			`SELECT item_name, quantity, unit_price, amount 
+			`SELECT description, quantity, unit_price, amount 
              FROM billing_note_items 
              WHERE billing_note_id = ? 
              ORDER BY id ASC`,

@@ -18,9 +18,9 @@
 		tax_id: string | null;
 	}
 
-	// กำหนด Type สำหรับ Item ใหม่ (ไม่ใช่ Invoice แล้ว)
 	interface BillingItem {
 		item_name: string;
+		description?: string;
 		quantity: number;
 		unit_price: number;
 		amount: number;
@@ -258,7 +258,7 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="w-12 px-3 py-2 text-center font-medium text-gray-500">#</th>
+					<th class="w-12 px-3 py-2 text-center font-medium text-gray-500">ลำดับ</th>
 					<th class="px-3 py-2 text-left font-medium text-gray-500">รายการ (Description)</th>
 					<th class="px-3 py-2 text-center font-medium text-gray-500">จำนวน (Qty)</th>
 					<th class="px-3 py-2 text-right font-medium text-gray-500">ราคา/หน่วย</th>
@@ -269,7 +269,9 @@
 				{#each items as item, i}
 					<tr>
 						<td class="px-3 py-2 text-center text-gray-500">{i + 1}</td>
-						<td class="px-3 py-2 font-medium text-gray-900">{item.item_name}</td>
+						<td class="px-3 py-2 font-medium text-gray-900"
+							>{item.description || item.item_name || '-'}</td
+						>
 						<td class="px-3 py-2 text-center text-gray-700">{item.quantity}</td>
 						<td class="px-3 py-2 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
 						<td class="px-3 py-2 text-right font-medium text-gray-800"
@@ -278,12 +280,62 @@
 					</tr>
 				{/each}
 			</tbody>
-			<tfoot class="bg-gray-50">
+			<tfoot class="bg-gray-50 text-sm">
 				<tr>
-					<td colspan="4" class="px-3 py-2 text-right font-bold text-gray-700"
-						>รวมเป็นเงินทั้งสิ้น (Total):</td
+					<td colspan="4" class="px-3 py-2 text-right font-medium text-gray-700"
+						>รวมเป็นเงิน (Subtotal):</td
 					>
-					<td class="px-3 py-2 text-right font-bold text-blue-700">
+					<td class="px-3 py-2 text-right font-medium text-gray-900">
+						{formatCurrency(billingNote.subtotal)}
+					</td>
+				</tr>
+
+				{#if Number(billingNote.discount_amount) > 0}
+					<tr>
+						<td colspan="4" class="px-3 py-2 text-right font-medium text-gray-700">
+							ส่วนลด (Discount):
+						</td>
+						<td class="px-3 py-2 text-right font-medium text-red-600">
+							-{formatCurrency(billingNote.discount_amount)}
+						</td>
+					</tr>
+					<tr>
+						<td colspan="4" class="px-3 py-2 text-right font-medium text-gray-700">
+							ราคาหลังหักส่วนลด (After Discount):
+						</td>
+						<td class="px-3 py-2 text-right font-medium text-gray-900">
+							{formatCurrency((billingNote.subtotal || 0) - (billingNote.discount_amount || 0))}
+						</td>
+					</tr>
+				{/if}
+
+				{#if Number(billingNote.vat_rate) > 0}
+					<tr>
+						<td colspan="4" class="px-3 py-2 text-right font-medium text-gray-700">
+							ภาษีมูลค่าเพิ่ม {billingNote.vat_rate}% (VAT):
+						</td>
+						<td class="px-3 py-2 text-right font-medium text-gray-900">
+							{formatCurrency(billingNote.vat_amount)}
+						</td>
+					</tr>
+				{/if}
+
+				{#if Number(billingNote.withholding_tax_rate) > 0}
+					<tr>
+						<td colspan="4" class="px-3 py-2 text-right font-medium text-gray-700">
+							หัก ณ ที่จ่าย {billingNote.withholding_tax_rate}% (WHT):
+						</td>
+						<td class="px-3 py-2 text-right font-medium text-red-600">
+							-{formatCurrency(billingNote.withholding_tax_amount)}
+						</td>
+					</tr>
+				{/if}
+
+				<tr class="border-t-2 border-gray-200">
+					<td colspan="4" class="px-3 py-3 text-right font-bold text-gray-800">
+						ยอดรวมทั้งสิ้น (Grand Total):
+					</td>
+					<td class="px-3 py-3 text-right text-lg font-bold text-blue-700">
 						{formatCurrency(billingNote.total_amount)}
 					</td>
 				</tr>
