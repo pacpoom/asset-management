@@ -243,7 +243,7 @@
 				</div>
 			</div>
 
-			<div class="mb-6 overflow-hidden rounded-lg border border-gray-200">
+			<div class="mb-6 rounded-lg border border-gray-200">
 				<table class="min-w-full divide-y divide-gray-200 text-sm">
 					<thead class="bg-gray-50">
 						<tr>
@@ -266,7 +266,7 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item (item.id)}
 							<tr class="align-top">
-								<td class="px-4 py-2">
+								<td class="px-3 py-2">
 									<Select
 										items={productOptions}
 										bind:value={item.product_object}
@@ -275,9 +275,12 @@
 											item.product_object = null;
 											onProductSelectChange(item);
 										}}
-										placeholder="ค้นหา..."
-										--inputStyles="padding: 2px;"
-									/>
+										placeholder="-- ค้นหา/เลือกสินค้า --"
+										required
+										--inputStyles="padding: 2px 0;"
+										--itemIsActive="background: #e0f2fe;"
+										--list="border-radius: 6px;"
+									></Select>
 								</td>
 								<td class="px-4 py-2">
 									<input

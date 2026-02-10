@@ -6,7 +6,6 @@
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 
-	// --- Types ---
 	export type Customer = PageData['customers'][0];
 	export type Product = PageData['products'][0];
 	export type Unit = PageData['units'][0];
@@ -33,21 +32,21 @@
 	let isCreateModalOpen = $state(false);
 	let isSaving = $state(false);
 
-	// Form Data
-	let customer_id = $state<number | undefined>(undefined);
+	let selectedCustomer = $state<any>(null);
+
 	let billing_date = $state(new Date().toISOString().split('T')[0]);
 	let due_date = $state('');
 	let notes = $state('');
 	let items = $state<BillingNoteItem[]>([]);
 	let attachments = $state<FileList | null>(null);
 
-	// Calculations
 	let discountAmount = $state(0);
 	let vatRate = $state(7);
 	let whtRate = $state(0);
 
 	let noteToDelete = $state<BillingNoteHeader | null>(null);
 	let isDeleting = $state(false);
+
 	let globalMessage = $state<{ text: string; type: 'success' | 'error' } | null>(null);
 	let messageTimeout: NodeJS.Timeout;
 
@@ -59,14 +58,12 @@
 		}, duration);
 	}
 
-	// --- Logic คำนวณเงิน ---
 	const subTotal = $derived(items.reduce((sum, item) => sum + (item.amount || 0), 0));
 	const totalAfterDiscount = $derived(Math.max(0, subTotal - (discountAmount || 0)));
 	const vatAmount = $derived(vatRate > 0 ? (totalAfterDiscount * vatRate) / 100 : 0);
 	const whtAmount = $derived(whtRate > 0 ? (totalAfterDiscount * whtRate) / 100 : 0);
 	const grandTotal = $derived(totalAfterDiscount + vatAmount - whtAmount);
 
-	// --- Options ---
 	const customerOptions = $derived(
 		(data.customers || []).map((c: any) => ({
 			value: c.id,
@@ -74,7 +71,6 @@
 			customer: c
 		}))
 	);
-
 	const productOptions = $derived(
 		(data.products || []).map((p: any) => ({
 			value: p.id,
@@ -83,7 +79,6 @@
 		}))
 	);
 
-	// Pagination
 	const paginationRange = $derived(() => {
 		if (!data.totalPages || data.totalPages <= 1) return [];
 		const delta = 1;
@@ -104,6 +99,7 @@
 		}
 		return rangeWithDots;
 	});
+
 	function getPageUrl(pageNum: number) {
 		const params = new URLSearchParams();
 		params.set('page', pageNum.toString());
@@ -187,7 +183,7 @@
 	}
 
 	function resetForm() {
-		customer_id = undefined;
+		selectedCustomer = null;
 		billing_date = new Date().toISOString().split('T')[0];
 		due_date = '';
 		notes = '';
@@ -200,37 +196,12 @@
 		if (fi) fi.value = '';
 		addLineItem();
 	}
-
-	$effect.pre(() => {
-		if (form?.action === 'create') {
-			if (form.success) {
-				showGlobalMessage(form.message as string, 'success');
-				resetForm();
-				isCreateModalOpen = false;
-				goto('/billing-notes', { invalidateAll: true });
-			} else if (form.message) {
-				showGlobalMessage(form.message as string, 'error');
-			}
-			form.action = undefined;
-		}
-		if (form?.action === 'delete') {
-			if (form.success) {
-				showGlobalMessage(form.message as string, 'success');
-				noteToDelete = null;
-				invalidateAll();
-			} else if (form.message) {
-				showGlobalMessage(form.message as string, 'error');
-			}
-		}
-	});
 </script>
 
-<svelte:head
-	><title>Billing Notes (ใบวางบิล)</title><link
-		rel="stylesheet"
-		href="https://unpkg.com/svelte-select@latest/dist/stylesheet.css"
-	/></svelte:head
->
+<svelte:head>
+	<title>Billing Notes (ใบวางบิล)</title>
+	<link rel="stylesheet" href="https://unpkg.com/svelte-select@latest/dist/stylesheet.css" />
+</svelte:head>
 
 {#if globalMessage}
 	<div
@@ -280,13 +251,13 @@
 			onchange={applyFilters}
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-			<svg class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"
-				><path
+			<svg class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+				<path
 					fill-rule="evenodd"
 					d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
 					clip-rule="evenodd"
-				/></svg
-			>
+				/>
+			</svg>
 		</div>
 	</div>
 	<div>
@@ -294,20 +265,25 @@
 			bind:value={filterCustomer}
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm"
-			><option value="">-- ทุกลูกค้า --</option>{#each data.customers || [] as c}<option
-					value={c.id}>{c.name}</option
-				>{/each}</select
 		>
+			<option value="">-- ทุกลูกค้า --</option>
+			{#each data.customers || [] as c}
+				<option value={c.id}>{c.name}</option>
+			{/each}
+		</select>
 	</div>
 	<div>
 		<select
 			bind:value={filterStatus}
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm"
-			><option value="">-- ทุกสถานะ --</option><option value="Draft">Draft</option><option
-				value="Sent">Sent</option
-			><option value="Paid">Paid</option><option value="Void">Void</option></select
 		>
+			<option value="">-- ทุกสถานะ --</option>
+			<option value="Draft">Draft</option>
+			<option value="Sent">Sent</option>
+			<option value="Paid">Paid</option>
+			<option value="Void">Void</option>
+		</select>
 	</div>
 	<div class="flex items-center">
 		<button
@@ -321,35 +297,41 @@
 
 <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
-		<thead class="bg-gray-50"
-			><tr
-				><th class="px-4 py-3 text-center">ID</th><th class="px-4 py-3 text-center">เลขที่เอกสาร</th
-				><th class="px-4 py-3 text-center">ลูกค้า</th><th class="px-4 py-3 text-center">วันที่</th
-				><th class="px-4 py-3 text-right">ยอดสุทธิ</th><th class="px-4 py-3 text-center">สถานะ</th
-				><th class="px-4 py-3 text-center">Actions</th></tr
-			></thead
-		>
+		<thead class="bg-gray-50">
+			<tr>
+				<th class="px-4 py-3 text-center">ID</th>
+				<th class="px-4 py-3 text-center">เลขที่เอกสาร</th>
+				<th class="px-4 py-3 text-center">ลูกค้า</th>
+				<th class="px-4 py-3 text-center">วันที่</th>
+				<th class="px-4 py-3 text-right">ยอดสุทธิ</th>
+				<th class="px-4 py-3 text-center">สถานะ</th>
+				<th class="px-4 py-3 text-center">Actions</th>
+			</tr>
+		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
-			{#if billingNotes.length === 0}<tr
-					><td colspan="7" class="py-12 text-center text-gray-500"> ไม่พบรายการใบวางบิล </td></tr
-				>{:else}
+			{#if billingNotes.length === 0}
+				<tr>
+					<td colspan="7" class="py-12 text-center text-gray-500"> ไม่พบรายการใบวางบิล </td>
+				</tr>
+			{:else}
 				{#each billingNotes as note}
 					<tr class="hover:bg-gray-50">
-						<td class="px-4 py-3 text-center text-gray-700">#{note.id}</td><td
-							class="px-4 py-3 text-center font-medium">{note.billing_note_number}</td
-						><td class="px-4 py-3 text-center">{note.customer_name}</td><td
-							class="px-4 py-3 text-center">{formatDateOnly(note.billing_date)}</td
-						><td class="px-4 py-3 text-right font-semibold text-green-700"
+						<td class="px-4 py-3 text-center text-gray-700">#{note.id}</td>
+						<td class="px-4 py-3 text-center font-medium">{note.billing_note_number}</td>
+						<td class="px-4 py-3 text-center">{note.customer_name}</td>
+						<td class="px-4 py-3 text-center">{formatDateOnly(note.billing_date)}</td>
+						<td class="px-4 py-3 text-right font-semibold text-green-700"
 							>{formatCurrency(note.total_amount)}</td
 						>
-						<td class="px-4 py-3 text-center"
-							><span
+						<td class="px-4 py-3 text-center">
+							<span
 								class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {getStatusClass(
 									note.status
-								)}">{note.status}</span
-							></td
-						>
-
+								)}"
+							>
+								{note.status}
+							</span>
+						</td>
 						<td class="px-4 py-3 text-center">
 							<div class="flex justify-center gap-2">
 								<a
@@ -375,7 +357,6 @@
 										/></svg
 									>
 								</a>
-
 								<a
 									href="/billing-notes/generate-pdf?id={note.id}"
 									target="_blank"
@@ -398,7 +379,6 @@
 										/><path d="M6 14h12v8H6z" /></svg
 									>
 								</a>
-
 								<a
 									href="/billing-notes/{note.id}/edit"
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-orange-600"
@@ -418,7 +398,6 @@
 										><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg
 									>
 								</a>
-
 								<button
 									onclick={() => (noteToDelete = note)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
@@ -457,14 +436,20 @@
 				1
 					? 'pointer-events-none opacity-50'
 					: ''}">&lt;</a
-			>{#each paginationRange() as pageNum}{#if typeof pageNum === 'string'}<span
-						class="px-4 py-2 text-sm text-gray-700 ring-1 ring-gray-300">...</span
-					>{:else}<a
+			>
+			{#each paginationRange() as pageNum}
+				{#if typeof pageNum === 'string'}
+					<span class="px-4 py-2 text-sm text-gray-700 ring-1 ring-gray-300">...</span>
+				{:else}
+					<a
 						href={getPageUrl(pageNum)}
 						class="px-4 py-2 text-sm font-semibold {pageNum === data.currentPage
 							? 'bg-blue-600 text-white'
 							: 'text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50'}">{pageNum}</a
-					>{/if}{/each}<a
+					>
+				{/if}
+			{/each}
+			<a
 				href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'}
 				class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
 				data.totalPages
@@ -487,6 +472,7 @@
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">สร้างใบวางบิลใหม่</h2>
 			</div>
+
 			<form
 				method="POST"
 				action="?/create"
@@ -514,9 +500,18 @@
 					formData.set('withholding_tax_rate', whtRate.toString());
 					formData.set('withholding_tax_amount', whtAmount.toString());
 					formData.set('total_amount', grandTotal.toString());
-					return async ({ update }) => {
+
+					return async ({ update, result }) => {
 						await update({ reset: false });
 						isSaving = false;
+
+						if (result.type === 'success') {
+							showGlobalMessage('สร้างใบวางบิลเรียบร้อยแล้ว', 'success');
+							resetForm();
+							closeCreateModal();
+						} else if (result.type === 'failure') {
+							showGlobalMessage((result.data?.message as string) || 'เกิดข้อผิดพลาด', 'error');
+						}
 					};
 				}}
 				class="flex-1 overflow-y-auto"
@@ -530,13 +525,13 @@
 							<Select
 								id="customer_select"
 								items={customerOptions}
-								bind:value={customer_id}
+								bind:value={selectedCustomer}
 								placeholder="-- ค้นหา/เลือกลูกค้า --"
 								class="w-full"
 								required
 								container={browser ? document.body : null}
 							/>
-							<input type="hidden" name="customer_id" value={customer_id} />
+							<input type="hidden" name="customer_id" value={selectedCustomer?.value ?? ''} />
 						</div>
 						<div>
 							<label for="billing_date" class="mb-1 block text-sm font-medium text-gray-700"
@@ -587,14 +582,16 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
-									{#if items.length === 0}<tr
-											><td colspan="8" class="py-4 text-center text-gray-500 italic"
+									{#if items.length === 0}
+										<tr>
+											<td colspan="8" class="py-4 text-center text-gray-500 italic"
 												>-- กด "เพิ่มรายการ" เพื่อเริ่ม --</td
-											></tr
-										>{/if}
+											>
+										</tr>
+									{/if}
 									{#each items as item, index (item.id)}
-										<tr class="align-top hover:bg-gray-50"
-											><td class="px-3 py-2 pt-3 text-center">{index + 1}</td>
+										<tr class="align-top hover:bg-gray-50">
+											<td class="px-3 py-2 pt-3 text-center">{index + 1}</td>
 											<td class="px-3 py-2">
 												<Select
 													items={productOptions}
@@ -605,51 +602,53 @@
 													floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 												/>
 											</td>
-											<td class="px-3 py-2"
-												><input
+											<td class="px-3 py-2">
+												<input
 													type="text"
 													bind:value={item.description}
 													class="w-full rounded-md border-gray-300 py-1 text-sm"
-												/></td
-											>
-											<td class="px-3 py-2"
-												><input
+												/>
+											</td>
+											<td class="px-3 py-2">
+												<input
 													type="number"
 													bind:value={item.quantity}
 													oninput={() => updateLineTotal(item)}
 													min="0"
 													class="w-full rounded-md border-gray-300 py-1 text-center text-sm"
-												/></td
-											>
-											<td class="px-3 py-2"
-												><select
+												/>
+											</td>
+											<td class="px-3 py-2">
+												<select
 													bind:value={item.unit_id}
 													class="w-full rounded-md border-gray-300 py-1 text-center text-sm"
-													><option value={null}>-</option>{#each data.units || [] as u}<option
-															value={u.id}>{u.name}</option
-														>{/each}</select
-												></td
-											>
-											<td class="px-3 py-2"
-												><input
+												>
+													<option value={null}>-</option>
+													{#each data.units || [] as u}
+														<option value={u.id}>{u.name}</option>
+													{/each}
+												</select>
+											</td>
+											<td class="px-3 py-2">
+												<input
 													type="number"
 													bind:value={item.unit_price}
 													oninput={() => updateLineTotal(item)}
 													min="0"
 													step="0.01"
 													class="w-full rounded-md border-gray-300 py-1 text-center text-sm"
-												/></td
-											>
+												/>
+											</td>
 											<td class="px-3 py-2 pt-3 text-center font-medium"
 												>{formatCurrency(item.amount)}</td
 											>
-											<td class="px-3 py-2 pt-2 text-center"
-												><button
+											<td class="px-3 py-2 pt-2 text-center">
+												<button
 													type="button"
 													onclick={() => removeLineItem(item.id)}
 													class="text-red-500 hover:text-red-700">✕</button
-												></td
-											>
+												>
+											</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -674,7 +673,6 @@
 								rows="4"
 								class="w-full rounded-md border-gray-300 shadow-sm"
 							></textarea>
-
 							<label
 								for="attachments_modal"
 								class="mt-4 mb-1 block text-sm font-medium text-gray-700">แนบไฟล์</label
@@ -714,23 +712,23 @@
 							</div>
 							<div class="flex items-center justify-between gap-2 text-sm">
 								<div class="flex items-center gap-2">
-									<span>VAT:</span><select
-										bind:value={vatRate}
-										class="h-7 rounded-md border-gray-300 py-0 text-sm"
-										><option value={0}>0%</option><option value={7}>7%</option></select
-									>
+									<span>VAT:</span>
+									<select bind:value={vatRate} class="h-7 rounded-md border-gray-300 py-0 text-sm">
+										<option value={0}>0%</option>
+										<option value={7}>7%</option>
+									</select>
 								</div>
 								<span>+{formatCurrency(vatAmount)}</span>
 							</div>
 							<div class="flex items-center justify-between gap-2 text-sm">
 								<div class="flex items-center gap-2">
-									<span>WHT:</span><select
-										bind:value={whtRate}
-										class="h-7 rounded-md border-gray-300 py-0 text-sm"
-										><option value={0}>ไม่หัก</option><option value={1}>1%</option><option value={3}
-											>3%</option
-										><option value={5}>5%</option></select
-									>
+									<span>WHT:</span>
+									<select bind:value={whtRate} class="h-7 rounded-md border-gray-300 py-0 text-sm">
+										<option value={0}>ไม่หัก</option>
+										<option value={1}>1%</option>
+										<option value={3}>3%</option>
+										<option value={5}>5%</option>
+									</select>
 								</div>
 								<span class="text-red-600">-{formatCurrency(whtAmount)}</span>
 							</div>
@@ -741,12 +739,12 @@
 							</div>
 						</div>
 					</div>
-					{#if form?.message && !form.success}<div
-							class="rounded-md bg-red-50 p-3 text-sm text-red-600"
-						>
+					{#if form?.message && !form.success}
+						<div class="rounded-md bg-red-50 p-3 text-sm text-red-600">
 							<strong>Error:</strong>
 							{form.message}
-						</div>{/if}
+						</div>
+					{/if}
 				</div>
 				<div class="sticky bottom-0 flex justify-end gap-3 border-t bg-gray-50 p-4">
 					<button
@@ -756,7 +754,8 @@
 							closeCreateModal();
 						}}
 						class="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300">ยกเลิก</button
-					><button
+					>
+					<button
 						type="submit"
 						disabled={isSaving || items.length === 0}
 						class="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
@@ -768,7 +767,8 @@
 	</div>
 {/if}
 
-{#if noteToDelete}<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+{#if noteToDelete}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold">ยืนยันการลบ</h3>
 			<p class="mt-2 text-sm text-gray-600">ลบใบวางบิล #{noteToDelete.billing_note_number}?</p>
@@ -777,25 +777,38 @@
 				action="?/delete"
 				use:enhance={() => {
 					isDeleting = true;
-					return async ({ update }) => {
+					return async ({ update, result }) => {
 						await update();
 						isDeleting = false;
+
+						if (result.type === 'success') {
+							showGlobalMessage('ลบข้อมูลเรียบร้อยแล้ว', 'success');
+							noteToDelete = null;
+						} else if (result.type === 'failure') {
+							showGlobalMessage(
+								(result.data?.message as string) || 'เกิดข้อผิดพลาดในการลบ',
+								'error'
+							);
+						}
 					};
 				}}
 				class="mt-6 flex justify-end gap-3"
 			>
-				<input type="hidden" name="id" value={noteToDelete.id} /><button
+				<input type="hidden" name="id" value={noteToDelete.id} />
+				<button
 					type="button"
 					onclick={() => (noteToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm">ยกเลิก</button
-				><button
+				>
+				<button
 					type="submit"
 					disabled={isDeleting}
 					class="rounded-md bg-red-600 px-4 py-2 text-sm text-white disabled:bg-red-400">ลบ</button
 				>
 			</form>
 		</div>
-	</div>{/if}
+	</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {

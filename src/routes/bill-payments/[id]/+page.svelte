@@ -845,7 +845,7 @@
 													placeholder="-- ค้นหา/เลือกสินค้า --"
 													required
 													container={browser ? document.body : null}
-													floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+													floatingConfig={{ placement: 'bottom-start', strategy: 'absolute' }}
 													--inputStyles={'padding: 2px 0; font-size: 0.875rem;'}
 													--itemIsActive={'background: #e0f2fe;'}
 													--list={'border-radius: 6px; font-size: 0.875rem;'}
