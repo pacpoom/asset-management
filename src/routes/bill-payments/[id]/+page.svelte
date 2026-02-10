@@ -18,7 +18,6 @@
 	type Product = PageData['products'][0];
 	type VendorContract = PageData['contracts'][0];
 	type Company = PageData['company'];
-
 	export interface BillPaymentItem {
 		id: string;
 		product_object: { value: number; label: string; product: Product } | null;
@@ -57,7 +56,6 @@
 	let deletePaymentTarget = $state<BillPaymentDetailHeader | null>(null);
 	let updateStatusForm: HTMLFormElement;
 	let statusToUpdate = $state('');
-
 	const productOptions = $derived(
 		data.products.map((p: Product) => ({
 			value: p.id,
@@ -65,7 +63,6 @@
 			product: p
 		}))
 	);
-
 	const subTotal = $derived(
 		modalItems.reduce((sum, item: BillPaymentItem) => {
 			const lineTotal = parseFloat(item.line_total as unknown as string) || 0;
@@ -80,7 +77,6 @@
 	);
 	const vatAmount = $derived(parseFloat((totalAfterDiscount * (vatRateValue / 100)).toFixed(2)));
 	const grandTotal = $derived(totalAfterDiscount + vatAmount - withholdingTaxAmount);
-
 	$effect(() => {
 		if (modalItems && modalItems.length > 0) {
 			modalItems.forEach((item) => {
@@ -90,7 +86,6 @@
 			});
 		}
 	});
-
 	const filteredContracts = $derived(
 		vendor_id ? data.contracts.filter((c: VendorContract) => c.vendor_id === vendor_id) : []
 	);
@@ -104,7 +99,6 @@
 				.join('\n');
 		})()
 	);
-
 	function formatCurrency(value: number | null | undefined, currency: string = 'THB') {
 		if (value === null || value === undefined) return '-';
 		return new Intl.NumberFormat('th-TH', {
@@ -361,7 +355,6 @@
 			isSaving = false;
 		}
 	});
-
 	$effect(() => {
 		paymentData = data.payment;
 		attachments = data.attachments;
@@ -812,21 +805,21 @@
 							<table class="min-w-full divide-y divide-gray-200 text-sm">
 								<thead class="bg-gray-50">
 									<tr>
-										<th class="w-10 px-3 py-2 text-left font-medium text-gray-500">#</th>
-										<th class="w-[25%] px-3 py-2 text-left font-semibold text-gray-600"
+										<th class="w-10 px-3 py-2 text-left font-medium text-gray-500">ลำดับ</th>
+										<th class="w-[15%] px-3 py-2 text-left font-semibold text-gray-400"
 											>สินค้า/บริการ (Product) <span class="text-red-500">*</span></th
 										>
-										<th class="min-w-[250px] px-3 py-2 text-left font-semibold text-gray-600"
-											>รายละเอียด</th
-										>
-										<th class="w-[80px] px-3 py-2 text-right font-semibold text-gray-600">
+										<th class="px-3 py-2 text-center font-semibold text-gray-600">รายละเอียด</th>
+										<th class="w-[120px] px-3 py-2 text-center font-semibold text-gray-600">
 											จำนวน <span class="text-red-500"></span>
 										</th>
-										<th class="w-[100px] px-3 py-2 text-left font-semibold text-gray-600">หน่วย</th>
-										<th class="w-[120px] px-3 py-2 text-right font-semibold text-gray-600">
+										<th class="w-[140px] px-3 py-2 text-center font-semibold text-gray-600"
+											>หน่วย</th
+										>
+										<th class="w-[150px] px-3 py-2 text-center font-semibold text-gray-600">
 											ราคา/หน่วย <span class="text-red-500"></span>
 										</th>
-										<th class="w-[120px] px-3 py-2 text-right font-semibold text-gray-600"
+										<th class="w-[150px] px-3 py-2 text-center font-semibold text-gray-600"
 											>ราคารวม</th
 										>
 										<th class="w-10 px-3 py-2 text-center font-semibold text-gray-600"></th>
@@ -846,8 +839,7 @@
 											<td class="px-3 py-2">
 												<Select
 													items={productOptions}
-													value={item.product_object}
-													label={'label'}
+													bind:value={item.product_object}
 													on:change={(e) => onProductSelectChange(item, e.detail)}
 													on:clear={() => onProductSelectChange(item, null)}
 													placeholder="-- ค้นหา/เลือกสินค้า --"
@@ -864,7 +856,7 @@
 													type="text"
 													bind:value={item.description}
 													placeholder="รายละเอียดเพิ่มเติม..."
-													class="w-full rounded-md border-gray-300 py-1 text-sm"
+													class="w-full rounded-md border-gray-300 py-1 text-center text-sm"
 												/>
 											</td>
 											<td class="px-3 py-2">
@@ -874,7 +866,7 @@
 													min="0"
 													bind:value={item.quantity}
 													oninput={() => updateLineTotal(item)}
-													class="w-full rounded-md border-gray-300 py-1 text-right text-sm"
+													class="w-full rounded-md border-gray-300 py-1 text-center text-sm"
 												/>
 											</td>
 											<td class="px-3 py-2">
@@ -882,7 +874,7 @@
 												<select
 													id="item-unit-{item.id}"
 													bind:value={item.unit_id}
-													class="w-full rounded-md border-gray-300 py-1 text-sm"
+													class="w-full rounded-md border-gray-300 py-1 text-center text-sm"
 												>
 													<option value={null}>-- N/A --</option>
 													{#each data.units as unit (unit.id)}
@@ -897,10 +889,10 @@
 													min="0"
 													bind:value={item.unit_price}
 													oninput={() => updateLineTotal(item)}
-													class="w-full rounded-md border-gray-300 py-1 text-right text-sm"
+													class="w-full rounded-md border-gray-300 py-1 text-center text-sm"
 												/>
 											</td>
-											<td class="px-3 py-2 text-right font-medium text-gray-700">
+											<td class="px-3 py-2 text-center font-medium text-gray-700">
 												{item.line_total.toLocaleString('th-TH', {
 													minimumFractionDigits: 2,
 													maximumFractionDigits: 2
@@ -920,9 +912,7 @@
 														class="h-4 w-4"
 														><path
 															fill-rule="evenodd"
-															d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.566 19h4.868a2.75 2.75 0 0 0 2.71-2.529l.841-10.518.149.022a.75.75 0 0 0 .23-1.482A41.03 
-                                                            41.03 0 0 0 14 4.193v-.443A2.75 2.75 0 0 0 11.25 
-											                1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75a1.25 1.25 0 0 0-1.25-1.25h-2.5A1.25 1.25 0 0 0 7.5 3.75v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.84 0a.75.75 0 0 1-1.5-.06l-.3 7.5a.75.75 0 1 1 1.5.06l-.3-7-5Z"
+															d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.566 19h4.868a2.75 2.75 0 0 0 2.71-2.529l.841-10.518.149.022a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193v-.443A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75a1.25 1.25 0 0 0-1.25-1.25h-2.5A1.25 1.25 0 0 0 7.5 3.75v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.84 0a.75.75 0 0 1-1.5-.06l-.3 7.5a.75.75 0 1 1 1.5.06l-.3-7-5Z"
 															clip-rule="evenodd"
 														></path></svg
 													>
@@ -957,9 +947,8 @@
 								<div class="w-full space-y-2 text-sm">
 									<div class="flex items-center justify-between">
 										<span class="font-medium text-gray-600">รวมเป็นเงิน (Subtotal):</span>
-										<span
-											class="text-base font-semibold
-                                        text-gray-800">{formatCurrency(subTotal)}</span
+										<span class="text-base font-semibold text-gray-800"
+											>{formatCurrency(subTotal)}</span
 										>
 									</div>
 									<div class="flex items-center justify-between gap-4">
@@ -1044,8 +1033,7 @@
 										name="notes"
 										rows="4"
 										bind:value={notes}
-										class="w-full rounded-md border-gray-300
-                                        shadow-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 									></textarea>
 
 									<div class="mt-4 mb-1 block text-sm font-medium text-gray-700">
@@ -1168,8 +1156,7 @@
 									></path>
 									<path
 										fill-rule="evenodd"
-										d="M15.5 3.5h-11a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2ZM12 9a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 1 0v-1a.5.5 0 0 0-.5-.5Zm-5.5 1.5c0-.276.224-.5.5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 
-                                        0 0 1-.5-.5Z"
+										d="M15.5 3.5h-11a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2ZM12 9a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 1 0v-1a.5.5 0 0 0-.5-.5Zm-5.5 1.5c0-.276.224-.5.5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5Z"
 										clip-rule="evenodd"
 									></path></svg
 								>
@@ -1261,7 +1248,7 @@
 <style>
 	:global(div.svelte-select) {
 		min-height: 38px;
-		border: 1px solid #d1d5db !important; /* Force border color */
+		border: 1px solid #d1d5db !important;
 		border-radius: 0.375rem !important;
 	}
 	:global(div.svelte-select .input) {
@@ -1277,7 +1264,7 @@
 	:global(div.svelte-select .list) {
 		border-radius: 0.375rem;
 		border-color: #d1d5db;
-		z-index: 9999 !important; /* Force z-index to stay on top */
+		z-index: 9999 !important;
 		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 	}
 	:global(div.svelte-select .item) {

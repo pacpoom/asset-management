@@ -6,14 +6,13 @@
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 
-	// --- Types (Exported for use in the separate component) ---
+	// --- Types ---
 	export type Vendor = PageData['vendors'][0];
 	export type Unit = PageData['units'][0];
 	export type VendorContract = PageData['contracts'][0];
 	export type Product = PageData['products'][0];
 	export type PaymentHeader = PageData['payments'][0];
 
-	// *** MODIFIED: Added product_object for select binding ***
 	export interface BillPaymentItem {
 		id: string;
 		product_object: { value: number; label: string; product: Product } | null;
@@ -25,7 +24,6 @@
 		line_total: number;
 	}
 
-	// --- Props & State (Svelte 5 Runes) ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// --- List/Filter State ---
@@ -42,23 +40,19 @@
 	let payment_reference = $state('');
 	let notes = $state('');
 	let items = $state<BillPaymentItem[]>([]);
-	// *** FIX 2: Correct initialization to null to avoid ReferenceError ***
 	let attachments = $state<FileList | null>(null);
 	let discountAmount = $state(0);
 	let vat_selection = $state(7);
 	let wht_selection = $state(0);
 
 	// --- Detail/Action State ---
-	// Removed isDetailModalOpen, detailData, detailLoading, isStatusChanging
 	let paymentToDelete = $state<PaymentHeader | null>(null);
 	let isDeleting = $state(false);
-
 	// UI state
 	let isSaving = $state(false);
 	let globalMessage = $state<{ text: string; type: 'success' | 'error' } | null>(null);
 	let messageTimeout: NodeJS.Timeout;
 
-	// *** FIX 3: DECLARE showGlobalMessage function in the root script scope ***
 	function showGlobalMessage(text: string, type: 'success' | 'error', duration = 5000) {
 		clearTimeout(messageTimeout);
 		globalMessage = { text, type };
@@ -66,7 +60,6 @@
 			globalMessage = null;
 		}, duration);
 	}
-	// *** END FIX 3 ***
 
 	// --- Derived Calculations ---
 	const subTotal = $derived(items.reduce((sum, item) => sum + item.line_total, 0));
@@ -75,20 +68,15 @@
 	const vatAmount = $derived(
 		vat_selection > 0 ? parseFloat((totalAfterDiscount * (vat_selection / 100)).toFixed(2)) : 0
 	);
-
 	const withholdingTaxAmount = $derived(
-		wht_selection > 0
-			? parseFloat((totalAfterDiscount * (wht_selection / 100)).toFixed(2)) // ✅ คิดจากยอดก่อน VAT (ฐานภาษี)
-			: 0
+		wht_selection > 0 ? parseFloat((totalAfterDiscount * (wht_selection / 100)).toFixed(2)) : 0
 	);
-
 	const grandTotal = $derived(totalAfterDiscount + vatAmount - withholdingTaxAmount);
 
 	// --- Derived Contracts ---
 	const filteredContracts = $derived(
-		vendor_id ? (data.contracts || []).filter((c: VendorContract) => c.vendor_id === vendor_id) : []
+		vendor_id ? (data.contracts || []).filter((c: VendorContract) => c.vendor_id == vendor_id) : []
 	);
-
 	const productOptions = $derived(
 		(data.products || []).map((p: Product) => ({
 			value: p.id,
@@ -133,7 +121,7 @@
 		return `/bill-payments?${params.toString()}`;
 	}
 	function applyFilters() {
-		goto(getPageUrl(1)); // Reset to page 1 on filter change
+		goto(getPageUrl(1));
 	}
 
 	// --- General Functions ---
@@ -145,17 +133,6 @@
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
 		}).format(value);
-	}
-	function formatDateTime(isoString: string | null | undefined): string {
-		if (!isoString) return 'N/A';
-		try {
-			return new Date(isoString).toLocaleString('th-TH', {
-				dateStyle: 'short',
-				timeStyle: 'short'
-			});
-		} catch {
-			return 'Invalid Date';
-		}
 	}
 	function formatDateOnly(isoString: string | null | undefined): string {
 		if (!isoString) return '-';
@@ -179,21 +156,12 @@
 		};
 		return statusMap[status] || 'bg-yellow-100 text-yellow-800';
 	}
-	function getFileIcon(fileName: string): string {
-		const ext = fileName?.split('.').pop()?.toLowerCase() || '';
-		if (['pdf'].includes(ext)) return '📄';
-		if (['doc', 'docx'].includes(ext)) return '📝';
-		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
-		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📎';
-	}
 
 	// --- Form/Modal Functions ---
 	function closeCreateModal() {
 		isCreateModalOpen = false;
 	}
 
-	// *** MODIFIED: Add product_object: null ***
 	function addLineItem() {
 		items = [
 			...items,
@@ -216,23 +184,21 @@
 
 	function updateLineTotal(item: BillPaymentItem) {
 		item.line_total = (item.quantity || 0) * (item.unit_price || 0);
-		items = [...items]; // Trigger reactivity
+		items = [...items];
 	}
 
-	// *** REVISED FUNCTION: Renamed and logic updated for bind:value ***
-	// This function now reacts to the *change* event, which fires *after* bind:value updates item.product_object
 	function onProductSelectChange(item: BillPaymentItem) {
-		const selectedOption = item.product_object; // Get value from the bound object
+		const selectedOption = item.product_object;
 
 		if (!selectedOption) {
-			item.product_id = null; // Set ID to null
+			item.product_id = null;
 			item.description = '';
 			item.unit_id = null;
 			item.unit_price = 0;
 		} else {
 			const selectedProduct = selectedOption.product;
 			if (selectedProduct) {
-				item.product_id = selectedOption.value; // Set the ID
+				item.product_id = selectedOption.value;
 				item.description = selectedProduct.name;
 				item.unit_id = selectedProduct.unit_id;
 				item.unit_price = selectedProduct.purchase_cost ?? 0;
@@ -261,13 +227,11 @@
 
 	// --- Reactive Effects for Form ---
 	$effect.pre(() => {
-		// Handle savePayment results
 		if (form?.action === 'savePayment') {
 			if (form.success) {
 				showGlobalMessage(form.message as string, 'success');
 				resetForm();
 				isCreateModalOpen = false;
-				// *** MODIFIED: Force redirect to reload data ***
 				goto('/bill-payments', { invalidateAll: true });
 			} else if (form.message) {
 				showGlobalMessage(form.message as string, 'error');
@@ -275,12 +239,10 @@
 			form.action = undefined;
 		}
 
-		// Handle deletePayment results
 		if (form?.action === 'deletePayment') {
 			if (form.success) {
 				showGlobalMessage(form.message as string, 'success');
-				// *** FIX: Invalidate and ensure the modal is closed ***
-				paymentToDelete = null; // Close modal
+				paymentToDelete = null;
 				invalidateAll();
 			} else if (form.message) {
 				showGlobalMessage(form.message as string, 'error');
@@ -471,6 +433,52 @@
 										/></svg
 									>
 								</a>
+
+								<a
+									href="/bill-payments/{payment.id}/edit"
+									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-orange-600"
+									aria-label="Edit"
+									title="Edit"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+										></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+										></path></svg
+									>
+								</a>
+
+								<a
+									href="/bill-payments/generate-pdf?id={payment.id}"
+									target="_blank"
+									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-purple-600"
+									aria-label="Print PDF"
+									title="Print PDF"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										><polyline points="6 9 6 2 18 2 18 9"></polyline><path
+											d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+										></path><rect x="6" y="14" width="12" height="8"></rect></svg
+									>
+								</a>
+
 								<button
 									onclick={() => (paymentToDelete = payment)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
@@ -587,7 +595,6 @@
 						'itemsJson',
 						JSON.stringify(
 							items.map((item) => ({
-								// *** REVISED LOGIC: Send item.product_id (the number) ***
 								product_id: item.product_id,
 								description: item.description,
 								quantity: item.quantity,
@@ -604,7 +611,6 @@
 
 					formData.set('calculateWithholdingTax', calculateWHT.toString());
 					formData.set('withholdingTaxRate', rate.toString());
-
 					return async ({ update }) => {
 						await update({ reset: false });
 						isSaving = false;
@@ -684,7 +690,6 @@
 						</div>
 					</div>
 
-					<!-- Line Items Section -->
 					<div>
 						<h3 class="text-md mb-2 font-semibold text-gray-800">รายการจ่าย</h3>
 						<div class="overflow-x-auto rounded border border-gray-200">
@@ -692,7 +697,6 @@
 								<thead class="bg-gray-50">
 									<tr>
 										<th class="w-10 px-3 py-2 text-left font-medium text-gray-500">ลำดับ</th>
-										<!-- *** MODIFIED WIDTH: w-[25%] *** -->
 										<th class="w-[25%] px-3 py-2 text-left font-semibold text-gray-400"
 											>สินค้า/บริการ (Product) <span class="text-red-500">*</span></th
 										>
@@ -724,7 +728,6 @@
 										<tr class="align-top hover:bg-gray-50">
 											<td class="px-3 py-2 text-gray-500">{index + 1}</td>
 											<td class="px-3 py-2">
-												<!-- *** REVISED: Use bind:value and on:change *** -->
 												<Select
 													items={productOptions}
 													bind:value={item.product_object}

@@ -5,8 +5,6 @@ import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- INTERFACES ---
-
 interface CompanyData extends RowDataPacket {
 	id: number;
 	name: string;
@@ -20,7 +18,6 @@ interface CompanyData extends RowDataPacket {
 	tax_id: string | null;
 }
 
-// [แก้ไข] เพิ่ม Field ที่จำเป็นสำหรับการคำนวณเงิน
 interface BillingNoteData extends RowDataPacket {
 	id: number;
 	billing_note_number: string;
@@ -32,7 +29,6 @@ interface BillingNoteData extends RowDataPacket {
 	created_by_name: string;
 	notes: string | null;
 
-	// Financial Fields
 	subtotal: number;
 	discount_amount: number;
 	vat_rate: number;
@@ -42,15 +38,12 @@ interface BillingNoteData extends RowDataPacket {
 	total_amount: number;
 }
 
-// [แก้ไข] เปลี่ยน item_name เป็น description ให้ตรงกับ Database
 interface BillingItemData extends RowDataPacket {
 	description: string;
 	quantity: number;
 	unit_price: number;
 	amount: number;
 }
-
-// --- HELPER FUNCTIONS ---
 
 function getLogoBase64(logoPath: string | null): string | null {
 	if (!logoPath) return null;
@@ -134,7 +127,6 @@ function getBillingNoteHtml(
 	itemsData: BillingItemData[],
 	logoBase64: string | null
 ): string {
-	// [แก้ไข] ดึงค่าคำนวณจริงจาก Database แทนการ Hardcode
 	const subtotal = Number(noteData.subtotal) || 0;
 	const discountAmount = Number(noteData.discount_amount) || 0;
 	const afterDiscount = subtotal - discountAmount;
@@ -223,7 +215,6 @@ function getBillingNoteHtml(
 		</thead>
     `;
 
-	// [แก้ไข] ส่วนสรุปยอดเงิน แสดง Discount, VAT, WHT ให้ถูกต้อง
 	const financialSummaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 1px; width: 100%; font-size: 8pt;">
             <colgroup>
@@ -457,7 +448,6 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// ดึงข้อมูล Header ปกติ (เพิ่ม select * ก็จะมาครบทุก field)
 		const [rows] = await connection.execute<any[]>(`SELECT * FROM billing_notes WHERE id = ?`, [
 			id
 		]);
@@ -484,7 +474,6 @@ export const GET = async ({ url }) => {
 		}
 		noteData.created_by_name = createdByName;
 
-		// [แก้ไข] SQL เปลี่ยนจาก select item_name เป็น description
 		const [items] = await connection.execute<BillingItemData[]>(
 			`SELECT description, quantity, unit_price, amount 
              FROM billing_note_items 

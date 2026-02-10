@@ -18,7 +18,7 @@ interface Product extends RowDataPacket {
 	unit_id: number;
 	purchase_unit_id: number | null;
 	sales_unit_id: number | null;
-	preferred_vendor_id: number | null; // Corrected type to INT NULL
+	preferred_vendor_id: number | null;
 	purchase_cost: number | null;
 	selling_price: number | null;
 	quantity_on_hand: number;
@@ -44,20 +44,20 @@ interface Product extends RowDataPacket {
 	expense_account_name?: string | null; // Added
 }
 
-interface ProductCategory {
+interface ProductCategory extends RowDataPacket {
 	id: number;
 	name: string;
 }
-interface Unit {
+interface Unit extends RowDataPacket {
 	id: number;
 	name: string;
 	symbol: string;
 }
-interface Vendor {
+interface Vendor extends RowDataPacket {
 	id: number;
 	name: string;
 }
-interface ChartOfAccount {
+interface ChartOfAccount extends RowDataPacket {
 	id: number;
 	account_code: string;
 	account_name: string;
@@ -89,7 +89,9 @@ async function saveImage(imageFile: File): Promise<string | null> {
 				if (await fs.stat(uploadPath)) await fs.unlink(uploadPath);
 			} catch (e) {}
 		}
-		throw new Error(`Failed to save uploaded file "${imageFile.name}". Reason: ${uploadError.message}`);
+		throw new Error(
+			`Failed to save uploaded file "${imageFile.name}". Reason: ${uploadError.message}`
+		);
 	}
 }
 
@@ -135,7 +137,7 @@ async function generateSku() {
 				}
 			}
 		} catch (e) {
-			console.error("Error parsing last SKU number:", lastSku, e);
+			console.error('Error parsing last SKU number:', lastSku, e);
 			// ถ้า parse ไม่ได้ ให้เริ่มนับ 1 ใหม่ (หรืออาจจะโยน error)
 			nextNumber = 1;
 		}
@@ -202,7 +204,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 coa_expense.account_name AS expense_account_name
             FROM products p
             LEFT JOIN product_categories pc ON p.category_id = pc.id
-            JOIN units u ON p.unit_id = u.id
+            LEFT JOIN units u ON p.unit_id = u.id  
             LEFT JOIN units pu ON p.purchase_unit_id = pu.id
             LEFT JOIN units su ON p.sales_unit_id = su.id
             LEFT JOIN vendors v ON p.preferred_vendor_id = v.id
@@ -225,9 +227,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const [unitRows] = await pool.execute<Unit[]>(
 			'SELECT id, name, symbol FROM units ORDER BY name'
 		);
-		const [vendorRows] = await pool.execute<Vendor[]>(
-			'SELECT id, name FROM vendors ORDER BY name'
-		);
+		const [vendorRows] = await pool.execute<Vendor[]>('SELECT id, name FROM vendors ORDER BY name');
 		const [accountRows] = await pool.execute<ChartOfAccount[]>(
 			'SELECT id, account_code, account_name FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code'
 		);
@@ -304,7 +304,8 @@ export const actions: Actions = {
 			preferred_vendor_id: parseNumberOrNull(formData.get('preferred_vendor_id')),
 			purchase_cost: parseFloatOrNull(formData.get('purchase_cost')),
 			selling_price: parseFloatOrNull(formData.get('selling_price')),
-			quantity_on_hand: product_type === 'Stock' ? parseFloatOrNull(formData.get('quantity_on_hand')) ?? 0 : 0, // Force 0 if not Stock
+			quantity_on_hand:
+				product_type === 'Stock' ? (parseFloatOrNull(formData.get('quantity_on_hand')) ?? 0) : 0, // Force 0 if not Stock
 			reorder_level: parseFloatOrNull(formData.get('reorder_level')),
 			is_active: formData.get('is_active') === 'on' || formData.get('is_active') === 'true',
 			asset_account_id: parseNumberOrNull(formData.get('asset_account_id')),
@@ -415,7 +416,10 @@ export const actions: Actions = {
 			if (savedImagePath) {
 				await deleteImage(savedImagePath);
 			}
-			console.error(`Database error on saving product (ID: ${id || 'New'}): ${err.message}`, err.stack);
+			console.error(
+				`Database error on saving product (ID: ${id || 'New'}): ${err.message}`,
+				err.stack
+			);
 			// *** MODIFIED: Check for SKU duplicate error specifically during INSERT ***
 			if (!id && err.code === 'ER_DUP_ENTRY' && err.message.includes("'products.sku'")) {
 				return fail(409, {

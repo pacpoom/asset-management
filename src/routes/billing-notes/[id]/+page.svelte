@@ -31,7 +31,7 @@
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let billingNote = $state<BillingNoteHeader>(data.billingNote);
-	let items = $state<BillingItem[]>(data.items); // เปลี่ยนจาก invoices เป็น items
+	let items = $state<BillingItem[]>(data.items);
 	let companyData = $state<Company>(data.company);
 
 	let isSaving = $state(false);
