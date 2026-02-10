@@ -135,16 +135,14 @@ export async function load({ locals }) {
 			})
 		);
 
-		// ส่งข้อมูลกลับไปยังหน้า UI (+page.svelte)
 		return {
 			contracts: JSON.parse(JSON.stringify(contractsWithDocs)),
-			customers: customersResult[0],
-			users: usersResult[0],
-			contractTypes: contractTypesResult[0]
+			customers: JSON.parse(JSON.stringify(customersResult[0])),
+			users: JSON.parse(JSON.stringify(usersResult[0])),
+			contractTypes: JSON.parse(JSON.stringify(contractTypesResult[0]))
 		};
 	} catch (error) {
 		console.error('Error loading contracts data:', error);
-		// กรณีเกิดข้อผิดพลาด ส่งสถานะ 500 กลับไป
 		return fail(500, {
 			error: 'ไม่สามารถโหลดข้อมูลสัญญาได้'
 		});
@@ -152,16 +150,11 @@ export async function load({ locals }) {
 }
 
 export const actions: Actions = {
-	/**
-	 * Action: สร้างสัญญาใหม่
-	 */
 	create: async ({ request, locals }) => {
 		const formData = await request.formData();
-		const files = formData.getAll('contractFiles') as File[]; // รับหลายไฟล์
-		// @ts-ignore
+		const files = formData.getAll('contractFiles') as File[];
 		const userId = locals.user?.id || 1;
 
-		// --- 1. ตรวจสอบไฟล์ ---
 		const validFiles = files.filter((f) => f && f.size > 0);
 		if (validFiles.length === 0) {
 			return fail(400, {
@@ -170,7 +163,6 @@ export const actions: Actions = {
 			});
 		}
 
-		// --- 2. ดึงข้อมูลจาก Form ---
 		const data = {
 			title: formData.get('title') as string,
 			contract_number: nullIfEmpty(formData.get('contract_number') as string),
@@ -183,17 +175,14 @@ export const actions: Actions = {
 			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string)
 		};
 
-		// --- 3. บันทึกลง Database (และอัปโหลดไฟล์) ---
 		let newContractId: number | undefined;
 		const uploadedFilePaths: string[] = [];
 		try {
-			// 3.1. Insert into `contracts`
 			const contractSql = `
                 INSERT INTO contracts
                 (title, contract_number, customer_id, contract_type_id, status, start_date, end_date, contract_value, owner_user_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
-			// @ts-ignore
 			const [contractResult] = await db.query(contractSql, [
 				data.title,
 				data.contract_number,
@@ -213,7 +202,6 @@ export const actions: Actions = {
 				throw new Error('Failed to get new contract ID');
 			}
 
-			// 3.2. อัปโหลดและบันทึกเอกสารทั้งหมด
 			await ensureUploadDir();
 			const docSql = `
                 INSERT INTO contract_documents
@@ -227,26 +215,24 @@ export const actions: Actions = {
 				const fullFilePath = path.join(UPLOAD_DIR, uniqueFilename);
 
 				await writeFile(fullFilePath, Buffer.from(await file.arrayBuffer()));
-				uploadedFilePaths.push(fullFilePath); // เก็บ path จริงไว้ในกรณีที่ต้องลบ
+				uploadedFilePaths.push(fullFilePath);
 
 				await db.query(docSql, [
 					newContractId,
 					file.name,
-					uniqueFilename, // เก็บเฉพาะชื่อไฟล์ระบบ
+					uniqueFilename,
 					fileMimeType,
 					file.size,
 					userId
 				]);
 			}
 
-			// --- 4. ดึงข้อมูลที่สร้างใหม่เพื่อส่งกลับไปอัปเดต UI ---
 			// @ts-ignore
 			const [newContractRows] = await db.query<Contract[]>(`${getContractQuery} WHERE c.id = ?`, [
 				newContractId
 			]);
 			let newContract = newContractRows[0];
 
-			// ดึงเอกสารที่เพิ่งอัปโหลดมาแนบด้วย
 			const documents = await getContractDocuments(newContractId);
 			newContract = {
 				...newContract,
@@ -267,7 +253,6 @@ export const actions: Actions = {
 		} catch (e) {
 			console.error('Database transaction failed:', e);
 
-			// ลบไฟล์ที่อัปโหลดไปแล้วถ้า DB fail
 			for (const fullPath of uploadedFilePaths) {
 				try {
 					await unlink(fullPath);
@@ -280,13 +265,10 @@ export const actions: Actions = {
 		}
 	},
 
-	/**
-	 * Action: อัปเดตสัญญา
-	 */
 	update: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const id = formData.get('id') as string;
-		const files = formData.getAll('contractFiles') as File[]; // รับหลายไฟล์
+		const files = formData.getAll('contractFiles') as File[];
 		// @ts-ignore
 		const userId = locals.user?.id || 1;
 
@@ -296,7 +278,6 @@ export const actions: Actions = {
 
 		const validFiles = files.filter((f) => f && f.size > 0);
 
-		// --- 1. ดึงข้อมูล Form ---
 		const data = {
 			title: formData.get('title') as string,
 			contract_number: nullIfEmpty(formData.get('contract_number') as string),
@@ -311,7 +292,6 @@ export const actions: Actions = {
 
 		const uploadedFilePaths: string[] = [];
 		try {
-			// --- 2. อัปเดตตาราง `contracts` ---
 			const sql = `
                 UPDATE contracts SET
                 title = ?, contract_number = ?, customer_id = ?, contract_type_id = ?,
@@ -331,9 +311,7 @@ export const actions: Actions = {
 				id
 			]);
 
-			// --- 3. (Optional) อัปโหลดไฟล์ใหม่ (ถ้ามี) ---
 			if (validFiles.length > 0) {
-				// 3.1. หา version ล่าสุด
 				// @ts-ignore
 				const [versionRows] = await db.query(
 					'SELECT MAX(version) as max_version FROM contract_documents WHERE contract_id = ?',
@@ -345,7 +323,6 @@ export const actions: Actions = {
 
 				let currentVersion = baseVersion;
 
-				// 3.2. บันทึกไฟล์ใหม่และข้อมูลลง DB
 				await ensureUploadDir();
 				const docSql = `
                     INSERT INTO contract_documents
@@ -354,18 +331,18 @@ export const actions: Actions = {
                 `;
 
 				for (const file of validFiles) {
-					currentVersion++; // เพิ่ม version สำหรับไฟล์ถัดไป
+					currentVersion++;
 					const fileMimeType = mime.lookup(file.name) || file.type || 'application/octet-stream';
 					const uniqueFilename = `${crypto.randomUUID()}-${file.name}`;
 					const fullFilePath = path.join(UPLOAD_DIR, uniqueFilename);
 
 					await writeFile(fullFilePath, Buffer.from(await file.arrayBuffer()));
-					uploadedFilePaths.push(fullFilePath); // เก็บ path จริงไว้ในกรณีที่ต้องลบ
+					uploadedFilePaths.push(fullFilePath);
 
 					await db.query(docSql, [
 						id,
 						file.name,
-						uniqueFilename, // เก็บเฉพาะชื่อไฟล์ระบบ
+						uniqueFilename,
 						fileMimeType,
 						file.size,
 						userId,
@@ -374,7 +351,6 @@ export const actions: Actions = {
 				}
 			}
 
-			// --- 4. ดึงข้อมูลที่อัปเดตแล้วส่งกลับ ---
 			// @ts-ignore
 			const [updatedContractRows] = await db.query<Contract[]>(
 				`${getContractQuery} WHERE c.id = ?`,
@@ -382,7 +358,6 @@ export const actions: Actions = {
 			);
 			let updatedContract = updatedContractRows[0];
 
-			// ดึงเอกสารที่อัปโหลดมาแนบด้วย
 			const documents = await getContractDocuments(id);
 			updatedContract = {
 				...updatedContract,
@@ -403,7 +378,6 @@ export const actions: Actions = {
 		} catch (e) {
 			console.error('Database update failed:', e);
 
-			// ลบไฟล์ที่อัปโหลดไปแล้วถ้า DB fail
 			for (const fullPath of uploadedFilePaths) {
 				try {
 					await unlink(fullPath);
@@ -416,43 +390,34 @@ export const actions: Actions = {
 		}
 	},
 
-	/**
-	 * Action: ลบสัญญา
-	 */
 	delete: async ({ request }) => {
 		const formData = await request.formData();
-		const idString = formData.get('id') as string; // *** FIX 2: รับค่าเป็น string
+		const idString = formData.get('id') as string;
 
 		if (!idString) {
 			return fail(400, { error: 'ไม่พบ ID สัญญา' });
 		}
 
-		// *** FIX 2: แปลงเป็นตัวเลขและตรวจสอบ ***
 		const id = parseInt(idString, 10);
 		if (isNaN(id)) {
 			return fail(400, { error: 'ID สัญญาไม่ถูกต้อง' });
 		}
 
 		try {
-			// --- 1. ดึงรายการไฟล์ที่เกี่ยวข้องทั้งหมด ---
 			// @ts-ignore
 			const [files]: [{ file_system_name: string }[]] = await db.query(
 				'SELECT file_system_name FROM contract_documents WHERE contract_id = ?',
-				[id] // ใช้ id (number)
+				[id]
 			);
 
-			// --- 2. ลบข้อมูลจาก Database ---
-			// การลบจาก `contracts` ควรจะลบ `contract_documents` ด้วย (ON DELETE CASCADE)
-			await db.query('DELETE FROM contracts WHERE id = ?', [id]); // ใช้ id (number)
+			await db.query('DELETE FROM contracts WHERE id = ?', [id]);
 
-			// --- 3. ลบไฟล์ออกจาก Disk (ใช้ file_system_name ที่เป็น Unique ID) ---
 			for (const file of files) {
 				if (file.file_system_name) {
 					try {
 						const fullPath = path.join(UPLOAD_DIR, file.file_system_name);
 						await unlink(fullPath);
 					} catch (e) {
-						// ถ้าไฟล์ไม่มี (ENOENT) ก็ไม่เป็นไร
 						// @ts-ignore
 						if (e.code !== 'ENOENT') {
 							console.error(`Failed to delete file: ${file.file_system_name}`, e);
@@ -461,7 +426,6 @@ export const actions: Actions = {
 				}
 			}
 
-			// *** FIX 2: ส่ง id (number) กลับไป ***
 			return { success: true, source: 'delete', deletedId: id };
 		} catch (e) {
 			console.error('Failed to delete contract:', e);
@@ -469,42 +433,29 @@ export const actions: Actions = {
 		}
 	},
 
-	/**
-	 * Action: ดาวน์โหลดเอกสารสัญญา
-	 */
 	download: async ({ url }) => {
 		const fileSystemName = url.searchParams.get('file');
 		const originalFileName = url.searchParams.get('name');
 
-		// *** FIX 1: ตรวจสอบ Path Traversal ***
-		// 1. ใช้ path.basename เพื่อเอาเฉพาะชื่อไฟล์
 		const safeFileName = path.basename(fileSystemName as string);
 
-		// 2. ตรวจสอบว่ามีข้อมูลครบถ้วน และไฟล์ที่ขอมา (fileSystemName) ตรงกับชื่อไฟล์ที่ปลอดภัย (safeFileName)
-		// ถ้าไม่ตรงกัน แสดงว่ามีการพยายามใช้ ../ ใน path
 		if (!fileSystemName || !originalFileName || safeFileName !== fileSystemName) {
 			return fail(400, { error: 'ข้อมูลไฟล์ไม่ถูกต้อง หรือไม่ปลอดภัย' });
 		}
 
-		// 3. ใช้ชื่อไฟล์ที่ปลอดภัย (safeFileName) ในการสร้าง path
 		const fullPath = path.join(UPLOAD_DIR, safeFileName);
 
 		try {
-			// ตรวจสอบว่าไฟล์มีอยู่จริง
 			const fileStats = await stat(fullPath);
 			if (!fileStats.isFile()) {
 				return fail(404, { error: 'ไม่พบไฟล์ที่ต้องการดาวน์โหลด' });
 			}
 
-			// ดึง mime type
 			const mimeType = mime.lookup(originalFileName) || 'application/octet-stream';
 
-			// **แก้ไข 3: เปลี่ยน 'fs.readFile' เป็น 'readFile'**
-			// อ่านไฟล์เป็น Buffer
 			const fileBuffer = await readFile(fullPath);
 			const uint8Array = new Uint8Array(fileBuffer);
 
-			// ส่งไฟล์กลับเป็น Response
 			return new Response(uint8Array, {
 				headers: {
 					'Content-Type': mimeType,
@@ -513,7 +464,6 @@ export const actions: Actions = {
 				}
 			});
 		} catch (e: any) {
-			// *** FIX 1: ปรับปรุงการดักจับข้อผิดพลาด ***
 			if (e.code === 'ENOENT') {
 				console.error('File not found for download:', fullPath);
 				return fail(404, { error: 'ไม่พบไฟล์ที่ต้องการดาวน์โหลด' });

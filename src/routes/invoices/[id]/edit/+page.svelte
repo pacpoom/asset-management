@@ -19,6 +19,7 @@
 	let discountAmount = 0;
 	let vatRate = 7;
 	let whtRate = 0;
+	let selectedCustomerId = data.invoice?.customer_id ? String(data.invoice.customer_id) : '';
 
 	$: if (invoice) {
 		invoiceDate = new Date(invoice.invoice_date).toISOString().split('T')[0];
@@ -26,9 +27,11 @@
 		discountAmount = parseFloat(invoice.discount_amount);
 		vatRate = parseFloat(invoice.vat_rate);
 		whtRate = parseFloat(invoice.withholding_tax_rate);
+		if (String(invoice.customer_id) !== selectedCustomerId) {
+			selectedCustomerId = invoice.customer_id ? String(invoice.customer_id) : '';
+		}
 	}
 
-	// ปรับการดึงข้อมูลเดิมสร้าง product_object
 	$: if (existingItems && items.length === 0) {
 		items = existingItems.map((item: any) => {
 			const foundProduct = products.find((p: any) => p.id == item.product_id);
@@ -139,13 +142,13 @@
 				<select
 					id="customer_id"
 					name="customer_id"
-					value={invoice?.customer_id}
+					bind:value={selectedCustomerId}
 					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				>
 					<option value="">-- เลือกลูกค้า --</option>
 					{#each customers as customer}
-						<option value={customer.id}>{customer.name}</option>
+						<option value={String(customer.id)}>{customer.name}</option>
 					{/each}
 				</select>
 			</div>
