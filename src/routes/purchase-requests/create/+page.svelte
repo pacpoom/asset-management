@@ -131,7 +131,7 @@
 	}
 </script>
 
-<div class="mx-auto mt-6 max-w-5xl rounded-lg border border-gray-200 bg-white p-6 shadow-lg">
+<div class="mx-auto mt-6 max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
 	<h1 class="mb-6 flex items-center gap-2 text-2xl font-bold text-gray-800">
 		<svg
 			xmlns="http://www.w3.org/2000/svg"

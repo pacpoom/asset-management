@@ -531,7 +531,7 @@
 	>
 		<div class="fixed inset-0" onclick={closeModal} role="presentation"></div>
 		<div
-			class="relative flex max-h-[85vh] w-full max-w-4xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
+			class="relative flex max-h-[85vh] w-full max-w-7xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
 		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
@@ -945,7 +945,7 @@
 	>
 		<div class="fixed inset-0" onclick={closeDetailModal} role="presentation"></div>
 		<div
-			class="relative flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl"
+			class="relative flex max-h-[85vh] w-full max-w-7xl flex-col rounded-xl bg-white shadow-2xl"
 			transition:slide={{ duration: 200 }}
 		>
 			<div class="flex flex-shrink-0 items-start justify-between border-b p-4">

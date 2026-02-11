@@ -15,7 +15,7 @@
 	$: totalAmount = subtotal + vatAmount - whtAmount;
 </script>
 
-<div class="mx-auto max-w-2xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+<div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
 	<h1 class="mb-6 text-2xl font-bold text-gray-800">สร้างใบสำคัญรับ-จ่าย</h1>
 
 	<form
