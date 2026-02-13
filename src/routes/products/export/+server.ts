@@ -180,8 +180,10 @@ export const POST: RequestHandler = async ({ request }) => {
 						if (ext === '.jpg' || ext === '.jpeg') imageFormat = 'jpeg';
 						else if (ext === '.gif') imageFormat = 'gif';
 
+                        // --- แก้ไขจุดที่เกิด Error ---
+                        // ใช้ 'as any' เพื่อข้ามการตรวจสอบ Type ของ TypeScript ที่ไม่ตรงกันระหว่าง Node Buffer และ ExcelJS Buffer
 						const imageId = workbook.addImage({
-							buffer: imageBuffer,
+							buffer: imageBuffer as any, 
 							extension: imageFormat,
 						});
 
