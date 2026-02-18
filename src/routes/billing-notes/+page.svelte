@@ -565,7 +565,7 @@
 							<table class="min-w-full divide-y divide-gray-200 text-sm">
 								<thead class="bg-gray-50">
 									<tr>
-										<th class="w-10 px-3 py-2 text-center text-gray-500">#</th>
+										<th class="w-10 px-3 py-2 text-center text-gray-500">ลำดับ</th>
 										<th class="w-[25%] px-3 py-2 text-left font-semibold text-gray-600"
 											>สินค้า/บริการ</th
 										>
