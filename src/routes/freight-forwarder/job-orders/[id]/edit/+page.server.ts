@@ -14,7 +14,6 @@ export const load = async ({ params }) => {
 		'SELECT id, contract_number, title, customer_id FROM contracts WHERE status = "Active"'
 	);
 
-	// [เพิ่มใหม่]
 	const [liners] = await pool.query(
 		'SELECT id, code, name FROM liners WHERE status = "Active" ORDER BY name ASC'
 	);

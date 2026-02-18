@@ -5,17 +5,14 @@
 	export let data;
 	$: documents = data.documents || [];
 
-	// [เพิ่มใหม่] ตัวแปรสำหรับค้นหา
 	let searchQuery = '';
 
-	// [เพิ่มใหม่] กรองรายการเอกสารตามคำค้นหา (ค้นจากชื่อไฟล์ หรือ ชื่อที่ตั้งไว้)
 	$: filteredDocuments = documents.filter(
 		(doc: any) =>
 			doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
 			(doc.original_name && doc.original_name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
-	// --- State สำหรับ Modal Upload ---
 	let showUploadModal = false;
 	let isUploading = false;
 	let selectedFile: File | null = null;
@@ -36,7 +33,6 @@
 		isUploading = false;
 	}
 
-	// --- State สำหรับ Modal Delete ---
 	let showDeleteModal = false;
 	let deleteId: number | null = null;
 	let deleteTitle = '';
@@ -53,7 +49,6 @@
 		isDeleting = false;
 	}
 
-	// Helper Icons & Colors
 	function getFileIcon(type: string) {
 		const t = type.toLowerCase();
 		if (['pdf'].includes(t)) return 'picture_as_pdf';

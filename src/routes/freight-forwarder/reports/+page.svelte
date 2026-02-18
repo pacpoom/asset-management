@@ -1,5 +1,4 @@
 <script module lang="ts">
-	// ประกาศตัวแปร Chart จาก Global Scope (เหมือนหน้า Dashboard หลัก)
 	declare let Chart: any;
 </script>
 
@@ -13,11 +12,9 @@
 	let startDate = filters.startDate;
 	let endDate = filters.endDate;
 
-	// References สำหรับ Canvas
 	let jobTypeChartCanvas: HTMLCanvasElement;
 	let trendChartCanvas: HTMLCanvasElement;
 
-	// ฟังก์ชันโหลดข้อมูลใหม่เมื่อเปลี่ยนวันที่
 	function applyFilter() {
 		goto(`?start_date=${startDate}&end_date=${endDate}`);
 	}
@@ -25,7 +22,6 @@
 	onMount(() => {
 		if (typeof Chart === 'undefined') return;
 
-		// --- 1. กราฟวงกลม: สัดส่วน Job Type (SI, SE, etc.) ---
 		new Chart(jobTypeChartCanvas, {
 			type: 'doughnut',
 			data: {
@@ -46,13 +42,12 @@
 			}
 		});
 
-		// --- 2. กราฟแท่ง: แนวโน้มงานรายเดือน ---
 		new Chart(trendChartCanvas, {
 			type: 'bar',
 			data: {
 				labels: monthlyTrend.map((d: any) => {
 					const [y, m] = d.month_year.split('-');
-					return `${m}/${y}`; // แปลงเป็น MM/YYYY
+					return `${m}/${y}`;
 				}),
 				datasets: [
 					{

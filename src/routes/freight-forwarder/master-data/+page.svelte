@@ -2,10 +2,8 @@
 	import { enhance } from '$app/forms';
 	export let data;
 
-	// ข้อมูลจาก Server
 	$: liners = data.liners || [];
 
-	// ระบบค้นหา (Search) แบบ Real-time
 	let searchQuery = '';
 	$: filteredLiners = liners.filter(
 		(l: any) =>
@@ -13,7 +11,6 @@
 			(l.code && l.code.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
-	// --- State สำหรับฟอร์ม Modal (Create / Edit) ---
 	let showFormModal = false;
 	let isSaving = false;
 	let formMode: 'create' | 'edit' = 'create';
@@ -43,7 +40,7 @@
 
 	function openEditModal(liner: any) {
 		formMode = 'edit';
-		formData = { ...liner }; // ก๊อปปี้ข้อมูลเดิมมาใส่ฟอร์ม
+		formData = { ...liner };
 		showFormModal = true;
 	}
 
@@ -52,7 +49,6 @@
 		isSaving = false;
 	}
 
-	// --- State สำหรับ Modal ลบข้อมูล ---
 	let showDeleteModal = false;
 	let deleteId = '';
 	let deleteName = '';
