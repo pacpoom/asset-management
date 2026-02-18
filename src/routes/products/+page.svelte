@@ -10,6 +10,7 @@
 	type ProductCategory = PageData['categories'][0];
 	type Unit = PageData['units'][0];
 	type Vendor = PageData['vendors'][0];
+	type Customer = PageData['customers'][0]; // Added
 	type ChartOfAccount = PageData['accounts'][0];
 
 	// --- Props & State ---
@@ -28,7 +29,7 @@
 
 	// Search State
 	let searchQuery = $state(data.searchQuery ?? '');
-	let searchTimer: NodeJS.Timeout; // ตัวจับเวลาสำหรับ Live Search
+	let searchTimer: NodeJS.Timeout;
 
 	// Image handling state
 	let compressedImageFile = $state<File | null>(null);
@@ -38,26 +39,20 @@
 	let removeImageFlag = $state(false);
 
 	// --- Derived Data ---
-	// [แก้ไข] ใช้ข้อมูลจาก Server โดยตรง ไม่ต้องกรองซ้ำที่หน้าจอ
-	// เพราะ Live Search จะสั่ง Server ให้กรองมาให้แล้ว
 	const filteredProducts = $derived(data.products || []);
 
 	// --- Functions ---
-
-	// [เพิ่มใหม่] ฟังก์ชัน Live Search
 	function handleSearchInput() {
 		clearTimeout(searchTimer);
-		// รอ 400ms หลังพิมพ์เสร็จ ค่อยส่งคำสั่งค้นหา
 		searchTimer = setTimeout(() => {
 			const params = new URLSearchParams();
 			if (searchQuery) params.set('search', searchQuery);
-			params.set('page', '1'); // รีเซ็ตไปหน้า 1 เสมอเมื่อค้นหาใหม่
+			params.set('page', '1');
 
-			// สั่งโหลดหน้าใหม่แบบไม่รีเฟรช (AJAX)
 			goto(`/products?${params.toString()}`, {
-				keepFocus: true, // เก็บ cursor ไว้ในช่องค้นหา
-				noScroll: true, // ไม่ต้องเด้งไปบนสุด
-				replaceState: true // ไม่ต้องเก็บประวัติการพิมพ์ทุกตัวอักษร
+				keepFocus: true,
+				noScroll: true,
+				replaceState: true
 			});
 		}, 400);
 	}
@@ -232,7 +227,6 @@
 		return rangeWithDots;
 	});
 
-	// [แก้ไข] แก้บั๊ก window is not defined ด้วยการใช้ตัวแปร state แทน
 	function getPageUrl(pageNum: number) {
 		const params = new URLSearchParams();
 		if (searchQuery) params.set('search', searchQuery);
@@ -311,7 +305,7 @@
 			name="search"
 			bind:value={searchQuery}
 			oninput={handleSearchInput}
-			placeholder="ค้นหา SKU, ชื่อสินค้า, หมวดหมู่, ผู้ขาย..."
+			placeholder="ค้นหา SKU, ชื่อสินค้า, หมวดหมู่, ผู้ขาย, ลูกค้า..."
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -763,21 +757,39 @@
 							</div>
 						{/if}
 
-						<div>
-							<label for="preferred_vendor_id" class="mb-1 block text-sm font-medium"
-								>Preferred Vendor</label
-							>
-							<select
-								name="preferred_vendor_id"
-								id="preferred_vendor_id"
-								bind:value={selectedProduct.preferred_vendor_id}
-								class="w-full rounded-md border-gray-300 text-sm"
-							>
-								<option value={null}>-- None --</option>
-								{#each data.vendors as vendor (vendor.id)}
-									<option value={vendor.id}>{vendor.name}</option>
-								{/each}
-							</select>
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label for="preferred_vendor_id" class="mb-1 block text-sm font-medium"
+									>Preferred Vendor</label
+								>
+								<select
+									name="preferred_vendor_id"
+									id="preferred_vendor_id"
+									bind:value={selectedProduct.preferred_vendor_id}
+									class="w-full rounded-md border-gray-300 text-sm"
+								>
+									<option value={null}>-- None --</option>
+									{#each data.vendors as vendor (vendor.id)}
+										<option value={vendor.id}>{vendor.name}</option>
+									{/each}
+								</select>
+							</div>
+							<div>
+								<label for="preferred_customer_id" class="mb-1 block text-sm font-medium"
+									>Preferred Customer</label
+								>
+								<select
+									name="preferred_customer_id"
+									id="preferred_customer_id"
+									bind:value={selectedProduct.preferred_customer_id}
+									class="w-full rounded-md border-gray-300 text-sm"
+								>
+									<option value={null}>-- None --</option>
+									{#each data.customers as customer (customer.id)}
+										<option value={customer.id}>{customer.name}</option>
+									{/each}
+								</select>
+							</div>
 						</div>
 
 						<fieldset class="rounded-md border p-4">
@@ -1040,6 +1052,10 @@
 						<div>
 							<strong class="block text-gray-500">Preferred Vendor:</strong>
 							{productToView.vendor_name ?? '-'}
+						</div>
+						<div>
+							<strong class="block text-gray-500">Preferred Customer:</strong>
+							{productToView.customer_name ?? '-'}
 						</div>
 						<div>
 							<strong class="block text-gray-500">Status:</strong>
