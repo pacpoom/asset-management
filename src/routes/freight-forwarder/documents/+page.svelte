@@ -1,390 +1,565 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { fade, slide } from 'svelte/transition';
+	import type { ActionResult } from '@sveltejs/kit';
+	import type { ActionData, PageData } from './$types';
+	import { slide, fade } from 'svelte/transition';
 
-	export let data;
-	$: documents = data.documents || [];
+	type Department = { id: string; name: string };
+	type FreightDocument = {
+		id: number;
+		department: string;
+		title: string;
+		filename: string;
+		original_name: string;
+		file_path: string;
+		description: string | null;
+		uploader_name: string;
+		created_at: string;
+	};
+	type GroupedDocuments = { [key: string]: FreightDocument[] };
 
-	let searchQuery = '';
+	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	$: filteredDocuments = documents.filter(
-		(doc: any) =>
-			doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-			(doc.original_name && doc.original_name.toLowerCase().includes(searchQuery.toLowerCase()))
-	);
-
-	let showUploadModal = false;
-	let isUploading = false;
-	let selectedFile: File | null = null;
-	let fileNameDisplay = '';
-
-	function handleFileSelect(e: Event) {
-		const input = e.target as HTMLInputElement;
-		if (input.files && input.files.length > 0) {
-			selectedFile = input.files[0];
-			fileNameDisplay = selectedFile.name;
+	const initialGrouped: GroupedDocuments = {};
+	if (data.groupedDocuments) {
+		for (const key in data.groupedDocuments) {
+			initialGrouped[key] = data.groupedDocuments[key];
 		}
 	}
+	let groupedDocuments = $state<GroupedDocuments>(initialGrouped);
 
-	function closeUploadModal() {
-		showUploadModal = false;
-		selectedFile = null;
-		fileNameDisplay = '';
-		isUploading = false;
+	let selectedDepartmentId = $state<string>(data.departments?.[0]?.id || 'General');
+	let description = $state('');
+	let fileInputRef: HTMLInputElement | null = $state(null);
+	let isUploading = $state(false);
+	let uploadError = $state<string | null>(null);
+	let uploadSuccessMessage = $state<string | null>(null);
+
+	let documentToDelete = $state<FreightDocument | null>(null);
+	let documentToRename = $state<FreightDocument | null>(null);
+	let isDeleting = $state(false);
+	let isRenaming = $state(false);
+	let renameForm: { new_name: string; new_description: string | null } = $state({
+		new_name: '',
+		new_description: null
+	});
+
+	let activeDepartmentId = $state<string | null>(null);
+	let searchQuery = $state('');
+	let dateFrom = $state<string | null>(null);
+	let dateTo = $state<string | null>(null);
+
+	const activeDepartment = $derived(() => {
+		if (activeDepartmentId === null) return null;
+		return data.departments.find((d: Department) => d.id === activeDepartmentId);
+	});
+
+	function openDepartment(deptId: string) {
+		activeDepartmentId = deptId;
+		searchQuery = '';
 	}
-
-	let showDeleteModal = false;
-	let deleteId: number | null = null;
-	let deleteTitle = '';
-	let isDeleting = false;
-
-	function openDeleteModal(doc: any) {
-		deleteId = doc.id;
-		deleteTitle = doc.title;
-		showDeleteModal = true;
+	function closeDepartment() {
+		activeDepartmentId = null;
+		searchQuery = '';
 	}
-
+	function openDeleteModal(doc: FreightDocument) {
+		documentToDelete = doc;
+	}
 	function closeDeleteModal() {
-		showDeleteModal = false;
+		documentToDelete = null;
 		isDeleting = false;
 	}
-
-	function getFileIcon(type: string) {
-		const t = type.toLowerCase();
-		if (['pdf'].includes(t)) return 'picture_as_pdf';
-		if (['doc', 'docx'].includes(t)) return 'description';
-		if (['xls', 'xlsx', 'csv'].includes(t)) return 'table_view';
-		if (['jpg', 'jpeg', 'png', 'gif'].includes(t)) return 'image';
-		if (['zip', 'rar'].includes(t)) return 'folder_zip';
-		return 'insert_drive_file';
+	function openRenameModal(doc: FreightDocument) {
+		documentToRename = doc;
+		renameForm = { new_name: doc.title, new_description: doc.description };
+	}
+	function closeRenameModal() {
+		documentToRename = null;
+		isRenaming = false;
 	}
 
-	function getIconColor(type: string) {
-		const t = type.toLowerCase();
-		if (['pdf'].includes(t)) return 'text-red-500 bg-red-50';
-		if (['doc', 'docx'].includes(t)) return 'text-blue-500 bg-blue-50';
-		if (['xls', 'xlsx', 'csv'].includes(t)) return 'text-green-500 bg-green-50';
-		if (['jpg', 'jpeg', 'png', 'gif'].includes(t)) return 'text-purple-500 bg-purple-50';
-		return 'text-gray-500 bg-gray-50';
-	}
+	const filteredGroupedDocuments = $derived(() => {
+		const lowerQuery = searchQuery.toLowerCase().trim();
+		let fromDate: Date | null = null;
+		if (dateFrom) fromDate = new Date(dateFrom);
 
-	function formatBytes(bytes: number, decimals = 2) {
-		if (!+bytes) return '0 Bytes';
-		const k = 1024;
-		const dm = decimals < 0 ? 0 : decimals;
-		const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-	}
+		let toDate: Date | null = null;
+		if (dateTo) {
+			toDate = new Date(dateTo);
+			toDate.setHours(23, 59, 59, 999);
+		}
+
+		const filtered: GroupedDocuments = {};
+
+		Object.keys(groupedDocuments).forEach((deptKey) => {
+			filtered[deptKey] = groupedDocuments[deptKey].filter((doc) => {
+				if (lowerQuery) {
+					const nameMatch = doc.title.toLowerCase().includes(lowerQuery);
+					const descMatch = doc.description
+						? doc.description.toLowerCase().includes(lowerQuery)
+						: false;
+					if (!nameMatch && !descMatch) return false;
+				}
+
+				const docDate = new Date(doc.created_at);
+				if (fromDate && docDate < fromDate) return false;
+				if (toDate && docDate > toDate) return false;
+
+				return true;
+			});
+		});
+
+		return filtered;
+	});
+
+	const handleSubmitUpload = () => {
+		isUploading = true;
+		uploadError = null;
+		uploadSuccessMessage = null;
+		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
+			isUploading = false;
+			if (
+				result.type === 'success' &&
+				result.data?.action === 'uploadDocument' &&
+				result.data.newDocuments
+			) {
+				const newDocs = result.data.newDocuments as FreightDocument[];
+				newDocs.forEach((newDoc) => {
+					const deptKey = newDoc.department;
+					if (!groupedDocuments[deptKey]) groupedDocuments[deptKey] = [];
+					groupedDocuments[deptKey] = [newDoc, ...groupedDocuments[deptKey]];
+				});
+				description = '';
+				if (fileInputRef) fileInputRef.value = '';
+				uploadSuccessMessage = `อัปโหลด ${newDocs.length} เอกสาร สำเร็จ!`;
+				setTimeout(() => {
+					uploadSuccessMessage = null;
+				}, 3000);
+			} else if (result.type === 'failure') {
+				uploadError = result.data?.message ?? 'Upload error';
+				await update();
+			} else {
+				await update();
+			}
+		};
+	};
+
+	const handleSubmitRename = () => {
+		isRenaming = true;
+		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
+			isRenaming = false;
+			if (result.type === 'success' && result.data?.updatedDocument) {
+				const updatedDoc = result.data.updatedDocument as FreightDocument;
+				const deptKey = updatedDoc.department;
+				if (groupedDocuments[deptKey]) {
+					const index = groupedDocuments[deptKey].findIndex((doc) => doc.id === updatedDoc.id);
+					if (index !== -1) groupedDocuments[deptKey][index] = updatedDoc;
+				}
+				closeRenameModal();
+			} else if (result.type === 'failure') {
+				await update();
+				alert(result.data?.message ?? 'Rename failed');
+			} else {
+				await update();
+			}
+		};
+	};
+
+	const handleSubmitDelete = () => {
+		isDeleting = true;
+		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
+			isDeleting = false;
+			if (result.type === 'success' && result.data?.deletedDocumentId) {
+				const deletedId = result.data.deletedDocumentId as number;
+				Object.keys(groupedDocuments).forEach((deptKey) => {
+					groupedDocuments[deptKey] = groupedDocuments[deptKey].filter(
+						(doc) => doc.id !== deletedId
+					);
+				});
+				closeDeleteModal();
+			} else if (result.type === 'failure') {
+				await update();
+				alert(result.data?.message ?? 'Delete failed');
+			} else {
+				await update();
+			}
+		};
+	};
 </script>
 
-<div class="min-h-screen bg-gray-50 p-6">
-	<div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-		<div>
-			<h1 class="text-2xl font-bold text-gray-800">Documents Center</h1>
-			<p class="text-sm text-gray-500">คลังเอกสารและแบบฟอร์ม (Freight Forwarder)</p>
-		</div>
+<svelte:head>
+	<title>Freight Forwarder Documents</title>
+</svelte:head>
 
-		<div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-			<div class="relative w-full sm:w-64">
-				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-					<svg
-						class="h-4 w-4 text-gray-400"
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-				</div>
+<div class="container mx-auto px-4 py-8">
+	<h1 class="mb-6 text-3xl font-bold text-gray-800">Documents Center (Freight Forwarder)</h1>
+
+	<form
+		method="POST"
+		action="?/uploadDocument"
+		use:enhance={handleSubmitUpload}
+		enctype="multipart/form-data"
+		class="mb-8 rounded-lg border bg-white p-6 shadow-sm"
+	>
+		<h2 class="mb-4 text-xl font-semibold text-gray-700">อัปโหลดเอกสารใหม่</h2>
+
+		{#if uploadError}
+			<div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+				<strong>Error:</strong>
+				{uploadError}
+			</div>
+		{/if}
+
+		{#if uploadSuccessMessage}
+			<div
+				class="mb-4 rounded-md border border-green-300 bg-green-50 p-4 text-sm text-green-700"
+				transition:fade
+			>
+				{uploadSuccessMessage}
+			</div>
+		{/if}
+
+		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+			<div>
+				<label for="department_id" class="mb-2 block text-sm font-medium text-gray-700"
+					>เลือกแผนก*</label
+				>
+				<select
+					id="department_id"
+					name="department_id"
+					bind:value={selectedDepartmentId}
+					required
+					class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+				>
+					{#each data.departments as dept}
+						<option value={dept.id}>{dept.name}</option>
+					{/each}
+				</select>
+			</div>
+			<div>
+				<label for="document" class="mb-2 block text-sm font-medium text-gray-700"
+					>เลือกไฟล์* (Multiple)</label
+				>
 				<input
-					type="text"
-					bind:value={searchQuery}
-					placeholder="ค้นหาชื่อเอกสาร..."
-					class="block w-full rounded-lg border-0 py-2 pr-3 pl-10 text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 focus:ring-inset sm:text-sm sm:leading-6"
+					type="file"
+					id="document"
+					name="document"
+					multiple
+					required
+					bind:this={fileInputRef}
+					class="block w-full text-sm text-gray-900 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 				/>
 			</div>
-
-			<button
-				onclick={() => (showUploadModal = true)}
-				class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold whitespace-nowrap text-white shadow-sm transition-all hover:bg-blue-700"
+		</div>
+		<div class="mt-4">
+			<label for="description" class="mb-2 block text-sm font-medium text-gray-700"
+				>ชื่อเอกสาร / คำอธิบาย (Optional)</label
 			>
-				<span class="material-symbols-outlined text-[20px]">cloud_upload</span>
-				อัปโหลดเอกสาร
+			<input
+				type="text"
+				id="description"
+				name="description"
+				bind:value={description}
+				placeholder="ระบุชื่อเอกสาร (ถ้าไม่ระบุจะใช้ชื่อไฟล์)"
+				class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+			/>
+		</div>
+
+		<div class="mt-6 flex justify-end">
+			<button
+				type="submit"
+				disabled={isUploading}
+				class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:bg-blue-300"
+			>
+				{#if isUploading}
+					<svg
+						class="mr-2 h-4 w-4 animate-spin"
+						xmlns="http://www.w3.org/2000/svg"
+						fill="none"
+						viewBox="0 0 24 24"
+						><circle
+							class="opacity-25"
+							cx="12"
+							cy="12"
+							r="10"
+							stroke="currentColor"
+							stroke-width="4"
+						></circle><path
+							class="opacity-75"
+							fill="currentColor"
+							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+						></path></svg
+					>
+					กำลังอัปโหลด...
+				{:else}
+					<span class="material-symbols-outlined mr-2 text-[18px]">cloud_upload</span> อัปโหลดเอกสาร
+				{/if}
 			</button>
 		</div>
-	</div>
+	</form>
 
-	{#if filteredDocuments.length > 0}
-		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-			{#each filteredDocuments as doc}
-				<div
-					class="group relative flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-blue-200 hover:shadow-md"
-				>
-					<div class="flex items-start justify-between">
-						<div class="flex items-start gap-3 overflow-hidden">
-							<div
-								class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg {getIconColor(
-									doc.file_type
-								)}"
-							>
-								<span class="material-symbols-outlined">{getFileIcon(doc.file_type)}</span>
-							</div>
-							<div class="min-w-0">
-								<h3 class="truncate text-sm font-bold text-gray-800" title={doc.title}>
-									{doc.title}
-								</h3>
-								<p class="truncate text-xs text-gray-500">{doc.original_name}</p>
-							</div>
-						</div>
+	<hr class="my-8 border-gray-200" />
 
+	<div>
+		{#if activeDepartment()}
+			{@const docs = filteredGroupedDocuments()[activeDepartment().id] || []}
+			<div transition:fade={{ duration: 200 }}>
+				<div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+					<div class="flex items-center gap-3">
 						<button
-							onclick={() => openDeleteModal(doc)}
-							class="p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
-							title="ลบเอกสาร"
+							type="button"
+							onclick={closeDepartment}
+							class="rounded-full bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200 hover:text-gray-900"
+							title="ย้อนกลับ"
 						>
-							<span class="material-symbols-outlined text-[18px]">delete</span>
+							<span class="material-symbols-outlined block h-5 w-5">arrow_back</span>
 						</button>
+						<div>
+							<h2 class="text-2xl font-bold text-gray-800">{activeDepartment().name}</h2>
+							<p class="text-sm text-gray-500">{docs.length} ไฟล์ในโฟลเดอร์นี้</p>
+						</div>
 					</div>
 
-					{#if doc.description}
-						<p class="mt-3 line-clamp-2 min-h-[2.5em] text-xs text-gray-500">{doc.description}</p>
-					{:else}
-						<div class="mt-3 min-h-[2.5em]"></div>
-					{/if}
-
-					<div class="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
-						<div class="text-[10px] text-gray-400">
-							{formatBytes(doc.file_size)} • {new Date(doc.created_at).toLocaleDateString('th-TH')}
+					<div class="flex flex-wrap items-end gap-2">
+						<div>
+							<label for="date_from" class="mb-1 block text-xs font-medium text-gray-500"
+								>จากวันที่</label
+							>
+							<input
+								type="date"
+								id="date_from"
+								bind:value={dateFrom}
+								class="block w-full rounded-md border-gray-300 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
 						</div>
-						<a
-							href={doc.file_path}
-							target="_blank"
-							download
-							class="flex items-center gap-1 rounded bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
-						>
-							<span class="material-symbols-outlined text-[14px]">download</span>
-							Download
-						</a>
+						<div>
+							<label for="date_to" class="mb-1 block text-xs font-medium text-gray-500"
+								>ถึงวันที่</label
+							>
+							<input
+								type="date"
+								id="date_to"
+								bind:value={dateTo}
+								class="block w-full rounded-md border-gray-300 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div class="w-full min-w-[200px] md:w-auto">
+							<label for="search_box" class="mb-1 block text-xs font-medium text-gray-500"
+								>ค้นหา</label
+							>
+							<div class="relative">
+								<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+									<span class="material-symbols-outlined text-[18px] text-gray-400">search</span>
+								</div>
+								<input
+									type="search"
+									id="search_box"
+									bind:value={searchQuery}
+									placeholder="ค้นหาชื่อไฟล์..."
+									class="block w-full rounded-md border-gray-300 py-1.5 pl-9 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
+						</div>
 					</div>
 				</div>
-			{/each}
-		</div>
-	{:else if searchQuery}
-		<div
-			class="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-center"
-		>
-			<div class="rounded-full bg-white p-3 shadow-sm">
-				<span class="material-symbols-outlined text-3xl text-gray-400">search_off</span>
-			</div>
-			<h3 class="mt-3 text-sm font-semibold text-gray-900">ไม่พบเอกสารที่ค้นหา</h3>
-			<p class="mt-1 text-xs text-gray-500">ลองค้นหาด้วยคำอื่น หรือตรวจสอบตัวสะกด</p>
-		</div>
-	{:else}
-		<div
-			class="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-center"
-		>
-			<div class="rounded-full bg-white p-3 shadow-sm">
-				<span class="material-symbols-outlined text-4xl text-gray-400">folder_open</span>
-			</div>
-			<h3 class="mt-3 text-sm font-semibold text-gray-900">ยังไม่มีเอกสาร</h3>
-			<p class="mt-1 text-xs text-gray-500">เริ่มอัปโหลดเอกสารฉบับแรกของคุณได้เลย</p>
-		</div>
-	{/if}
-</div>
 
-{#if showUploadModal}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity"
-		transition:fade={{ duration: 150 }}
-	>
-		<div
-			class="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
-			transition:slide={{ axis: 'y', duration: 200 }}
-		>
-			<div class="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
-				<h3 class="text-lg font-bold text-gray-800">อัปโหลดเอกสารใหม่</h3>
-				<button
-					type="button"
-					onclick={closeUploadModal}
-					class="text-gray-400 hover:text-gray-600"
-					aria-label="Close"
-					title="ปิด"
-				>
-					<span class="material-symbols-outlined">close</span>
-				</button>
-			</div>
+				{#if docs.length > 0}
+					<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+						<ul class="divide-y divide-gray-100">
+							{#each docs as doc (doc.id)}
+								<li
+									class="group flex flex-col items-start justify-between gap-4 p-4 transition hover:bg-blue-50/50 sm:flex-row sm:items-center"
+									transition:slide|local
+								>
+									<div class="flex items-start gap-4">
+										<div
+											class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600"
+										>
+											<span class="material-symbols-outlined">description</span>
+										</div>
+										<div>
+											<p class="font-medium text-gray-900 group-hover:text-blue-700">{doc.title}</p>
+											{#if doc.description && doc.description !== doc.title}
+												<p class="text-sm text-gray-500">{doc.description}</p>
+											{/if}
+											<div class="mt-1 flex items-center gap-2 text-xs text-gray-400">
+												<span>{doc.uploader_name}</span>
+												<span>•</span>
+												<span>{new Date(doc.created_at).toLocaleString('th-TH')}</span>
+											</div>
+										</div>
+									</div>
 
-			<form
-				method="POST"
-				action="?/upload"
-				enctype="multipart/form-data"
-				use:enhance={() => {
-					isUploading = true;
-					return async ({ update, result }) => {
-						await update();
-						if (result.type === 'success') closeUploadModal();
-						else isUploading = false;
-					};
-				}}
-			>
-				<div class="space-y-4 p-6">
-					<div class="relative">
-						<label
-							for="file-upload"
-							class="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 transition-colors hover:border-blue-300 hover:bg-blue-50"
-						>
-							{#if selectedFile}
-								<div class="flex flex-col items-center text-blue-600">
-									<span class="material-symbols-outlined mb-1 text-3xl">check_circle</span>
-									<span class="w-64 truncate px-4 text-center text-sm font-medium"
-										>{fileNameDisplay}</span
-									>
-									<span class="mt-1 text-xs text-gray-400">{formatBytes(selectedFile.size)}</span>
-								</div>
-							{:else}
-								<div class="flex flex-col items-center pt-5 pb-6 text-gray-500">
-									<span class="material-symbols-outlined mb-2 text-3xl">cloud_upload</span>
-									<p class="text-sm"><span class="font-semibold">คลิกเพื่อเลือกไฟล์</span></p>
-									<p class="text-xs text-gray-400">PDF, DOCX, XLSX, JPG (Max 10MB)</p>
-								</div>
-							{/if}
-							<input
-								id="file-upload"
-								name="file"
-								type="file"
-								class="hidden"
-								onchange={handleFileSelect}
-								required
-							/>
-						</label>
+									<div class="flex flex-shrink-0 gap-2 self-end sm:self-center">
+										<a
+											href={doc.file_path}
+											target="_blank"
+											download={doc.original_name}
+											class="rounded-md p-2 text-gray-400 transition hover:bg-white hover:text-blue-600 hover:shadow-sm"
+											title="Download"
+										>
+											<span class="material-symbols-outlined block h-5 w-5">download</span>
+										</a>
+										<button
+											onclick={() => openRenameModal(doc)}
+											class="rounded-md p-2 text-gray-400 transition hover:bg-white hover:text-yellow-600 hover:shadow-sm"
+											title="Rename"
+										>
+											<span class="material-symbols-outlined block h-5 w-5">edit</span>
+										</button>
+										<button
+											onclick={() => openDeleteModal(doc)}
+											class="rounded-md p-2 text-gray-400 transition hover:bg-white hover:text-red-600 hover:shadow-sm"
+											title="Delete"
+										>
+											<span class="material-symbols-outlined block h-5 w-5">delete</span>
+										</button>
+									</div>
+								</li>
+							{/each}
+						</ul>
 					</div>
+				{:else}
+					<div
+						class="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 text-center"
+					>
+						<span class="material-symbols-outlined mb-2 text-4xl text-gray-300">folder_open</span>
+						<p class="text-gray-500">
+							{searchQuery ? 'ไม่พบเอกสารที่ตรงกับการค้นหา' : 'โฟลเดอร์นี้ว่างเปล่า'}
+						</p>
+					</div>
+				{/if}
+			</div>
+		{:else}
+			<div>
+				<h2 class="mb-4 text-xl font-bold text-gray-800">แผนกทั้งหมด</h2>
+				<div class="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+					{#each data.departments as department (department.id)}
+						<button
+							type="button"
+							onclick={() => openDepartment(department.id)}
+							class="group flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg"
+						>
+							<div
+								class="mb-4 rounded-full bg-blue-50 p-4 transition-colors group-hover:bg-blue-100"
+							>
+								<span
+									class="material-symbols-outlined text-4xl text-blue-500 group-hover:text-blue-600"
+									>folder</span
+								>
+							</div>
+							<span class="font-bold text-gray-700 group-hover:text-blue-700"
+								>{department.name}</span
+							>
+							<span class="mt-1 text-xs text-gray-400"
+								>{groupedDocuments[department.id]?.length || 0} ไฟล์</span
+							>
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
 
+	{#if documentToRename}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+			role="dialog"
+			aria-modal="true"
+		>
+			<div class="animate-in fade-in zoom-in-95 w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+				<h3 class="text-lg font-bold text-gray-900">แก้ไขชื่อเอกสาร</h3>
+				<form
+					method="POST"
+					action="?/renameDocument"
+					use:enhance={handleSubmitRename}
+					class="mt-4 space-y-4"
+				>
+					<input type="hidden" name="document_id" value={documentToRename.id} />
 					<div>
-						<label for="title" class="mb-1 block text-sm font-semibold text-gray-700"
-							>ชื่อเอกสาร <span class="text-red-500">*</span></label
+						<label for="new_name" class="mb-1 block text-sm font-medium text-gray-700"
+							>ชื่อเอกสารใหม่</label
 						>
 						<input
 							type="text"
-							id="title"
-							name="title"
+							id="new_name"
+							name="new_name"
+							bind:value={renameForm.new_name}
 							required
-							placeholder="เช่น แบบฟอร์มใบงาน, ตารางค่าระวางเรือ 2024"
-							class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 						/>
 					</div>
-
 					<div>
-						<label for="description" class="mb-1 block text-sm font-medium text-gray-700"
-							>รายละเอียด (Optional)</label
+						<label for="new_description" class="mb-1 block text-sm font-medium text-gray-700"
+							>คำอธิบาย</label
 						>
 						<textarea
-							id="description"
-							name="description"
-							rows="2"
-							class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							placeholder="คำอธิบายเพิ่มเติม..."
+							id="new_description"
+							name="new_description"
+							bind:value={renameForm.new_description}
+							rows={3}
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 						></textarea>
 					</div>
-				</div>
+					<div class="mt-6 flex justify-end gap-3">
+						<button
+							type="button"
+							onclick={closeRenameModal}
+							disabled={isRenaming}
+							class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+							>Cancel</button
+						>
+						<button
+							type="submit"
+							disabled={isRenaming}
+							class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+							>Save Changes</button
+						>
+					</div>
+				</form>
+			</div>
+		</div>
+	{/if}
 
-				<div class="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+	{#if documentToDelete}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+			role="alertdialog"
+		>
+			<div class="animate-in fade-in zoom-in-95 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+				<div
+					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600"
+				>
+					<span class="material-symbols-outlined">delete</span>
+				</div>
+				<h3 class="text-center text-lg font-bold text-gray-900">ยืนยันการลบ</h3>
+				<p class="mt-2 text-center text-sm text-gray-500">
+					คุณแน่ใจหรือไม่ที่จะลบเอกสาร <span class="font-bold text-gray-800"
+						>"{documentToDelete.title}"</span
+					>?
+				</p>
+				<form
+					method="POST"
+					action="?/deleteDocument"
+					use:enhance={handleSubmitDelete}
+					class="mt-6 flex justify-center gap-3"
+				>
+					<input type="hidden" name="document_id" value={documentToDelete.id} />
 					<button
 						type="button"
-						onclick={closeUploadModal}
-						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+						onclick={closeDeleteModal}
+						disabled={isDeleting}
+						class="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 						>ยกเลิก</button
 					>
 					<button
 						type="submit"
-						disabled={isUploading || !selectedFile}
-						class="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-					>
-						{#if isUploading}
-							<svg
-								class="h-4 w-4 animate-spin text-white"
-								xmlns="http://www.w3.org/2000/svg"
-								fill="none"
-								viewBox="0 0 24 24"
-								><circle
-									class="opacity-25"
-									cx="12"
-									cy="12"
-									r="10"
-									stroke="currentColor"
-									stroke-width="4"
-								></circle><path
-									class="opacity-75"
-									fill="currentColor"
-									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-								></path></svg
-							>
-							Uploading...
-						{:else}
-							บันทึก
-						{/if}
-					</button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-{#if showDeleteModal}
-	<div
-		class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-		transition:fade={{ duration: 150 }}
-	>
-		<div
-			class="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl"
-			transition:slide={{ axis: 'y', duration: 200 }}
-		>
-			<div class="p-6 text-center">
-				<div
-					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600"
-				>
-					<span class="material-symbols-outlined text-2xl">delete</span>
-				</div>
-				<h3 class="text-lg font-bold text-gray-900">ยืนยันการลบไฟล์</h3>
-				<p class="mt-2 text-sm text-gray-500">
-					คุณแน่ใจหรือไม่ที่จะลบเอกสาร <br />"<span class="font-bold text-gray-800"
-						>{deleteTitle}</span
-					>"?
-				</p>
-			</div>
-			<div class="flex justify-center gap-3 bg-gray-50 px-6 py-4">
-				<button
-					type="button"
-					onclick={closeDeleteModal}
-					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-					>ยกเลิก</button
-				>
-				<form
-					method="POST"
-					action="?/delete"
-					class="w-full"
-					use:enhance={() => {
-						isDeleting = true;
-						return async ({ update }) => {
-							await update();
-							closeDeleteModal();
-						};
-					}}
-				>
-					<input type="hidden" name="id" value={deleteId} />
-					<button
-						type="submit"
 						disabled={isDeleting}
-						class="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+						class="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+						>ยืนยันลบ</button
 					>
-						{isDeleting ? 'ลบ...' : 'ลบเลย'}
-					</button>
 				</form>
 			</div>
 		</div>
-	</div>
-{/if}
+	{/if}
+</div>
