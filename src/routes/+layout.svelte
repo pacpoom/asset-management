@@ -310,7 +310,7 @@
 {/snippet}
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href="/Logo.png" />
 	<title>{data.systemName || 'Core Business'}</title>
 	<style>
 		.material-symbols-outlined {
