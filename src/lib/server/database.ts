@@ -1,22 +1,26 @@
 import mysql from 'mysql2/promise';
-// SvelteKit will automatically pull values from the .env file.
-import { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_DATABASE } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
-// Create a connection pool to MySQL.
-// Using a pool is better for managing multiple simultaneous connections.
-const pool = mysql.createPool({
-  host: DB_HOST,
-  port: parseInt(DB_PORT),
-  user: DB_USER,
-  password: DB_PASSWORD,
-  database: DB_DATABASE,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  
-  supportBigNumbers: true,
-  bigNumberStrings: true
+export const pool = mysql.createPool({
+	host: env.DB_HOST,
+	user: env.DB_USER,
+	password: env.DB_PASSWORD,
+	database: env.DB_DATABASE,
+	port: Number(env.DB_PORT) || 3306,
+	waitForConnections: true,
+	connectionLimit: 10,
+	queueLimit: 0
+});
 
+export const vdcPool = mysql.createPool({
+	host: env.VDC_HOST || '192.168.111.52',
+	port: Number(env.VDC_PORT) || 3308,
+	user: env.VDC_USER || 'root',
+	password: env.VDC_PASSWORD || 'Anji@12345',
+	database: env.VDC_DATABASE || 'vdc_db',
+	waitForConnections: true,
+	connectionLimit: 5,
+	queueLimit: 0
 });
 
 export default pool;

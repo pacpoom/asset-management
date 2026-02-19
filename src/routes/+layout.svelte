@@ -310,7 +310,7 @@
 {/snippet}
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href="/Logo.png" />
 	<title>{data.systemName || 'Core Business'}</title>
 	<style>
 		.material-symbols-outlined {
@@ -357,7 +357,11 @@
 							: 'h-10 w-10'} flex flex-shrink-0 items-center justify-center rounded-lg transition-all duration-300"
 					>
 						{#if data.companyLogoPath}
-							<img src={data.companyLogoPath} alt="Company Logo" class="h-full w-full object-contain" />
+							<img
+								src={data.companyLogoPath}
+								alt="Company Logo"
+								class="h-full w-full object-contain"
+							/>
 						{:else}
 							<img src="/logo.png" alt="Default Logo" class="h-full w-full object-contain" />
 						{/if}
@@ -366,7 +370,9 @@
 					<!-- System Name -->
 					<span
 						class={`text-center font-bold text-gray-900 transition-all duration-100 ${
-							isSidebarExpanded || isSidebarOpen ? 'block text-lg leading-tight' : 'hidden lg:hidden'
+							isSidebarExpanded || isSidebarOpen
+								? 'block text-lg leading-tight'
+								: 'hidden lg:hidden'
 						}`}
 					>
 						{data.systemName || 'Core Business'}
@@ -375,6 +381,30 @@
 
 				<div class="flex-grow">
 					<nav>
+						<a
+							href="/"
+							class="group mb-1 flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
+							{isLinkActive('/')
+								? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+								: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
+							focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
+							{!isSidebarExpanded ? 'justify-center' : ''}"
+							title={!isSidebarExpanded ? 'Dashboard' : ''}
+						>
+							<span
+								class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
+							>
+								dashboard
+							</span>
+							<span
+								class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${
+									!isSidebarExpanded ? 'lg:hidden' : ''
+								}`}
+							>
+								Dashboard
+							</span>
+						</a>
+
 						{@render menuList(data.menus, 0)}
 
 						{#if data.user.role === 'admin'}
@@ -545,7 +575,7 @@
 					{:else}
 						<img src="/logo.png" alt="Default Logo" class="h-10 w-10 object-contain" />
 					{/if}
-					<span class="text-sm font-bold leading-tight text-gray-800"
+					<span class="text-sm leading-tight font-bold text-gray-800"
 						>{data.systemName || 'Core Business'}</span
 					>
 				</div>
