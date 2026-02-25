@@ -6,49 +6,43 @@ export const load: PageServerLoad = async ({ params }) => {
 	const id = parseInt(params.id);
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
-	let connection;
 	try {
-		connection = await pool.getConnection();
-
-		const [bnRows] = await connection.query<any[]>(`SELECT * FROM billing_notes WHERE id = ?`, [
-			id
-		]);
-		if (bnRows.length === 0) throw error(404, 'Not found');
-		const billingNote = bnRows[0];
-
-		let customer = { name: '-', address: '-', tax_id: '-' };
-		if (billingNote.customer_id) {
-			const [cRows] = await connection.query<any[]>(`SELECT * FROM customers WHERE id = ?`, [
-				billingNote.customer_id
-			]);
-			if (cRows.length > 0) customer = cRows[0];
-		}
-		billingNote.customer_name = customer.name;
-		billingNote.customer_address = customer.address;
-		billingNote.customer_tax_id = customer.tax_id;
-
-		const [uRows] = await connection.query<any[]>(`SELECT full_name FROM users WHERE id = ?`, [
-			billingNote.created_by_user_id || 0
-		]);
-		billingNote.created_by_name = uRows[0]?.full_name || '-';
-
-		const [items] = await connection.query<any[]>(
-			`SELECT * FROM billing_note_items WHERE billing_note_id = ? ORDER BY id ASC`,
+		// 1. ดึงข้อมูลใบวางบิล พร้อม Join ข้อมูลลูกค้า
+		const [rows] = await pool.query<any[]>(
+			`SELECT bn.*, 
+                    c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id
+             FROM billing_notes bn
+             LEFT JOIN customers c ON bn.customer_id = c.id
+             WHERE bn.id = ?`,
 			[id]
 		);
 
-		const [companyRows] = await connection.query<any[]>(`SELECT * FROM company LIMIT 1`);
+		if (rows.length === 0) throw error(404, 'Billing Note not found');
+		const billingNote = rows[0];
+
+		// 2. ดึงรายการสินค้า พร้อม Join หน่วย (Symbol)
+		const [items] = await pool.query<any[]>(
+			`SELECT bni.*, u.symbol as unit_symbol
+             FROM billing_note_items bni
+             LEFT JOIN units u ON bni.unit_id = u.id
+             WHERE bni.billing_note_id = ?
+             ORDER BY bni.id ASC`,
+			[id]
+		);
+
+		// 3. ดึงข้อมูลบริษัท (สำหรับหัวกระดาษ)
+		const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
 
 		return {
 			billingNote: JSON.parse(JSON.stringify(billingNote)),
 			items: JSON.parse(JSON.stringify(items)),
-			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null
+			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
+			availableStatuses: ['Draft', 'Sent', 'Paid', 'Overdue', 'Void'],
+			attachments: [] // ถ้ามีตารางไฟล์แนบให้ดึงมาใส่ตรงนี้ครับ
 		};
 	} catch (err: any) {
-		console.error('Error:', err);
+		console.error('Error loading billing note:', err);
 		throw error(500, err.message);
-	} finally {
-		if (connection) connection.release();
 	}
 };
 
@@ -58,7 +52,7 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const status = formData.get('status')?.toString();
 
-		if (!id || !status) return fail(400, { message: 'Invalid data' });
+		if (!id || !status) return fail(400, { message: 'ข้อมูลไม่ถูกต้อง' });
 
 		try {
 			await pool.execute('UPDATE billing_notes SET status = ? WHERE id = ?', [status, id]);

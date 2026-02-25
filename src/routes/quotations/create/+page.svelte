@@ -10,33 +10,37 @@
 	$: productOptions = products.map((p: any) => ({
 		value: p.id,
 		label: `${p.sku} - ${p.name}`,
-		product: p // เก็บข้อมูลสินค้าเดิมไว้ใช้ดึงราคา/หน่วย
+		product: p
 	}));
 
 	let quotationDate = new Date().toISOString().split('T')[0];
-	let validUntil = ''; // วันยืนยันราคา
+	let validUntil = '';
 
 	let items = [
 		{
-			product_object: null, // เพิ่มตัวนี้
+			product_object: null,
 			product_id: null,
 			description: '',
 			quantity: 1,
 			unit_id: null,
 			unit_price: 0,
+			wht_rate: 0,
 			line_total: 0
 		}
 	];
 
 	let discountAmount = 0;
 	let vatRate = 7;
-	let whtRate = 0;
 
 	$: subtotal = items.reduce((sum, item) => sum + item.line_total, 0);
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
 	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
-	$: whtAmount = (totalAfterDiscount * whtRate) / 100;
-	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+	$: totalWhtAmount = items.reduce(
+		(sum, item) => sum + (item.line_total * (item.wht_rate || 0)) / 100,
+		0
+	);
+	$: grandTotal = totalAfterDiscount + vatAmount - totalWhtAmount;
+
 	$: itemsJson = JSON.stringify(items);
 
 	function addItem() {
@@ -49,6 +53,7 @@
 				quantity: 1,
 				unit_id: null,
 				unit_price: 0,
+				wht_rate: 0,
 				line_total: 0
 			}
 		];
@@ -71,11 +76,13 @@
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
+			items[index].wht_rate = 0;
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
+			items[index].wht_rate = 0;
 		}
 
 		updateLineTotal(index);
@@ -191,7 +198,8 @@
 					id="attachments"
 					name="attachments"
 					multiple
-					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold
+file:text-blue-700 hover:file:bg-blue-100"
 				/>
 			</div>
 		</div>
@@ -202,21 +210,25 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
 						<tr>
-							<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th
+							<th class="w-[280px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+								>สินค้า</th
 							>
-							<th class="w-1/3 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+							<th class="w-[220px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
 								>รายละเอียด</th
 							>
-							<th class="w-24 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
+							<th class="w-20 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
 								>จำนวน</th
 							>
-							<th class="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
+							<th class="w-20 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
 								>หน่วย</th
 							>
-							<th class="w-32 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
+							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
 								>ราคา/หน่วย</th
 							>
-							<th class="w-32 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
+							<th class="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
+								>WHT</th
+							>
+							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
 								>รวม</th
 							>
 							<th class="w-10 px-3 py-2"></th>
@@ -225,26 +237,28 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-3 py-2" style="min-width: 250px;">
-									<Select
-										items={productOptions}
-										value={item.product_object}
-										on:change={(e) => onProductSelect(index, e.detail)}
-										on:clear={() => onProductSelect(index, null)}
-										placeholder="-- ค้นหา/เลือก --"
-										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
-										container={browser ? document.body : null}
-										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-										--list="border-radius: 6px; font-size: 0.875rem;"
-										--itemIsActive="background: #e0f2fe;"
-									/>
+								<td class="w-[280px] max-w-[280px] px-3 py-2">
+									<div class="w-full overflow-hidden">
+										<Select
+											items={productOptions}
+											value={item.product_object}
+											on:change={(e) => onProductSelect(index, e.detail)}
+											on:clear={() => onProductSelect(index, null)}
+											placeholder="-- ค้นหา/เลือก --"
+											floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+											container={browser ? document.body : null}
+											--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+											--list="border-radius: 6px; font-size: 0.875rem;"
+											--itemIsActive="background: #e0f2fe;"
+										/>
+									</div>
 								</td>
 
-								<td class="px-3 py-2">
+								<td class="w-[220px] max-w-[220px] px-3 py-2">
 									<input
 										type="text"
 										bind:value={item.description}
-										class="w-full rounded-md border-gray-300 text-sm"
+										class="w-full truncate rounded-md border-gray-300 text-sm"
 										required
 									/>
 								</td>
@@ -297,6 +311,18 @@
 										class="w-full rounded-md border-gray-300 text-right text-sm"
 										required
 									/>
+								</td>
+								<td class="px-3 py-2">
+									<select
+										bind:value={item.wht_rate}
+										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700 focus:border-red-500 focus:ring-red-500"
+									>
+										<option value={0}>0%</option>
+										<option value={1}>1%</option>
+										<option value={2}>2%</option>
+										<option value={3}>3%</option>
+										<option value={5}>5%</option>
+									</select>
 								</td>
 								<td class="px-3 py-2 text-right font-medium text-gray-700">
 									{item.line_total.toFixed(2)}
@@ -369,23 +395,13 @@
 					<span class="font-medium">{vatAmount.toFixed(2)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
+
 				<div class="flex items-center justify-between text-sm text-red-600">
-					<span class="flex items-center">
-						WHT
-						<select
-							name="wht_rate"
-							bind:value={whtRate}
-							class="ml-2 h-7 cursor-pointer rounded-md border-red-200 bg-red-50 py-0 pr-7 pl-2 text-center text-sm text-red-700 focus:border-red-500 focus:ring-red-500"
-						>
-							<option value={0}>0%</option>
-							<option value={1}>1%</option>
-							<option value={3}>3%</option>
-							<option value={5}>5%</option>
-						</select>
-					</span>
-					<span>- {whtAmount.toFixed(2)}</span>
-					<input type="hidden" name="wht_amount" value={whtAmount} />
+					<span class="flex items-center font-bold">หัก ณ ที่จ่ายรวม (Total WHT)</span>
+					<span class="font-bold">- {totalWhtAmount.toFixed(2)}</span>
+					<input type="hidden" name="withholding_tax_amount" value={totalWhtAmount} />
 				</div>
+
 				<div
 					class="flex justify-between border-t border-gray-300 pt-2 text-base font-bold text-gray-900"
 				>

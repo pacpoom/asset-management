@@ -62,12 +62,12 @@ async function generateReceiptNumber(dateStr: string) {
 export const load: PageServerLoad = async ({ locals, url }) => {
 	try {
 		const [customers] = await pool.query(
-			'SELECT id, name, address, tax_id FROM customers ORDER BY name ASC'
+			'SELECT id, name, address, tax_id, company_name FROM customers ORDER BY name ASC'
 		);
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
-		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+		const [units] = await pool.query('SELECT id, name, symbol FROM units ORDER BY symbol ASC');
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
@@ -104,8 +104,10 @@ export const actions: Actions = {
 		);
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
-		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
-		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
+
+		const withholding_tax_amount = parseFloat(
+			formData.get('withholding_tax_amount')?.toString() || '0'
+		);
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
 
 		if (!customer_id) {
@@ -124,7 +126,7 @@ export const actions: Actions = {
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, total_amount,
                  status, created_by_user_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Issued', ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'Issued', ?)`,
 				[
 					receipt_number,
 					receipt_date,
@@ -136,8 +138,7 @@ export const actions: Actions = {
 					total_after_discount,
 					vat_rate,
 					vat_amount,
-					wht_rate,
-					wht_amount,
+					withholding_tax_amount,
 					total_amount,
 					locals.user?.id || null
 				]
@@ -147,10 +148,14 @@ export const actions: Actions = {
 			const items = JSON.parse(itemsJson);
 			if (items.length > 0) {
 				for (const [index, item] of items.entries()) {
+					const lineTotal = Number(item.line_total) || 0;
+					const whtR = Number(item.wht_rate) || 0;
+					const whtA = (lineTotal * whtR) / 100;
+
 					await connection.execute(
 						`INSERT INTO receipt_items 
-                        (receipt_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (receipt_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order, wht_rate, wht_amount) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							receiptId,
 							item.product_id || null,
@@ -158,8 +163,10 @@ export const actions: Actions = {
 							item.quantity,
 							item.unit_id || null,
 							item.unit_price,
-							item.line_total,
-							index
+							lineTotal,
+							index,
+							whtR,
+							whtA
 						]
 					);
 				}

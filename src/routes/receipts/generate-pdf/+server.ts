@@ -5,8 +5,6 @@ import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- INTERFACES ---
-
 interface CompanyData extends RowDataPacket {
 	id: number;
 	name: string;
@@ -46,6 +44,7 @@ interface ItemData {
 	quantity: number;
 	unit_price: number;
 	line_total: number;
+	wht_rate: number;
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -164,8 +163,6 @@ function getReceiptHtml(
 		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
 		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
 
-	// --- HTML Blocks ---
-
 	const headerContent = `
 		<table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
 			<tr style="border-bottom: 1px solid #dee2e6;">
@@ -206,23 +203,26 @@ function getReceiptHtml(
 	`;
 
 	const itemTableHead = `
-		<thead>
-			<tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
-				<th class="p-2 text-center w-12">ลำดับ</th>
-				<th class="p-2 text-left">รายการ (Description)</th>
-				<th class="p-2 text-right w-20">จำนวน</th>
-				<th class="p-2 text-right w-24">ราคา/หน่วย</th>
-				<th class="p-2 text-right w-32">จำนวนเงิน</th>
-			</tr>
-		</thead>
-	`;
+    <thead>
+        <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
+            <th class="p-2 text-center">ลำดับ</th>
+            <th class="p-2 text-left">รายการ (Description)</th>
+            <th class="p-2 text-center">จำนวน</th>
+            <th class="p-2 text-right">ราคา/หน่วย</th>
+            <th class="p-2 text-center" style="color: #ef4444;">WHT</th>
+            <th class="p-2 text-right">จำนวนเงิน</th>
+        </tr>
+    </thead>
+`;
 
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
-                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
-                <col style="width: 112px;"> <col style="width: 128px;">
-            </colgroup>
+                <col style="width: 48px;">
+                <col style="width: auto;">
+                <col style="width: 64px;">
+                <col style="width: 96px;">
+                <col style="width: 112px;"> <col style="width: 128px;"> </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
                     <td colspan="4" class="p-2"></td> 
@@ -241,17 +241,27 @@ function getReceiptHtml(
                     <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
 
+                ${
+									vatRate > 0
+										? `
                 <tr>
 					<td colspan="4" class="p-2"></td>
 					<td class="font-bold p-2 text-right border-l border-gray-400" style="font-weight: bold;">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
 					<td class="p-2 text-right">${formatNumber(vatAmt)}</td>
-				</tr>
+				</tr>`
+										: ''
+								}
 
+                ${
+									whtAmt > 0
+										? `
                 <tr>
                     <td colspan="4" class="p-2"></td>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600" style="font-weight: bold;">หัก ณ ที่จ่าย (${whtRate}%)</td>
-                    <td class="p-2 text-right text-red-600">(${formatNumber(whtAmt)})</td>
-                </tr>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600" style="font-weight: bold;">หัก ณ ที่จ่ายรวม (WHT)</td>
+                    <td class="p-2 text-right text-red-600">-${formatNumber(whtAmt)}</td>
+                </tr>`
+										: ''
+								}
 
                 <tr style="background-color: #ffffff;">
                     <td colspan="4" class="p-2 text-left font-bold" style="font-size: 9pt; font-weight: bold; vertical-align: bottom; text-align: center;">
@@ -312,21 +322,28 @@ function getReceiptHtml(
 			const rowsHtml = pageItems
 				.map(
 					(item, i) => `
-			<tr style="border-bottom: 1px solid #eee;">
-				<td class="p-2 text-center">${startIndex + i + 1}</td>
-				<td class="p-2">${item.description}</td>
-				<td class="p-2 text-right">${formatNumber(item.quantity)}</td>
-				<td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
-				<td class="p-2 text-right">${formatNumber(item.line_total)}</td>
-			</tr>
-		`
+<tr style="border-bottom: 1px solid #eee;">
+    <td class="p-2 text-center">${startIndex + i + 1}</td>
+    <td class="p-2">${item.description}</td>
+    <td class="p-2 text-center">${formatNumber(item.quantity)}</td>
+    <td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
+    <td class="p-2 text-center font-bold" style="color: #ef4444;">${item.wht_rate > 0 ? item.wht_rate + '%' : '-'}</td>
+    <td class="p-2 text-right">${formatNumber(item.line_total)}</td>
+</tr>
+`
 				)
 				.join('');
 
 			const tableHtml =
 				pageItems.length > 0
 					? `
-			<table style="width: 100%; border-collapse: collapse; font-size: 8pt;">
+			<table style="width: 100%; border-collapse: collapse; font-size: 8pt; table-layout: fixed;">
+				<colgroup>
+					<col style="width: 48px;">
+					<col style="width: auto;">
+					<col style="width: 64px;">
+					<col style="width: 96px;">
+					<col style="width: 112px;"> <col style="width: 128px;"> </colgroup>
 				${itemTableHead}
 				<tbody>${rowsHtml}</tbody>
 			</table>
@@ -375,8 +392,6 @@ function getReceiptHtml(
 	`;
 }
 
-// --- Main Handler ---
-
 export const GET = async ({ url }) => {
 	const id = url.searchParams.get('id');
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });
@@ -401,8 +416,11 @@ export const GET = async ({ url }) => {
 
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
-			SELECT description, quantity, unit_price, line_total FROM receipt_items WHERE receipt_id = ? ORDER BY item_order ASC
-		`,
+			SELECT description, quantity, unit_price, line_total, wht_rate 
+			FROM receipt_items 
+			WHERE receipt_id = ? 
+			ORDER BY item_order ASC
+			`,
 			[id]
 		);
 

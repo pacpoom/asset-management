@@ -5,44 +5,41 @@
 	import { browser } from '$app/environment';
 
 	export let data: PageData;
-	$: ({ receipt, existingItems, existingAttachments, customers, products, units } = data);
+	$: ({ receipt, receiptItems, attachments, customers, products, units } = data);
 
-	//เตรียม Options
-	$: productOptions = products.map((p: any) => ({
+	$: customerOptions = (customers || []).map((c: any) => ({
+		value: c.id,
+		label: c.company_name ? `${c.company_name} (${c.name})` : c.name
+	}));
+
+	$: productOptions = (products || []).map((p: any) => ({
 		value: p.id,
 		label: `${p.sku} - ${p.name}`,
 		product: p
 	}));
 
-	// กำหนดค่าเริ่มต้น
+	let selectedCustomer: any = null;
 	let receiptDate = '';
+	let referenceDoc = '';
 	let items: any[] = [];
 	let discountAmount = 0;
 	let vatRate = 7;
-	let whtRate = 0;
-	let selectedCustomerId: string | number = '';
+	let notes = '';
 
 	$: if (receipt) {
-		//  แก้บั๊กชื่อลูกค้า
-		if (receipt.customer_id != null) {
-			const targetId = Number(receipt.customer_id);
-			const foundCustomer = customers.find((c: any) => c.id == targetId);
-			if (foundCustomer) {
-				selectedCustomerId = foundCustomer.id;
-			}
-		}
-
-		// 2. แปลงวันที่และตัวเลข
-		receiptDate = new Date(receipt.receipt_date).toISOString().split('T')[0];
-		discountAmount = parseFloat(receipt.discount_amount || '0');
-		vatRate = parseFloat(receipt.vat_rate || '7');
-		whtRate = parseFloat(receipt.withholding_tax_rate || '0');
+		selectedCustomer = customerOptions?.find((c: any) => c.value === receipt.customer_id) || null;
+		receiptDate = receipt.receipt_date
+			? new Date(receipt.receipt_date).toISOString().split('T')[0]
+			: '';
+		referenceDoc = receipt.reference_doc || '';
+		discountAmount = Number(receipt.discount_amount) || 0;
+		vatRate = Number(receipt.vat_rate) || 0;
+		notes = receipt.notes || '';
 	}
 
-	//การดึงข้อมูลเดิม ให้สร้าง product_object ด้วย
-	$: if (existingItems && items.length === 0) {
-		items = existingItems.map((item: any) => {
-			const foundProduct = products.find((p: any) => p.id == item.product_id);
+	$: if (receiptItems && items.length === 0) {
+		items = receiptItems.map((item: any) => {
+			const foundProduct = (products || []).find((p: any) => p.id === item.product_id);
 			const productObj = foundProduct
 				? {
 						value: foundProduct.id,
@@ -52,63 +49,78 @@
 				: null;
 
 			return {
+				id: crypto.randomUUID(),
 				product_object: productObj,
-				product_id: item.product_id ? Number(item.product_id) : null,
-				description: item.description,
-				quantity: parseFloat(item.quantity),
-				unit_id: item.unit_id ? Number(item.unit_id) : null,
-				unit_price: parseFloat(item.unit_price),
-				line_total: parseFloat(item.line_total)
+				product_id: item.product_id,
+				description: item.description || '',
+				quantity: Number(item.quantity) || 1,
+				unit_id: item.unit_id,
+				unit_price: Number(item.unit_price) || 0,
+				wht_rate: Number(item.wht_rate) || 0, // 💡 โหลด WHT
+				line_total: Number(item.line_total) || 0
 			};
 		});
 	}
 
-	// คำนวณเงิน
-	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
+	$: subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.line_total) || 0), 0);
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
 	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
-	$: whtAmount = (totalAfterDiscount * whtRate) / 100;
-	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+	$: totalWhtAmount = items.reduce(
+		(sum: number, item: any) =>
+			sum + ((Number(item.line_total) || 0) * (Number(item.wht_rate) || 0)) / 100,
+		0
+	);
+	$: grandTotal = totalAfterDiscount + vatAmount - totalWhtAmount;
 	$: itemsJson = JSON.stringify(items);
+
+	function formatCurrency(val: number) {
+		return new Intl.NumberFormat('th-TH', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2
+		}).format(val || 0);
+	}
 
 	function addItem() {
 		items = [
 			...items,
 			{
+				id: crypto.randomUUID(),
 				product_object: null,
 				product_id: null,
 				description: '',
 				quantity: 1,
 				unit_id: null,
 				unit_price: 0,
+				wht_rate: 0,
 				line_total: 0
 			}
 		];
 	}
+
 	function removeItem(index: number) {
 		items = items.filter((_, i) => i !== index);
 	}
+
 	function updateLineTotal(index: number) {
 		items[index].line_total = (items[index].quantity || 0) * (items[index].unit_price || 0);
 	}
 
-	//ฟังก์ชันเลือกสินค้า
-	function onProductChange(index: number, selected: any) {
+	function onProductSelect(index: number, selected: any) {
 		items[index].product_object = selected;
-
-		if (selected) {
+		if (selected && selected.product) {
 			const product = selected.product;
 			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
+			items[index].wht_rate = 0;
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
+			items[index].wht_rate = 0;
 		}
-
 		updateLineTotal(index);
 		items = items;
 	}
@@ -117,44 +129,56 @@
 </script>
 
 <svelte:head>
-	<title>แก้ไขใบเสร็จ {receipt?.receipt_number}</title>
+	<title>แก้ไขใบเสร็จรับเงิน {receipt?.receipt_number}</title>
 </svelte:head>
 
-<div class="mx-auto mb-10 max-w-5xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-800">แก้ไขใบเสร็จ: {receipt?.receipt_number}</h1>
-		<span class="text-sm text-gray-500">สถานะ: {receipt?.status}</span>
+<div
+	class="mx-auto mb-10 max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6"
+>
+	<div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+		<h1 class="text-2xl font-bold text-gray-800">
+			แก้ไขใบเสร็จรับเงิน: <span class="text-blue-600">{receipt?.receipt_number}</span>
+		</h1>
+		<span
+			class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800"
+		>
+			สถานะ: {receipt?.status}
+		</span>
 	</div>
 
 	<form
 		method="POST"
 		action="?/update"
 		enctype="multipart/form-data"
-		use:enhance={() => {
+		use:enhance={({ formData }) => {
 			isSaving = true;
+			formData.set('items_json', itemsJson);
+			formData.set('subtotal', subtotal.toString());
+			formData.set('discount_amount', discountAmount.toString());
+			formData.set('total_after_discount', totalAfterDiscount.toString());
+			formData.set('vat_rate', vatRate.toString());
+			formData.set('vat_amount', vatAmount.toString());
+			formData.set('withholding_tax_amount', totalWhtAmount.toString());
+			formData.set('total_amount', grandTotal.toString());
+
 			return async ({ update }) => {
-				await update();
+				await update({ reset: false });
 				isSaving = false;
 			};
 		}}
 	>
-		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+		<div class="relative z-50 mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div>
-				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700"
-					>ลูกค้า <span class="text-red-500">*</span></label
-				>
-				<select
-					id="customer_id"
-					name="customer_id"
-					bind:value={selectedCustomerId}
-					required
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-				>
-					<option value="">-- เลือกลูกค้า --</option>
-					{#each customers as customer}
-						<option value={customer.id}>{customer.name}</option>
-					{/each}
-				</select>
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					<span class="mb-1 block">ลูกค้า <span class="text-red-500">*</span></span>
+					<Select
+						items={customerOptions}
+						bind:value={selectedCustomer}
+						placeholder="-- เลือกลูกค้า --"
+						container={browser ? document.body : null}
+					/>
+				</label>
+				<input type="hidden" name="customer_id" value={selectedCustomer?.value ?? ''} />
 			</div>
 			<div>
 				<label for="receipt_date" class="mb-1 block text-sm font-medium text-gray-700"
@@ -166,7 +190,7 @@
 					name="receipt_date"
 					bind:value={receiptDate}
 					required
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+					class="w-full rounded-md border-gray-300 shadow-sm"
 				/>
 			</div>
 			<div>
@@ -177,170 +201,21 @@
 					type="text"
 					id="reference_doc"
 					name="reference_doc"
-					value={receipt?.reference_doc || ''}
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+					bind:value={referenceDoc}
+					class="w-full rounded-md border-gray-300 shadow-sm"
 				/>
 			</div>
-		</div>
-
-		<div class="mb-6">
-			<h3 class="mb-2 text-lg font-medium text-gray-800">รายการสินค้า</h3>
-			<div class="overflow-x-auto rounded-lg border">
-				<table class="min-w-full divide-y divide-gray-200">
-					<thead class="bg-gray-50">
-						<tr>
-							<th class="w-1/4 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-								>สินค้า</th
-							>
-							<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-								>รายละเอียด</th
-							>
-							<th class="w-20 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>จำนวน</th
-							>
-							<th class="w-20 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
-								>หน่วย</th
-							>
-							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>ราคา/หน่วย</th
-							>
-							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>รวม</th
-							>
-							<th class="w-10 px-3 py-2"></th>
-						</tr>
-					</thead>
-					<tbody class="divide-y divide-gray-200 bg-white">
-						{#each items as item, index}
-							<tr>
-								<td class="px-3 py-2" style="min-width: 250px;">
-									<Select
-										items={productOptions}
-										value={item.product_object}
-										on:change={(e) => onProductChange(index, e.detail)}
-										on:clear={() => onProductChange(index, null)}
-										placeholder="-- ค้นหา/เลือก --"
-										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
-										container={browser ? document.body : null}
-										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-										--list="border-radius: 6px; font-size: 0.875rem;"
-										--itemIsActive="background: #e0f2fe;"
-									/>
-								</td>
-								<td class="px-3 py-2"
-									><input
-										type="text"
-										bind:value={item.description}
-										class="w-full rounded-md border-gray-300 text-sm"
-										required
-									/></td
-								>
-								<td class="px-3 py-2"
-									><input
-										type="number"
-										bind:value={item.quantity}
-										on:input={() => updateLineTotal(index)}
-										min="1"
-										class="w-full rounded-md border-gray-300 text-right text-sm"
-										required
-									/></td
-								>
-								<td class="px-3 py-2">
-									<div class="relative">
-										<select
-											bind:value={item.unit_id}
-											class="h-9 w-full cursor-pointer appearance-none rounded-md border-gray-300 py-0 pr-2 pl-3 text-left text-sm focus:border-blue-500 focus:ring-blue-500"
-											style="-webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: none;"
-										>
-											<option value={null}>-</option>
-											{#each units as u}
-												<option value={u.id}>{u.symbol}</option>
-											{/each}
-										</select>
-										<div
-											class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												class="h-4 w-4"
-												viewBox="0 0 20 20"
-												fill="currentColor"
-											>
-												<path
-													fill-rule="evenodd"
-													d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-													clip-rule="evenodd"
-												/>
-											</svg>
-										</div>
-									</div>
-								</td>
-								<td class="px-3 py-2"
-									><input
-										type="number"
-										step="0.01"
-										bind:value={item.unit_price}
-										on:input={() => updateLineTotal(index)}
-										class="w-full rounded-md border-gray-300 text-right text-sm"
-										required
-									/></td
-								>
-								<td class="px-3 py-2 text-right font-medium text-gray-700"
-									>{item.line_total.toFixed(2)}</td
-								>
-								<td class="px-3 py-2 text-center">
-									<button
-										type="button"
-										on:click={() => removeItem(index)}
-										class="text-red-500 hover:text-red-700"
-										aria-label="ลบรายการ"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											fill="currentColor"
-											class="h-5 w-5"
-											><path
-												fill-rule="evenodd"
-												d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.566 19h4.868a2.75 2.75 0 002.71-2.529l.841-10.518.149.022a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
-												clip-rule="evenodd"
-											/></svg
-										>
-									</button>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-			<button
-				type="button"
-				on:click={addItem}
-				class="mt-2 text-sm font-medium text-blue-600 hover:text-blue-800">+ เพิ่มรายการ</button
-			>
-		</div>
-
-		<div class="mb-6 flex flex-col gap-6 md:flex-row">
-			<div class="w-full space-y-4 md:w-2/3">
-				<div>
-					<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
-					<textarea
-						id="notes"
-						name="notes"
-						rows="3"
-						value={receipt?.notes || ''}
-						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-					></textarea>
-				</div>
-
-				<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-					<h4 class="mb-2 text-sm font-medium text-gray-900">ไฟล์แนบที่มีอยู่</h4>
-					{#if existingAttachments.length === 0}
+			<div>
+				<p class="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบที่มีอยู่</p>
+				<div class="min-h-[42px] rounded-lg border border-gray-200 bg-gray-50 p-3">
+					{#if attachments.length === 0}
 						<p class="text-sm text-gray-500">ไม่มีไฟล์แนบ</p>
 					{:else}
 						<ul class="space-y-2">
-							{#each existingAttachments as file}
-								<li class="flex items-center justify-between rounded border bg-white p-2 text-sm">
+							{#each attachments as file}
+								<li
+									class="flex items-center justify-between rounded border bg-white p-2 text-sm shadow-sm"
+								>
 									<a
 										href={file.url}
 										target="_blank"
@@ -353,109 +228,202 @@
 										formaction="?/deleteAttachment"
 										name="attachment_id"
 										value={file.id}
-										class="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700"
+										class="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-700"
+										>ลบ</button
 									>
-										ลบ
-									</button>
 								</li>
 							{/each}
 						</ul>
 					{/if}
-
-					<div class="mt-4">
-						<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
-							>เพิ่มไฟล์แนบใหม่</label
-						>
-						<input
-							type="file"
-							id="attachments"
-							name="attachments"
-							multiple
-							class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
-						/>
-					</div>
+				</div>
+				<div class="mt-3">
+					<label for="attachments" class="mb-1 block text-xs font-medium text-gray-600"
+						>อัปโหลดไฟล์เพิ่ม</label
+					>
+					<input
+						type="file"
+						id="attachments"
+						name="attachments"
+						multiple
+						class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+					/>
 				</div>
 			</div>
+		</div>
 
-			<div class="h-fit w-full space-y-2 rounded-lg bg-gray-50 p-4 md:w-1/3">
+		<div class="relative z-10 mb-6">
+			<h3 class="mb-2 text-lg font-medium text-gray-800">รายการสินค้า</h3>
+			<div class="overflow-x-visible rounded-lg border">
+				<table class="min-w-full table-fixed divide-y divide-gray-200 text-sm">
+					<thead class="bg-gray-50">
+						<tr>
+							<th class="w-10 px-3 py-3 text-center text-gray-500">ลำดับ</th>
+							<th class="w-[280px] max-w-[280px] px-3 py-3 text-left font-semibold text-gray-600"
+								>สินค้า</th
+							>
+							<th class="w-[220px] max-w-[220px] px-3 py-3 text-left font-semibold text-gray-600"
+								>รายละเอียด</th
+							>
+							<th class="w-20 px-2 py-3 text-right font-semibold text-gray-600">จำนวน</th>
+							<th class="w-20 px-2 py-3 text-center font-semibold text-gray-600">หน่วย</th>
+							<th class="w-28 px-2 py-3 text-right font-semibold text-gray-600">ราคา/หน่วย</th>
+							<th class="w-24 px-2 py-3 text-center font-semibold text-red-600">WHT</th>
+							<th class="w-32 px-3 py-3 text-right font-semibold text-gray-600">รวมเงิน</th>
+							<th class="w-10 px-3 py-3"></th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-gray-200 bg-white">
+						{#each items as item, index (item.id)}
+							<tr class="align-top hover:bg-gray-50">
+								<td class="px-3 py-2 pt-3 text-center text-gray-500">{index + 1}</td>
+								<td class="w-[280px] max-w-[280px] px-3 py-2">
+									<div class="w-full overflow-hidden">
+										<Select
+											items={productOptions}
+											value={item.product_object}
+											on:change={(e: any) => onProductSelect(index, e.detail)}
+											on:clear={() => onProductSelect(index, null)}
+											placeholder="-- ค้นหา/เลือก --"
+											floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+											container={browser ? document.body : null}
+										/>
+									</div>
+								</td>
+								<td class="w-[220px] max-w-[220px] px-3 py-2">
+									<input
+										type="text"
+										bind:value={item.description}
+										class="w-full truncate rounded-md border-gray-300 py-1.5"
+										required
+									/>
+								</td>
+								<td class="px-2 py-2">
+									<input
+										type="number"
+										bind:value={item.quantity}
+										on:input={() => updateLineTotal(index)}
+										min="1"
+										class="w-full rounded-md border-gray-300 py-1.5 text-center"
+										required
+									/>
+								</td>
+								<td class="px-2 py-2">
+									<select
+										bind:value={item.unit_id}
+										class="w-full rounded-md border-gray-300 py-1.5 text-center text-sm"
+									>
+										<option value={null}>-</option>
+										{#each units as u}
+											<option value={u.id}>{u.symbol || u.name}</option>
+										{/each}
+									</select>
+								</td>
+								<td class="px-2 py-2">
+									<input
+										type="number"
+										step="0.01"
+										bind:value={item.unit_price}
+										on:input={() => updateLineTotal(index)}
+										class="w-full rounded-md border-gray-300 py-1.5 text-right"
+										required
+									/>
+								</td>
+								<td class="px-2 py-2">
+									<select
+										bind:value={item.wht_rate}
+										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700"
+									>
+										<option value={0}>0%</option><option value={1}>1%</option><option value={2}
+											>2%</option
+										><option value={3}>3%</option><option value={5}>5%</option>
+									</select>
+								</td>
+								<td class="px-3 py-2 pt-3 text-right font-medium text-gray-700"
+									>{formatCurrency(item.line_total)}</td
+								>
+								<td class="px-3 py-2 pt-2 text-center">
+									{#if items.length > 1}
+										<button
+											type="button"
+											on:click={() => removeItem(index)}
+											class="text-red-500 hover:text-red-700">✕</button
+										>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<button
+				type="button"
+				on:click={addItem}
+				class="mt-3 text-sm font-medium text-blue-600 hover:text-blue-800">+ เพิ่มรายการ</button
+			>
+		</div>
+
+		<div class="mb-6 flex flex-col gap-6 border-t border-gray-200 pt-6 md:flex-row">
+			<div class="w-full md:w-2/3">
+				<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+				<textarea
+					id="notes"
+					name="notes"
+					rows="4"
+					bind:value={notes}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				></textarea>
+			</div>
+
+			<div class="w-full space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-5 md:w-1/3">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">รวมเป็นเงิน</span>
-					<span class="font-medium">{subtotal.toFixed(2)}</span>
+					<span class="text-gray-600">รวมเป็นเงิน (Subtotal)</span><span class="font-medium"
+						>{formatCurrency(subtotal)}</span
+					>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">ส่วนลด</span>
+					<span class="text-gray-600">ส่วนลด (Discount)</span>
 					<input
 						type="number"
-						name="discount_amount"
 						bind:value={discountAmount}
 						min="0"
 						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm"
 					/>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">
-						VAT
-						<select
-							name="vat_rate"
-							bind:value={vatRate}
-							class="ml-2 h-7 cursor-pointer rounded-md border-gray-300 bg-white py-0 pr-7 pl-2 text-center text-sm focus:border-blue-500 focus:ring-blue-500"
-						>
-							<option value={0}>0%</option>
-							<option value={7}>7%</option>
-						</select>
-					</span>
-					<span class="font-medium">{vatAmount.toFixed(2)}</span>
-					<input type="hidden" name="vat_amount" value={vatAmount} />
-				</div>
-				<div class="flex items-center justify-between text-sm text-red-600">
-					<span class="flex items-center">
-						WHT
-						<select
-							name="wht_rate"
-							bind:value={whtRate}
-							class="ml-2 h-7 cursor-pointer rounded-md border-red-200 bg-red-50 py-0 pr-7 pl-2 text-center text-sm text-red-700 focus:border-red-500 focus:ring-red-500"
-						>
-							<option value={0}>0%</option>
-							<option value={1}>1%</option>
-							<option value={3}>3%</option>
-							<option value={5}>5%</option>
-						</select>
-					</span>
-					<span>- {whtAmount.toFixed(2)}</span>
-					<input type="hidden" name="wht_amount" value={whtAmount} />
+					<span class="text-gray-600"
+						>VAT <select bind:value={vatRate} class="ml-2 h-7 rounded border-gray-300 py-0"
+							><option value={0}>0%</option><option value={7}>7%</option></select
+						></span
+					>
+					<span class="font-medium">+{formatCurrency(vatAmount)}</span>
 				</div>
 				<div
-					class="flex justify-between border-t border-gray-300 pt-2 text-base font-bold text-gray-900"
+					class="flex items-center justify-between border-t border-dashed pt-2 text-sm font-bold text-red-600"
 				>
-					<span>ยอดสุทธิ</span>
-					<span class="text-blue-600">{grandTotal.toFixed(2)}</span>
+					<span>หัก ณ ที่จ่ายรวม (Total WHT)</span>
+					<span>-{formatCurrency(totalWhtAmount)}</span>
+				</div>
+				<div
+					class="flex justify-between border-t-2 border-gray-300 pt-3 text-xl font-black text-blue-700"
+				>
+					<span>ยอดสุทธิ (Grand Total)</span>
+					<span>{formatCurrency(grandTotal)}</span>
 				</div>
 			</div>
 		</div>
 
-		<input type="hidden" name="items_json" value={itemsJson} />
-		<input type="hidden" name="subtotal" value={subtotal} />
-		<input type="hidden" name="total_after_discount" value={totalAfterDiscount} />
-		<input type="hidden" name="vat_amount" value={vatAmount} />
-		<input type="hidden" name="wht_amount" value={whtAmount} />
-		<input type="hidden" name="total_amount" value={grandTotal} />
-
-		<div class="flex justify-end gap-3">
+		<div class="flex justify-end gap-3 border-t border-gray-200 pt-6">
 			<a
 				href="/receipts/{receipt?.id}"
-				class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+				class="rounded-md border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
 				>ยกเลิก</a
 			>
 			<button
 				type="submit"
-				class="flex items-center rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+				class="flex items-center rounded-md bg-blue-600 px-8 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
 				disabled={isSaving}
 			>
-				{#if isSaving}
-					Saving...
-				{:else}
-					บันทึกการแก้ไข
-				{/if}
+				{isSaving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
 			</button>
 		</div>
 	</form>
@@ -464,16 +432,23 @@
 <style>
 	:global(div.svelte-select) {
 		min-height: 38px;
-		border: 1px solid #d1d5db !important;
-		border-radius: 0.375rem !important;
+		max-width: 100% !important;
+		width: 100% !important;
+		z-index: 50 !important;
 	}
-	:global(div.svelte-select .input) {
-		font-size: 0.875rem;
+	:global(div.svelte-select .selection) {
+		text-overflow: ellipsis !important;
+		overflow: hidden !important;
+		white-space: nowrap !important;
+		display: block !important;
+		position: absolute;
+		left: 10px;
+		right: 30px;
 	}
 	:global(div.svelte-select .list) {
-		border-radius: 0.375rem;
-		border-color: #d1d5db;
 		z-index: 9999 !important;
-		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+	:global(.selectContainer) {
+		overflow: visible !important;
 	}
 </style>

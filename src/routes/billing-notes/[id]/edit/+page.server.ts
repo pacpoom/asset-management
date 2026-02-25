@@ -6,27 +6,32 @@ export const load: PageServerLoad = async ({ params }) => {
 	const id = params.id;
 
 	try {
-		const [billingNotes] = (await pool.query('SELECT * FROM billing_notes WHERE id = ?', [
+		const connection = await pool.getConnection();
+
+		const [billingNotes] = (await connection.query('SELECT * FROM billing_notes WHERE id = ?', [
 			id
 		])) as any;
-
 		if (billingNotes.length === 0) throw error(404, 'ไม่พบใบวางบิล');
 		const billingNote = billingNotes[0];
 
-		const [billingNoteItems] = (await pool.query(
+		const [billingNoteItems] = (await connection.query(
 			'SELECT * FROM billing_note_items WHERE billing_note_id = ?',
 			[id]
 		)) as any;
 
-		const [customers] = (await pool.query(
-			'SELECT id, name FROM customers ORDER BY name ASC'
+		const [customers] = (await connection.query(
+			'SELECT id, name, company_name FROM customers ORDER BY name ASC'
 		)) as any;
-		const [products] = (await pool.query(
-			'SELECT id, sku, name, selling_price, unit_id FROM products ORDER BY name ASC'
+
+		const [products] = (await connection.query(
+			'SELECT id, name, selling_price, unit_id FROM products ORDER BY name ASC'
 		)) as any;
-		const [units] = (await pool.query(
+
+		const [units] = await connection.query<any[]>(
 			'SELECT id, name, symbol FROM units ORDER BY name ASC'
-		)) as any;
+		);
+
+		connection.release();
 
 		return {
 			billingNote: JSON.parse(JSON.stringify(billingNote)),
@@ -56,7 +61,6 @@ export const actions: Actions = {
 		const discount_amount = formData.get('discount_amount');
 		const vat_rate = formData.get('vat_rate');
 		const vat_amount = formData.get('vat_amount');
-		const withholding_tax_rate = formData.get('withholding_tax_rate');
 		const withholding_tax_amount = formData.get('withholding_tax_amount');
 		const total_amount = formData.get('total_amount');
 
@@ -68,12 +72,13 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
+			// 1. อัปเดตหัวบิล (ตั้งค่า withholding_tax_rate เป็น 0 เพราะเราใช้รายบรรทัด)
 			await connection.execute(
 				`
                 UPDATE billing_notes 
                 SET customer_id = ?, billing_date = ?, due_date = ?, notes = ?,
                     subtotal = ?, discount_amount = ?, vat_rate = ?, vat_amount = ?,
-                    withholding_tax_rate = ?, withholding_tax_amount = ?, total_amount = ?
+                    withholding_tax_rate = 0, withholding_tax_amount = ?, total_amount = ?
                 WHERE id = ?
             `,
 				[
@@ -85,32 +90,40 @@ export const actions: Actions = {
 					discount_amount || 0,
 					vat_rate || 7,
 					vat_amount || 0,
-					withholding_tax_rate || 0,
 					withholding_tax_amount || 0,
 					total_amount || 0,
 					id
 				]
 			);
 
+			// 2. ลบรายการเก่า
 			await connection.execute('DELETE FROM billing_note_items WHERE billing_note_id = ?', [id]);
 
+			// 3. บันทึกรายการใหม่ (เพิ่ม wht_rate และ wht_amount)
 			if (itemsJson) {
 				const items = JSON.parse(itemsJson);
 				for (const item of items) {
+					// คำนวณ WHT ของแต่ละบรรทัดก่อนบันทึก
+					const lineAmount = Number(item.amount) || 0;
+					const whtRate = Number(item.wht_rate) || 0;
+					const whtAmount = (lineAmount * whtRate) / 100;
+
 					await connection.execute(
 						`
-                        INSERT INTO billing_note_items 
-                        (billing_note_id, product_id, description, quantity, unit_id, unit_price, amount)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    `,
+            INSERT INTO billing_note_items 
+            (billing_note_id, product_id, description, quantity, unit_id, unit_price, amount, wht_rate, wht_amount)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
 						[
 							id,
 							item.product_id || null,
-							item.description,
-							item.quantity,
+							item.description || '',
+							item.quantity || 0,
 							item.unit_id || null,
-							item.unit_price,
-							item.amount
+							item.unit_price || 0,
+							item.amount || 0,
+							whtRate,
+							whtAmount
 						]
 					);
 				}
@@ -125,6 +138,7 @@ export const actions: Actions = {
 			connection.release();
 		}
 
+		// ✅ สำคัญ: throw redirect ต้องอยู่นอก try/catch
 		throw redirect(303, `/billing-notes/${id}`);
 	}
 };

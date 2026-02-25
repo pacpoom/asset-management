@@ -7,7 +7,6 @@ import mime from 'mime-types';
 
 const UPLOAD_DIR = path.resolve('uploads', 'invoices');
 
-// --- Helper: บันทึกและลบไฟล์ ---
 async function saveFile(file: File) {
 	if (!file || file.size === 0) return null;
 	try {
@@ -65,8 +64,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		}));
 
 		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
+
 		const [products] = await pool.query(
-			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
+			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
 
@@ -89,7 +89,6 @@ export const actions: Actions = {
 		const invoiceId = parseInt(params.id);
 		const formData = await request.formData();
 
-		// รับค่าจากฟอร์ม
 		const customer_id = formData.get('customer_id');
 		const invoice_date = formData.get('invoice_date')?.toString();
 		const due_date = formData.get('due_date')?.toString() || null;
@@ -104,6 +103,7 @@ export const actions: Actions = {
 		);
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
+
 		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
 		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
@@ -114,7 +114,6 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			//อัปเดตหัวเอกสาร
 			await connection.execute(
 				`UPDATE invoices SET 
                  invoice_date = ?, due_date = ?, customer_id = ?, reference_doc = ?, notes = ?,
@@ -139,16 +138,19 @@ export const actions: Actions = {
 				]
 			);
 
-			//อัปเดตรายการสินค้า
 			await connection.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
 
 			const items = JSON.parse(itemsJson);
 			if (items.length > 0) {
 				for (const [index, item] of items.entries()) {
+					const lineWhtRate = parseFloat(item.wht_rate || '0');
+					const lineTotal = parseFloat(item.line_total || '0');
+					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
+
 					await connection.execute(
 						`INSERT INTO invoice_items 
-                        (invoice_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (invoice_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							invoiceId,
 							item.product_id || null,
@@ -156,14 +158,15 @@ export const actions: Actions = {
 							item.quantity,
 							item.unit_id || null,
 							item.unit_price,
-							item.line_total,
+							lineTotal,
+							lineWhtRate,
+							lineWhtAmount,
 							index
 						]
 					);
 				}
 			}
 
-			//เพิ่มไฟล์แนบใหม่
 			const files = formData.getAll('attachments') as File[];
 			for (const file of files) {
 				const savedFile = await saveFile(file);
