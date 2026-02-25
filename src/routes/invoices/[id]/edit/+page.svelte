@@ -234,12 +234,14 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
 						<tr>
-							<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th
+							<th class="w-40 px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th
 							>
-							<th class="w-1/4 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+							<!-- <th class="w-1/2 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
 								>รายละเอียด</th
-							>
-							<th class="w-20 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
+							> -->
+							<th class="w-40 px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase">รายละเอียด</th>
+
+							<th class="w-25 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
 								>จำนวน</th
 							>
 							<th class="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
@@ -249,7 +251,8 @@
 								>ราคา/หน่วย</th
 							>
 
-							<th class="w-24 px-3 py-2 text-center text-xs font-medium text-red-600 uppercase"
+							<th
+								class="w-30 px-3 py-2 text-center text-xs font-medium text-gray-500 text-red-600 uppercase"
 								>WHT</th
 							>
 
