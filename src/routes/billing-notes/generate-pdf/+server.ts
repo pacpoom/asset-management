@@ -43,6 +43,7 @@ interface BillingItemData extends RowDataPacket {
 	quantity: number;
 	unit_price: number;
 	amount: number;
+	wht_rate: number; // 💡 1. เพิ่มฟิลด์ wht_rate
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -203,17 +204,21 @@ function getBillingNoteHtml(
         </table>
     `;
 
+	// 💡 2. เพิ่มคอลัมน์ WHT
 	const itemTableHeadersHtml = `
 		<thead>
 			<tr class="items-header-row" style="background-color: #ffffff !important; border-bottom: 1px solid #D1D5DB !important; border-top: 1px solid #D1D5DB !important;">
 				<th class="w-12 text-center p-2" style="font-size: 8pt; font-weight: bold;">ลำดับ</th>
 				<th class="text-left p-2" style="font-size: 8pt; font-weight: bold;">รายการ (Description)</th>
-				<th class="w-20 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวน</th>
-				<th class="w-28 text-center p-2" style="font-size: 8pt; font-weight: bold;">ราคา/หน่วย</th> 
-				<th class="w-32 text-right p-2" style="font-size: 8pt; font-weight: bold;">จำนวนเงิน</th> 
+				<th class="w-16 text-center p-2" style="font-size: 8pt; font-weight: bold;">จำนวน</th>
+				<th class="w-24 text-center p-2" style="font-size: 8pt; font-weight: bold;">ราคา/หน่วย</th> 
+				<th class="w-16 text-center p-2" style="font-size: 8pt; font-weight: bold; color: #ef4444;">WHT</th>
+				<th class="w-28 text-right p-2" style="font-size: 8pt; font-weight: bold;">จำนวนเงิน</th> 
 			</tr>
 		</thead>
     `;
+
+	const rowsCount = 4 + (vatRate > 0 ? 1 : 0) + (whtAmount > 0 ? 1 : 0);
 
 	const financialSummaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 1px; width: 100%; font-size: 8pt;">
@@ -223,7 +228,7 @@ function getBillingNoteHtml(
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" rowspan="${3 + (discountAmount > 0 ? 1 : 0) + (vatRate > 0 ? 1 : 0) + (whtRate > 0 ? 1 : 0)}" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+                    <td colspan="4" rowspan="${rowsCount}" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
                          
                         <div>
                             <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
@@ -239,20 +244,14 @@ function getBillingNoteHtml(
                     <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
                 
-                ${
-									discountAmount > 0
-										? `
                 <tr>
                     <td class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
-                    <td class="p-2 text-right text-red-600">-${formatNumber(discountAmount)}</td>
+                    <td class="p-2 text-right">${formatNumber(discountAmount)}</td>
                 </tr>
                 <tr>
                     <td class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
                     <td class="p-2 text-right">${formatNumber(afterDiscount)}</td>
                 </tr>
-                `
-										: ''
-								}
 
                 ${
 									vatRate > 0
@@ -265,10 +264,10 @@ function getBillingNoteHtml(
 								}
 
                 ${
-									whtRate > 0
+									whtAmount > 0
 										? `
                 <tr>
-					<td class="font-bold p-2 text-right border-l border-gray-400">หัก ณ ที่จ่าย (${whtRate}%)</td>
+					<td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่ายรวม (WHT)</td>
 					<td class="p-2 text-right text-red-600">-${formatNumber(whtAmount)}</td>
 				</tr>`
 										: ''
@@ -337,12 +336,14 @@ function getBillingNoteHtml(
 			const itemsHtml = pageItems
 				.map((item, itemIndex) => {
 					const globalIndex = startIndex + itemIndex + 1;
+					// 💡 4. แสดงผล wht_rate ของแต่ละแถว
 					return `
                     <tr class="border-b border-gray-300">
                         <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${globalIndex}</td>
 						<td class="p-2 align-middle h-8" style="font-size: 8pt;">${item.description || '-'}</td>
                         <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${formatNumber(item.quantity)}</td> 
                         <td class="p-2 text-center align-middle h-8" style="font-size: 8pt;">${formatNumber(item.unit_price)}</td> 
+                        <td class="p-2 text-center align-middle h-8" style="font-size: 8pt; color: #ef4444; font-weight: bold;">${item.wht_rate > 0 ? item.wht_rate + '%' : '-'}</td> 
                         <td class="p-2 text-right align-middle h-8" style="font-size: 8pt;">${formatNumber(item.amount)}</td> 
                     </tr>
                 `;
@@ -474,8 +475,9 @@ export const GET = async ({ url }) => {
 		}
 		noteData.created_by_name = createdByName;
 
+		// 💡 5. ดึง wht_rate มาด้วย
 		const [items] = await connection.execute<BillingItemData[]>(
-			`SELECT description, quantity, unit_price, amount 
+			`SELECT description, quantity, unit_price, amount, wht_rate 
              FROM billing_note_items 
              WHERE billing_note_id = ? 
              ORDER BY id ASC`,

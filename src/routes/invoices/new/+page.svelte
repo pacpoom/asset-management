@@ -7,7 +7,6 @@
 	export let data: PageData;
 	$: ({ customers, products, units, prefilledData } = data);
 
-	// Options สำหรับ Select
 	$: productOptions = products.map((p: any) => ({
 		value: p.id,
 		label: `${p.sku} - ${p.name}`,
@@ -22,12 +21,12 @@
 		unit_id: number | null;
 		unit_price: number;
 		line_total: number;
+		wht_rate: number;
 	}
 
 	let invoiceDate = new Date().toISOString().split('T')[0];
 	let dueDate = '';
 
-	//ค่าเริ่มต้น product_object
 	let items: InvoiceItem[] = [
 		{
 			product_object: null,
@@ -36,7 +35,8 @@
 			quantity: 1,
 			unit_id: null,
 			unit_price: 0,
-			line_total: 0
+			line_total: 0,
+			wht_rate: 0
 		}
 	];
 
@@ -45,15 +45,12 @@
 	let notes = '';
 	let discountAmount = 0;
 	let vatRate = 7;
-	let whtRate = 0;
 
-	//กันลูป
 	let lastProcessedRef = '';
 
 	$: if (prefilledData) {
 		if (prefilledData.reference_doc && prefilledData.reference_doc !== lastProcessedRef) {
 			lastProcessedRef = prefilledData.reference_doc;
-			// อัปเดตลูกค้า
 			if (prefilledData.customer_id != null) {
 				const targetId = Number(prefilledData.customer_id);
 				const foundCustomer = customers.find((c: any) => c.id == targetId);
@@ -62,15 +59,11 @@
 				}
 			}
 
-			//อัปเดตข้อมูลทั่วไป
 			referenceDoc = prefilledData.reference_doc || '';
 			notes = prefilledData.notes || '';
-			//อัปเดตตัวเลข
 			discountAmount = parseFloat(prefilledData.discount_amount || '0');
 			vatRate = parseFloat(prefilledData.vat_rate || '7');
-			whtRate = parseFloat(prefilledData.withholding_tax_rate || '0');
 
-			//อัปเดตรายการสินค้า
 			if (prefilledData.items && prefilledData.items.length > 0) {
 				items = prefilledData.items.map((i: any) => {
 					const foundProduct = products.find((p: any) => p.id == i.product_id);
@@ -89,7 +82,8 @@
 						quantity: parseFloat(i.quantity || '0'),
 						unit_id: i.unit_id ? Number(i.unit_id) : null,
 						unit_price: parseFloat(i.unit_price || '0'),
-						line_total: parseFloat(i.line_total || '0')
+						line_total: parseFloat(i.line_total || '0'),
+						wht_rate: parseFloat(i.wht_rate || '0')
 					};
 				});
 			}
@@ -99,7 +93,12 @@
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
 	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
-	$: whtAmount = (totalAfterDiscount * whtRate) / 100;
+
+	$: whtAmount = items.reduce((sum, item) => {
+		const itemWht = (item.line_total || 0) * (item.wht_rate / 100);
+		return sum + itemWht;
+	}, 0);
+
 	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
 	$: itemsJson = JSON.stringify(items);
 
@@ -113,7 +112,8 @@
 				quantity: 1,
 				unit_id: null,
 				unit_price: 0,
-				line_total: 0
+				line_total: 0,
+				wht_rate: 0
 			}
 		];
 	}
@@ -135,11 +135,14 @@
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
+
+			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
+			items[index].wht_rate = 0;
 		}
 
 		updateLineTotal(index);
@@ -265,27 +268,27 @@
 						<tr>
 							<th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th
 							>
-							<th class="w-1/3 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+							<th class="w-1/4 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
 								>รายละเอียด</th
 							>
-
-							<th
-								class="w-24 min-w-[100px] px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
+							<th class="w-20 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
 								>จำนวน</th
 							>
-							<th
-								class="w-24 min-w-[100px] px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
+							<th class="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
 								>หน่วย</th
 							>
-							<th
-								class="w-32 min-w-[120px] px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
+							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
 								>ราคา/หน่วย</th
 							>
+
 							<th
-								class="w-32 min-w-[120px] px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>รวม</th
+								class="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 text-red-600 uppercase"
+								>WHT</th
 							>
 
+							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
+								>รวม</th
+							>
 							<th class="w-10 px-3 py-2"></th>
 						</tr>
 					</thead>
@@ -325,34 +328,15 @@
 									/>
 								</td>
 								<td class="px-3 py-2">
-									<div class="relative">
-										<select
-											bind:value={item.unit_id}
-											class="h-9 w-full cursor-pointer appearance-none rounded-md border-gray-300 py-0 pr-2 pl-3 text-left text-sm focus:border-blue-500 focus:ring-blue-500"
-											style="-webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: none;"
-										>
-											<option value={null}>-</option>
-											{#each units as u}
-												<option value={u.id}>{u.symbol}</option>
-											{/each}
-										</select>
-										<div
-											class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												class="h-4 w-4"
-												viewBox="0 0 20 20"
-												fill="currentColor"
-											>
-												<path
-													fill-rule="evenodd"
-													d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-													clip-rule="evenodd"
-												/>
-											</svg>
-										</div>
-									</div>
+									<select
+										bind:value={item.unit_id}
+										class="w-full rounded-md border-gray-300 py-1.5 pl-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value={null}>-</option>
+										{#each units as u}
+											<option value={u.id}>{u.symbol}</option>
+										{/each}
+									</select>
 								</td>
 								<td class="px-3 py-2">
 									<input
@@ -364,8 +348,35 @@
 										required
 									/>
 								</td>
-								<td class="px-3 py-2 text-right font-medium text-gray-700">
-									{item.line_total.toFixed(2)}
+
+								<td class="px-3 py-2">
+									<select
+										bind:value={item.wht_rate}
+										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700 focus:border-red-500 focus:ring-red-500"
+									>
+										<option value={0}>0%</option>
+										<option value={1}>1%</option>
+										<option value={2}>2%</option>
+										<option value={3}>3%</option>
+										<option value={5}>5%</option>
+									</select>
+								</td>
+
+								<td class="px-3 py-2 text-right">
+									<div class="font-bold text-gray-900">
+										{(item.line_total - (item.line_total * item.wht_rate) / 100).toLocaleString(
+											'th-TH',
+											{ minimumFractionDigits: 2 }
+										)}
+									</div>
+
+									{#if item.wht_rate > 0}
+										<div class="mt-0.5 text-[10px] font-normal text-red-500">
+											(-{((item.line_total * item.wht_rate) / 100).toLocaleString('th-TH', {
+												minimumFractionDigits: 2
+											})})
+										</div>
+									{/if}
 								</td>
 								<td class="px-3 py-2 text-center">
 									{#if items.length > 1}
@@ -373,20 +384,9 @@
 											type="button"
 											on:click={() => removeItem(index)}
 											class="text-red-500 hover:text-red-700"
-											aria-label="ลบรายการ"
+											title="ลบรายการ"
 										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												viewBox="0 0 20 20"
-												fill="currentColor"
-												class="h-5 w-5"
-											>
-												<path
-													fill-rule="evenodd"
-													d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.566 19h4.868a2.75 2.75 0 002.71-2.529l.841-10.518.149.022a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
-													clip-rule="evenodd"
-												/>
-											</svg>
+											<span class="material-symbols-outlined text-[20px]">delete</span>
 										</button>
 									{/if}
 								</td>
@@ -405,7 +405,9 @@
 		</div>
 
 		<div class="mb-6 flex justify-end">
-			<div class="w-full space-y-2 rounded-lg bg-gray-50 p-4 md:w-1/3">
+			<div
+				class="w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3"
+			>
 				<div class="flex justify-between text-sm">
 					<span class="text-gray-600">รวมเป็นเงิน (Subtotal)</span>
 					<span class="font-medium">{subtotal.toFixed(2)}</span>
@@ -417,46 +419,42 @@
 						name="discount_amount"
 						bind:value={discountAmount}
 						min="0"
-						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm"
+						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm shadow-sm"
 					/>
 				</div>
-				<div class="flex items-center justify-between text-sm">
+				<div class="flex justify-between border-t border-gray-200 pt-2 text-sm">
+					<span class="text-gray-600">หลังหักส่วนลด (After Discount)</span>
+					<span class="font-medium">{totalAfterDiscount.toFixed(2)}</span>
+				</div>
+				<div class="mt-2 flex items-center justify-between text-sm">
 					<span class="text-gray-600">
-						VAT
+						ภาษีมูลค่าเพิ่ม (VAT)
 						<select
 							name="vat_rate"
 							bind:value={vatRate}
-							class="ml-2 h-7 cursor-pointer rounded-md border-gray-300 bg-white py-0 pr-7 pl-2 text-center text-sm focus:border-blue-500 focus:ring-blue-500"
+							class="ml-2 h-7 cursor-pointer rounded-md border-gray-300 bg-white py-0 pr-7 pl-2 text-center text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							<option value={0}>0%</option>
 							<option value={7}>7%</option>
 						</select>
 					</span>
-					<span class="font-medium">{vatAmount.toFixed(2)}</span>
+					<span class="font-medium text-green-600">+{vatAmount.toFixed(2)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
-				<div class="flex items-center justify-between text-sm text-red-600">
-					<span class="flex items-center">
-						WHT
-						<select
-							name="wht_rate"
-							bind:value={whtRate}
-							class="ml-2 h-7 cursor-pointer rounded-md border-red-200 bg-red-50 py-0 pr-7 pl-2 text-center text-sm text-red-700 focus:border-red-500 focus:ring-red-500"
-						>
-							<option value={0}>0%</option>
-							<option value={1}>1%</option>
-							<option value={3}>3%</option>
-							<option value={5}>5%</option>
-						</select>
-					</span>
-					<span>- {whtAmount.toFixed(2)}</span>
-					<input type="hidden" name="wht_amount" value={whtAmount} />
-				</div>
+
 				<div
-					class="flex justify-between border-t border-gray-300 pt-2 text-base font-bold text-gray-900"
+					class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600"
 				>
+					<span class="font-medium">หัก ณ ที่จ่ายรวม (Total WHT)</span>
+					<span class="font-bold">-{whtAmount.toFixed(2)}</span>
+
+					<input type="hidden" name="wht_amount" value={whtAmount} />
+					<input type="hidden" name="wht_rate" value={0} />
+				</div>
+
+				<div class="flex justify-between pt-2 text-lg font-black text-gray-900">
 					<span>ยอดสุทธิ (Grand Total)</span>
-					<span class="text-blue-600">{grandTotal.toFixed(2)}</span>
+					<span class="text-blue-700">{grandTotal.toFixed(2)}</span>
 				</div>
 			</div>
 		</div>
@@ -486,7 +484,7 @@
 			<button
 				type="submit"
 				disabled={isSaving}
-				class="rounded-md bg-blue-600 px-6 py-2 text-sm text-white hover:bg-blue-700"
+				class="rounded-md bg-blue-600 px-6 py-2 text-sm font-bold text-white hover:bg-blue-700"
 			>
 				{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
 			</button>

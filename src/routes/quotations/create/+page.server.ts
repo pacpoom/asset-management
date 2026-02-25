@@ -7,7 +7,6 @@ import mime from 'mime-types';
 
 const UPLOAD_DIR = path.resolve('uploads', 'quotations');
 
-// --- Helper: บันทึกไฟล์ ---
 async function saveFile(file: File) {
 	if (!file || file.size === 0) return null;
 	try {
@@ -29,7 +28,6 @@ async function saveFile(file: File) {
 	}
 }
 
-// --- Helper: รันเลขที่เอกสาร QT-YYYYMM-XXXX ---
 async function generateQuotationNumber(dateStr: string) {
 	const date = new Date(dateStr);
 	const year = date.getFullYear();
@@ -51,12 +49,13 @@ async function generateQuotationNumber(dateStr: string) {
 
 export const load: PageServerLoad = async ({ locals }) => {
 	try {
-		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
-		// ✅ ใช้ selling_price AS price
+		const [customers] = await pool.query(
+			'SELECT id, name, company_name FROM customers ORDER BY name ASC'
+		);
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
-		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+		const [units] = await pool.query('SELECT id, symbol, name FROM units ORDER BY symbol ASC');
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
@@ -76,7 +75,7 @@ export const actions: Actions = {
 		const customer_id = formData.get('customer_id');
 		const quotation_date =
 			formData.get('quotation_date')?.toString() || new Date().toISOString().split('T')[0];
-		const valid_until = formData.get('valid_until')?.toString() || null; // วันยืนยันราคา
+		const valid_until = formData.get('valid_until')?.toString() || null;
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
@@ -88,8 +87,10 @@ export const actions: Actions = {
 		);
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
-		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
-		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
+
+		const withholding_tax_amount = parseFloat(
+			formData.get('withholding_tax_amount')?.toString() || '0'
+		);
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
 
 		if (!customer_id) return fail(400, { message: 'กรุณาเลือกลูกค้า' });
@@ -98,17 +99,15 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 1. สร้างเลขที่เอกสาร
 			const quotation_number = await generateQuotationNumber(quotation_date);
 
-			// 2. บันทึกหัวเอกสาร (Status เริ่มต้นเป็น 'Sent')
 			const [result] = await connection.execute<any>(
 				`INSERT INTO quotations 
                 (quotation_number, quotation_date, valid_until, customer_id, reference_doc, notes, 
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, total_amount,
                  status, created_by_user_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Sent', ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'Sent', ?)`,
 				[
 					quotation_number,
 					quotation_date,
@@ -121,22 +120,24 @@ export const actions: Actions = {
 					total_after_discount,
 					vat_rate,
 					vat_amount,
-					wht_rate,
-					wht_amount,
+					withholding_tax_amount,
 					total_amount,
 					locals.user?.id || null
 				]
 			);
 			const quotationId = result.insertId;
 
-			// 3. บันทึกรายการสินค้า
 			const items = JSON.parse(itemsJson);
 			if (items.length > 0) {
 				for (const [index, item] of items.entries()) {
+					const lineTotal = Number(item.line_total) || 0;
+					const whtR = Number(item.wht_rate) || 0;
+					const whtA = (lineTotal * whtR) / 100;
+
 					await connection.execute(
 						`INSERT INTO quotation_items 
-                        (quotation_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (quotation_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order, wht_rate, wht_amount) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							quotationId,
 							item.product_id || null,
@@ -144,14 +145,15 @@ export const actions: Actions = {
 							item.quantity,
 							item.unit_id || null,
 							item.unit_price,
-							item.line_total,
-							index
+							lineTotal,
+							index,
+							whtR,
+							whtA
 						]
 					);
 				}
 			}
 
-			// 4. บันทึกไฟล์แนบ
 			const files = formData.getAll('attachments') as File[];
 			for (const file of files) {
 				const savedFile = await saveFile(file);

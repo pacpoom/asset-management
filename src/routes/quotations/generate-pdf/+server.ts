@@ -46,6 +46,7 @@ interface ItemData {
 	quantity: number;
 	unit_price: number;
 	line_total: number;
+	wht_rate: number;
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -136,7 +137,6 @@ function getQuotationHtml(
 	const vatRate = qtData.vat_rate || 0;
 	const vatAmt = qtData.vat_amount || 0;
 	const whtAmt = qtData.withholding_tax_amount || 0;
-	const whtRate = qtData.withholding_tax_rate || 0;
 	const netAmount = qtData.total_amount || 0;
 	const netAmountText = bahttext(netAmount);
 
@@ -204,59 +204,72 @@ function getQuotationHtml(
 		</table>
 	`;
 
+	// 💡 หัวตารางเพิ่มคอลัมน์ WHT
 	const itemTableHead = `
 		<thead>
 			<tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
-				<th class="p-2 text-center w-12">ลำดับ</th>
+				<th class="p-2 text-center">ลำดับ</th>
 				<th class="p-2 text-left">รายการ (Description)</th>
-				<th class="p-2 text-right w-20">จำนวน</th>
-				<th class="p-2 text-right w-24">ราคา/หน่วย</th>
-				<th class="p-2 text-right w-32">จำนวนเงิน</th>
+				<th class="p-2 text-center">จำนวน</th>
+				<th class="p-2 text-right">ราคา/หน่วย</th>
+				<th class="p-2 text-center" style="color: #ef4444;">WHT</th>
+				<th class="p-2 text-right">จำนวนเงิน</th>
 			</tr>
 		</thead>
 	`;
 
+	// 💡 จัดระเบียบ Summary Block ด้วย colspan ใหม่ให้ตรงกับ colgroup
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
-                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
-                <col style="width: 112px;"> <col style="width: 128px;">
+                <col style="width: 48px;">
+                <col style="width: auto;">
+                <col style="width: 64px;">
+                <col style="width: 96px;">
+                <col style="width: 64px;">
+                <col style="width: 112px;">
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" rowspan="5" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top;">
+                    <td colspan="3" rowspan="${whtAmt > 0 ? 5 : 4}" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top;">
                          <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
                          <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${qtData.notes || '-'}</div>
                     </td>
-                    <td class="font-bold p-2 text-right border-t border-gray-400">รวมเป็นเงิน</td>
+                    <td colspan="2" class="font-bold p-2 text-right border-t border-gray-400">รวมเป็นเงิน</td>
                     <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
                 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
+                    <td colspan="2" class="font-bold p-2 text-right border-l border-gray-400">ส่วนลด</td>
                     <td class="p-2 text-right">${formatNumber(discount)}</td>
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
+                    <td colspan="2" class="font-bold p-2 text-right border-l border-gray-400">หลังหักส่วนลด</td>
                     <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
 
                 <tr>
-					<td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+					<td colspan="2" class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
 					<td class="p-2 text-right">${formatNumber(vatAmt)}</td>
 				</tr>
 
+				${
+					whtAmt > 0
+						? `
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่าย (${whtRate}%)</td>
-                    <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
+                    <td colspan="2" class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่ายรวม (WHT)</td>
+                    <td class="p-2 text-right text-red-600">-${formatNumber(whtAmt)}</td>
                 </tr>
+                `
+						: ''
+				}
 
                 <tr style="background-color: #ffffff;">
-                    <td colspan="4" class="p-2 text-center font-bold border-l border-b border-r border-gray-400" style="font-size: 9pt; border-top: none;">
+                    <td colspan="3" class="p-2 text-center font-bold border-l border-b border-r border-gray-400" style="font-size: 9pt; border-top: none;">
                         (จำนวนเงินสุทธิเป็นตัวอักษร: ${netAmountText})
                     </td>
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400">จำนวนเงินสุทธิ</td>
+                    <td colspan="2" class="font-bold p-2 text-right border-l border-t border-gray-400">จำนวนเงินสุทธิ</td>
                     <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 9pt; font-weight: bold;">${formatNumber(netAmount)}</td>
                 </tr>
             </tfoot>
@@ -316,18 +329,28 @@ function getQuotationHtml(
 			<tr style="border-bottom: 1px solid #eee;">
 				<td class="p-2 text-center">${startIndex + i + 1}</td>
 				<td class="p-2">${item.description}</td>
-				<td class="p-2 text-right">${formatNumber(item.quantity)}</td>
+				<td class="p-2 text-center">${formatNumber(item.quantity)}</td>
 				<td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
+				<td class="p-2 text-center font-bold" style="color: #ef4444;">${item.wht_rate > 0 ? item.wht_rate + '%' : '-'}</td>
 				<td class="p-2 text-right">${formatNumber(item.line_total)}</td>
 			</tr>
 		`
 				)
 				.join('');
 
+			// 💡 จัดระเบียบตารางสินค้าด้วย colgroup ชุดเดียวกับด้านล่าง
 			const tableHtml =
 				pageItems.length > 0
 					? `
-			<table style="width: 100%; border-collapse: collapse; font-size: 8pt;">
+			<table style="width: 100%; border-collapse: collapse; font-size: 8pt; table-layout: fixed;">
+				<colgroup>
+					<col style="width: 48px;">
+					<col style="width: auto;">
+					<col style="width: 64px;">
+					<col style="width: 96px;">
+					<col style="width: 64px;">
+					<col style="width: 112px;">
+				</colgroup>
 				${itemTableHead}
 				<tbody>${rowsHtml}</tbody>
 			</table>
@@ -397,9 +420,13 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Quotation not found' }, { status: 404 });
 		const qtData = rows[0];
 
+		// 💡 อัปเดตคำสั่ง SQL ให้ดึง wht_rate มาด้วย
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
-			SELECT description, quantity, unit_price, line_total FROM quotation_items WHERE quotation_id = ? ORDER BY item_order ASC
+			SELECT description, quantity, unit_price, line_total, wht_rate 
+			FROM quotation_items 
+			WHERE quotation_id = ? 
+			ORDER BY item_order ASC
 		`,
 			[id]
 		);

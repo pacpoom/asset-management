@@ -7,7 +7,6 @@ import mime from 'mime-types';
 
 const UPLOAD_DIR = path.resolve('uploads', 'quotations');
 
-// --- Helper Functions ---
 async function saveFile(file: File) {
 	if (!file || file.size === 0) return null;
 	try {
@@ -44,18 +43,15 @@ export const load: PageServerLoad = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// ดึงใบเสนอราคาเดิม
 		const [rows] = await pool.query<any[]>('SELECT * FROM quotations WHERE id = ?', [id]);
 		if (rows.length === 0) throw error(404, 'Quotation not found');
 		const quotation = rows[0];
 
-		// ดึงรายการสินค้าเดิม
 		const [itemRows] = await pool.query<any[]>(
 			'SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY item_order ASC',
 			[id]
 		);
 
-		// ดึงไฟล์แนบเดิม
 		const [attachmentRows] = await pool.query<any[]>(
 			'SELECT * FROM quotation_attachments WHERE quotation_id = ?',
 			[id]
@@ -65,24 +61,25 @@ export const load: PageServerLoad = async ({ params }) => {
 			url: `/uploads/quotations/${f.file_system_name}`
 		}));
 
-		// ดึงข้อมูล Dropdown
-		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
+		const [customers] = await pool.query(
+			'SELECT id, name, company_name FROM customers ORDER BY name ASC'
+		);
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
-		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+		const [units] = await pool.query('SELECT id, name, symbol FROM units ORDER BY name ASC');
 
 		return {
 			quotation: JSON.parse(JSON.stringify(quotation)),
-			existingItems: JSON.parse(JSON.stringify(itemRows)),
-			existingAttachments: JSON.parse(JSON.stringify(attachments)),
+			quotationItems: JSON.parse(JSON.stringify(itemRows)),
+			attachments: JSON.parse(JSON.stringify(attachments)),
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units))
 		};
 	} catch (err: any) {
-		console.error('Error loading edit data:', err);
-		throw error(500, err.message);
+		console.error('Error loading quotation for edit:', err);
+		throw error(500, 'Internal Server Error');
 	}
 };
 
@@ -92,7 +89,7 @@ export const actions: Actions = {
 		const formData = await request.formData();
 
 		const customer_id = formData.get('customer_id');
-		const quotation_date = formData.get('quotation_date')?.toString();
+		const quotation_date = formData.get('quotation_date')?.toString() || '';
 		const valid_until = formData.get('valid_until')?.toString() || null;
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
@@ -105,27 +102,30 @@ export const actions: Actions = {
 		);
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
-		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
-		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
+
+		const withholding_tax_amount = parseFloat(
+			formData.get('withholding_tax_amount')?.toString() || '0'
+		);
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
 
-		if (!customer_id) return fail(400, { message: 'กรุณาเลือกลูกค้า' });
+		if (!customer_id || !quotation_date) {
+			return fail(400, { message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+		}
 
 		const connection = await pool.getConnection();
 		try {
 			await connection.beginTransaction();
 
-			// อัปเดตหัวเอกสาร
 			await connection.execute(
-				`UPDATE quotations SET 
-                 quotation_date = ?, valid_until = ?, customer_id = ?, reference_doc = ?, notes = ?,
-                 subtotal = ?, discount_amount = ?, total_after_discount = ?,
-                 vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, total_amount = ?
-                 WHERE id = ?`,
+				`UPDATE quotations 
+                 SET customer_id=?, quotation_date=?, valid_until=?, reference_doc=?, notes=?,
+                     subtotal=?, discount_amount=?, total_after_discount=?, 
+                     vat_rate=?, vat_amount=?, withholding_tax_rate=0, withholding_tax_amount=?, total_amount=?
+                 WHERE id=?`,
 				[
+					customer_id,
 					quotation_date,
 					valid_until,
-					customer_id,
 					reference_doc,
 					notes,
 					subtotal,
@@ -133,23 +133,25 @@ export const actions: Actions = {
 					total_after_discount,
 					vat_rate,
 					vat_amount,
-					wht_rate,
-					wht_amount,
+					withholding_tax_amount,
 					total_amount,
 					id
 				]
 			);
 
-			// อัปเดตรายการสินค้า
 			await connection.execute('DELETE FROM quotation_items WHERE quotation_id = ?', [id]);
 
 			const items = JSON.parse(itemsJson);
 			if (items.length > 0) {
 				for (const [index, item] of items.entries()) {
+					const lineTotal = Number(item.line_total) || 0;
+					const whtR = Number(item.wht_rate) || 0;
+					const whtA = (lineTotal * whtR) / 100;
+
 					await connection.execute(
 						`INSERT INTO quotation_items 
-                        (quotation_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (quotation_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order, wht_rate, wht_amount) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							id,
 							item.product_id || null,
@@ -157,14 +159,15 @@ export const actions: Actions = {
 							item.quantity,
 							item.unit_id || null,
 							item.unit_price,
-							item.line_total,
-							index
+							lineTotal,
+							index,
+							whtR,
+							whtA
 						]
 					);
 				}
 			}
 
-			// เพิ่มไฟล์แนบใหม่
 			const files = formData.getAll('attachments') as File[];
 			for (const file of files) {
 				const savedFile = await saveFile(file);
@@ -200,6 +203,7 @@ export const actions: Actions = {
 	deleteAttachment: async ({ request }) => {
 		const formData = await request.formData();
 		const attachmentId = formData.get('attachment_id');
+		if (!attachmentId) return fail(400, { message: 'Missing attachment ID' });
 
 		try {
 			const [rows] = await pool.query<any[]>(
@@ -208,12 +212,12 @@ export const actions: Actions = {
 			);
 			if (rows.length > 0) {
 				await deleteFile(rows[0].file_system_name);
-				await pool.execute('DELETE FROM quotation_attachments WHERE id = ?', [attachmentId]);
-				return { success: true };
+				await pool.query('DELETE FROM quotation_attachments WHERE id = ?', [attachmentId]);
 			}
-			return fail(404, { message: 'File not found' });
-		} catch (err: any) {
-			return fail(500, { message: err.message });
+			return { success: true };
+		} catch (e: any) {
+			console.error('Delete attachment error:', e);
+			return fail(500, { message: 'Failed to delete attachment' });
 		}
 	}
 };

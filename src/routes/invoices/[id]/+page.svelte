@@ -3,7 +3,6 @@
 	import { tick } from 'svelte';
 	import type { ActionData, PageData } from './$types';
 
-	//Interface Company
 	interface Company {
 		name: string;
 		logo_path: string | null;
@@ -23,7 +22,6 @@
 	type InvoiceItem = PageData['items'][0];
 	type Attachment = PageData['attachments'][0];
 
-	// Props & State
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let invoice = $state<InvoiceHeader>(data.invoice);
@@ -42,7 +40,6 @@
 		companyData = data.company;
 	});
 
-	// --- Helper Functions ---
 	const formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
 		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
@@ -276,25 +273,34 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-3 py-2 text-left font-medium text-gray-500">Product/Description</th>
-					<th class="w-[70px] px-3 py-2 text-right font-medium text-gray-500">Qty</th>
-					<th class="w-[100px] px-3 py-2 text-right font-medium text-gray-500">Unit</th>
-					<th class="px-3 py-2 text-right font-medium text-gray-500">Price/Unit</th>
-					<th class="px-3 py-2 text-right font-medium text-gray-500">Total</th>
+					<th class="px-4 py-4 text-left font-semibold text-gray-600">Product/Description</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">Qty</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">Unit</th>
+					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">Price/Unit</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
+					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">Total</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#each items as item}
-					<tr>
-						<td class="px-3 py-2 text-gray-700">
-							<div class="font-medium">{item.description}</div>
+					<tr class="transition-colors hover:bg-gray-50">
+						<td class="px-4 py-4 text-gray-700">
+							<div class="font-medium text-gray-900">{item.description}</div>
 						</td>
-						<td class="px-3 py-2 text-right text-gray-700">{item.quantity}</td>
-						<td class="px-3 py-2 text-right text-gray-600">{item.unit_symbol || '-'}</td>
-						<td class="px-3 py-2 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
-						<td class="px-3 py-2 text-right font-medium text-gray-800"
-							>{formatCurrency(item.line_total)}</td
-						>
+						<td class="px-4 py-4 text-center text-gray-700">{item.quantity}</td>
+						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>
+						<td class="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
+						<td class="px-4 py-4 text-center font-bold text-red-600">
+							{parseFloat(item.wht_rate || '0') > 0 ? `${parseFloat(item.wht_rate)}%` : '-'}
+						</td>
+						<td class="px-4 py-4 text-right">
+							<div class="font-medium text-gray-900">{formatCurrency(item.line_total)}</div>
+							{#if parseFloat(item.wht_rate || '0') > 0}
+								<div class="mt-0.5 text-[10px] text-red-500">
+									(-{formatCurrency((item.line_total * parseFloat(item.wht_rate)) / 100)})
+								</div>
+							{/if}
+						</td>
 					</tr>
 				{/each}
 			</tbody>
@@ -327,15 +333,20 @@
 		</div>
 
 		<div class="flex items-center justify-between">
-			<span class="font-medium text-gray-600">VAT ({invoice.vat_rate ?? 0}%):</span>
+			<span class="font-medium text-gray-600">VAT ({Number(invoice.vat_rate ?? 0)}%):</span>
 			<span class="font-medium text-gray-800">{formatCurrency(invoice.vat_amount)}</span>
 		</div>
 
-		{#if parseFloat(invoice.withholding_tax_amount) > 0}
+		{#if parseFloat(invoice.withholding_tax_amount || invoice.wht_amount || '0') > 0}
+			{@const activeWhtRates = [
+				...new Set(items.map((i) => parseFloat(i.wht_rate || '0')).filter((r) => r > 0))
+			]}
 			<div class="flex items-center justify-between">
-				<span class="font-medium text-gray-600">WHT ({invoice.withholding_tax_rate ?? 0}%):</span
-				><span class="font-medium text-red-600"
-					>- {formatCurrency(invoice.withholding_tax_amount)}</span
+				<span class="font-medium text-gray-600">
+					WHT ({activeWhtRates.length > 0 ? activeWhtRates.join('%, ') + '%' : 'Total'}):
+				</span>
+				<span class="font-medium text-red-600"
+					>- {formatCurrency(invoice.withholding_tax_amount || invoice.wht_amount)}</span
 				>
 			</div>
 		{/if}

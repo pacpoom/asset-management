@@ -5,8 +5,6 @@ import path from 'path';
 import db from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// --- INTERFACES ---
-
 interface CompanyData extends RowDataPacket {
 	id: number;
 	name: string;
@@ -48,15 +46,13 @@ interface ItemData {
 	quantity: number;
 	unit_price: number;
 	line_total: number;
+	wht_rate?: number;
 }
-
-// --- Helper Functions ---
 
 function getLogoBase64(logoPath: string | null): string | null {
 	if (!logoPath) return null;
 	const tryPaths = [
 		path.resolve(process.cwd(), logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
-
 		path.resolve(process.cwd(), 'static', logoPath.startsWith('/') ? logoPath.slice(1) : logoPath),
 		path.resolve(process.cwd(), 'uploads/company/Logo.png'),
 		path.resolve(process.cwd(), 'uploads/company/logo.png'),
@@ -140,14 +136,32 @@ function getInvoiceHtml(
 	itemsData: ItemData[],
 	logoBase64: string | null
 ): string {
-	const subtotal = invoiceData.subtotal || 0;
-	const discount = invoiceData.discount_amount || 0;
-	const totalAfterDiscount = invoiceData.total_after_discount || 0;
-	const vatRate = invoiceData.vat_rate || 0;
-	const vatAmt = invoiceData.vat_amount || 0;
-	const whtRate = invoiceData.withholding_tax_rate || 0;
-	const whtAmt = invoiceData.withholding_tax_amount || 0;
-	const netAmount = invoiceData.total_amount || 0;
+	const subtotal = Number(invoiceData.subtotal || 0);
+	const discount = Number(invoiceData.discount_amount || 0);
+	const totalAfterDiscount = Number(invoiceData.total_after_discount || 0);
+
+	const vatRate = Number(invoiceData.vat_rate || 0);
+	const vatAmt = Number(invoiceData.vat_amount || 0);
+
+	let calculatedWhtAmt = 0;
+	const activeRates = new Set<number>();
+
+	itemsData.forEach((item) => {
+		const rate = Number(item.wht_rate || 0);
+		if (rate > 0) {
+			activeRates.add(rate);
+			calculatedWhtAmt += (Number(item.line_total) * rate) / 100;
+		}
+	});
+
+	const ratesArray = Array.from(activeRates);
+	const whtRateText =
+		ratesArray.length > 0 ? ratesArray.join('%, ') : Number(invoiceData.withholding_tax_rate || 0);
+
+	const whtAmt =
+		calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(invoiceData.withholding_tax_amount || 0);
+
+	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
 	const netAmountText = bahttext(netAmount);
 
 	const formatNumber = (num: number | string) => {
@@ -175,56 +189,57 @@ function getInvoiceHtml(
 		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
 
 	const headerContent = `
-		<table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
-			<tr style="border-bottom: 1px solid #dee2e6;">
-				<td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
-					${logoHtml}
-					<div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
-						<p style="margin:0;">${companyData?.address_line_1 || ''}</p>
-						${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
-						<p style="margin:0;">${companyData?.city || ''} ${companyData?.state_province || ''} ${companyData?.postal_code || ''}</p>
-						<p style="margin:4px 0 0 0;"><span style="font-weight: 600; color: #374151;">Tax ID:</span> ${companyData?.tax_id || '-'}</p>
-					</div>
-				</td>
-				<td style="width: 40%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
-					<h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0;">ใบแจ้งหนี้</h1>
-					<p style="font-size: 10pt; color: #666;">INVOICE</p>
-					<div style="margin-top: 0.5rem; font-size: 8pt; line-height: 1.5;">
-						<p style="margin:0;"><span style="font-weight: 600;">เลขที่ / No.:</span> ${invoiceData.invoice_number}</p>
-						<p style="margin:0;"><span style="font-weight: 600;">วันที่ / Date:</span> ${formatDateOnly(invoiceData.invoice_date)}</p>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
+            <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
+                    ${logoHtml}
+                    <div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
+                        <p style="margin:0;">${companyData?.address_line_1 || ''}</p>
+                        ${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
+                        <p style="margin:0;">${companyData?.city || ''} ${companyData?.state_province || ''} ${companyData?.postal_code || ''}</p>
+                        <p style="margin:4px 0 0 0;"><span style="font-weight: 600; color: #374151;">Tax ID:</span> ${companyData?.tax_id || '-'}</p>
+                    </div>
+                </td>
+                <td style="width: 40%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
+                    <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0;">ใบแจ้งหนี้</h1>
+                    <p style="font-size: 10pt; color: #666;">INVOICE</p>
+                    <div style="margin-top: 0.5rem; font-size: 8pt; line-height: 1.5;">
+                        <p style="margin:0;"><span style="font-weight: 600;">เลขที่ / No.:</span> ${invoiceData.invoice_number}</p>
+                        <p style="margin:0;"><span style="font-weight: 600;">วันที่ / Date:</span> ${formatDateOnly(invoiceData.invoice_date)}</p>
                         ${invoiceData.due_date ? `<p style="margin:0; color: #b91c1c;"><span style="font-weight: 600;">ครบกำหนด / Due:</span> ${formatDateOnly(invoiceData.due_date)}</p>` : ''}
-						<p style="margin:0;"><span style="font-weight: 600;">อ้างอิง / Ref:</span> ${invoiceData.reference_doc || '-'}</p>
-					</div>
-				</td>
-			</tr>
-			<tr>
-				<td style="padding-top: 1rem; vertical-align: top;">
-					<h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ลูกค้า (Customer)</h3>
-					<p style="font-weight: bold; margin: 0 0 4px 0;">${invoiceData.customer_name}</p>
-					<div style="font-size: 8pt; line-height: 1.4;">
-						<p style="margin:0;">${invoiceData.customer_address || '-'}</p>
-					</div>
-					<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${invoiceData.customer_tax_id || '-'}</p>
-				</td>
-				<td style="padding-top: 1rem; vertical-align: top; text-align: right;">
-					<h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ผู้ออกเอกสาร (Issued By)</h3>
-					<p style="font-size: 8pt;">${invoiceData.created_by_name}</p>
-				</td>
-			</tr>
-		</table>
-	`;
+                        <p style="margin:0;"><span style="font-weight: 600;">อ้างอิง / Ref:</span> ${invoiceData.reference_doc || '-'}</p>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding-top: 1rem; vertical-align: top;">
+                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ลูกค้า (Customer)</h3>
+                    <p style="font-weight: bold; margin: 0 0 4px 0;">${invoiceData.customer_name}</p>
+                    <div style="font-size: 8pt; line-height: 1.4;">
+                        <p style="margin:0;">${invoiceData.customer_address || '-'}</p>
+                    </div>
+                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${invoiceData.customer_tax_id || '-'}</p>
+                </td>
+                <td style="padding-top: 1rem; vertical-align: top; text-align: right;">
+                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ผู้ออกเอกสาร (Issued By)</h3>
+                    <p style="font-size: 8pt;">${invoiceData.created_by_name}</p>
+                </td>
+            </tr>
+        </table>
+    `;
 
 	const itemTableHead = `
-		<thead>
-			<tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
-				<th class="p-2 text-center w-12">ลำดับ</th>
-				<th class="p-2 text-left">รายการ (Description)</th>
-				<th class="p-2 text-right w-20">จำนวน</th>
-				<th class="p-2 text-right w-24">ราคา/หน่วย</th>
-				<th class="p-2 text-right w-32">จำนวนเงิน</th>
-			</tr>
-		</thead>
-	`;
+    <thead>
+        <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
+            <th class="p-2 text-center w-12">ลำดับ</th>
+            <th class="p-2 text-left">รายการ (Description)</th>
+            <th class="p-2 text-right w-16">จำนวน</th>
+            <th class="p-2 text-right w-24">ราคา/หน่วย</th>
+            <th class="p-2 text-center w-16" style="color: #ef4444;">WHT</th>
+            <th class="p-2 text-right w-28">จำนวนเงิน</th>
+        </tr>
+    </thead>
+`;
 
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
@@ -259,12 +274,12 @@ function getInvoiceHtml(
                 </tr>
 
                 <tr>
-					<td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
-					<td class="p-2 text-right">${formatNumber(vatAmt)}</td>
-				</tr>
+                    <td class="font-bold p-2 text-right border-l border-gray-400">ภาษีมูลค่าเพิ่ม (${vatRate}%)</td>
+                    <td class="p-2 text-right">${formatNumber(vatAmt)}</td>
+                </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่าย (${whtRate}%)</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่าย (${whtRateText}%)</td>
                     <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
                 </tr>
 
@@ -277,19 +292,19 @@ function getInvoiceHtml(
     `;
 
 	const signatureBlock = `
-		<div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
-			<div style="text-align: center; width: 30%;">
-				<div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
-				<p style="margin-top: 5px;">ผู้รับวางบิล (Received by)</p>
-				<p>วันที่ ...../...../.....</p>
-			</div>
-			<div style="text-align: center; width: 30%;">
-				<div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
-				<p style="margin-top: 5px;">ผู้มีอำนาจลงนาม (Authorized Signature)</p>
-				<p>วันที่ ...../...../.....</p>
-			</div>
-		</div>
-	`;
+        <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
+            <div style="text-align: center; width: 30%;">
+                <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
+                <p style="margin-top: 5px;">ผู้รับวางบิล (Received by)</p>
+                <p>วันที่ ...../...../.....</p>
+            </div>
+            <div style="text-align: center; width: 30%;">
+                <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
+                <p style="margin-top: 5px;">ผู้มีอำนาจลงนาม (Authorized Signature)</p>
+                <p>วันที่ ...../...../.....</p>
+            </div>
+        </div>
+    `;
 
 	const MAX_WITH_FOOTER = 10;
 	const MAX_WITHOUT_FOOTER = 18;
@@ -324,67 +339,70 @@ function getInvoiceHtml(
 			const rowsHtml = pageItems
 				.map(
 					(item, i) => `
-			<tr style="border-bottom: 1px solid #eee;">
-				<td class="p-2 text-center">${startIndex + i + 1}</td>
-				<td class="p-2">${item.description}</td>
-				<td class="p-2 text-right">${formatNumber(item.quantity)}</td>
-				<td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
-				<td class="p-2 text-right">${formatNumber(item.line_total)}</td>
-			</tr>
-		`
+    <tr style="border-bottom: 1px solid #eee;">
+        <td class="p-2 text-center">${startIndex + i + 1}</td>
+        <td class="p-2">${item.description}</td>
+        <td class="p-2 text-right">${formatNumber(item.quantity)}</td>
+        <td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
+        <td class="p-2 text-center" style="color: #ef4444; font-weight: 500;">
+            ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
+        </td>
+        <td class="p-2 text-right">${formatNumber(item.line_total)}</td>
+    </tr>
+`
 				)
 				.join('');
 
 			const tableHtml =
 				pageItems.length > 0
 					? `
-			<table style="width: 100%; border-collapse: collapse; font-size: 8pt;">
-				${itemTableHead}
-				<tbody>${rowsHtml}</tbody>
-			</table>
-		`
+            <table style="width: 100%; border-collapse: collapse; font-size: 8pt;">
+                ${itemTableHead}
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        `
 					: '<div style="border-top: 1px solid #eee; margin-bottom: 20px;"></div>';
 
 			let footerHtml = '';
 			if (isLastPage) {
 				footerHtml = `
-				${summaryBlock}
-				${signatureBlock}
-				<div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">หน้า ${pageNum} / ${totalPages}</div>
-			`;
+                ${summaryBlock}
+                ${signatureBlock}
+                <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">หน้า ${pageNum} / ${totalPages}</div>
+            `;
 			} else {
 				footerHtml = `
-				<div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">-- ยอดยกไป (Carried Forward) --</div>
-				<div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">หน้า ${pageNum} / ${totalPages}</div>
-			`;
+                <div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">-- ยอดยกไป (Carried Forward) --</div>
+                <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">หน้า ${pageNum} / ${totalPages}</div>
+            `;
 			}
 
 			return `
-			<div class="document-page" style="${index > 0 ? 'page-break-before: always;' : ''}">
-				${headerContent}
-				<div style="min-height: 200px;">${tableHtml}</div>
-				<div class="footer-container">${footerHtml}</div>
-			</div>
-		`;
+            <div class="document-page" style="${index > 0 ? 'page-break-before: always;' : ''}">
+                ${headerContent}
+                <div style="min-height: 200px;">${tableHtml}</div>
+                <div class="footer-container">${footerHtml}</div>
+            </div>
+        `;
 		})
 		.join('');
 
 	return `
-		<html>
-		<head>
-			<meta charset="UTF-8">
-			<script src="https://cdn.tailwindcss.com"></script>
-			<style>
-				@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
-				body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #333; background: #fff !important; margin: 0; padding: 0; }
-				.document-page { padding: 40px; box-sizing: border-box; position: relative; height: 297mm; }
-				.footer-container { position: absolute; bottom: 40px; left: 40px; right: 40px; }
-				@media print { @page { size: A4; margin: 0; } body { -webkit-print-color-adjust: exact; } }
-			</style>
-		</head>
-		<body>${pagesHtml}</body>
-		</html>
-	`;
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+                body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #333; background: #fff !important; margin: 0; padding: 0; }
+                .document-page { padding: 40px; box-sizing: border-box; position: relative; height: 297mm; }
+                .footer-container { position: absolute; bottom: 40px; left: 40px; right: 40px; }
+                @media print { @page { size: A4; margin: 0; } body { -webkit-print-color-adjust: exact; } }
+            </style>
+        </head>
+        <body>${pagesHtml}</body>
+        </html>
+    `;
 }
 
 export const GET = async ({ url }) => {
@@ -397,12 +415,12 @@ export const GET = async ({ url }) => {
 
 		const [rows] = await connection.execute<InvoiceData[]>(
 			`
-			SELECT i.*, c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, u.full_name as created_by_name
-			FROM invoices i
-			LEFT JOIN customers c ON i.customer_id = c.id
-			LEFT JOIN users u ON i.created_by_user_id = u.id
-			WHERE i.id = ?
-		`,
+            SELECT i.*, c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, u.full_name as created_by_name
+            FROM invoices i
+            LEFT JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN users u ON i.created_by_user_id = u.id
+            WHERE i.id = ?
+        `,
 			[id]
 		);
 
@@ -411,8 +429,8 @@ export const GET = async ({ url }) => {
 
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
-			SELECT description, quantity, unit_price, line_total FROM invoice_items WHERE invoice_id = ? ORDER BY item_order ASC
-		`,
+            SELECT description, quantity, unit_price, line_total, wht_rate FROM invoice_items WHERE invoice_id = ? ORDER BY item_order ASC
+        `,
 			[id]
 		);
 
@@ -437,7 +455,7 @@ export const GET = async ({ url }) => {
 			status: 200,
 			headers: {
 				'Content-Type': 'application/pdf',
-				'Content-Disposition': `attachment; filename="Invoice-${invoiceData.invoice_number}.pdf"`
+				'Content-Disposition': `inline; filename="Invoice-${invoiceData.invoice_number}.pdf"`
 			}
 		});
 	} catch (err: any) {

@@ -28,7 +28,6 @@ async function saveFile(file: File) {
 	}
 }
 
-// --- Helper: ลบไฟล์ ---
 async function deleteFile(filename: string) {
 	if (!filename) return;
 	try {
@@ -39,64 +38,58 @@ async function deleteFile(filename: string) {
 	}
 }
 
-export const load: PageServerLoad = async ({ params, locals }) => {
-	const receiptId = parseInt(params.id);
-	if (isNaN(receiptId)) throw error(404, 'Invalid Receipt ID');
+export const load: PageServerLoad = async ({ params }) => {
+	const id = parseInt(params.id);
+	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// ดึงข้อมูลใบเสร็จเดิม
-		const [receiptRows] = await pool.query<any[]>('SELECT * FROM receipts WHERE id = ?', [
-			receiptId
-		]);
-		if (receiptRows.length === 0) throw error(404, 'Receipt not found');
-		const receipt = receiptRows[0];
+		const [rows] = await pool.query<any[]>('SELECT * FROM receipts WHERE id = ?', [id]);
+		if (rows.length === 0) throw error(404, 'Receipt not found');
+		const receipt = rows[0];
 
-		// ดึงรายการสินค้าเดิม
 		const [itemRows] = await pool.query<any[]>(
 			'SELECT * FROM receipt_items WHERE receipt_id = ? ORDER BY item_order ASC',
-			[receiptId]
+			[id]
 		);
 
-		// ดึงไฟล์แนบเดิม
 		const [attachmentRows] = await pool.query<any[]>(
 			'SELECT * FROM receipt_attachments WHERE receipt_id = ?',
-			[receiptId]
+			[id]
 		);
 		const attachments = attachmentRows.map((f: any) => ({
 			...f,
 			url: `/uploads/receipts/${f.file_system_name}`
 		}));
 
-		//ดึงข้อมูล Dropdown (ลูกค้า, สินค้า, หน่วย)
 		const [customers] = await pool.query(
-			'SELECT id, name, address, tax_id FROM customers ORDER BY name ASC'
+			'SELECT id, name, company_name FROM customers ORDER BY name ASC'
 		);
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
-		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+		const [units] = await pool.query('SELECT id, name, symbol FROM units ORDER BY name ASC');
 
 		return {
 			receipt: JSON.parse(JSON.stringify(receipt)),
-			existingItems: JSON.parse(JSON.stringify(itemRows)),
-			existingAttachments: JSON.parse(JSON.stringify(attachments)),
+			receiptItems: JSON.parse(JSON.stringify(itemRows)),
+			attachments: JSON.parse(JSON.stringify(attachments)),
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units))
 		};
 	} catch (err: any) {
-		console.error('Load edit error:', err);
-		throw error(500, err.message);
+		console.error('Error loading receipt for edit:', err);
+		throw error(500, 'Internal Server Error');
 	}
 };
 
 export const actions: Actions = {
 	update: async ({ request, params, locals }) => {
-		const receiptId = parseInt(params.id);
+		const id = parseInt(params.id);
 		const formData = await request.formData();
 
 		const customer_id = formData.get('customer_id');
-		const receipt_date = formData.get('receipt_date')?.toString();
+		const receipt_date = formData.get('receipt_date')?.toString() || '';
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
@@ -108,25 +101,29 @@ export const actions: Actions = {
 		);
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
-		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
-		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
+
+		const withholding_tax_amount = parseFloat(
+			formData.get('withholding_tax_amount')?.toString() || '0'
+		);
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
 
-		if (!customer_id) return fail(400, { message: 'กรุณาเลือกลูกค้า' });
+		if (!customer_id || !receipt_date) {
+			return fail(400, { message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+		}
 
 		const connection = await pool.getConnection();
 		try {
 			await connection.beginTransaction();
 
 			await connection.execute(
-				`UPDATE receipts SET 
-                 receipt_date = ?, customer_id = ?, reference_doc = ?, notes = ?,
-                 subtotal = ?, discount_amount = ?, total_after_discount = ?,
-                 vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, total_amount = ?
-                 WHERE id = ?`,
+				`UPDATE receipts 
+                 SET customer_id=?, receipt_date=?, reference_doc=?, notes=?,
+                     subtotal=?, discount_amount=?, total_after_discount=?, 
+                     vat_rate=?, vat_amount=?, withholding_tax_rate=0, withholding_tax_amount=?, total_amount=?
+                 WHERE id=?`,
 				[
-					receipt_date,
 					customer_id,
+					receipt_date,
 					reference_doc,
 					notes,
 					subtotal,
@@ -134,31 +131,36 @@ export const actions: Actions = {
 					total_after_discount,
 					vat_rate,
 					vat_amount,
-					wht_rate,
-					wht_amount,
+					withholding_tax_amount,
 					total_amount,
-					receiptId
+					id
 				]
 			);
 
-			await connection.execute('DELETE FROM receipt_items WHERE receipt_id = ?', [receiptId]);
+			await connection.execute('DELETE FROM receipt_items WHERE receipt_id = ?', [id]);
 
 			const items = JSON.parse(itemsJson);
 			if (items.length > 0) {
 				for (const [index, item] of items.entries()) {
+					const lineTotal = Number(item.line_total) || 0;
+					const whtR = Number(item.wht_rate) || 0;
+					const whtA = (lineTotal * whtR) / 100;
+
 					await connection.execute(
 						`INSERT INTO receipt_items 
-                        (receipt_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (receipt_id, product_id, description, quantity, unit_id, unit_price, line_total, item_order, wht_rate, wht_amount) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
-							receiptId,
+							id,
 							item.product_id || null,
 							item.description,
 							item.quantity,
 							item.unit_id || null,
 							item.unit_price,
-							item.line_total,
-							index
+							lineTotal,
+							index,
+							whtR,
+							whtA
 						]
 					);
 				}
@@ -173,7 +175,7 @@ export const actions: Actions = {
                         (receipt_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
                         VALUES (?, ?, ?, ?, ?, ?)`,
 						[
-							receiptId,
+							id,
 							savedFile.originalName,
 							savedFile.systemName,
 							savedFile.mimeType,
@@ -188,32 +190,32 @@ export const actions: Actions = {
 		} catch (err: any) {
 			await connection.rollback();
 			console.error('Update receipt error:', err);
-			return fail(500, { message: 'เกิดข้อผิดพลาดในการแก้ไข: ' + err.message });
+			return fail(500, { message: 'Error: ' + err.message });
 		} finally {
 			connection.release();
 		}
 
-		throw redirect(303, `/receipts/${receiptId}`);
+		throw redirect(303, `/receipts/${id}`);
 	},
 
 	deleteAttachment: async ({ request }) => {
 		const formData = await request.formData();
 		const attachmentId = formData.get('attachment_id');
+		if (!attachmentId) return fail(400, { message: 'Missing attachment ID' });
 
 		try {
-			// หาชื่อไฟล์ก่อนลบ
 			const [rows] = await pool.query<any[]>(
 				'SELECT file_system_name FROM receipt_attachments WHERE id = ?',
 				[attachmentId]
 			);
 			if (rows.length > 0) {
 				await deleteFile(rows[0].file_system_name);
-				await pool.execute('DELETE FROM receipt_attachments WHERE id = ?', [attachmentId]);
-				return { success: true };
+				await pool.query('DELETE FROM receipt_attachments WHERE id = ?', [attachmentId]);
 			}
-			return fail(404, { message: 'File not found' });
-		} catch (err: any) {
-			return fail(500, { message: err.message });
+			return { success: true };
+		} catch (e: any) {
+			console.error('Delete attachment error:', e);
+			return fail(500, { message: 'Failed to delete attachment' });
 		}
 	}
 };

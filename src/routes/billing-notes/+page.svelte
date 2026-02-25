@@ -220,11 +220,8 @@
 		<h1 class="text-2xl font-bold text-gray-800">Billing Notes (ใบวางบิล)</h1>
 		<p class="mt-1 text-sm text-gray-500">จัดการเอกสารใบวางบิล</p>
 	</div>
-	<button
-		onclick={() => {
-			isCreateModalOpen = true;
-			resetForm();
-		}}
+	<a
+		href="/billing-notes/create"
 		class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
 	>
 		<svg
@@ -234,9 +231,12 @@
 			stroke="currentColor"
 			stroke-width="2"
 			class="h-4 w-4"
-			><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
-		>สร้างใบวางบิลใหม่
-	</button>
+		>
+			<line x1="12" y1="5" x2="12" y2="19" />
+			<line x1="5" y1="12" x2="19" y2="12" />
+		</svg>
+		สร้างใบวางบิลใหม่
+	</a>
 </div>
 
 <div
