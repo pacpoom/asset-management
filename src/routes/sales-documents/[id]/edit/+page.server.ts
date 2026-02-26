@@ -69,6 +69,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+        
+        // ดึงข้อมูล Job Orders มาเผื่อให้ Frontend กรองตามลูกค้า
+		const [jobOrders] = await pool.query('SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC');
 
 		return {
 			document: JSON.parse(JSON.stringify(document)),
@@ -76,7 +79,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			existingAttachments: JSON.parse(JSON.stringify(attachments)),
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
-			units: JSON.parse(JSON.stringify(units))
+			units: JSON.parse(JSON.stringify(units)),
+            jobOrders: JSON.parse(JSON.stringify(jobOrders))
 		};
 	} catch (err: any) {
 		console.error('Load edit error:', err);
@@ -90,7 +94,9 @@ export const actions: Actions = {
 		const formData = await request.formData();
 
 		const customer_id = formData.get('customer_id');
+        const job_order_id = formData.get('job_order_id')?.toString() || null;
 		const document_date = formData.get('document_date')?.toString();
+        const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
 		const due_date = formData.get('due_date')?.toString() || null;
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
@@ -117,14 +123,16 @@ export const actions: Actions = {
             // หมายเหตุ: ไม่ทำการ Update document_type และ document_number เพื่อป้องกันเลข sequence เพี้ยน
 			await connection.execute(
 				`UPDATE sales_documents SET 
-                 document_date = ?, due_date = ?, customer_id = ?, reference_doc = ?, notes = ?,
+                 document_date = ?, credit_term = ?, due_date = ?, customer_id = ?, job_order_id = ?, reference_doc = ?, notes = ?,
                  subtotal = ?, discount_amount = ?, total_after_discount = ?,
                  vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, wht_amount = ?, total_amount = ?
                  WHERE id = ?`,
 				[
 					document_date,
+                    credit_term,
 					due_date,
 					customer_id,
+                    job_order_id,
 					reference_doc,
 					notes,
 					subtotal,

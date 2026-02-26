@@ -20,10 +20,12 @@ interface CompanyData extends RowDataPacket {
 
 interface DocumentData extends RowDataPacket {
 	id: number;
-    document_type: string;
+	document_type: string;
 	document_number: string;
 	document_date: string;
+	credit_term: number | null;
 	due_date: string | null;
+	job_order_id: number | null;
 	reference_doc: string | null;
 	notes: string | null;
 
@@ -32,6 +34,10 @@ interface DocumentData extends RowDataPacket {
 	customer_tax_id: string | null;
 	created_by_name: string;
 
+	// ข้อมูลที่ Join มาจาก job_orders
+	jo_job_type: string | null;
+	jo_bl_number: string | null;
+
 	subtotal: number;
 	discount_amount: number;
 	total_after_discount: number;
@@ -39,7 +45,7 @@ interface DocumentData extends RowDataPacket {
 	vat_amount: number;
 	withholding_tax_rate: number;
 	withholding_tax_amount: number;
-    wht_amount: number;
+	wht_amount: number;
 	total_amount: number;
 }
 
@@ -133,13 +139,13 @@ function bahttext(input: number | string): string {
 }
 
 function getDocumentTitle(type: string): { th: string; en: string } {
-    switch (type) {
-        case 'QT': return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
-        case 'BN': return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
-        case 'INV': return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
-        case 'RE': return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
-        default: return { th: 'เอกสาร', en: 'DOCUMENT' };
-    }
+	switch (type) {
+		case 'QT': return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
+		case 'BN': return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
+		case 'INV': return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
+		case 'RE': return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
+		default: return { th: 'เอกสาร', en: 'DOCUMENT' };
+	}
 }
 
 function getInvoiceHtml(
@@ -176,7 +182,7 @@ function getInvoiceHtml(
 	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
 	const netAmountText = bahttext(netAmount);
 
-    const docTitle = getDocumentTitle(docData.document_type);
+	const docTitle = getDocumentTitle(docData.document_type);
 
 	const formatNumber = (num: number | string) => {
 		const val = typeof num === 'string' ? parseFloat(num) : num;
@@ -202,10 +208,20 @@ function getInvoiceHtml(
 		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
 		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
 
+	// คำนวณการแสดงผลเครดิตเทอม
+	const creditTermDisplay = (docData.credit_term && docData.credit_term > 0) ? `${docData.credit_term} วัน (Days)` : 'เงินสด (Cash)';
+
+	// สร้างสตริงแสดง Job Order
+	let jobOrderDisplay = '';
+	if (docData.job_order_id) {
+		const blPart = (docData.jo_bl_number && docData.jo_bl_number !== '-') ? ` | BL: ${docData.jo_bl_number}` : '';
+		jobOrderDisplay = `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span> ${docData.jo_job_type || ''}${blPart}</p>`;
+	}
+
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
-                <td style="width: 60%; vertical-align: top; padding-bottom: 1rem;">
+                <td style="width: 55%; vertical-align: top; padding-bottom: 1rem;">
                     ${logoHtml}
                     <div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
                         <p style="margin:0;">${companyData?.address_line_1 || ''}</p>
@@ -214,14 +230,16 @@ function getInvoiceHtml(
                         <p style="margin:4px 0 0 0;"><span style="font-weight: 600; color: #374151;">Tax ID:</span> ${companyData?.tax_id || '-'}</p>
                     </div>
                 </td>
-                <td style="width: 40%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
+                <td style="width: 45%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
                     <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0; color: #1e3a8a;">${docTitle.th}</h1>
                     <p style="font-size: 10pt; color: #666;">${docTitle.en}</p>
                     <div style="margin-top: 0.5rem; font-size: 8pt; line-height: 1.5;">
                         <p style="margin:0;"><span style="font-weight: 600;">เลขที่ / No.:</span> ${docData.document_number}</p>
                         <p style="margin:0;"><span style="font-weight: 600;">วันที่ / Date:</span> ${formatDateOnly(docData.document_date)}</p>
+                        <p style="margin:0;"><span style="font-weight: 600;">เครดิต / Term:</span> ${creditTermDisplay}</p>
                         ${docData.due_date ? `<p style="margin:0; color: #b91c1c;"><span style="font-weight: 600;">ครบกำหนด / Due:</span> ${formatDateOnly(docData.due_date)}</p>` : ''}
-                        <p style="margin:0;"><span style="font-weight: 600;">อ้างอิง / Ref:</span> ${docData.reference_doc || '-'}</p>
+                        ${jobOrderDisplay}
+                        ${docData.reference_doc ? `<p style="margin:0;"><span style="font-weight: 600;">อ้างอิง / Ref:</span> ${docData.reference_doc}</p>` : ''}
                     </div>
                 </td>
             </tr>
@@ -427,13 +445,17 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-        // 1. ดึงข้อมูลหัวเอกสาร (เปลี่ยนจาก invoices เป็น sales_documents)
+		// 1. ดึงข้อมูลหัวเอกสาร (JOIN job_orders เพื่อนำมาแสดง)
 		const [rows] = await connection.execute<DocumentData[]>(
 			`
-            SELECT sd.*, c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, u.full_name as created_by_name
+            SELECT sd.*, 
+                   c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, 
+                   u.full_name as created_by_name,
+                   jo.job_type as jo_job_type, jo.bl_number as jo_bl_number
             FROM sales_documents sd
             LEFT JOIN customers c ON sd.customer_id = c.id
             LEFT JOIN users u ON sd.created_by_user_id = u.id
+            LEFT JOIN job_orders jo ON sd.job_order_id = jo.id
             WHERE sd.id = ?
         `,
 			[id]
@@ -442,7 +464,7 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Document not found' }, { status: 404 });
 		const docData = rows[0];
 
-        // 2. ดึงรายการสินค้า (เปลี่ยนจาก invoice_items เป็น sales_document_items)
+		// 2. ดึงรายการสินค้า 
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
             SELECT description, quantity, unit_price, line_total, wht_rate 
@@ -453,16 +475,16 @@ export const GET = async ({ url }) => {
 			[id]
 		);
 
-        // 3. ดึงข้อมูลบริษัท
+		// 3. ดึงข้อมูลบริษัท
 		const [company] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
 		const companyData = company[0] || null;
 
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-        // 4. สร้าง HTML จากข้อมูลทั้งหมด
+		// 4. สร้าง HTML จากข้อมูลทั้งหมด
 		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64);
 
-        // 5. สั่ง Puppeteer สร้างไฟล์ PDF
+		// 5. สั่ง Puppeteer สร้างไฟล์ PDF
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
 			headless: true
@@ -472,7 +494,7 @@ export const GET = async ({ url }) => {
 		const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
 		await browser.close();
 
-        // 6. ส่งไฟล์ PDF กลับไปที่เบราว์เซอร์
+		// 6. ส่งไฟล์ PDF กลับไปที่เบราว์เซอร์
 		const pdfBlob = new Blob([pdfBuffer as any], { type: 'application/pdf' });
 		return new Response(pdfBlob, {
 			status: 200,

@@ -194,6 +194,16 @@
 					<span class="font-semibold text-gray-600">วันที่ / Date:</span>
 					<span class="font-medium text-gray-800">{formatDate(document.document_date)}</span>
 				</div>
+                <div class="text-sm">
+					<span class="font-semibold text-gray-600">เครดิต / Term:</span>
+					<span class="font-medium text-gray-800">{document.credit_term && document.credit_term > 0 ? `${document.credit_term} วัน (Days)` : 'เงินสด (Cash)'}</span>
+				</div>
+                {#if document.job_order_id}
+                <div class="text-sm">
+					<span class="font-semibold text-gray-600">Job Order:</span>
+					<span class="font-medium text-gray-800">{document.jo_job_type} {#if document.jo_bl_number && document.jo_bl_number !== '-'}| BL: {document.jo_bl_number}{/if}</span>
+				</div>
+                {/if}
 				<div class="text-sm">
 					<span class="font-semibold text-gray-600">อ้างอิง / Ref:</span>
 					<span class="font-medium text-gray-800">{document.reference_doc || '-'}</span>

@@ -5,7 +5,7 @@
 	import { browser } from '$app/environment';
 
 	export let data: PageData;
-	$: ({ document, existingItems, existingAttachments, customers, products, units } = data);
+	$: ({ document, existingItems, existingAttachments, customers, products, units, jobOrders } = data);
 
 	$: productOptions = products.map((p: any) => ({
 		value: p.id,
@@ -26,6 +26,8 @@
 
 	let documentDate = '';
 	let dueDate = '';
+    let creditTerm: number | null = 0;
+    let selectedJobOrderId: string | number = '';
 	let items: DocumentItem[] = [];
 	let discountAmount = 0;
 	let vatRate = 7;
@@ -45,9 +47,14 @@
 	$: if (document) {
 		documentDate = new Date(document.document_date).toISOString().split('T')[0];
 		dueDate = document.due_date ? new Date(document.due_date).toISOString().split('T')[0] : '';
+        creditTerm = document.credit_term !== null ? Number(document.credit_term) : 0;
+        selectedJobOrderId = document.job_order_id || '';
 		discountAmount = parseFloat(document.discount_amount || '0');
 		vatRate = parseFloat(document.vat_rate || '7');
 	}
+
+    // กรอง Job Order ตามลูกค้าที่เลือก
+	$: filteredJobOrders = selectedCustomerId ? jobOrders.filter((jo: any) => jo.customer_id == selectedCustomerId) : [];
 
 	$: if (existingItems && items.length === 0) {
 		items = existingItems.map((item: any) => {
@@ -131,10 +138,13 @@
 		items = items;
 	}
 
-	function setCreditTerm(days: number) {
-		const date = new Date(documentDate);
-		date.setDate(date.getDate() + days);
-		dueDate = date.toISOString().split('T')[0];
+    // คำนวณวันครบกำหนดชำระเงินเมื่อวันที่หรือเครดิตเทอมเปลี่ยน
+	function calculateDueDate() {
+		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
+			const d = new Date(documentDate);
+			d.setDate(d.getDate() + Number(creditTerm));
+			dueDate = d.toISOString().split('T')[0];
+		}
 	}
 
 	let isSaving = false;
@@ -184,6 +194,7 @@
 					id="customer_id"
 					name="customer_id"
 					bind:value={selectedCustomerId}
+                    on:change={() => { selectedJobOrderId = ''; }}
 					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				>
@@ -194,7 +205,7 @@
 				</select>
 			</div>
 
-			<div class="grid grid-cols-2 gap-4">
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:col-span-2">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700">วันที่เอกสาร <span class="text-red-500">*</span></label>
 					<input
@@ -202,9 +213,20 @@
 						id="document_date"
 						name="document_date"
 						bind:value={documentDate}
+                        on:change={calculateDueDate}
 						required
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
+				</div>
+                <div>
+					<label for="credit_term" class="mb-1 block text-sm font-medium text-gray-700">เครดิตเทอม (วัน)</label>
+					<select id="credit_term" name="credit_term" bind:value={creditTerm} on:change={calculateDueDate} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500">
+						<option value={0}>0 วัน (เงินสด)</option>
+						<option value={30}>30 วัน</option>
+						<option value={45}>45 วัน</option>
+						<option value={60}>60 วัน</option>
+						<option value={90}>90 วัน</option>
+					</select>
 				</div>
 				<div>
 					<label for="due_date" class="mb-1 block text-sm font-medium text-gray-700">ครบกำหนดชำระ</label>
@@ -215,14 +237,28 @@
 						bind:value={dueDate}
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
-					<div class="mt-1 flex gap-2 text-xs text-blue-500">
-						<button type="button" on:click={() => setCreditTerm(7)} class="hover:underline">7 วัน</button>
-						<button type="button" on:click={() => setCreditTerm(30)} class="hover:underline">30 วัน</button>
-					</div>
 				</div>
 			</div>
+            
+            <div>
+				<label for="job_order_id" class="mb-1 block text-sm font-medium text-gray-700">Job Order อ้างอิง</label>
+				<select id="job_order_id" name="job_order_id" bind:value={selectedJobOrderId} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400" disabled={!selectedCustomerId || filteredJobOrders.length === 0}>
+					<option value="">-- เลือก Job Order --</option>
+					{#each filteredJobOrders as job}
+						<option value={job.id}>
+							{job.job_type} | BL: {job.bl_number !== '-' ? job.bl_number : 'N/A'} (ID: {job.id})
+						</option>
+					{/each}
+				</select>
+				{#if selectedCustomerId && filteredJobOrders.length === 0}
+					<p class="text-xs text-red-500 mt-1">ไม่พบ Job Order สำหรับลูกค้ารายนี้</p>
+				{:else if !selectedCustomerId}
+					<p class="text-xs text-gray-500 mt-1">กรุณาเลือกลูกค้าก่อนเพื่อดู Job Order</p>
+				{/if}
+			</div>
+
 			<div>
-				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700">เอกสารอ้างอิง (PO/Ref)</label>
+				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700">เอกสารอ้างอิงอื่นๆ (PO/Ref)</label>
 				<input
 					type="text"
 					id="reference_doc"

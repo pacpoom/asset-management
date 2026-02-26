@@ -71,14 +71,18 @@ export const load: PageServerLoad = async () => {
 		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
 		const [products] = await pool.query('SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC');
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+		// ดึงข้อมูล Job Orders มาเผื่อให้ Frontend กรองตามลูกค้า
+		const [jobOrders] = await pool.query('SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC');
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
-			units: JSON.parse(JSON.stringify(units))
+			units: JSON.parse(JSON.stringify(units)),
+			jobOrders: JSON.parse(JSON.stringify(jobOrders))
 		};
 	} catch (error: any) {
-		return { customers: [], products: [], units: [] };
+		console.error("Load data error:", error);
+		return { customers: [], products: [], units: [], jobOrders: [] };
 	}
 };
 
@@ -88,8 +92,12 @@ export const actions: Actions = {
 
 		const document_type = formData.get('document_type')?.toString() || 'INV';
 		const customer_id = formData.get('customer_id');
+		const job_order_id = formData.get('job_order_id')?.toString() || null;
+		
 		const document_date = formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
+		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
 		const due_date = formData.get('due_date')?.toString() || null;
+		
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
@@ -100,7 +108,7 @@ export const actions: Actions = {
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
 
-		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0'); // Legacy field, might not be needed
+		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
 		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
 
@@ -115,13 +123,13 @@ export const actions: Actions = {
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO sales_documents 
-                (document_type, document_number, document_date, due_date, customer_id, reference_doc, notes, 
+                (document_type, document_number, document_date, credit_term, due_date, customer_id, job_order_id, reference_doc, notes, 
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, wht_amount, total_amount,
                  status, created_by_user_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`, // เปลี่ยน default เป็น Draft
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`,
 				[
-					document_type, document_number, document_date, due_date, customer_id, reference_doc, notes,
+					document_type, document_number, document_date, credit_term, due_date, customer_id, job_order_id, reference_doc, notes,
 					subtotal, discount_amount, total_after_discount,
 					vat_rate, vat_amount, wht_rate, wht_amount, wht_amount, total_amount,
 					locals.user?.id || null
