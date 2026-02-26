@@ -1,0 +1,208 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { enhance } from '$app/forms';
+	import type { PageData } from './$types';
+
+	export let data: PageData;
+	$: ({ documents, currentPage, totalPages, searchQuery, filterStatus, filterType } = data);
+
+	let searchInput = searchQuery;
+	let statusInput = filterStatus;
+	let typeInput = filterType;
+	let searchTimeout: NodeJS.Timeout;
+
+	let isDeleteModalOpen = false;
+	let itemToDelete: any = null;
+	let isDeleting = false;
+
+	function openDeleteModal(item: any) {
+		itemToDelete = item;
+		isDeleteModalOpen = true;
+	}
+
+	function closeDeleteModal() {
+		isDeleteModalOpen = false;
+		itemToDelete = null;
+	}
+
+	function handleSearch() {
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => applyFilters(), 500);
+	}
+
+	function applyFilters() {
+		const params = new URLSearchParams();
+		params.set('page', '1');
+		if (searchInput) params.set('search', searchInput);
+		if (statusInput) params.set('status', statusInput);
+		if (typeInput) params.set('type', typeInput);
+		goto(`?${params.toString()}`);
+	}
+
+	function getStatusClass(status: string) {
+		switch (status) {
+			case 'Draft': return 'bg-gray-100 text-gray-800';
+			case 'Sent': return 'bg-blue-100 text-blue-800';
+			case 'Paid': return 'bg-green-100 text-green-800';
+			case 'Overdue': return 'bg-red-100 text-red-800';
+			case 'Void': return 'bg-gray-300 text-gray-600';
+			default: return 'bg-gray-100 text-gray-800';
+		}
+	}
+
+	function getDocTypeName(type: string) {
+		switch (type) {
+			case 'QT': return 'ใบเสนอราคา';
+			case 'BN': return 'ใบวางบิล';
+			case 'INV': return 'ใบแจ้งหนี้';
+			case 'RE': return 'ใบเสร็จรับเงิน';
+			default: return type;
+		}
+	}
+
+	function getDocTypeColor(type: string) {
+		switch (type) {
+			case 'QT': return 'text-purple-600 bg-purple-50';
+			case 'BN': return 'text-orange-600 bg-orange-50';
+			case 'INV': return 'text-blue-600 bg-blue-50';
+			case 'RE': return 'text-green-600 bg-green-50';
+			default: return 'text-gray-600 bg-gray-50';
+		}
+	}
+
+	const formatCurrency = (amount: number) =>
+		new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+	const formatDate = (dateStr: string) =>
+		dateStr ? new Date(dateStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+</script>
+
+<svelte:head>
+	<title>เอกสารการขาย (Sales Documents)</title>
+</svelte:head>
+
+<div class="mb-6 flex items-center justify-between">
+	<div>
+		<h1 class="text-2xl font-bold text-gray-800">เอกสารการขาย (Sales Documents)</h1>
+		<p class="mt-1 text-sm text-gray-500">จัดการใบเสนอราคา ใบวางบิล ใบแจ้งหนี้ และใบเสร็จ</p>
+	</div>
+	<a
+		href="/sales-documents/new"
+		class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+	>
+		+ สร้างเอกสารใหม่
+	</a>
+</div>
+
+<div class="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-4">
+	<div class="relative md:col-span-2">
+		<input
+			type="search"
+			bind:value={searchInput}
+			on:input={handleSearch}
+			placeholder="ค้นหาเลขที่เอกสาร หรือ ชื่อลูกค้า..."
+			class="w-full rounded-lg border-gray-300 py-2 px-4 text-sm focus:border-blue-500 focus:ring-blue-500"
+		/>
+	</div>
+	<div>
+		<select
+			bind:value={typeInput}
+			on:change={applyFilters}
+			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+		>
+			<option value="">-- ทุกประเภทเอกสาร --</option>
+			<option value="QT">ใบเสนอราคา (QT)</option>
+			<option value="BN">ใบวางบิล (BN)</option>
+			<option value="INV">ใบแจ้งหนี้ (INV)</option>
+			<option value="RE">ใบเสร็จรับเงิน (RE)</option>
+		</select>
+	</div>
+	<div>
+		<select
+			bind:value={statusInput}
+			on:change={applyFilters}
+			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+		>
+			<option value="">-- ทุกสถานะ --</option>
+			<option value="Draft">Draft (ร่าง)</option>
+			<option value="Sent">Sent (ส่งแล้ว)</option>
+			<option value="Paid">Paid (ชำระแล้ว)</option>
+			<option value="Overdue">Overdue (เกินกำหนด)</option>
+			<option value="Void">Void (ยกเลิก)</option>
+		</select>
+	</div>
+</div>
+
+<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+	<div class="overflow-x-auto">
+		<table class="min-w-full divide-y divide-gray-200 text-sm">
+			<thead class="bg-gray-50">
+				<tr>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">ประเภท</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">เลขที่เอกสาร</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">วันที่</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">ลูกค้า</th>
+					<th class="px-4 py-3 text-right font-semibold text-gray-600">ยอดเงินรวม</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">สถานะ</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">จัดการ</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-gray-200 bg-white">
+				{#if documents.length === 0}
+					<tr>
+						<td colspan="7" class="py-8 text-center text-gray-500">ไม่พบเอกสาร</td>
+					</tr>
+				{:else}
+					{#each documents as doc}
+						<tr class="transition-colors hover:bg-gray-50">
+							<td class="px-4 py-3">
+								<span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium border {getDocTypeColor(doc.document_type)} border-current opacity-80">
+									{getDocTypeName(doc.document_type)}
+								</span>
+							</td>
+							<td class="px-4 py-3 font-medium text-blue-600">
+								<a href="/sales-documents/{doc.id}">{doc.document_number || '(Draft)'}</a>
+							</td>
+							<td class="px-4 py-3 whitespace-nowrap text-gray-600">{formatDate(doc.document_date)}</td>
+							<td class="px-4 py-3 font-medium text-gray-900">{doc.customer_name}</td>
+							<td class="px-4 py-3 text-right font-semibold text-gray-900">{formatCurrency(doc.total_amount)}</td>
+							<td class="px-4 py-3 text-center">
+								<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getStatusClass(doc.status)}">
+									{doc.status}
+								</span>
+							</td>
+							<td class="px-4 py-3 text-center">
+								<div class="flex justify-center gap-2">
+									<a href="/sales-documents/{doc.id}" class="text-gray-400 hover:text-blue-600" title="ดูรายละเอียด">👁️</a>
+									{#if doc.status !== 'Draft'}
+										<a href="/sales-documents/generate-pdf?id={doc.id}" target="_blank" class="text-gray-400 hover:text-gray-600" title="พิมพ์ PDF">📄</a>
+									{/if}
+									<a href="/sales-documents/{doc.id}/edit" class="text-gray-400 hover:text-yellow-600" title="แก้ไข">✏️</a>
+									<button type="button" on:click={() => openDeleteModal(doc)} class="text-gray-400 hover:text-red-600" title="ลบ">🗑️</button>
+								</div>
+							</td>
+						</tr>
+					{/each}
+				{/if}
+			</tbody>
+		</table>
+	</div>
+</div>
+
+{#if isDeleteModalOpen}
+<!-- Modal ลบ (โครงสร้างเหมือนเดิม) -->
+	<div class="bg-opacity-75 fixed inset-0 z-50 flex items-center justify-center bg-gray-500 p-4 transition-opacity">
+		<div class="w-full transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all sm:max-w-lg">
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<p class="text-sm text-gray-500">
+				คุณแน่ใจหรือไม่ที่จะลบเอกสาร <strong>{itemToDelete?.document_number}</strong>?
+			</p>
+			<div class="mt-6 flex justify-end gap-3">
+				<button type="button" on:click={closeDeleteModal} class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700">ยกเลิก</button>
+				<form method="POST" action="?/delete" use:enhance={() => { isDeleting = true; return async ({ update }) => { await update(); isDeleting = false; closeDeleteModal(); }; }}>
+					<input type="hidden" name="id" value={itemToDelete?.id} />
+					<button type="submit" disabled={isDeleting} class="rounded-md bg-red-600 px-4 py-2 text-sm text-white">{isDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}</button>
+				</form>
+			</div>
+		</div>
+	</div>
+{/if}
