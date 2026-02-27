@@ -3,7 +3,6 @@ import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 
 export const load: PageServerLoad = async ({ url }) => {
-	// 1. รับค่าค้นหาและแบ่งหน้า
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';
 	const filterStatus = url.searchParams.get('status') || '';
@@ -11,7 +10,6 @@ export const load: PageServerLoad = async ({ url }) => {
 	const offset = (page - 1) * pageSize;
 
 	try {
-		// 2. สร้าง Query (คล้ายกับ Receipts)
 		let whereClause = ' WHERE 1=1 ';
 		const params: (string | number)[] = [];
 
@@ -29,7 +27,6 @@ export const load: PageServerLoad = async ({ url }) => {
 			params.push(filterStatus);
 		}
 
-		// 3. นับจำนวนทั้งหมด
 		const countSql = `
             SELECT COUNT(i.id) as total
             FROM invoices i
@@ -39,7 +36,6 @@ export const load: PageServerLoad = async ({ url }) => {
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / pageSize);
 
-		// 4. ดึงข้อมูล (Join ลูกค้าและผู้สร้าง)
 		const fetchSql = `
             SELECT
                 i.id, i.invoice_number, i.invoice_date, i.due_date, i.total_amount, i.status,

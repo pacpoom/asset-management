@@ -140,11 +140,16 @@ function bahttext(input: number | string): string {
 
 function getDocumentTitle(type: string): { th: string; en: string } {
 	switch (type) {
-		case 'QT': return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
-		case 'BN': return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
-		case 'INV': return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
-		case 'RE': return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
-		default: return { th: 'เอกสาร', en: 'DOCUMENT' };
+		case 'QT':
+			return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
+		case 'BN':
+			return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
+		case 'INV':
+			return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
+		case 'RE':
+			return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
+		default:
+			return { th: 'เอกสาร', en: 'DOCUMENT' };
 	}
 }
 
@@ -177,7 +182,9 @@ function getInvoiceHtml(
 		ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
 
 	const whtAmt =
-		calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(docData.wht_amount || docData.withholding_tax_amount || 0);
+		calculatedWhtAmt > 0
+			? calculatedWhtAmt
+			: Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
 	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
 	const netAmountText = bahttext(netAmount);
@@ -209,12 +216,16 @@ function getInvoiceHtml(
 		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
 
 	// คำนวณการแสดงผลเครดิตเทอม
-	const creditTermDisplay = (docData.credit_term && docData.credit_term > 0) ? `${docData.credit_term} วัน (Days)` : 'เงินสด (Cash)';
+	const creditTermDisplay =
+		docData.credit_term && docData.credit_term > 0
+			? `${docData.credit_term} วัน (Days)`
+			: 'เงินสด (Cash)';
 
 	// สร้างสตริงแสดง Job Order
 	let jobOrderDisplay = '';
 	if (docData.job_order_id) {
-		const blPart = (docData.jo_bl_number && docData.jo_bl_number !== '-') ? ` | BL: ${docData.jo_bl_number}` : '';
+		const blPart =
+			docData.jo_bl_number && docData.jo_bl_number !== '-' ? ` | BL: ${docData.jo_bl_number}` : '';
 		jobOrderDisplay = `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span> ${docData.jo_job_type || ''}${blPart}</p>`;
 	}
 
@@ -311,7 +322,7 @@ function getInvoiceHtml(
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่าย (${whtRateText}%)</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">หัก ณ ที่จ่ายรวม(${whtRateText}%)</td>
                     <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
                 </tr>
 
@@ -464,7 +475,7 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Document not found' }, { status: 404 });
 		const docData = rows[0];
 
-		// 2. ดึงรายการสินค้า 
+		// 2. ดึงรายการสินค้า
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
             SELECT description, quantity, unit_price, line_total, wht_rate 

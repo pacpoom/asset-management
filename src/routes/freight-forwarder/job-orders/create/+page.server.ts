@@ -12,10 +12,14 @@ export const load = async () => {
 		'SELECT id, code, name FROM liners WHERE status = "Active" ORDER BY name ASC'
 	);
 
+	const [idResult] = await pool.query('SELECT MAX(id) as maxId FROM job_orders');
+	const nextId = ((idResult as any)[0]?.maxId || 0) + 1;
+
 	return {
 		customers: JSON.parse(JSON.stringify(customers)),
 		contracts: JSON.parse(JSON.stringify(contracts)),
-		liners: JSON.parse(JSON.stringify(liners))
+		liners: JSON.parse(JSON.stringify(liners)),
+		nextId
 	};
 };
 
@@ -49,7 +53,22 @@ export const actions = {
                     amount, currency, created_by, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
-			await pool.execute(sql, Object.values(data));
+
+			const [result] = await pool.execute(sql, Object.values(data));
+			const insertId = (result as any).insertId;
+
+			const jobType = data.job_type as string;
+			const d = new Date(data.job_date as string);
+			const yy = String(d.getFullYear()).slice(-2);
+			const mm = String(d.getMonth() + 1).padStart(2, '0');
+			const paddedId = String(insertId).padStart(4, '0');
+			const jobNumber = `${jobType}${yy}${mm}${paddedId}`;
+
+			await pool.execute('UPDATE job_orders SET job_number = ? WHERE id = ?', [
+				jobNumber,
+				insertId
+			]);
+
 			return { success: true };
 		} catch (err: any) {
 			console.error(err);

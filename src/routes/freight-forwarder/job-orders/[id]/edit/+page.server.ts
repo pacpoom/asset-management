@@ -29,23 +29,34 @@ export const load = async ({ params }) => {
 export const actions = {
 	update: async ({ request, params }) => {
 		const formData = await request.formData();
+		const id = params.id;
+
+		const job_type = formData.get('job_type') as string;
+		const job_date = formData.get('job_date') as string;
+
+		const d = new Date(job_date);
+		const yy = String(d.getFullYear()).slice(-2);
+		const mm = String(d.getMonth() + 1).padStart(2, '0');
+		const paddedId = String(id).padStart(4, '0');
+		const job_number = `${job_type}${yy}${mm}${paddedId}`;
 
 		const data = [
 			formData.get('customer_id'),
 			formData.get('contract_id') || null,
-			formData.get('job_type'),
+			job_type,
 			formData.get('service_type'),
 			formData.get('location'),
 			formData.get('bl_number'),
 			formData.get('invoice_no'),
 			formData.get('liner_name'),
 			formData.get('job_status'),
-			formData.get('job_date'),
+			job_date,
 			formData.get('expire_date') || null,
 			formData.get('remarks'),
 			formData.get('amount') || 0,
 			formData.get('currency'),
-			params.id
+			job_number,
+			id
 		];
 
 		try {
@@ -53,7 +64,7 @@ export const actions = {
                 UPDATE job_orders SET
                     customer_id = ?, contract_id = ?, job_type = ?, service_type = ?, location = ?, bl_number = ?, invoice_no = ?, 
                     liner_name = ?, job_status = ?, job_date = ?, expire_date = ?, remarks = ?, 
-                    amount = ?, currency = ?, updated_at = NOW()
+                    amount = ?, currency = ?, job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;
 			await pool.execute(sql, data);

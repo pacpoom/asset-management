@@ -69,9 +69,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
-        
-        // ดึงข้อมูล Job Orders มาเผื่อให้ Frontend กรองตามลูกค้า
-		const [jobOrders] = await pool.query('SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC');
+
+		const [jobOrders] = await pool.query(
+			'SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC'
+		);
 
 		return {
 			document: JSON.parse(JSON.stringify(document)),
@@ -80,7 +81,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
-            jobOrders: JSON.parse(JSON.stringify(jobOrders))
+			jobOrders: JSON.parse(JSON.stringify(jobOrders))
 		};
 	} catch (err: any) {
 		console.error('Load edit error:', err);
@@ -94,9 +95,9 @@ export const actions: Actions = {
 		const formData = await request.formData();
 
 		const customer_id = formData.get('customer_id');
-        const job_order_id = formData.get('job_order_id')?.toString() || null;
+		const job_order_id = formData.get('job_order_id')?.toString() || null;
 		const document_date = formData.get('document_date')?.toString();
-        const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
+		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
 		const due_date = formData.get('due_date')?.toString() || null;
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
@@ -120,7 +121,6 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-            // หมายเหตุ: ไม่ทำการ Update document_type และ document_number เพื่อป้องกันเลข sequence เพี้ยน
 			await connection.execute(
 				`UPDATE sales_documents SET 
                  document_date = ?, credit_term = ?, due_date = ?, customer_id = ?, job_order_id = ?, reference_doc = ?, notes = ?,
@@ -129,10 +129,10 @@ export const actions: Actions = {
                  WHERE id = ?`,
 				[
 					document_date,
-                    credit_term,
+					credit_term,
 					due_date,
 					customer_id,
-                    job_order_id,
+					job_order_id,
 					reference_doc,
 					notes,
 					subtotal,
@@ -142,13 +142,15 @@ export const actions: Actions = {
 					vat_amount,
 					wht_rate,
 					wht_amount,
-                    wht_amount, // เพิ่ม wht_amount อันใหม่ที่แยกต่างหาก
+					wht_amount,
 					total_amount,
 					documentId
 				]
 			);
 
-			await connection.execute('DELETE FROM sales_document_items WHERE document_id = ?', [documentId]);
+			await connection.execute('DELETE FROM sales_document_items WHERE document_id = ?', [
+				documentId
+			]);
 
 			const items = JSON.parse(itemsJson);
 			if (items.length > 0) {

@@ -45,6 +45,17 @@
 	}));
 	let selectedLiner = linerOptions.find((l: any) => l.value === job.liner_name) || null;
 	let isSaving = false;
+
+	let jobDate = job.job_date
+		? new Date(job.job_date).toISOString().split('T')[0]
+		: new Date().toISOString().split('T')[0];
+
+	$: parsedDate = jobDate ? new Date(jobDate) : new Date();
+	$: yy = String(parsedDate.getFullYear()).slice(-2);
+	$: mm = String(parsedDate.getMonth() + 1).padStart(2, '0');
+	$: jobCodeVal = selectedJobType?.value || job.job_type || '___';
+	$: paddedId = String(job.id).padStart(4, '0');
+	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${paddedId}`;
 </script>
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
@@ -71,7 +82,14 @@
 				>
 			</a>
 			<div>
-				<h1 class="text-xl font-bold text-gray-800">Edit Job Order #{job.id}</h1>
+				<div class="flex items-center gap-2">
+					<h1 class="text-xl font-bold text-gray-800">Edit Job Order</h1>
+					<span
+						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
+					>
+						{previewJobNumber}
+					</span>
+				</div>
 				<p class="text-xs text-gray-500">แก้ไขข้อมูลงาน</p>
 			</div>
 		</div>
@@ -156,7 +174,7 @@
 									id="job_date"
 									type="date"
 									name="job_date"
-									value={new Date(job.job_date).toISOString().split('T')[0]}
+									bind:value={jobDate}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								/>
 							</div>
@@ -215,48 +233,20 @@
 							</div>
 
 							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+								<label for="service_type" class="mb-1.5 block text-sm font-semibold text-gray-700">
 									Service Type <span class="text-red-500">*</span>
-								</div>
-								<div class="flex flex-wrap gap-2">
-									<label
-										class="flex cursor-pointer items-center gap-1.5 rounded border bg-white px-2.5 py-1.5 shadow-sm hover:bg-blue-50"
-									>
-										<input
-											type="radio"
-											name="service_type"
-											value="Import"
-											checked={job.service_type === 'Import'}
-											class="text-blue-600 focus:ring-blue-500"
-											required
-										/>
-										<span class="text-xs font-medium">Import</span>
-									</label>
-									<label
-										class="flex cursor-pointer items-center gap-1.5 rounded border bg-white px-2.5 py-1.5 shadow-sm hover:bg-blue-50"
-									>
-										<input
-											type="radio"
-											name="service_type"
-											value="Export"
-											checked={job.service_type === 'Export'}
-											class="text-blue-600 focus:ring-blue-500"
-										/>
-										<span class="text-xs font-medium">Export</span>
-									</label>
-									<label
-										class="flex cursor-pointer items-center gap-1.5 rounded border bg-white px-2.5 py-1.5 shadow-sm hover:bg-blue-50"
-									>
-										<input
-											type="radio"
-											name="service_type"
-											value="Cross-Trade"
-											checked={job.service_type === 'Cross-Trade'}
-											class="text-blue-600 focus:ring-blue-500"
-										/>
-										<span class="text-xs font-medium">Cross</span>
-									</label>
-								</div>
+								</label>
+								<select
+									id="service_type"
+									name="service_type"
+									value={job.service_type}
+									class="w-full rounded-md border-gray-300 font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+									required
+								>
+									<option value="Import">Import</option>
+									<option value="Export">Export</option>
+									<option value="Cross-Trade">Cross-Trade</option>
+								</select>
 							</div>
 						</div>
 

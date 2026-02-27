@@ -6,7 +6,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';
 	const filterStatus = url.searchParams.get('status') || '';
-	const filterType = url.searchParams.get('type') || ''; // เพิ่มตัวกรองประเภทเอกสาร
+	const filterType = url.searchParams.get('type') || '';
 	const pageSize = 15;
 	const offset = (page - 1) * pageSize;
 
@@ -79,7 +79,6 @@ export const actions: Actions = {
 		if (!id) return fail(400, { message: 'ไม่พบรหัสเอกสาร' });
 
 		try {
-			// ลบข้อมูลจะ cascade ไปยังรายการย่อยถ้าตั้งค่า FK ไว้ (แต่ถ้าไม่ได้ตั้งใช้ manual delete ได้)
 			await pool.execute('DELETE FROM sales_document_items WHERE document_id = ?', [id]);
 			await pool.execute('DELETE FROM sales_document_attachments WHERE document_id = ?', [id]);
 			await pool.execute('DELETE FROM sales_documents WHERE id = ?', [id]);

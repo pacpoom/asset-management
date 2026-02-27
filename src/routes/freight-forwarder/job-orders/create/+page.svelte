@@ -38,7 +38,157 @@
 		{ value: 'SP', label: 'SP (Special Project)' }
 	];
 	let selectedJobType: any = jobTypeOptions[0];
+
+	$: parsedDate = jobDate ? new Date(jobDate) : new Date();
+	$: yy = String(parsedDate.getFullYear()).slice(-2);
+	$: mm = String(parsedDate.getMonth() + 1).padStart(2, '0');
+	$: jobCodeVal = selectedJobType?.value || '___';
+	$: nextIdPadded = String(data.nextId || 1).padStart(4, '0');
+	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${nextIdPadded}`;
+
+	let serviceTypeOptions = [
+		{ value: 'Import', label: 'Import' },
+		{ value: 'Export', label: 'Export' },
+		{ value: 'Cross-Trade', label: 'Cross-Trade' }
+	];
+
+	let isManageModalOpen = false;
+	let manageModalType: 'jobCode' | 'serviceType' | null = null;
+	let manageValue = '';
+	let manageLabel = '';
+	let editingIndex: number | null = null;
+
+	let toastMessage = '';
+	let toastType: 'success' | 'error' = 'success';
+	let showDeleteConfirm = false;
+	let deleteTargetIndex: number | null = null;
+
+	function showToast(message: string, type: 'success' | 'error' = 'success') {
+		toastMessage = message;
+		toastType = type;
+		setTimeout(() => {
+			toastMessage = '';
+		}, 3000);
+	}
+
+	function openManageModal(type: 'jobCode' | 'serviceType') {
+		manageModalType = type;
+		isManageModalOpen = true;
+		resetManageForm();
+	}
+
+	function closeManageModal() {
+		isManageModalOpen = false;
+		manageModalType = null;
+	}
+
+	function resetManageForm() {
+		manageValue = '';
+		manageLabel = '';
+		editingIndex = null;
+	}
+
+	function saveManageOption() {
+		if (!manageLabel) {
+			showToast('กรุณาระบุ Label เพื่อดำเนินการต่อ', 'error');
+			return;
+		}
+
+		const valueToSave = manageValue || manageLabel;
+
+		if (manageModalType === 'jobCode') {
+			if (editingIndex !== null) {
+				jobTypeOptions[editingIndex] = { value: valueToSave, label: manageLabel };
+			} else {
+				jobTypeOptions = [...jobTypeOptions, { value: valueToSave, label: manageLabel }];
+			}
+		} else if (manageModalType === 'serviceType') {
+			if (editingIndex !== null) {
+				serviceTypeOptions[editingIndex] = { value: valueToSave, label: manageLabel };
+			} else {
+				serviceTypeOptions = [...serviceTypeOptions, { value: valueToSave, label: manageLabel }];
+			}
+		}
+
+		const successMsg =
+			editingIndex !== null ? 'อัปเดตข้อมูลเรียบร้อยแล้ว' : 'เพิ่มลงในระบบเรียบร้อยแล้ว';
+		resetManageForm();
+		showToast(successMsg, 'success');
+	}
+
+	function editManageOption(index: number) {
+		editingIndex = index;
+		const targetArray = manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions;
+		manageValue = targetArray[index].value;
+		manageLabel = targetArray[index].label;
+	}
+
+	function confirmDeleteOption(index: number) {
+		deleteTargetIndex = index;
+		showDeleteConfirm = true;
+	}
+
+	function cancelDeleteOption() {
+		showDeleteConfirm = false;
+		deleteTargetIndex = null;
+	}
+
+	function executeDeleteOption() {
+		if (deleteTargetIndex === null) return;
+
+		if (manageModalType === 'jobCode') {
+			jobTypeOptions = jobTypeOptions.filter((_, i) => i !== deleteTargetIndex);
+		} else if (manageModalType === 'serviceType') {
+			serviceTypeOptions = serviceTypeOptions.filter((_, i) => i !== deleteTargetIndex);
+		}
+
+		showDeleteConfirm = false;
+		deleteTargetIndex = null;
+		showToast('ลบตัวเลือกเรียบร้อยแล้ว', 'success');
+	}
 </script>
+
+{#if toastMessage}
+	<div
+		class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[70] flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-bold shadow-xl {toastType ===
+		'success'
+			? 'bg-green-600 text-white'
+			: 'bg-red-500 text-white'}"
+	>
+		{#if toastType === 'success'}
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-5 w-5"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+				/>
+			</svg>
+		{:else}
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-5 w-5"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+				/>
+			</svg>
+		{/if}
+		{toastMessage}
+	</div>
+{/if}
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
 	<div class="mx-auto mb-6 flex max-w-4xl items-center justify-between">
@@ -64,7 +214,14 @@
 				>
 			</a>
 			<div>
-				<h1 class="text-xl font-bold text-gray-800">New Job Order</h1>
+				<div class="flex items-center gap-2">
+					<h1 class="text-xl font-bold text-gray-800">New Job Order</h1>
+					<span
+						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
+					>
+						{previewJobNumber}
+					</span>
+				</div>
 				<p class="text-xs text-gray-500">สร้างใบงานใหม่ (Create New Job)</p>
 			</div>
 		</div>
@@ -171,62 +328,83 @@
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
 									Job Code <span class="text-red-500">*</span>
 								</div>
-								<Select
-									items={jobTypeOptions}
-									bind:value={selectedJobType}
-									placeholder="เลือก..."
-									container={browser ? document.body : null}
-									class="svelte-select-custom"
-									clearable={false}
-								/>
-								<input
-									type="hidden"
-									name="job_type"
-									value={selectedJobType?.value || ''}
-									required
-								/>
+								<div class="flex items-start gap-2">
+									<div class="min-w-0 flex-grow">
+										<Select
+											items={jobTypeOptions}
+											bind:value={selectedJobType}
+											placeholder="เลือก..."
+											container={browser ? document.body : null}
+											class="svelte-select-custom"
+											clearable={false}
+										/>
+										<input
+											type="hidden"
+											name="job_type"
+											value={selectedJobType?.value || ''}
+											required
+										/>
+									</div>
+									<button
+										type="button"
+										on:click={() => openManageModal('jobCode')}
+										class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
+										title="จัดการตัวเลือก Job Code"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+											/>
+										</svg>
+									</button>
+								</div>
 							</div>
 
 							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+								<label for="service_type" class="mb-1.5 block text-sm font-semibold text-gray-700">
 									Service Type <span class="text-red-500">*</span>
-								</div>
-								<div class="flex flex-wrap gap-2">
-									<label
-										class="flex cursor-pointer items-center gap-1.5 rounded border bg-white px-2.5 py-1.5 shadow-sm hover:bg-blue-50"
+								</label>
+								<div class="flex items-start gap-2">
+									<select
+										id="service_type"
+										name="service_type"
+										class="w-full flex-grow rounded-md border-gray-300 font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+										required
 									>
-										<input
-											type="radio"
-											name="service_type"
-											value="Import"
-											checked
-											class="text-blue-600 focus:ring-blue-500"
-											required
-										/>
-										<span class="text-xs font-medium">Import</span>
-									</label>
-									<label
-										class="flex cursor-pointer items-center gap-1.5 rounded border bg-white px-2.5 py-1.5 shadow-sm hover:bg-blue-50"
+										{#each serviceTypeOptions as option}
+											<option value={option.value}>{option.label}</option>
+										{/each}
+									</select>
+									<button
+										type="button"
+										on:click={() => openManageModal('serviceType')}
+										class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
+										title="จัดการตัวเลือก Service Type"
 									>
-										<input
-											type="radio"
-											name="service_type"
-											value="Export"
-											class="text-blue-600 focus:ring-blue-500"
-										/>
-										<span class="text-xs font-medium">Export</span>
-									</label>
-									<label
-										class="flex cursor-pointer items-center gap-1.5 rounded border bg-white px-2.5 py-1.5 shadow-sm hover:bg-blue-50"
-									>
-										<input
-											type="radio"
-											name="service_type"
-											value="Cross-Trade"
-											class="text-blue-600 focus:ring-blue-500"
-										/>
-										<span class="text-xs font-medium">Cross</span>
-									</label>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+											/>
+										</svg>
+									</button>
 								</div>
 							</div>
 						</div>
@@ -372,6 +550,206 @@
 		</form>
 	</div>
 </div>
+
+{#if isManageModalOpen}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
+			<div class="flex items-center justify-between border-b px-5 py-4">
+				<h3 class="font-bold text-gray-800">
+					จัดการตัวเลือก {manageModalType === 'jobCode' ? 'Job Code' : 'Service Type'}
+				</h3>
+				<button
+					on:click={closeManageModal}
+					class="text-gray-400 hover:text-gray-600 focus:outline-none"
+					aria-label="ปิดหน้าต่าง"
+					title="ปิดหน้าต่าง"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M6 18L18 6M6 6l12 12"
+						/>
+					</svg>
+				</button>
+			</div>
+
+			<div class="p-5">
+				<div class="mb-6 rounded-lg border bg-gray-50 p-4">
+					<h4 class="mb-3 text-sm font-semibold text-gray-600">
+						{editingIndex !== null ? 'แก้ไขตัวเลือก' : 'เพิ่มตัวเลือกใหม่'}
+					</h4>
+					<div class="mb-3 grid grid-cols-2 gap-3">
+						<div>
+							<label for="manage_value" class="mb-1 block text-xs font-medium text-gray-500"
+								>Value (เช่น SI)</label
+							>
+							<input
+								id="manage_value"
+								type="text"
+								bind:value={manageValue}
+								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+								placeholder="Value..."
+							/>
+						</div>
+						<div>
+							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500"
+								>Label (เช่น Sea Import)</label
+							>
+							<input
+								id="manage_label"
+								type="text"
+								bind:value={manageLabel}
+								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+								placeholder="Label..."
+								on:keydown={(e) => e.key === 'Enter' && saveManageOption()}
+							/>
+						</div>
+					</div>
+					<div class="flex gap-2">
+						<button
+							on:click={saveManageOption}
+							class="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+						>
+							{editingIndex !== null ? 'บันทึกการแก้ไข' : 'เพิ่มลงในระบบ'}
+						</button>
+						{#if editingIndex !== null}
+							<button
+								on:click={resetManageForm}
+								class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+							>
+								ยกเลิก
+							</button>
+						{/if}
+					</div>
+				</div>
+
+				<h4 class="mb-2 text-sm font-semibold text-gray-700">รายการตัวเลือกปัจจุบัน</h4>
+				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
+					<ul class="divide-y divide-gray-100">
+						{#each manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions as option, index}
+							<li class="flex items-center justify-between p-3 hover:bg-gray-50">
+								<div>
+									<span class="text-sm font-semibold text-gray-800">{option.label}</span>
+									<span class="ml-2 text-xs text-gray-500">[{option.value}]</span>
+								</div>
+								<div class="flex items-center gap-2">
+									<button
+										on:click={() => editManageOption(index)}
+										class="text-gray-400 hover:text-blue-600 focus:outline-none"
+										aria-label="แก้ไขตัวเลือก"
+										title="แก้ไข"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+											/>
+										</svg>
+									</button>
+									<button
+										on:click={() => confirmDeleteOption(index)}
+										class="text-gray-400 hover:text-red-600 focus:outline-none"
+										aria-label="ลบตัวเลือก"
+										title="ลบ"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+											/>
+										</svg>
+									</button>
+								</div>
+							</li>
+						{/each}
+						{#if (manageModalType === 'jobCode' && jobTypeOptions.length === 0) || (manageModalType === 'serviceType' && serviceTypeOptions.length === 0)}
+							<li class="p-4 text-center text-sm text-gray-500">ยังไม่มีข้อมูลในระบบ</li>
+						{/if}
+					</ul>
+				</div>
+			</div>
+			<div class="border-t bg-gray-50 px-5 py-3 text-right">
+				<button
+					on:click={closeManageModal}
+					class="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300"
+				>
+					ปิดหน้าต่าง
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showDeleteConfirm}
+	<div
+		class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+	>
+		<div class="animate-in fade-in zoom-in-95 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+			<div class="mb-4 flex items-center justify-center">
+				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-6 w-6 text-red-600"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+						/>
+					</svg>
+				</div>
+			</div>
+			<h3 class="mb-2 text-center text-lg font-bold text-gray-900">ยืนยันการลบตัวเลือก</h3>
+			<p class="mb-6 text-center text-sm text-gray-500">
+				คุณต้องการลบตัวเลือกนี้ใช่หรือไม่? <br />
+				<span class="font-semibold text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้</span>
+			</p>
+
+			<div class="flex justify-center gap-3">
+				<button
+					on:click={cancelDeleteOption}
+					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+				>
+					ยกเลิก
+				</button>
+				<button
+					on:click={executeDeleteOption}
+					class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
+				>
+					ลบข้อมูล
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {

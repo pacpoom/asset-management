@@ -28,51 +28,61 @@ async function saveFile(file: File) {
 	}
 }
 
-// ฟังก์ชันรันเลขเอกสารตามมาตรฐานสากล
 async function generateDocumentNumber(docType: string, dateStr: string, connection: any) {
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1; 
-    const monthStr = String(month).padStart(2, '0');
-    
-    let prefix = '';
-    switch (docType) {
-        case 'QT': prefix = 'QT-'; break;
-        case 'BN': prefix = 'BN-'; break;
-        case 'INV': prefix = 'INV-'; break;
-        case 'RE': prefix = 'RE-'; break;
-        default: prefix = 'DOC-';
-    }
+	const date = new Date(dateStr);
+	const year = date.getFullYear();
+	const month = date.getMonth() + 1;
+	const monthStr = String(month).padStart(2, '0');
 
-    // Insert หรือ อัปเดต Sequence แบบป้องกัน Race Condition
-    const updateQuery = `
+	let prefix = '';
+	switch (docType) {
+		case 'QT':
+			prefix = 'QT-';
+			break;
+		case 'BN':
+			prefix = 'BN-';
+			break;
+		case 'INV':
+			prefix = 'INV-';
+			break;
+		case 'RE':
+			prefix = 'RE-';
+			break;
+		default:
+			prefix = 'DOC-';
+	}
+
+	const updateQuery = `
         INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
         VALUES (?, ?, ?, ?, 1, 4)
         ON DUPLICATE KEY UPDATE last_number = last_number + 1;
     `;
-    await connection.execute(updateQuery, [docType, prefix, year, month]);
+	await connection.execute(updateQuery, [docType, prefix, year, month]);
 
-    const selectQuery = `
+	const selectQuery = `
         SELECT last_number, padding_length 
         FROM document_sequences 
         WHERE document_type = ? AND year = ? AND month = ?
     `;
-    const [rows] = await connection.execute(selectQuery, [docType, year, month]);
-    
-    const lastNumber = rows[0].last_number;
-    const padding = rows[0].padding_length; 
-    
-    const runningNumber = String(lastNumber).padStart(padding, '0');
-    return `${prefix}${year}${monthStr}-${runningNumber}`;
+	const [rows] = await connection.execute(selectQuery, [docType, year, month]);
+
+	const lastNumber = rows[0].last_number;
+	const padding = rows[0].padding_length;
+
+	const runningNumber = String(lastNumber).padStart(padding, '0');
+	return `${prefix}${year}${monthStr}-${runningNumber}`;
 }
 
 export const load: PageServerLoad = async () => {
 	try {
 		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
-		const [products] = await pool.query('SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC');
+		const [products] = await pool.query(
+			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
+		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
-		// ดึงข้อมูล Job Orders มาเผื่อให้ Frontend กรองตามลูกค้า
-		const [jobOrders] = await pool.query('SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC');
+		const [jobOrders] = await pool.query(
+			'SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC'
+		);
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
@@ -81,7 +91,7 @@ export const load: PageServerLoad = async () => {
 			jobOrders: JSON.parse(JSON.stringify(jobOrders))
 		};
 	} catch (error: any) {
-		console.error("Load data error:", error);
+		console.error('Load data error:', error);
 		return { customers: [], products: [], units: [], jobOrders: [] };
 	}
 };
@@ -93,18 +103,21 @@ export const actions: Actions = {
 		const document_type = formData.get('document_type')?.toString() || 'INV';
 		const customer_id = formData.get('customer_id');
 		const job_order_id = formData.get('job_order_id')?.toString() || null;
-		
-		const document_date = formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
+
+		const document_date =
+			formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
 		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
 		const due_date = formData.get('due_date')?.toString() || null;
-		
+
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
 
 		const subtotal = parseFloat(formData.get('subtotal')?.toString() || '0');
 		const discount_amount = parseFloat(formData.get('discount_amount')?.toString() || '0');
-		const total_after_discount = parseFloat(formData.get('total_after_discount')?.toString() || '0');
+		const total_after_discount = parseFloat(
+			formData.get('total_after_discount')?.toString() || '0'
+		);
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
 
@@ -118,8 +131,11 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// สร้างเลขเอกสารแบบใหม่
-			const document_number = await generateDocumentNumber(document_type, document_date, connection);
+			const document_number = await generateDocumentNumber(
+				document_type,
+				document_date,
+				connection
+			);
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO sales_documents 
@@ -129,9 +145,24 @@ export const actions: Actions = {
                  status, created_by_user_id) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`,
 				[
-					document_type, document_number, document_date, credit_term, due_date, customer_id, job_order_id, reference_doc, notes,
-					subtotal, discount_amount, total_after_discount,
-					vat_rate, vat_amount, wht_rate, wht_amount, wht_amount, total_amount,
+					document_type,
+					document_number,
+					document_date,
+					credit_term,
+					due_date,
+					customer_id,
+					job_order_id,
+					reference_doc,
+					notes,
+					subtotal,
+					discount_amount,
+					total_after_discount,
+					vat_rate,
+					vat_amount,
+					wht_rate,
+					wht_amount,
+					wht_amount,
+					total_amount,
 					locals.user?.id || null
 				]
 			);
@@ -149,8 +180,16 @@ export const actions: Actions = {
                         (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
-							documentId, item.product_id || null, item.description, item.quantity, item.unit_id || null,
-							item.unit_price, lineTotal, lineWhtRate, lineWhtAmount, index
+							documentId,
+							item.product_id || null,
+							item.description,
+							item.quantity,
+							item.unit_id || null,
+							item.unit_price,
+							lineTotal,
+							lineWhtRate,
+							lineWhtAmount,
+							index
 						]
 					);
 				}
@@ -164,21 +203,61 @@ export const actions: Actions = {
 						`INSERT INTO sales_document_attachments 
                         (document_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
                         VALUES (?, ?, ?, ?, ?, ?)`,
-						[documentId, savedFile.originalName, savedFile.systemName, savedFile.mimeType, savedFile.size, locals.user?.id]
+						[
+							documentId,
+							savedFile.originalName,
+							savedFile.systemName,
+							savedFile.mimeType,
+							savedFile.size,
+							locals.user?.id
+						]
 					);
 				}
 			}
 
 			await connection.commit();
-            // Redirect ไปหน้ารายละเอียดเมื่อสร้างเสร็จ
 			throw redirect(303, `/sales-documents/${documentId}`);
 		} catch (err: any) {
 			await connection.rollback();
-			if(err.status === 303) throw err; // rethrow redirect
+			if (err.status === 303) throw err;
 			console.error('Create document error:', err);
 			return fail(500, { message: 'Error: ' + err.message });
 		} finally {
 			connection.release();
+		}
+	},
+
+	createProduct: async ({ request }) => {
+		const formData = await request.formData();
+
+		const sku = formData.get('sku')?.toString() || '';
+		const name = formData.get('name')?.toString() || '';
+		const product_type = formData.get('product_type')?.toString() || 'Service';
+		const unit_id = formData.get('unit_id') ? Number(formData.get('unit_id')) : null;
+		const selling_price = parseFloat(formData.get('selling_price')?.toString() || '0');
+		const default_wht_rate = parseFloat(formData.get('default_wht_rate')?.toString() || '0');
+
+		if (!name) return fail(400, { message: 'กรุณากรอกชื่อสินค้า/บริการ' });
+
+		try {
+			const [result] = await pool.execute<any>(
+				`INSERT INTO products 
+				(sku, name, product_type, unit_id, selling_price, default_wht_rate, is_active, created_at, updated_at) 
+				VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+				[sku, name, product_type, unit_id, selling_price, default_wht_rate]
+			);
+
+			const newProductId = result.insertId;
+
+			const [newProduct] = await pool.query<any[]>(
+				'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE id = ?',
+				[newProductId]
+			);
+
+			return { success: true, product: newProduct[0] };
+		} catch (err: any) {
+			console.error('Create product error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการสร้างสินค้า: ' + err.message });
 		}
 	}
 };

@@ -5,24 +5,26 @@
 	import { browser } from '$app/environment';
 
 	export let data: PageData;
-	$: ({ customers, products, units, jobOrders } = data);
+	$: ({ customers, units, jobOrders } = data);
+	let localProducts = data.products || [];
 
-	// แมปข้อมูลลูกค้าสำหรับ Svelte-select
 	$: customerOptions = customers.map((c: any) => ({
-		value: c.id, 
-		label: c.name, 
+		value: c.id,
+		label: c.name,
 		customer: c
 	}));
 
-	$: productOptions = products.map((p: any) => ({
-		value: p.id, label: `${p.sku} - ${p.name}`, product: p
+	$: productOptions = localProducts.map((p: any) => ({
+		value: p.id,
+		label: `${p.sku} - ${p.name}`,
+		product: p
 	}));
 
 	let documentType = 'INV';
 	let documentDate = new Date().toISOString().split('T')[0];
 	let creditTerm: number | null = 0;
-	let dueDate = new Date().toISOString().split('T')[0]; // Default ให้เท่ากับวันเอกสารถ้าเทอมเป็น 0
-	
+	let dueDate = new Date().toISOString().split('T')[0];
+
 	let selectedCustomerObj: any = null;
 	let selectedCustomerId: string | number = '';
 	let selectedJobOrderId: string | number = '';
@@ -32,15 +34,23 @@
 	let discountAmount = 0;
 	let vatRate = 7;
 
-	let items: any[] = [{
-		product_object: null, product_id: null, description: '', quantity: 1,
-		unit_id: null, unit_price: 0, line_total: 0, wht_rate: 0
-	}];
+	let items: any[] = [
+		{
+			product_object: null,
+			product_id: null,
+			description: '',
+			quantity: 1,
+			unit_id: null,
+			unit_price: 0,
+			line_total: 0,
+			wht_rate: 0
+		}
+	];
 
-	// กรอง Job Order ตามลูกค้าที่เลือก
-	$: filteredJobOrders = selectedCustomerId ? jobOrders.filter((jo: any) => jo.customer_id == selectedCustomerId) : [];
+	$: filteredJobOrders = selectedCustomerId
+		? jobOrders.filter((jo: any) => jo.customer_id == selectedCustomerId)
+		: [];
 
-	// คำนวณวันครบกำหนดชำระเงินเมื่อวันที่หรือเครดิตเทอมเปลี่ยน
 	function calculateDueDate() {
 		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
 			const d = new Date(documentDate);
@@ -52,18 +62,33 @@
 	function onCustomerChange(selected: any) {
 		selectedCustomerObj = selected;
 		selectedCustomerId = selected ? selected.value : '';
-		selectedJobOrderId = ''; // รีเซ็ต Job Order ทิ้งเมื่อเปลี่ยนลูกค้า
+		selectedJobOrderId = '';
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
 	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
-	$: whtAmount = items.reduce((sum, item) => sum + ((item.line_total || 0) * (item.wht_rate / 100)), 0);
+	$: whtAmount = items.reduce(
+		(sum, item) => sum + (item.line_total || 0) * (item.wht_rate / 100),
+		0
+	);
 	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
 	$: itemsJson = JSON.stringify(items);
 
 	function addItem() {
-		items = [...items, { product_object: null, product_id: null, description: '', quantity: 1, unit_id: null, unit_price: 0, line_total: 0, wht_rate: 0 }];
+		items = [
+			...items,
+			{
+				product_object: null,
+				product_id: null,
+				description: '',
+				quantity: 1,
+				unit_id: null,
+				unit_price: 0,
+				line_total: 0,
+				wht_rate: 0
+			}
+		];
 	}
 
 	function removeItem(index: number) {
@@ -95,29 +120,56 @@
 	}
 
 	let isSaving = false;
+
+	let showAddProductModal = false;
+	let isSavingProduct = false;
+	let toastMessage = '';
+
+	function showToast(msg: string) {
+		toastMessage = msg;
+		setTimeout(() => (toastMessage = ''), 3000);
+	}
 </script>
 
 <div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
 	<h1 class="mb-6 text-2xl font-bold text-gray-800">สร้างเอกสารใหม่ (New Document)</h1>
 
-	<form method="POST" action="?/create" enctype="multipart/form-data" use:enhance={() => { isSaving = true; return async ({ update }) => { await update(); isSaving = false; }; }}>
+	<form
+		method="POST"
+		action="?/create"
+		enctype="multipart/form-data"
+		use:enhance={() => {
+			isSaving = true;
+			return async ({ update }) => {
+				await update();
+				isSaving = false;
+			};
+		}}
+	>
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-				<label for="document_type" class="mb-1 block text-sm font-medium text-gray-700">ประเภทเอกสาร <span class="text-red-500">*</span></label>
-				<select name="document_type" bind:value={documentType} required class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 bg-blue-50 text-blue-800 font-semibold text-lg">
+			<div>
+				<label for="document_type" class="mb-1 block text-sm font-medium text-gray-700"
+					>ประเภทเอกสาร <span class="text-red-500">*</span></label
+				>
+				<select
+					name="document_type"
+					bind:value={documentType}
+					required
+					class="w-full rounded-md border-gray-300 bg-blue-50 text-lg font-semibold text-blue-800 shadow-sm focus:border-blue-500"
+				>
 					<option value="QT">ใบเสนอราคา (Quotation)</option>
 					<option value="BN">ใบวางบิล (Billing Note)</option>
 					<option value="INV">ใบแจ้งหนี้ (Invoice)</option>
 					<option value="RE">ใบเสร็จรับเงิน (Receipt)</option>
 				</select>
 			</div>
-			
+
 			<div>
-				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700">ลูกค้า <span class="text-red-500">*</span></label>
-				<!-- ใช้ Svelte Select สำหรับค้นหาลูกค้า -->
+				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>ลูกค้า <span class="text-red-500">*</span></label
+				>
 				<Select
-					id="customer_select"
-					inputId="customer_id"
+					id="customer_id"
 					items={customerOptions}
 					value={selectedCustomerObj}
 					on:change={(e) => onCustomerChange(e.detail)}
@@ -128,18 +180,35 @@
 					--list="border-radius: 6px; font-size: 0.875rem;"
 					--itemIsActive="background: #e0f2fe;"
 				/>
-				<!-- ซ่อน input ไว้เก็บค่าเพื่อส่งฟอร์ม -->
 				<input type="hidden" name="customer_id" value={selectedCustomerId} required />
 			</div>
 
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:col-span-2">
+			<div class="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
 				<div>
-					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700">วันที่เอกสาร <span class="text-red-500">*</span></label>
-					<input type="date" id="document_date" name="document_date" bind:value={documentDate} on:change={calculateDueDate} required class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500" />
+					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>วันที่เอกสาร <span class="text-red-500">*</span></label
+					>
+					<input
+						type="date"
+						id="document_date"
+						name="document_date"
+						bind:value={documentDate}
+						on:change={calculateDueDate}
+						required
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+					/>
 				</div>
 				<div>
-					<label for="credit_term" class="mb-1 block text-sm font-medium text-gray-700">เครดิตเทอม (วัน)</label>
-					<select id="credit_term" name="credit_term" bind:value={creditTerm} on:change={calculateDueDate} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500">
+					<label for="credit_term" class="mb-1 block text-sm font-medium text-gray-700"
+						>เครดิตเทอม (วัน)</label
+					>
+					<select
+						id="credit_term"
+						name="credit_term"
+						bind:value={creditTerm}
+						on:change={calculateDueDate}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+					>
 						<option value={0}>0 วัน (เงินสด)</option>
 						<option value={30}>30 วัน</option>
 						<option value={45}>45 วัน</option>
@@ -148,14 +217,30 @@
 					</select>
 				</div>
 				<div>
-					<label for="due_date" class="mb-1 block text-sm font-medium text-gray-700">ครบกำหนดชำระ</label>
-					<input type="date" id="due_date" name="due_date" bind:value={dueDate} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500" />
+					<label for="due_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>ครบกำหนดชำระ</label
+					>
+					<input
+						type="date"
+						id="due_date"
+						name="due_date"
+						bind:value={dueDate}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+					/>
 				</div>
 			</div>
 
 			<div>
-				<label for="job_order_id" class="mb-1 block text-sm font-medium text-gray-700">Job Order อ้างอิง</label>
-				<select id="job_order_id" name="job_order_id" bind:value={selectedJobOrderId} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400" disabled={!selectedCustomerId || filteredJobOrders.length === 0}>
+				<label for="job_order_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>Job Order อ้างอิง</label
+				>
+				<select
+					id="job_order_id"
+					name="job_order_id"
+					bind:value={selectedJobOrderId}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+					disabled={!selectedCustomerId || filteredJobOrders.length === 0}
+				>
 					<option value="">-- เลือก Job Order --</option>
 					{#each filteredJobOrders as job}
 						<option value={job.id}>
@@ -164,32 +249,70 @@
 					{/each}
 				</select>
 				{#if selectedCustomerId && filteredJobOrders.length === 0}
-					<p class="text-xs text-red-500 mt-1">ไม่พบ Job Order สำหรับลูกค้ารายนี้</p>
+					<p class="mt-1 text-xs text-red-500">ไม่พบ Job Order สำหรับลูกค้ารายนี้</p>
 				{:else if !selectedCustomerId}
-					<p class="text-xs text-gray-500 mt-1">กรุณาเลือกลูกค้าก่อนเพื่อดู Job Order</p>
+					<p class="mt-1 text-xs text-gray-500">กรุณาเลือกลูกค้าก่อนเพื่อดู Job Order</p>
 				{/if}
 			</div>
 
 			<div>
-				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700">เอกสารอ้างอิงอื่นๆ (PO/Ref)</label>
-				<input type="text" id="reference_doc" name="reference_doc" bind:value={referenceDoc} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500" placeholder="เช่น PO-2026..." />
+				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
+					>เอกสารอ้างอิงอื่นๆ (PO/Ref)</label
+				>
+				<input
+					type="text"
+					id="reference_doc"
+					name="reference_doc"
+					bind:value={referenceDoc}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+					placeholder="เช่น PO-2026..."
+				/>
 			</div>
 
-            <div class="md:col-span-2">
-				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label>
-				<input type="file" id="attachments" name="attachments" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2" />
+			<div class="md:col-span-2">
+				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label
+				>
+				<input
+					type="file"
+					id="attachments"
+					name="attachments"
+					multiple
+					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2"
+				/>
 			</div>
 		</div>
 
-		<!-- ตารางรายการสินค้า เหมือนเดิม -->
-        <div class="mb-6">
+		<div class="mb-6">
 			<h3 class="mb-2 text-lg font-medium text-gray-800">รายการสินค้า</h3>
 			<div class="overflow-x-auto rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-40 px-4 py-2 text-left">สินค้า</th>
-							<th class="px-4 py-2 text-left">รายละเอียด</th>
+							<th class="w-40 px-4 py-2 text-left font-medium">
+								<div class="flex items-center gap-2">
+									สินค้า/บริการ
+									<button
+										type="button"
+										on:click={() => (showAddProductModal = true)}
+										class="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 focus:outline-none"
+										title="เพิ่มสินค้า/บริการใหม่"
+										aria-label="เพิ่มสินค้า"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+											><path
+												fill-rule="evenodd"
+												d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+												clip-rule="evenodd"
+											/></svg
+										>
+									</button>
+								</div>
+							</th>
+							<th class="px-4 py-2 text-left font-bold">รายละเอียด</th>
 							<th class="w-24 px-3 py-2 text-right">จำนวน</th>
 							<th class="w-24 px-3 py-2 text-center">หน่วย</th>
 							<th class="w-28 px-3 py-2 text-right">ราคา/หน่วย</th>
@@ -201,68 +324,343 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-2 py-2">
-									<Select items={productOptions} value={item.product_object} on:change={(e) => onProductChange(index, e.detail)} on:clear={() => onProductChange(index, null)} placeholder="ค้นหา..." container={browser ? document.body : null} --inputStyles="padding: 2px 0; font-size: 0.875rem;" --list="border-radius: 6px; font-size: 0.875rem;" />
+								<td class="w-40 px-2 py-2" style="min-width: 200px; max-width: 250px;">
+									<Select
+										items={productOptions}
+										value={item.product_object}
+										on:change={(e) => onProductChange(index, e.detail)}
+										on:clear={() => onProductChange(index, null)}
+										placeholder="ค้นหา..."
+										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+										container={browser ? document.body : null}
+										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+										--list="border-radius: 6px; font-size: 0.875rem;"
+										--itemIsActive="background: #e0f2fe;"
+										--valueStyles="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+									/>
 								</td>
-								<td class="px-2 py-2"><input type="text" bind:value={item.description} class="w-full rounded-md border-gray-300 text-sm" required /></td>
-								<td class="px-2 py-2"><input type="number" bind:value={item.quantity} on:input={() => updateLineTotal(index)} min="1" class="w-full rounded-md border-gray-300 text-right text-sm" required /></td>
 								<td class="px-2 py-2">
-									<select bind:value={item.unit_id} class="w-full rounded-md border-gray-300 py-1.5 text-sm text-center">
+									<input
+										type="text"
+										bind:value={item.description}
+										title={item.description}
+										class="w-full overflow-hidden rounded-md border-gray-300 text-sm text-ellipsis whitespace-nowrap"
+										required
+									/>
+								</td>
+								<td class="px-2 py-2">
+									<input
+										type="number"
+										bind:value={item.quantity}
+										on:input={() => updateLineTotal(index)}
+										min="1"
+										class="w-full rounded-md border-gray-300 text-right text-sm"
+										required
+									/>
+								</td>
+								<td class="px-2 py-2">
+									<select
+										bind:value={item.unit_id}
+										class="w-full rounded-md border-gray-300 py-1.5 text-center text-sm"
+									>
 										<option value={null}>-</option>
 										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
-								<td class="px-2 py-2"><input type="number" step="0.01" bind:value={item.unit_price} on:input={() => updateLineTotal(index)} class="w-full rounded-md border-gray-300 text-right text-sm" required /></td>
 								<td class="px-2 py-2">
-									<select bind:value={item.wht_rate} class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700">
-										<option value={0}>0%</option><option value={1}>1%</option><option value={2}>2%</option><option value={3}>3%</option><option value={5}>5%</option>
+									<input
+										type="number"
+										step="0.01"
+										bind:value={item.unit_price}
+										on:input={() => updateLineTotal(index)}
+										class="w-full rounded-md border-gray-300 text-right text-sm"
+										required
+									/>
+								</td>
+								<td class="px-2 py-2">
+									<select
+										bind:value={item.wht_rate}
+										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700"
+									>
+										<option value={0}>0%</option>
+										<option value={1}>1%</option>
+										<option value={2}>2%</option>
+										<option value={3}>3%</option>
+										<option value={5}>5%</option>
 									</select>
 								</td>
-								<td class="px-2 py-2 text-right font-bold text-gray-900">{(item.line_total).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+								<td class="px-2 py-2 text-right font-bold text-gray-900">
+									{item.line_total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+								</td>
 								<td class="px-2 py-2 text-center">
-									{#if items.length > 1}<button type="button" on:click={() => removeItem(index)} class="text-red-500">❌</button>{/if}
+									{#if items.length > 1}
+										<button type="button" on:click={() => removeItem(index)} class="text-red-500"
+											>❌</button
+										>
+									{/if}
 								</td>
 							</tr>
 						{/each}
 					</tbody>
 				</table>
 			</div>
-			<button type="button" on:click={addItem} class="mt-2 text-sm font-medium text-blue-600">+ เพิ่มรายการ</button>
+			<button type="button" on:click={addItem} class="mt-2 text-sm font-medium text-blue-600">
+				+ เพิ่มรายการ
+			</button>
 		</div>
 
-		<!-- สรุปยอด -->
-        <div class="mb-6 flex justify-end">
-			<div class="w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3">
-				<div class="flex justify-between text-sm"><span class="text-gray-600">รวมเป็นเงิน</span><span class="font-medium">{subtotal.toFixed(2)}</span></div>
-				<div class="flex justify-between text-sm items-center"><span class="text-gray-600">ส่วนลด</span><input type="number" name="discount_amount" bind:value={discountAmount} min="0" class="w-24 rounded-md border-gray-300 py-1 text-right text-sm" /></div>
-				<div class="flex justify-between border-t pt-2 text-sm"><span class="text-gray-600">หลังหักส่วนลด</span><span class="font-medium">{totalAfterDiscount.toFixed(2)}</span></div>
-				<div class="flex justify-between text-sm items-center mt-2">
-					<span class="text-gray-600">VAT <select name="vat_rate" bind:value={vatRate} class="ml-1 h-7 rounded-md border-gray-300 text-sm"><option value={0}>0%</option><option value={7}>7%</option></select></span>
-					<span class="font-medium text-green-600">+{vatAmount.toFixed(2)}</span>
+		<div class="mb-6 flex justify-end">
+			<div
+				class="w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3"
+			>
+				<div class="flex justify-between text-sm">
+					<span class="text-gray-600">รวมเป็นเงิน</span><span class="font-medium"
+						>{subtotal.toFixed(2)}</span
+					>
 				</div>
-				<div class="flex justify-between border-b pb-2 text-sm text-red-600"><span class="font-medium">หัก ณ ที่จ่าย</span><span class="font-bold">-{whtAmount.toFixed(2)}</span></div>
-				<div class="flex justify-between pt-2 text-lg font-black text-gray-900"><span>ยอดสุทธิ</span><span class="text-blue-700">{grandTotal.toFixed(2)}</span></div>
+				<div class="flex items-center justify-between text-sm">
+					<span class="text-gray-600">ส่วนลด</span><input
+						type="number"
+						name="discount_amount"
+						bind:value={discountAmount}
+						min="0"
+						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm"
+					/>
+				</div>
+				<div class="flex justify-between border-t pt-2 text-sm">
+					<span class="text-gray-600">หลังหักส่วนลด</span><span class="font-medium"
+						>{totalAfterDiscount.toFixed(2)}</span
+					>
+				</div>
+				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">
+						VAT
+						<select
+							name="vat_rate"
+							bind:value={vatRate}
+							class="ml-2 w-20 rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						>
+							<option value={0}>0%</option>
+							<option value={7}>7%</option>
+						</select>
+					</span>
+					<span class="font-medium text-green-600">+{vatAmount.toFixed(2)}</span>
+					<input type="hidden" name="vat_amount" value={vatAmount} />
+				</div>
+				<div class="flex justify-between border-b pb-2 text-sm text-red-600">
+					<span class="font-medium">หัก ณ ที่จ่ายรวม (Total WHT)</span><span class="font-bold"
+						>-{whtAmount.toFixed(2)}</span
+					>
+				</div>
+				<div class="flex justify-between pt-2 text-lg font-black text-gray-900">
+					<span>ยอดสุทธิ</span><span class="text-blue-700">{grandTotal.toFixed(2)}</span>
+				</div>
 			</div>
 		</div>
 
 		<input type="hidden" name="items_json" value={itemsJson} />
 		<input type="hidden" name="subtotal" value={subtotal} />
 		<input type="hidden" name="total_after_discount" value={totalAfterDiscount} />
-        <input type="hidden" name="vat_amount" value={vatAmount} />
-        <input type="hidden" name="wht_amount" value={whtAmount} />
+		<input type="hidden" name="vat_amount" value={vatAmount} />
+		<input type="hidden" name="wht_amount" value={whtAmount} />
 		<input type="hidden" name="total_amount" value={grandTotal} />
 
 		<div class="mb-6">
 			<label for="notes" class="mb-1 block text-sm font-medium">หมายเหตุ</label>
-			<textarea id="notes" name="notes" rows="2" bind:value={notes} class="w-full rounded-md border-gray-300"></textarea>
+			<textarea
+				id="notes"
+				name="notes"
+				rows="2"
+				bind:value={notes}
+				class="w-full rounded-md border-gray-300"
+			></textarea>
 		</div>
 
 		<div class="flex justify-end gap-3">
 			<a href="/sales-documents" class="rounded-md border bg-white px-4 py-2 text-sm">ยกเลิก</a>
-			<button type="submit" disabled={isSaving} class="rounded-md bg-blue-600 px-6 py-2 text-sm text-white">{isSaving ? 'บันทึก...' : 'สร้างเอกสาร'}</button>
+			<button
+				type="submit"
+				disabled={isSaving}
+				class="rounded-md bg-blue-600 px-6 py-2 text-sm text-white"
+				>{isSaving ? 'บันทึก...' : 'สร้างเอกสาร'}</button
+			>
 		</div>
 	</form>
 </div>
+
+{#if toastMessage}
+	<div
+		class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[70] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-xl"
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			class="h-5 w-5"
+			fill="none"
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+			stroke-width="2"
+		>
+			<path
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+			/>
+		</svg>
+		{toastMessage}
+	</div>
+{/if}
+
+{#if showAddProductModal}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
+			<div class="flex items-center justify-between border-b px-5 py-4">
+				<h3 class="font-bold text-gray-800">เพิ่มสินค้า/บริการใหม่</h3>
+				<button
+					type="button"
+					on:click={() => (showAddProductModal = false)}
+					class="text-gray-400 hover:text-gray-600"
+					aria-label="ปิดหน้าต่าง"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						><path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M6 18L18 6M6 6l12 12"
+						/></svg
+					>
+				</button>
+			</div>
+
+			<form
+				method="POST"
+				action="?/createProduct"
+				use:enhance={() => {
+					isSavingProduct = true;
+					return async ({ result, update }) => {
+						isSavingProduct = false;
+						if (result.type === 'success' && result.data?.product) {
+							localProducts = [...localProducts, result.data.product];
+							showAddProductModal = false;
+							showToast('เพิ่มสินค้าลงระบบเรียบร้อยแล้ว');
+						} else if (result.type === 'failure') {
+							alert(result.data?.message || 'เกิดข้อผิดพลาด');
+						}
+						await update({ reset: false });
+					};
+				}}
+				class="p-5"
+			>
+				<div class="space-y-4 text-sm">
+					<div class="grid grid-cols-2 gap-4">
+						<div>
+							<label for="modal_sku" class="mb-1 block font-medium text-gray-700">รหัส (SKU)</label>
+							<input
+								type="text"
+								id="modal_sku"
+								name="sku"
+								class="w-full rounded-md border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+								placeholder="เช่น SRV-001"
+							/>
+						</div>
+						<div>
+							<label for="modal_product_type" class="mb-1 block font-medium text-gray-700"
+								>ประเภท</label
+							>
+							<select
+								id="modal_product_type"
+								name="product_type"
+								class="w-full rounded-md border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+							>
+								<option value="Service">บริการ (Service)</option>
+								<option value="Product">สินค้า (Product)</option>
+							</select>
+						</div>
+					</div>
+
+					<div>
+						<label for="modal_name" class="mb-1 block font-medium text-gray-700"
+							>ชื่อสินค้า/บริการ <span class="text-red-500">*</span></label
+						>
+						<input
+							type="text"
+							id="modal_name"
+							name="name"
+							required
+							class="w-full rounded-md border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+							placeholder="ระบุชื่อ..."
+						/>
+					</div>
+
+					<div class="grid grid-cols-3 gap-4">
+						<div>
+							<label for="modal_unit" class="mb-1 block font-medium text-gray-700">หน่วย</label>
+							<select
+								id="modal_unit"
+								name="unit_id"
+								class="w-full rounded-md border-gray-300 py-2 pr-6 pl-2 focus:border-blue-500 focus:ring-blue-500"
+							>
+								<option value="">- เลือก -</option>
+								{#each units as u}
+									<option value={u.id}>{u.symbol}</option>
+								{/each}
+							</select>
+						</div>
+						<div>
+							<label for="modal_price" class="mb-1 block font-medium text-gray-700">ราคาขาย</label>
+							<input
+								type="number"
+								id="modal_price"
+								name="selling_price"
+								step="0.01"
+								min="0"
+								value="0"
+								class="w-full rounded-md border-gray-300 px-3 py-2 text-right focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div>
+							<label for="modal_wht" class="mb-1 block font-medium text-gray-700"
+								>หัก ณ ที่จ่าย</label
+							>
+							<select
+								id="modal_wht"
+								name="default_wht_rate"
+								class="w-full rounded-md border-gray-300 px-3 py-2 text-center focus:border-blue-500 focus:ring-blue-500"
+							>
+								<option value="0">0%</option>
+								<option value="1">1%</option>
+								<option value="2">2%</option>
+								<option value="3" selected>3%</option>
+								<option value="5">5%</option>
+							</select>
+						</div>
+					</div>
+				</div>
+
+				<div class="mt-6 flex justify-end gap-3 border-t pt-5">
+					<button
+						type="button"
+						on:click={() => (showAddProductModal = false)}
+						class="rounded-md border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+						>ยกเลิก</button
+					>
+					<button
+						type="submit"
+						disabled={isSavingProduct}
+						class="flex items-center rounded-md bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+					>
+						{isSavingProduct ? 'กำลังบันทึก...' : 'บันทึกสินค้าใหม่'}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {

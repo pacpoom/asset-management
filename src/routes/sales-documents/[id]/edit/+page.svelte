@@ -5,7 +5,8 @@
 	import { browser } from '$app/environment';
 
 	export let data: PageData;
-	$: ({ document, existingItems, existingAttachments, customers, products, units, jobOrders } = data);
+	$: ({ document, existingItems, existingAttachments, customers, products, units, jobOrders } =
+		data);
 
 	$: productOptions = products.map((p: any) => ({
 		value: p.id,
@@ -26,35 +27,40 @@
 
 	let documentDate = '';
 	let dueDate = '';
-    let creditTerm: number | null = 0;
-    let selectedJobOrderId: string | number = '';
+	let creditTerm: number | null = 0;
+	let selectedJobOrderId: string | number = '';
 	let items: DocumentItem[] = [];
 	let discountAmount = 0;
 	let vatRate = 7;
 	let selectedCustomerId = data.document?.customer_id ? String(data.document.customer_id) : '';
-    
-    // ไว้แสดงชื่อเอกสาร
-    function getDocTypeName(type: string) {
+
+	function getDocTypeName(type: string) {
 		switch (type) {
-			case 'QT': return 'ใบเสนอราคา';
-			case 'BN': return 'ใบวางบิล';
-			case 'INV': return 'ใบแจ้งหนี้';
-			case 'RE': return 'ใบเสร็จรับเงิน';
-			default: return type;
+			case 'QT':
+				return 'ใบเสนอราคา';
+			case 'BN':
+				return 'ใบวางบิล';
+			case 'INV':
+				return 'ใบแจ้งหนี้';
+			case 'RE':
+				return 'ใบเสร็จรับเงิน';
+			default:
+				return type;
 		}
 	}
 
 	$: if (document) {
 		documentDate = new Date(document.document_date).toISOString().split('T')[0];
 		dueDate = document.due_date ? new Date(document.due_date).toISOString().split('T')[0] : '';
-        creditTerm = document.credit_term !== null ? Number(document.credit_term) : 0;
-        selectedJobOrderId = document.job_order_id || '';
+		creditTerm = document.credit_term !== null ? Number(document.credit_term) : 0;
+		selectedJobOrderId = document.job_order_id || '';
 		discountAmount = parseFloat(document.discount_amount || '0');
 		vatRate = parseFloat(document.vat_rate || '7');
 	}
 
-    // กรอง Job Order ตามลูกค้าที่เลือก
-	$: filteredJobOrders = selectedCustomerId ? jobOrders.filter((jo: any) => jo.customer_id == selectedCustomerId) : [];
+	$: filteredJobOrders = selectedCustomerId
+		? jobOrders.filter((jo: any) => jo.customer_id == selectedCustomerId)
+		: [];
 
 	$: if (existingItems && items.length === 0) {
 		items = existingItems.map((item: any) => {
@@ -138,7 +144,7 @@
 		items = items;
 	}
 
-    // คำนวณวันครบกำหนดชำระเงินเมื่อวันที่หรือเครดิตเทอมเปลี่ยน
+	// คำนวณวันครบกำหนดชำระเงินเมื่อวันที่หรือเครดิตเทอมเปลี่ยน
 	function calculateDueDate() {
 		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
 			const d = new Date(documentDate);
@@ -157,11 +163,12 @@
 <div class="mx-auto mb-10 max-w-7xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
 	<div class="mb-6 flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-800">
-            แก้ไข {getDocTypeName(document?.document_type)}: <span class="text-blue-600">{document?.document_number}</span>
-        </h1>
+			แก้ไข {getDocTypeName(document?.document_type)}:
+			<span class="text-blue-600">{document?.document_number}</span>
+		</h1>
 		<span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
-            สถานะ: {document?.status}
-        </span>
+			สถานะ: {document?.status}
+		</span>
 	</div>
 
 	<form
@@ -177,24 +184,30 @@
 		}}
 	>
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-500">ประเภทเอกสาร (ไม่สามารถเปลี่ยนได้)</label>
+			<div>
+				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-500"
+					>ประเภทเอกสาร (ไม่สามารถเปลี่ยนได้)</label
+				>
 				<input
-                    type="text"
-                    id="document_type_display"
-                    value={getDocTypeName(document?.document_type)}
-                    disabled
-                    class="w-full rounded-md border-gray-300 bg-gray-100 text-gray-500 shadow-sm"
-                />
+					type="text"
+					id="document_type_display"
+					value={getDocTypeName(document?.document_type)}
+					disabled
+					class="w-full rounded-md border-gray-300 bg-gray-100 text-gray-500 shadow-sm"
+				/>
 			</div>
 
 			<div>
-				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700">ลูกค้า <span class="text-red-500">*</span></label>
+				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>ลูกค้า <span class="text-red-500">*</span></label
+				>
 				<select
 					id="customer_id"
 					name="customer_id"
 					bind:value={selectedCustomerId}
-                    on:change={() => { selectedJobOrderId = ''; }}
+					on:change={() => {
+						selectedJobOrderId = '';
+					}}
 					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				>
@@ -205,22 +218,32 @@
 				</select>
 			</div>
 
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:col-span-2">
+			<div class="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
 				<div>
-					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700">วันที่เอกสาร <span class="text-red-500">*</span></label>
+					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>วันที่เอกสาร <span class="text-red-500">*</span></label
+					>
 					<input
 						type="date"
 						id="document_date"
 						name="document_date"
 						bind:value={documentDate}
-                        on:change={calculateDueDate}
+						on:change={calculateDueDate}
 						required
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
 				</div>
-                <div>
-					<label for="credit_term" class="mb-1 block text-sm font-medium text-gray-700">เครดิตเทอม (วัน)</label>
-					<select id="credit_term" name="credit_term" bind:value={creditTerm} on:change={calculateDueDate} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500">
+				<div>
+					<label for="credit_term" class="mb-1 block text-sm font-medium text-gray-700"
+						>เครดิตเทอม (วัน)</label
+					>
+					<select
+						id="credit_term"
+						name="credit_term"
+						bind:value={creditTerm}
+						on:change={calculateDueDate}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+					>
 						<option value={0}>0 วัน (เงินสด)</option>
 						<option value={30}>30 วัน</option>
 						<option value={45}>45 วัน</option>
@@ -229,7 +252,9 @@
 					</select>
 				</div>
 				<div>
-					<label for="due_date" class="mb-1 block text-sm font-medium text-gray-700">ครบกำหนดชำระ</label>
+					<label for="due_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>ครบกำหนดชำระ</label
+					>
 					<input
 						type="date"
 						id="due_date"
@@ -239,10 +264,18 @@
 					/>
 				</div>
 			</div>
-            
-            <div>
-				<label for="job_order_id" class="mb-1 block text-sm font-medium text-gray-700">Job Order อ้างอิง</label>
-				<select id="job_order_id" name="job_order_id" bind:value={selectedJobOrderId} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400" disabled={!selectedCustomerId || filteredJobOrders.length === 0}>
+
+			<div>
+				<label for="job_order_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>Job Order อ้างอิง</label
+				>
+				<select
+					id="job_order_id"
+					name="job_order_id"
+					bind:value={selectedJobOrderId}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+					disabled={!selectedCustomerId || filteredJobOrders.length === 0}
+				>
 					<option value="">-- เลือก Job Order --</option>
 					{#each filteredJobOrders as job}
 						<option value={job.id}>
@@ -251,14 +284,16 @@
 					{/each}
 				</select>
 				{#if selectedCustomerId && filteredJobOrders.length === 0}
-					<p class="text-xs text-red-500 mt-1">ไม่พบ Job Order สำหรับลูกค้ารายนี้</p>
+					<p class="mt-1 text-xs text-red-500">ไม่พบ Job Order สำหรับลูกค้ารายนี้</p>
 				{:else if !selectedCustomerId}
-					<p class="text-xs text-gray-500 mt-1">กรุณาเลือกลูกค้าก่อนเพื่อดู Job Order</p>
+					<p class="mt-1 text-xs text-gray-500">กรุณาเลือกลูกค้าก่อนเพื่อดู Job Order</p>
 				{/if}
 			</div>
 
 			<div>
-				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700">เอกสารอ้างอิงอื่นๆ (PO/Ref)</label>
+				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
+					>เอกสารอ้างอิงอื่นๆ (PO/Ref)</label
+				>
 				<input
 					type="text"
 					id="reference_doc"
@@ -269,14 +304,13 @@
 			</div>
 		</div>
 
-		<!-- ตารางรายการสินค้า -->
 		<div class="mb-6">
 			<h3 class="mb-2 text-lg font-medium text-gray-800">รายการสินค้า</h3>
 			<div class="overflow-x-auto rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-40 px-4 py-3 text-left">สินค้า</th>
+							<th class="w-40 px-4 py-3 text-left font-medium">สินค้า/บริการ</th>
 							<th class="px-4 py-3 text-left font-bold">รายละเอียด</th>
 							<th class="w-24 px-3 py-3 text-right">จำนวน</th>
 							<th class="w-24 px-3 py-3 text-center">หน่วย</th>
@@ -289,33 +323,64 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="px-3 py-2" style="min-width: 200px;">
+								<td class="w-40 px-3 py-2" style="min-width: 200px; max-width: 250px;">
 									<Select
 										items={productOptions}
 										value={item.product_object}
 										on:change={(e) => onProductChange(index, e.detail)}
 										on:clear={() => onProductChange(index, null)}
 										placeholder="ค้นหา..."
+										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 										container={browser ? document.body : null}
+										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+										--list="border-radius: 6px; font-size: 0.875rem;"
+										--itemIsActive="background: #e0f2fe;"
+										--valueStyles="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 									/>
 								</td>
 								<td class="px-3 py-2">
-									<input type="text" bind:value={item.description} class="w-full rounded-md border-gray-300 text-sm" required />
+									<input
+										type="text"
+										bind:value={item.description}
+										class="w-full overflow-hidden rounded-md border-gray-300 text-sm text-ellipsis whitespace-nowrap"
+										required
+										title={item.description}
+									/>
 								</td>
 								<td class="px-3 py-2">
-									<input type="number" bind:value={item.quantity} on:input={() => updateLineTotal(index)} min="1" class="w-full rounded-md border-gray-300 text-right text-sm" required />
+									<input
+										type="number"
+										bind:value={item.quantity}
+										on:input={() => updateLineTotal(index)}
+										min="1"
+										class="w-full rounded-md border-gray-300 text-right text-sm"
+										required
+									/>
 								</td>
 								<td class="px-3 py-2">
-									<select bind:value={item.unit_id} class="w-full rounded-md border-gray-300 py-1.5 pl-2 text-sm focus:border-blue-500">
+									<select
+										bind:value={item.unit_id}
+										class="w-full rounded-md border-gray-300 py-1.5 pl-2 text-sm focus:border-blue-500"
+									>
 										<option value={null}>-</option>
 										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
 								<td class="px-3 py-2">
-									<input type="number" step="0.01" bind:value={item.unit_price} on:input={() => updateLineTotal(index)} class="w-full rounded-md border-gray-300 text-right text-sm" required />
+									<input
+										type="number"
+										step="0.01"
+										bind:value={item.unit_price}
+										on:input={() => updateLineTotal(index)}
+										class="w-full rounded-md border-gray-300 text-right text-sm"
+										required
+									/>
 								</td>
 								<td class="px-3 py-2">
-									<select bind:value={item.wht_rate} class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700">
+									<select
+										bind:value={item.wht_rate}
+										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700"
+									>
 										<option value={0}>0%</option>
 										<option value={1}>1%</option>
 										<option value={2}>2%</option>
@@ -325,12 +390,17 @@
 								</td>
 								<td class="px-3 py-2 text-right">
 									<div class="font-bold text-gray-900">
-										{(item.line_total).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+										{item.line_total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
 									</div>
 								</td>
 								<td class="px-3 py-2 text-center">
 									{#if items.length > 1}
-										<button type="button" on:click={() => removeItem(index)} class="text-red-500 hover:text-red-700" title="ลบรายการ">❌</button>
+										<button
+											type="button"
+											on:click={() => removeItem(index)}
+											class="text-red-500 hover:text-red-700"
+											title="ลบรายการ">❌</button
+										>
 									{/if}
 								</td>
 							</tr>
@@ -338,7 +408,11 @@
 					</tbody>
 				</table>
 			</div>
-			<button type="button" on:click={addItem} class="mt-2 text-sm font-medium text-blue-600 hover:text-blue-800">+ เพิ่มรายการ</button>
+			<button
+				type="button"
+				on:click={addItem}
+				class="mt-2 text-sm font-medium text-blue-600 hover:text-blue-800">+ เพิ่มรายการ</button
+			>
 		</div>
 
 		<div class="mb-6 flex flex-col gap-6 md:flex-row">
@@ -361,39 +435,87 @@
 					{:else}
 						<ul class="space-y-2">
 							{#each existingAttachments as file}
-								<li class="flex items-center justify-between rounded border bg-white p-2 text-sm shadow-sm">
-									<a href={file.url} target="_blank" rel="noopener noreferrer" class="max-w-[200px] truncate text-blue-600 hover:underline">{file.file_original_name}</a>
-									<button type="submit" formaction="?/deleteAttachment" name="attachment_id" value={file.id} class="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50">ลบ</button>
+								<li
+									class="flex items-center justify-between rounded border bg-white p-2 text-sm shadow-sm"
+								>
+									<a
+										href={file.url}
+										target="_blank"
+										rel="noopener noreferrer"
+										class="max-w-[200px] truncate text-blue-600 hover:underline"
+										>{file.file_original_name}</a
+									>
+									<button
+										type="submit"
+										formaction="?/deleteAttachment"
+										name="attachment_id"
+										value={file.id}
+										class="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+										>ลบ</button
+									>
 								</li>
 							{/each}
 						</ul>
 					{/if}
 					<div class="mt-4">
-						<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700">เพิ่มไฟล์แนบใหม่</label>
-						<input type="file" id="attachments" name="attachments" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700" />
+						<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
+							>เพิ่มไฟล์แนบใหม่</label
+						>
+						<input
+							type="file"
+							id="attachments"
+							name="attachments"
+							multiple
+							class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700"
+						/>
 					</div>
 				</div>
 			</div>
 
-			<div class="h-fit w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3">
-				<div class="flex justify-between text-sm"><span class="text-gray-600">รวมเป็นเงิน</span><span class="font-medium">{subtotal.toFixed(2)}</span></div>
+			<div
+				class="h-fit w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3"
+			>
+				<div class="flex justify-between text-sm">
+					<span class="text-gray-600">รวมเป็นเงิน</span><span class="font-medium"
+						>{subtotal.toFixed(2)}</span
+					>
+				</div>
 				<div class="flex items-center justify-between text-sm">
 					<span class="text-gray-600">ส่วนลด</span>
-					<input type="number" name="discount_amount" bind:value={discountAmount} min="0" class="w-24 rounded-md border-gray-300 py-1 text-right text-sm shadow-sm" />
+					<input
+						type="number"
+						name="discount_amount"
+						bind:value={discountAmount}
+						min="0"
+						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm shadow-sm"
+					/>
 				</div>
-				<div class="flex justify-between border-t border-gray-200 pt-2 text-sm"><span class="text-gray-600">หลังหักส่วนลด</span><span class="font-medium">{totalAfterDiscount.toFixed(2)}</span></div>
+				<div class="flex justify-between border-t border-gray-200 pt-2 text-sm">
+					<span class="text-gray-600">หลังหักส่วนลด</span><span class="font-medium"
+						>{totalAfterDiscount.toFixed(2)}</span
+					>
+				</div>
 				<div class="mt-2 flex items-center justify-between text-sm">
 					<span class="text-gray-600">
-						VAT 
-						<select name="vat_rate" bind:value={vatRate} class="ml-1 h-7 rounded-md border-gray-300 text-sm">
-							<option value={0}>0%</option><option value={7}>7%</option>
+						VAT
+						<select
+							name="vat_rate"
+							bind:value={vatRate}
+							class="ml-2 w-20 rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						>
+							<option value={0}>0%</option>
+							<option value={7}>7%</option>
 						</select>
 					</span>
 					<span class="font-medium text-green-600">+{vatAmount.toFixed(2)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
-				<div class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600">
-					<span class="font-medium">หัก ณ ที่จ่ายรวม</span><span class="font-bold">-{whtAmount.toFixed(2)}</span>
+				<div
+					class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600"
+				>
+					<span class="font-medium">หัก ณ ที่จ่ายรวม (Total WHT)</span><span class="font-bold"
+						>-{whtAmount.toFixed(2)}</span
+					>
 					<input type="hidden" name="wht_amount" value={whtAmount} />
 					<input type="hidden" name="wht_rate" value={0} />
 				</div>
@@ -409,9 +531,21 @@
 		<input type="hidden" name="total_amount" value={grandTotal} />
 
 		<div class="flex justify-end gap-3 border-t border-gray-200 pt-6">
-			<a href="/sales-documents/{document?.id}" class="rounded-md border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">ยกเลิก</a>
-			<button type="submit" disabled={isSaving} class="flex items-center rounded-md bg-blue-600 px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50">
-				{#if isSaving} กำลังบันทึก... {:else} บันทึกการแก้ไข {/if}
+			<a
+				href="/sales-documents/{document?.id}"
+				class="rounded-md border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+				>ยกเลิก</a
+			>
+			<button
+				type="submit"
+				disabled={isSaving}
+				class="flex items-center rounded-md bg-blue-600 px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+			>
+				{#if isSaving}
+					กำลังบันทึก...
+				{:else}
+					บันทึกการแก้ไข
+				{/if}
 			</button>
 		</div>
 	</form>
@@ -423,7 +557,9 @@
 		border: 1px solid #d1d5db !important;
 		border-radius: 0.375rem !important;
 	}
-	:global(div.svelte-select .input) { font-size: 0.875rem; }
+	:global(div.svelte-select .input) {
+		font-size: 0.875rem;
+	}
 	:global(div.svelte-select .list) {
 		border-radius: 0.375rem;
 		border-color: #d1d5db;
