@@ -189,11 +189,12 @@
 										</svg>
 									</a>
 
-									<button
-										type="button"
-										onclick={() => window.open(`/freight-forwarder/job-orders/${job.id}`, '_blank')}
+									<a
+										href="/freight-forwarder/job-orders/generate-pdf?id={job.id}"
+										target="_blank"
+										rel="noopener noreferrer"
 										class="text-gray-400 transition-colors hover:text-green-600"
-										title="พิมพ์"
+										title="พิมพ์ PDF"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -207,7 +208,7 @@
 												clip-rule="evenodd"
 											/>
 										</svg>
-									</button>
+									</a>
 
 									<a
 										href="/freight-forwarder/job-orders/{job.id}/edit"
