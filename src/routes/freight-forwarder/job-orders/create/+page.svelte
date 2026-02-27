@@ -39,12 +39,14 @@
 	];
 	let selectedJobType: any = jobTypeOptions[0];
 
+	$: padding = data.paddingLength || 4;
+	$: nextSeqNum = data.nextSequence || 1;
 	$: parsedDate = jobDate ? new Date(jobDate) : new Date();
 	$: yy = String(parsedDate.getFullYear()).slice(-2);
 	$: mm = String(parsedDate.getMonth() + 1).padStart(2, '0');
-	$: jobCodeVal = selectedJobType?.value || '___';
-	$: nextIdPadded = String(data.nextId || 1).padStart(4, '0');
-	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${nextIdPadded}`;
+	$: jobCodeVal = selectedJobType?.value || 'SI';
+	$: nextNumPadded = String(nextSeqNum).padStart(padding, '0');
+	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${nextNumPadded}`;
 
 	let serviceTypeOptions = [
 		{ value: 'Import', label: 'Import' },

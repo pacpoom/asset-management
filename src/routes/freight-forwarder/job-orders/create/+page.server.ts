@@ -1,6 +1,34 @@
 import { fail, redirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
 
+async function generateJobNumber(jobType: string, dateStr: string, connection: any) {
+	const date = new Date(dateStr);
+	const year = date.getFullYear();
+	const month = date.getMonth() + 1;
+	const yy = String(year).slice(-2);
+	const mm = String(month).padStart(2, '0');
+
+	const updateQuery = `
+        INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
+        VALUES ('JOB', 'JOB-', ?, ?, 1, 4)
+        ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+    `;
+	await connection.execute(updateQuery, [year, month]);
+
+	const selectQuery = `
+        SELECT last_number, padding_length 
+        FROM document_sequences 
+        WHERE document_type = 'JOB' AND year = ? AND month = ?
+    `;
+	const [rows] = await connection.execute(selectQuery, [year, month]);
+
+	const lastNumber = rows[0].last_number;
+	const padding = rows[0].padding_length;
+
+	const runningNumber = String(lastNumber).padStart(padding, '0');
+	return `${jobType}${yy}${mm}${runningNumber}`;
+}
+
 export const load = async () => {
 	const [customers] = await pool.query(
 		'SELECT id, name, company_name, address FROM customers ORDER BY name ASC'
@@ -12,14 +40,22 @@ export const load = async () => {
 		'SELECT id, code, name FROM liners WHERE status = "Active" ORDER BY name ASC'
 	);
 
-	const [idResult] = await pool.query('SELECT MAX(id) as maxId FROM job_orders');
-	const nextId = ((idResult as any)[0]?.maxId || 0) + 1;
+	const date = new Date();
+	const [seqRows] = await pool.query(
+		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' AND year = ? AND month = ?`,
+		[date.getFullYear(), date.getMonth() + 1]
+	);
+	const nextSequence =
+		seqRows && (seqRows as any).length > 0 ? (seqRows as any)[0].last_number + 1 : 1;
+	const paddingLength =
+		seqRows && (seqRows as any).length > 0 ? (seqRows as any)[0].padding_length : 4;
 
 	return {
 		customers: JSON.parse(JSON.stringify(customers)),
 		contracts: JSON.parse(JSON.stringify(contracts)),
 		liners: JSON.parse(JSON.stringify(liners)),
-		nextId
+		nextSequence,
+		paddingLength
 	};
 };
 
@@ -27,17 +63,20 @@ export const actions = {
 	create: async ({ request, locals }) => {
 		const formData = await request.formData();
 
+		const job_type = formData.get('job_type')?.toString() || 'SI';
+		const job_date = formData.get('job_date')?.toString() || new Date().toISOString().split('T')[0];
+
 		const data = {
 			customer_id: formData.get('customer_id'),
 			contract_id: formData.get('contract_id') || null,
-			job_type: formData.get('job_type'),
+			job_type: job_type,
 			service_type: formData.get('service_type'),
 			location: formData.get('location'),
 			bl_number: formData.get('bl_number'),
-			liner_name: formData.get('liner_name'),
 			invoice_no: formData.get('invoice_no'),
+			liner_name: formData.get('liner_name'),
 			job_status: 'Pending',
-			job_date: formData.get('job_date'),
+			job_date: job_date,
 			expire_date: formData.get('expire_date') || null,
 			remarks: formData.get('remarks'),
 			amount: formData.get('amount') || 0,
@@ -45,34 +84,48 @@ export const actions = {
 			created_by: locals.user?.id || 1
 		};
 
+		const connection = await pool.getConnection();
 		try {
+			await connection.beginTransaction();
+
+			const job_number = await generateJobNumber(job_type, job_date, connection);
+
 			const sql = `
                 INSERT INTO job_orders (
                     customer_id, contract_id, job_type, service_type, location, bl_number, invoice_no, 
                     liner_name, job_status, job_date, expire_date, remarks, 
-                    amount, currency, created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                    amount, currency, job_number, created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
-			const [result] = await pool.execute(sql, Object.values(data));
-			const insertId = (result as any).insertId;
+			const insertValues = [
+				data.customer_id,
+				data.contract_id,
+				data.job_type,
+				data.service_type,
+				data.location,
+				data.bl_number,
+				data.invoice_no,
+				data.liner_name,
+				data.job_status,
+				data.job_date,
+				data.expire_date,
+				data.remarks,
+				data.amount,
+				data.currency,
+				job_number,
+				data.created_by
+			];
 
-			const jobType = data.job_type as string;
-			const d = new Date(data.job_date as string);
-			const yy = String(d.getFullYear()).slice(-2);
-			const mm = String(d.getMonth() + 1).padStart(2, '0');
-			const paddedId = String(insertId).padStart(4, '0');
-			const jobNumber = `${jobType}${yy}${mm}${paddedId}`;
-
-			await pool.execute('UPDATE job_orders SET job_number = ? WHERE id = ?', [
-				jobNumber,
-				insertId
-			]);
-
+			await connection.execute(sql, insertValues);
+			await connection.commit();
 			return { success: true };
 		} catch (err: any) {
+			await connection.rollback();
 			console.error(err);
 			return fail(500, { message: 'บันทึกข้อมูลไม่สำเร็จ' });
+		} finally {
+			connection.release();
 		}
 	}
 };

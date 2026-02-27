@@ -34,7 +34,7 @@
 
 	function confirmDelete(job: any) {
 		jobToDeleteId = job.id;
-		jobToDeleteName = formatJobNumber(job.job_type, job.job_date, job.id);
+		jobToDeleteName = job.job_number || formatJobNumber(job.job_type, job.job_date, job.id);
 		showDeleteModal = true;
 	}
 
@@ -106,7 +106,7 @@
 									href="/freight-forwarder/job-orders/{job.id}"
 									class="font-bold text-blue-600 hover:underline"
 								>
-									{formatJobNumber(job.job_type, job.job_date, job.id)}
+									{job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)}
 								</a>
 								<div class="text-xs text-gray-500">
 									{new Date(job.job_date).toLocaleDateString('th-TH')}

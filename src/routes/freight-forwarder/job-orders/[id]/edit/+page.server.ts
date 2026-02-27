@@ -34,32 +34,37 @@ export const actions = {
 		const job_type = formData.get('job_type') as string;
 		const job_date = formData.get('job_date') as string;
 
-		const d = new Date(job_date);
-		const yy = String(d.getFullYear()).slice(-2);
-		const mm = String(d.getMonth() + 1).padStart(2, '0');
-		const paddedId = String(id).padStart(4, '0');
-		const job_number = `${job_type}${yy}${mm}${paddedId}`;
-
-		const data = [
-			formData.get('customer_id'),
-			formData.get('contract_id') || null,
-			job_type,
-			formData.get('service_type'),
-			formData.get('location'),
-			formData.get('bl_number'),
-			formData.get('invoice_no'),
-			formData.get('liner_name'),
-			formData.get('job_status'),
-			job_date,
-			formData.get('expire_date') || null,
-			formData.get('remarks'),
-			formData.get('amount') || 0,
-			formData.get('currency'),
-			job_number,
-			id
-		];
-
 		try {
+			const [existing] = await pool.query('SELECT job_number FROM job_orders WHERE id = ?', [id]);
+			const oldJobNumber = (existing as any)[0]?.job_number || '';
+
+			const runningNum =
+				oldJobNumber.length >= 4 ? oldJobNumber.slice(-4) : String(id).padStart(4, '0');
+
+			const d = new Date(job_date);
+			const yy = String(d.getFullYear()).slice(-2);
+			const mm = String(d.getMonth() + 1).padStart(2, '0');
+			const new_job_number = `${job_type}${yy}${mm}${runningNum}`;
+
+			const data = [
+				formData.get('customer_id'),
+				formData.get('contract_id') || null,
+				job_type,
+				formData.get('service_type'),
+				formData.get('location'),
+				formData.get('bl_number'),
+				formData.get('invoice_no'),
+				formData.get('liner_name'),
+				formData.get('job_status'),
+				job_date,
+				formData.get('expire_date') || null,
+				formData.get('remarks'),
+				formData.get('amount') || 0,
+				formData.get('currency'),
+				new_job_number,
+				id
+			];
+
 			const sql = `
                 UPDATE job_orders SET
                     customer_id = ?, contract_id = ?, job_type = ?, service_type = ?, location = ?, bl_number = ?, invoice_no = ?, 

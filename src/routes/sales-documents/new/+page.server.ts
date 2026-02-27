@@ -79,20 +79,37 @@ export const load: PageServerLoad = async () => {
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
-		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+		const [units] = await pool.query('SELECT id, symbol, name FROM units ORDER BY symbol ASC');
 		const [jobOrders] = await pool.query(
 			'SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC'
+		);
+
+		const [categories] = await pool.query('SELECT id, name FROM product_categories ORDER BY name');
+		const [vendors] = await pool.query('SELECT id, name FROM vendors ORDER BY name');
+		const [accounts] = await pool.query(
+			'SELECT id, account_code, account_name FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code'
 		);
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
-			jobOrders: JSON.parse(JSON.stringify(jobOrders))
+			jobOrders: JSON.parse(JSON.stringify(jobOrders)),
+			categories: JSON.parse(JSON.stringify(categories)),
+			vendors: JSON.parse(JSON.stringify(vendors)),
+			accounts: JSON.parse(JSON.stringify(accounts))
 		};
 	} catch (error: any) {
 		console.error('Load data error:', error);
-		return { customers: [], products: [], units: [], jobOrders: [] };
+		return {
+			customers: [],
+			products: [],
+			units: [],
+			jobOrders: [],
+			categories: [],
+			vendors: [],
+			accounts: []
+		};
 	}
 };
 
@@ -230,25 +247,102 @@ export const actions: Actions = {
 	createProduct: async ({ request }) => {
 		const formData = await request.formData();
 
-		const sku = formData.get('sku')?.toString() || '';
-		const name = formData.get('name')?.toString() || '';
-		const product_type = formData.get('product_type')?.toString() || 'Service';
-		const unit_id = formData.get('unit_id') ? Number(formData.get('unit_id')) : null;
-		const selling_price = parseFloat(formData.get('selling_price')?.toString() || '0');
-		const default_wht_rate = parseFloat(formData.get('default_wht_rate')?.toString() || '0');
+		const name = formData.get('name')?.toString()?.trim() || '';
+		const description = formData.get('description')?.toString()?.trim() || null;
+		const product_type = formData.get('product_type')?.toString() || 'Stock';
 
-		if (!name) return fail(400, { message: 'กรุณากรอกชื่อสินค้า/บริการ' });
+		const parseNum = (val: any) =>
+			val && val !== 'null' && val !== 'undefined' ? Number(val) : null;
+
+		const category_id = parseNum(formData.get('category_id'));
+		const unit_id = parseNum(formData.get('unit_id'));
+		const purchase_unit_id = parseNum(formData.get('purchase_unit_id'));
+		const sales_unit_id = parseNum(formData.get('sales_unit_id'));
+		const preferred_vendor_id = parseNum(formData.get('preferred_vendor_id'));
+		const preferred_customer_id = parseNum(formData.get('preferred_customer_id'));
+		const asset_account_id = parseNum(formData.get('asset_account_id'));
+		const income_account_id = parseNum(formData.get('income_account_id'));
+		const expense_account_id = parseNum(formData.get('expense_account_id'));
+
+		const purchase_cost = parseNum(formData.get('purchase_cost')) || 0;
+		const selling_price = parseNum(formData.get('selling_price')) || 0;
+		const quantity_on_hand =
+			product_type === 'Stock' ? parseNum(formData.get('quantity_on_hand')) || 0 : 0;
+		const reorder_level = parseNum(formData.get('reorder_level')) || 0;
+		const default_wht_rate = parseNum(formData.get('default_wht_rate')) || 0;
+
+		const is_active =
+			formData.get('is_active') === 'on' || formData.get('is_active') === 'true' ? 1 : 0;
+
+		if (!name || !unit_id) return fail(400, { message: 'กรุณากรอกชื่อสินค้าและเลือก Base Unit' });
+
+		const prefix = 'PROD';
+		const today = new Date();
+		const year = today.getFullYear().toString().slice(-2);
+		const month = (today.getMonth() + 1).toString().padStart(2, '0');
+		const datePrefix = `${prefix}${year}${month}`;
+
+		const [skuRows]: any[] = await pool.execute(
+			`SELECT sku FROM products WHERE sku LIKE ? ORDER BY sku DESC LIMIT 1`,
+			[`${datePrefix}-%`]
+		);
+		let nextNumber = 1;
+		if (skuRows.length > 0) {
+			const lastNumberStr = skuRows[0].sku.split('-')[1];
+			if (lastNumberStr && !isNaN(parseInt(lastNumberStr, 10))) {
+				nextNumber = parseInt(lastNumberStr, 10) + 1;
+			}
+		}
+		const newSku = `${datePrefix}-${nextNumber.toString().padStart(5, '0')}`;
+
+		let imageUrl: string | null = null;
+		const imageFile = formData.get('image') as File | null;
+		if (imageFile && imageFile.size > 0) {
+			try {
+				const PROD_UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'products');
+				await fs.mkdir(PROD_UPLOADS_DIR, { recursive: true });
+				const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+				const sanitizedOriginalName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+				const filename = `${uniqueSuffix}-${sanitizedOriginalName}`;
+				const uploadPath = path.join(PROD_UPLOADS_DIR, filename);
+				await fs.writeFile(uploadPath, Buffer.from(await imageFile.arrayBuffer()));
+				imageUrl = `/uploads/products/${filename}`;
+			} catch (err) {
+				console.error('Image upload failed:', err);
+			}
+		}
 
 		try {
-			const [result] = await pool.execute<any>(
-				`INSERT INTO products 
-				(sku, name, product_type, unit_id, selling_price, default_wht_rate, is_active, created_at, updated_at) 
-				VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
-				[sku, name, product_type, unit_id, selling_price, default_wht_rate]
-			);
+			const sql = `INSERT INTO products (
+                sku, name, description, product_type, category_id, unit_id, purchase_unit_id, sales_unit_id,
+                preferred_vendor_id, preferred_customer_id, purchase_cost, selling_price, quantity_on_hand, reorder_level, 
+                is_active, image_url, asset_account_id, income_account_id, expense_account_id, default_wht_rate, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`;
+
+			const [result] = await pool.execute<any>(sql, [
+				newSku,
+				name,
+				description,
+				product_type,
+				category_id,
+				unit_id,
+				purchase_unit_id,
+				sales_unit_id,
+				preferred_vendor_id,
+				preferred_customer_id,
+				purchase_cost,
+				selling_price,
+				quantity_on_hand,
+				reorder_level,
+				is_active,
+				imageUrl,
+				asset_account_id,
+				income_account_id,
+				expense_account_id,
+				default_wht_rate
+			]);
 
 			const newProductId = result.insertId;
-
 			const [newProduct] = await pool.query<any[]>(
 				'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE id = ?',
 				[newProductId]

@@ -7,6 +7,10 @@
 	export let data;
 	let job = data.job;
 
+	let currentRunningNumber = job.job_number
+		? job.job_number.slice(-4)
+		: String(job.id).padStart(4, '0');
+
 	let customerOptions = data.customers.map((c: any) => ({
 		value: c.id,
 		label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
@@ -54,8 +58,9 @@
 	$: yy = String(parsedDate.getFullYear()).slice(-2);
 	$: mm = String(parsedDate.getMonth() + 1).padStart(2, '0');
 	$: jobCodeVal = selectedJobType?.value || job.job_type || '___';
-	$: paddedId = String(job.id).padStart(4, '0');
-	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${paddedId}`;
+
+	// โชว์พรีวิวโดยใช้เลขรันที่จองไว้แล้ว
+	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${currentRunningNumber}`;
 </script>
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">

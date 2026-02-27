@@ -125,9 +125,69 @@
 	let isSavingProduct = false;
 	let toastMessage = '';
 
+	let newProduct = {
+		sku: '',
+		name: '',
+		description: '',
+		product_type: 'Stock',
+		category_id: null as any,
+		unit_id: null as any,
+		purchase_unit_id: null as any,
+		sales_unit_id: null as any,
+		purchase_cost: 0,
+		selling_price: 0,
+		quantity_on_hand: 0,
+		reorder_level: 0,
+		preferred_vendor_id: null as any,
+		preferred_customer_id: null as any,
+		asset_account_id: null as any,
+		income_account_id: null as any,
+		expense_account_id: null as any,
+		is_active: true,
+		default_wht_rate: 3
+	};
+
+	let imagePreviewUrl: string | null = null;
+
+	function onFileSelected(event: Event) {
+		const input = event.target as HTMLInputElement;
+		if (input.files && input.files.length > 0) {
+			const file = input.files[0];
+			imagePreviewUrl = URL.createObjectURL(file);
+		} else {
+			imagePreviewUrl = null;
+		}
+	}
+
 	function showToast(msg: string) {
 		toastMessage = msg;
 		setTimeout(() => (toastMessage = ''), 3000);
+	}
+
+	function closeProductModal() {
+		showAddProductModal = false;
+		imagePreviewUrl = null;
+		newProduct = {
+			sku: '',
+			name: '',
+			description: '',
+			product_type: 'Service',
+			category_id: null,
+			unit_id: null,
+			purchase_unit_id: null,
+			sales_unit_id: null,
+			preferred_vendor_id: null,
+			preferred_customer_id: null,
+			purchase_cost: 0,
+			selling_price: 0,
+			quantity_on_hand: 0,
+			reorder_level: 0,
+			asset_account_id: null,
+			income_account_id: null,
+			expense_account_id: null,
+			is_active: true,
+			default_wht_rate: 3
+		};
 	}
 </script>
 
@@ -511,42 +571,35 @@
 {/if}
 
 {#if showAddProductModal}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-		<div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
-			<div class="flex items-center justify-between border-b px-5 py-4">
-				<h3 class="font-bold text-gray-800">เพิ่มสินค้า/บริการใหม่</h3>
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity"
+	>
+		<div class="fixed inset-0" on:click={closeProductModal} role="presentation"></div>
+		<div
+			class="relative flex max-h-[85vh] w-full max-w-7xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
+		>
+			<div
+				class="flex flex-shrink-0 items-center justify-between rounded-t-xl border-b bg-gray-50 px-6 py-4"
+			>
+				<h2 class="text-lg font-bold text-gray-900">เพิ่มสินค้า/บริการใหม่</h2>
 				<button
 					type="button"
-					on:click={() => (showAddProductModal = false)}
-					class="text-gray-400 hover:text-gray-600"
-					aria-label="ปิดหน้าต่าง"
+					on:click={closeProductModal}
+					class="text-xl font-bold text-gray-400 hover:text-gray-600">&times;</button
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						><path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M6 18L18 6M6 6l12 12"
-						/></svg
-					>
-				</button>
 			</div>
 
 			<form
 				method="POST"
 				action="?/createProduct"
+				enctype="multipart/form-data"
 				use:enhance={() => {
 					isSavingProduct = true;
 					return async ({ result, update }) => {
 						isSavingProduct = false;
 						if (result.type === 'success' && result.data?.product) {
 							localProducts = [...localProducts, result.data.product];
-							showAddProductModal = false;
+							closeProductModal();
 							showToast('เพิ่มสินค้าลงระบบเรียบร้อยแล้ว');
 						} else if (result.type === 'failure') {
 							alert(result.data?.message || 'เกิดข้อผิดพลาด');
@@ -554,107 +607,383 @@
 						await update({ reset: false });
 					};
 				}}
-				class="p-5"
+				class="flex-1 overflow-y-auto"
 			>
-				<div class="space-y-4 text-sm">
-					<div class="grid grid-cols-2 gap-4">
-						<div>
-							<label for="modal_sku" class="mb-1 block font-medium text-gray-700">รหัส (SKU)</label>
-							<input
-								type="text"
-								id="modal_sku"
-								name="sku"
-								class="w-full rounded-md border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
-								placeholder="เช่น SRV-001"
-							/>
+				<div class="grid grid-cols-1 gap-6 p-6 lg:grid-cols-3">
+					<div class="space-y-4 lg:col-span-2">
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label for="sku" class="mb-1 block text-sm font-medium text-gray-700">SKU</label>
+								<input
+									type="text"
+									id="sku"
+									value="(Auto-generated)"
+									class="w-full rounded-md border-gray-300 bg-gray-100 text-sm text-gray-500"
+									readonly
+								/>
+								<p class="mt-1 text-xs text-gray-500">ระบบจะสร้าง SKU ให้โดยอัตโนมัติ</p>
+							</div>
+							<div>
+								<label for="name" class="mb-1 block text-sm font-medium text-gray-700">Name *</label
+								>
+								<input
+									type="text"
+									name="name"
+									id="name"
+									required
+									bind:value={newProduct.name}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
 						</div>
+
 						<div>
-							<label for="modal_product_type" class="mb-1 block font-medium text-gray-700"
-								>ประเภท</label
+							<label for="description" class="mb-1 block text-sm font-medium text-gray-700"
+								>Description</label
 							>
-							<select
-								id="modal_product_type"
-								name="product_type"
-								class="w-full rounded-md border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+							<textarea
+								name="description"
+								id="description"
+								rows="3"
+								bind:value={newProduct.description}
+								class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+							></textarea>
+						</div>
+
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label for="product_type" class="mb-1 block text-sm font-medium text-gray-700"
+									>Product Type *</label
+								>
+								<select
+									name="product_type"
+									id="product_type"
+									required
+									bind:value={newProduct.product_type}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value="Stock">Stock (สินค้าคงคลัง)</option>
+									<option value="NonStock">Non-Stock (สินค้าไม่นับสต็อก)</option>
+									<option value="Service">Service (บริการ)</option>
+								</select>
+							</div>
+							<div>
+								<label for="category_id" class="mb-1 block text-sm font-medium text-gray-700"
+									>Category</label
+								>
+								<select
+									name="category_id"
+									id="category_id"
+									bind:value={newProduct.category_id}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value={null}>-- None --</option>
+									{#each data.categories || [] as category}
+										<option value={category.id}>{category.name}</option>
+									{/each}
+								</select>
+							</div>
+						</div>
+
+						<fieldset class="rounded-md border border-gray-200 p-4">
+							<legend class="px-1 text-sm font-medium text-gray-700">Units</legend>
+							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+								<div>
+									<label for="unit_id" class="mb-1 block text-xs font-medium text-gray-700"
+										>Base Unit * <span class="text-gray-500">(Required)</span></label
+									>
+									<select
+										name="unit_id"
+										id="unit_id"
+										required
+										bind:value={newProduct.unit_id}
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value={null} disabled>Select Unit</option>
+										{#each data.units as unit}
+											<option value={unit.id}>{unit.name} ({unit.symbol})</option>
+										{/each}
+									</select>
+								</div>
+								<div>
+									<label for="purchase_unit_id" class="mb-1 block text-xs font-medium text-gray-700"
+										>Purchase Unit</label
+									>
+									<select
+										name="purchase_unit_id"
+										id="purchase_unit_id"
+										bind:value={newProduct.purchase_unit_id}
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value={null}>-- Same as Base --</option>
+										{#each data.units as unit}
+											<option value={unit.id}>{unit.name} ({unit.symbol})</option>
+										{/each}
+									</select>
+								</div>
+								<div>
+									<label for="sales_unit_id" class="mb-1 block text-xs font-medium text-gray-700"
+										>Sales Unit</label
+									>
+									<select
+										name="sales_unit_id"
+										id="sales_unit_id"
+										bind:value={newProduct.sales_unit_id}
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value={null}>-- Same as Base --</option>
+										{#each data.units as unit}
+											<option value={unit.id}>{unit.name} ({unit.symbol})</option>
+										{/each}
+									</select>
+								</div>
+							</div>
+						</fieldset>
+
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+							<div>
+								<label for="purchase_cost" class="mb-1 block text-sm font-medium text-gray-700"
+									>Purchase Cost</label
+								>
+								<input
+									type="number"
+									step="any"
+									name="purchase_cost"
+									id="purchase_cost"
+									bind:value={newProduct.purchase_cost}
+									placeholder="0.00"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
+							<div>
+								<label for="selling_price" class="mb-1 block text-sm font-medium text-gray-700"
+									>Selling Price</label
+								>
+								<input
+									type="number"
+									step="any"
+									name="selling_price"
+									id="selling_price"
+									bind:value={newProduct.selling_price}
+									placeholder="0.00"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
+							<div>
+								<label for="default_wht_rate" class="mb-1 block text-sm font-medium text-gray-700"
+									>WHT Rate (%) <span class="text-xs text-blue-500">(For Sales)</span></label
+								>
+								<select
+									id="default_wht_rate"
+									name="default_wht_rate"
+									bind:value={newProduct.default_wht_rate}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value="0">0%</option>
+									<option value="1">1%</option>
+									<option value="2">2%</option>
+									<option value="3">3%</option>
+									<option value="5">5%</option>
+								</select>
+							</div>
+						</div>
+
+						{#if newProduct.product_type === 'Stock'}
+							<div class="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
+								<div>
+									<label for="quantity_on_hand" class="mb-1 block text-sm font-medium text-gray-700"
+										>Quantity on Hand</label
+									>
+									<input
+										type="number"
+										step="any"
+										name="quantity_on_hand"
+										id="quantity_on_hand"
+										bind:value={newProduct.quantity_on_hand}
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									/>
+									<p class="mt-1 text-xs text-gray-500">In Base Unit.</p>
+								</div>
+								<div>
+									<label for="reorder_level" class="mb-1 block text-sm font-medium text-gray-700"
+										>Reorder Level</label
+									>
+									<input
+										type="number"
+										step="any"
+										name="reorder_level"
+										id="reorder_level"
+										bind:value={newProduct.reorder_level}
+										placeholder="Optional"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									/>
+									<p class="mt-1 text-xs text-gray-500">In Base Unit.</p>
+								</div>
+							</div>
+						{/if}
+
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label
+									for="preferred_vendor_id"
+									class="mb-1 block text-sm font-medium text-gray-700">Preferred Vendor</label
+								>
+								<select
+									name="preferred_vendor_id"
+									id="preferred_vendor_id"
+									bind:value={newProduct.preferred_vendor_id}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value={null}>-- None --</option>
+									{#each data.vendors || [] as vendor}
+										<option value={vendor.id}>{vendor.name}</option>
+									{/each}
+								</select>
+							</div>
+							<div>
+								<label
+									for="preferred_customer_id"
+									class="mb-1 block text-sm font-medium text-gray-700">Preferred Customer</label
+								>
+								<select
+									name="preferred_customer_id"
+									id="preferred_customer_id"
+									bind:value={newProduct.preferred_customer_id}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value={null}>-- None --</option>
+									{#each data.customers as customer}
+										<option value={customer.id}>{customer.name}</option>
+									{/each}
+								</select>
+							</div>
+						</div>
+
+						<fieldset class="rounded-md border border-gray-200 p-4">
+							<legend class="px-1 text-sm font-medium text-gray-700">Accounting Links</legend>
+							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+								<div>
+									<label for="asset_account_id" class="mb-1 block text-xs font-medium text-gray-700"
+										>Asset Account <span class="text-gray-500">(Stock)</span></label
+									>
+									<select
+										name="asset_account_id"
+										id="asset_account_id"
+										bind:value={newProduct.asset_account_id}
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value={null}>-- None --</option>
+										{#each data.accounts || [] as acc}
+											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
+										{/each}
+									</select>
+								</div>
+								<div>
+									<label
+										for="income_account_id"
+										class="mb-1 block text-xs font-medium text-gray-700"
+										>Income Account <span class="text-gray-500">(Sales)</span></label
+									>
+									<select
+										name="income_account_id"
+										id="income_account_id"
+										bind:value={newProduct.income_account_id}
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value={null}>-- None --</option>
+										{#each data.accounts || [] as acc}
+											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
+										{/each}
+									</select>
+								</div>
+								<div>
+									<label
+										for="expense_account_id"
+										class="mb-1 block text-xs font-medium text-gray-700"
+										>Expense/COGS Acct <span class="text-gray-500">(Purchase)</span></label
+									>
+									<select
+										name="expense_account_id"
+										id="expense_account_id"
+										bind:value={newProduct.expense_account_id}
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value={null}>-- None --</option>
+										{#each data.accounts || [] as acc}
+											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
+										{/each}
+									</select>
+								</div>
+							</div>
+						</fieldset>
+
+						<div class="flex items-center">
+							<input
+								type="checkbox"
+								name="is_active"
+								id="is_active_modal"
+								bind:checked={newProduct.is_active}
+								class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
+							<label for="is_active_modal" class="ml-2 block text-sm text-gray-900"
+								>Active (can be sold/purchased)</label
 							>
-								<option value="Service">บริการ (Service)</option>
-								<option value="Product">สินค้า (Product)</option>
-							</select>
 						</div>
 					</div>
 
-					<div>
-						<label for="modal_name" class="mb-1 block font-medium text-gray-700"
-							>ชื่อสินค้า/บริการ <span class="text-red-500">*</span></label
+					<div class="space-y-2 lg:col-span-1">
+						<label for="image" class="block text-sm font-medium text-gray-700">Product Image</label>
+						<div
+							class="flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border bg-gray-50"
 						>
+							{#if imagePreviewUrl}
+								<img
+									src={imagePreviewUrl}
+									alt="Product preview"
+									class="h-full w-full object-contain p-2"
+								/>
+							{:else}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									class="h-16 w-16 text-gray-300"
+									><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle
+										cx="9"
+										cy="9"
+										r="2"
+									/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg
+								>
+							{/if}
+						</div>
 						<input
-							type="text"
-							id="modal_name"
-							name="name"
-							required
-							class="w-full rounded-md border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
-							placeholder="ระบุชื่อ..."
+							type="file"
+							name="image"
+							id="image"
+							accept="image/png, image/jpeg, image/webp"
+							on:change={onFileSelected}
+							class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 						/>
-					</div>
-
-					<div class="grid grid-cols-3 gap-4">
-						<div>
-							<label for="modal_unit" class="mb-1 block font-medium text-gray-700">หน่วย</label>
-							<select
-								id="modal_unit"
-								name="unit_id"
-								class="w-full rounded-md border-gray-300 py-2 pr-6 pl-2 focus:border-blue-500 focus:ring-blue-500"
-							>
-								<option value="">- เลือก -</option>
-								{#each units as u}
-									<option value={u.id}>{u.symbol}</option>
-								{/each}
-							</select>
-						</div>
-						<div>
-							<label for="modal_price" class="mb-1 block font-medium text-gray-700">ราคาขาย</label>
-							<input
-								type="number"
-								id="modal_price"
-								name="selling_price"
-								step="0.01"
-								min="0"
-								value="0"
-								class="w-full rounded-md border-gray-300 px-3 py-2 text-right focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label for="modal_wht" class="mb-1 block font-medium text-gray-700"
-								>หัก ณ ที่จ่าย</label
-							>
-							<select
-								id="modal_wht"
-								name="default_wht_rate"
-								class="w-full rounded-md border-gray-300 px-3 py-2 text-center focus:border-blue-500 focus:ring-blue-500"
-							>
-								<option value="0">0%</option>
-								<option value="1">1%</option>
-								<option value="2">2%</option>
-								<option value="3" selected>3%</option>
-								<option value="5">5%</option>
-							</select>
-						</div>
 					</div>
 				</div>
 
-				<div class="mt-6 flex justify-end gap-3 border-t pt-5">
+				<div
+					class="sticky bottom-0 flex flex-shrink-0 justify-end gap-3 rounded-b-xl border-t bg-gray-50 p-4"
+				>
 					<button
 						type="button"
-						on:click={() => (showAddProductModal = false)}
-						class="rounded-md border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
-						>ยกเลิก</button
+						on:click={closeProductModal}
+						class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
+						>Cancel</button
 					>
 					<button
 						type="submit"
 						disabled={isSavingProduct}
-						class="flex items-center rounded-md bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
 					>
-						{isSavingProduct ? 'กำลังบันทึก...' : 'บันทึกสินค้าใหม่'}
+						{isSavingProduct ? 'Saving...' : 'Save Product'}
 					</button>
 				</div>
 			</form>
