@@ -81,7 +81,7 @@ export const load: PageServerLoad = async () => {
 		);
 		const [units] = await pool.query('SELECT id, symbol, name FROM units ORDER BY symbol ASC');
 		const [jobOrders] = await pool.query(
-			'SELECT id, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC'
+			'SELECT id, job_number, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC'
 		);
 
 		const [categories] = await pool.query('SELECT id, name FROM product_categories ORDER BY name');

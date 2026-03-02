@@ -7,7 +7,6 @@ export const load: PageServerLoad = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		//ดึงข้อมูลใบแจ้งหนี้
 		const [rows] = await pool.query<any[]>(
 			`
             SELECT i.*, 
@@ -36,7 +35,6 @@ export const load: PageServerLoad = async ({ params }) => {
 			[id]
 		);
 
-		//ดึงไฟล์แนบ
 		const [attachments] = await pool.query<any[]>(
 			`
             SELECT * FROM invoice_attachments WHERE invoice_id = ?
@@ -49,7 +47,6 @@ export const load: PageServerLoad = async ({ params }) => {
 			url: `/uploads/invoices/${f.file_system_name}`
 		}));
 
-		//ดึงข้อมูลบริษัท
 		const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
 
 		return {
@@ -66,7 +63,6 @@ export const load: PageServerLoad = async ({ params }) => {
 	}
 };
 
-//เปลี่ยนสถานะ
 export const actions: Actions = {
 	updateStatus: async ({ request, params }) => {
 		const id = parseInt(params.id);

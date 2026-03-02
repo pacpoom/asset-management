@@ -279,7 +279,9 @@
 					<option value="">-- เลือก Job Order --</option>
 					{#each filteredJobOrders as job}
 						<option value={job.id}>
-							{job.job_type} | BL: {job.bl_number !== '-' ? job.bl_number : 'N/A'} (ID: {job.id})
+							{job.job_number} | BL: {job.bl_number !== '-' && job.bl_number
+								? job.bl_number
+								: 'N/A'}
 						</option>
 					{/each}
 				</select>

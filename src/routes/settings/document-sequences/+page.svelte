@@ -6,12 +6,10 @@
 	export let form: ActionData;
 	$: ({ sequences } = data);
 
-	// ตัวแปรสำหรับ Modal จัดการฟอร์ม
 	let isModalOpen = false;
 	let isSaving = false;
 	let modalMode: 'create' | 'edit' = 'create';
 
-	// ตัวแปรเก็บข้อมูล Form
 	let formData = {
 		id: '',
 		document_type: 'INV',
@@ -22,7 +20,6 @@
 		padding_length: 4
 	};
 
-	// ตัวแปรสำหรับ Modal ลบ
 	let isDeleteModalOpen = false;
 	let itemToDelete: any = null;
 	let isDeleting = false;
@@ -44,6 +41,8 @@
 	function openEditModal(item: any) {
 		modalMode = 'edit';
 		formData = { ...item };
+		formData.year = new Date().getFullYear();
+		formData.month = new Date().getMonth() + 1;
 		isModalOpen = true;
 	}
 
@@ -95,7 +94,6 @@
 		}
 	}
 
-	// อัปเดต Prefix อัตโนมัติเวลาเปลี่ยน Document Type (เฉพาะตอนสร้างใหม่)
 	function handleDocTypeChange() {
 		if (modalMode === 'create') {
 			formData.prefix = formData.document_type + '-';
@@ -150,6 +148,9 @@
 						{#each sequences as seq}
 							{@const nextNumStr = String(seq.last_number + 1).padStart(seq.padding_length, '0')}
 							{@const monthStr = String(seq.month).padStart(2, '0')}
+							{@const currentYY = String(new Date().getFullYear()).slice(-2)}
+							{@const currentMM = String(new Date().getMonth() + 1).padStart(2, '0')}
+
 							<tr class="transition-colors hover:bg-gray-50">
 								<td class="px-4 py-3">
 									<span
@@ -160,13 +161,13 @@
 										{getDocTypeName(seq.document_type)} ({seq.document_type})
 									</span>
 								</td>
-								<td class="px-4 py-3 text-center font-medium text-gray-700"
-									>{seq.year} / {monthStr}</td
-								>
+								<td class="px-4 py-3 text-center font-medium text-gray-700">
+									{new Date().getFullYear()} / {String(new Date().getMonth() + 1).padStart(2, '0')}
+								</td>
 								<td class="px-4 py-3 text-center">
 									<span class="rounded bg-gray-50 px-2 py-1 font-mono text-gray-600">
 										{#if seq.document_type === 'JOB'}
-											[SI,SE,AI,AF,SP]
+											[รหัสงาน]
 										{:else}
 											{seq.prefix}
 										{/if}
@@ -178,9 +179,9 @@
 								>
 								<td class="px-4 py-3 text-center font-mono text-gray-500">
 									{#if seq.document_type === 'JOB'}
-										[SI,SE,AI,AF,SP]{String(seq.year).slice(-2)}{monthStr}{nextNumStr}
+										[รหัสงาน]{currentYY}{currentMM}{nextNumStr}
 									{:else}
-										{seq.prefix}{seq.year}{monthStr}-{nextNumStr}
+										{seq.prefix}{new Date().getFullYear()}{currentMM}-{nextNumStr}
 									{/if}
 								</td>
 								<td class="px-4 py-3 text-center">
@@ -196,13 +197,11 @@
 												viewBox="0 0 20 20"
 												fill="currentColor"
 												class="h-5 w-5"
-											>
-												<path
+												><path
 													d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
-												/>
-											</svg>
+												/></svg
+											>
 										</button>
-
 										<button
 											type="button"
 											on:click={() => openDeleteModal(seq)}
@@ -214,13 +213,12 @@
 												viewBox="0 0 20 20"
 												fill="currentColor"
 												class="h-5 w-5"
-											>
-												<path
+												><path
 													fill-rule="evenodd"
 													d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
 													clip-rule="evenodd"
-												/>
-											</svg>
+												/></svg
+											>
 										</button>
 									</div>
 								</td>
@@ -233,7 +231,6 @@
 	</div>
 </div>
 
-<!-- Modal สำหรับเพิ่ม/แก้ไข -->
 {#if isModalOpen}
 	<div
 		class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-gray-900 p-4 transition-opacity"
@@ -348,7 +345,7 @@
 							<input
 								id="prefix"
 								type="text"
-								value="[เปลี่ยนตาม SI,SE,AI,AF,SP อัตโนมัติ]"
+								value="[เปลี่ยนตามรหัส SI, SE ฯลฯ อัตโนมัติ]"
 								disabled
 								class="w-full rounded-md border-gray-300 bg-gray-100 font-mono text-gray-500 shadow-sm"
 							/>
@@ -403,10 +400,9 @@
 						ตัวอย่างเอกสารใบถัดไป: <br />
 						<strong class="font-mono text-lg text-gray-800">
 							{#if formData.document_type === 'JOB'}
-								[SI,SE,AI,AE,SP]{String(formData.year).slice(-2)}{String(formData.month).padStart(
-									2,
-									'0'
-								)}{String(Number(formData.last_number) + 1).padStart(
+								{@const curYY = String(new Date().getFullYear()).slice(-2)}
+								{@const curMM = String(new Date().getMonth() + 1).padStart(2, '0')}
+								[รหัสงาน]{curYY}{curMM}{String(Number(formData.last_number) + 1).padStart(
 									Number(formData.padding_length),
 									'0'
 								)}

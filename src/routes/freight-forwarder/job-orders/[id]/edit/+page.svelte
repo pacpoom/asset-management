@@ -35,6 +35,43 @@
 				.map((c: any) => ({ value: c.id, label: `${c.contract_number} (${c.title})` }))
 		: [];
 
+	let partnerType = job.vendor_id ? 'vendor' : 'customer';
+	let vendorOptions = (data.vendors || []).map((v: any) => ({
+		value: v.id,
+		label: v.company_name ? `${v.company_name} (${v.name})` : v.name,
+		address: v.address
+	}));
+	let allVendorContracts = data.vendorContracts || [];
+
+	// ดึงค่าเดิมของ Vendor มาโชว์
+	let selectedVendor = vendorOptions.find((v: any) => v.value == job.vendor_id) || null;
+
+	let initialVendorContract = allVendorContracts.find((c: any) => c.id == job.vendor_contract_id);
+	let selectedVendorContract = initialVendorContract
+		? {
+				value: initialVendorContract.id,
+				label: `${initialVendorContract.contract_number} (${initialVendorContract.title})`,
+				amount: initialVendorContract.contract_value
+			}
+		: null;
+
+	$: filteredVendorContracts = selectedVendor
+		? allVendorContracts
+				.filter((c: any) => c.vendor_id == selectedVendor.value)
+				.map((c: any) => ({
+					value: c.id,
+					label: `${c.contract_number} (${c.title})`,
+					amount: c.contract_value
+				}))
+		: [];
+
+	function handleVendorContractChange(e: CustomEvent) {
+		const detail = e.detail;
+		if (detail && detail.amount !== undefined) {
+			jobAmount = detail.amount;
+		}
+	}
+
 	let jobTypeOptions = [
 		{ value: 'SI', label: 'SI (Sea Import)' },
 		{ value: 'SE', label: 'SE (Sea Export)' },
@@ -59,8 +96,32 @@
 	$: mm = String(parsedDate.getMonth() + 1).padStart(2, '0');
 	$: jobCodeVal = selectedJobType?.value || job.job_type || '___';
 
-	// โชว์พรีวิวโดยใช้เลขรันที่จองไว้แล้ว
 	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${currentRunningNumber}`;
+
+	$: activeCurrencies =
+		data?.currencies && data.currencies.length > 0
+			? data.currencies
+			: [{ code: 'THB' }, { code: 'USD' }];
+
+	let selectedCurrency = job.currency || 'THB';
+	let jobAmount: number | string = job.amount || '';
+
+	let salesDocOptions = (data.salesDocs || []).map((doc: any) => ({
+		value: doc.document_number,
+		label: doc.document_number,
+		amount: doc.total_amount
+	}));
+
+	let selectedSalesDoc = salesDocOptions.find((opt: any) => opt.value === job.invoice_no) || null;
+
+	let invoiceFilterText = selectedSalesDoc ? '' : job.invoice_no || '';
+
+	function handleInvoiceChange(e: CustomEvent) {
+		const detail = e.detail;
+		if (detail && detail.amount !== undefined) {
+			jobAmount = detail.amount;
+		}
+	}
 </script>
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
@@ -108,12 +169,16 @@
 		<form
 			method="POST"
 			action="?/update"
+			enctype="multipart/form-data"
 			use:enhance={() => {
 				isSaving = true;
-				return async ({ update, result }) => {
+				return async ({ update, result, action }) => {
 					await update();
 					isSaving = false;
-					if (result.type === 'success') goto('/freight-forwarder/job-orders');
+
+					if (result.type === 'success' && action.search === '?/update') {
+						goto('/freight-forwarder/job-orders');
+					}
 				};
 			}}
 		>
@@ -121,51 +186,113 @@
 				<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-2">
 					<div class="space-y-5">
 						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
-							Customer Information
+							Partner Information
 						</h2>
+
 						<div>
 							<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-								Customer <span class="text-red-500">*</span>
+								ประเภท (Type) <span class="text-red-500">*</span>
 							</div>
-							<Select
-								items={customerOptions}
-								bind:value={selectedCustomer}
-								placeholder="ค้นหาลูกค้า..."
-								container={browser ? document.body : null}
-								class="svelte-select-custom"
-							/>
-							<input
-								type="hidden"
-								name="customer_id"
-								value={selectedCustomer?.value || job.customer_id}
-								required
-							/>
+							<select
+								name="partner_type"
+								bind:value={partnerType}
+								class="w-full rounded-md border border-gray-300 bg-white p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+							>
+								<option value="customer">ลูกค้า (Customer)</option>
+								<option value="vendor">ผู้จำหน่าย (Vendor)</option>
+							</select>
 						</div>
 
-						{#if selectedCustomer}
-							<div
-								class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
-							>
-								<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
-								<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
+						{#if partnerType === 'customer'}
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									Customer <span class="text-red-500">*</span>
+								</div>
+								<Select
+									items={customerOptions}
+									bind:value={selectedCustomer}
+									placeholder="ค้นหาลูกค้า..."
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input
+									type="hidden"
+									name="customer_id"
+									value={selectedCustomer?.value || ''}
+									required={partnerType === 'customer'}
+								/>
+							</div>
+
+							{#if selectedCustomer}
+								<div
+									class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
+								>
+									<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
+									<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
+								</div>
+							{/if}
+
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">Contract</div>
+								<Select
+									items={filteredContracts}
+									bind:value={selectedContract}
+									placeholder={selectedCustomer ? 'เลือกสัญญา (Optional)' : '-'}
+									disabled={!selectedCustomer}
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input type="hidden" name="contract_id" value={selectedContract?.value || ''} />
 							</div>
 						{/if}
 
-						<div>
-							<div class="mb-1.5 block text-sm font-semibold text-gray-700">Contract</div>
-							<Select
-								items={filteredContracts}
-								bind:value={selectedContract}
-								placeholder={selectedCustomer ? 'เลือกสัญญา (Optional)' : '-'}
-								disabled={!selectedCustomer}
-								container={browser ? document.body : null}
-							/>
-							<input
-								type="hidden"
-								name="contract_id"
-								value={selectedContract?.value || job.contract_id || ''}
-							/>
-						</div>
+						{#if partnerType === 'vendor'}
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									Vendor <span class="text-red-500">*</span>
+								</div>
+								<Select
+									items={vendorOptions}
+									bind:value={selectedVendor}
+									placeholder="ค้นหาผู้จำหน่าย..."
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input
+									type="hidden"
+									name="vendor_id"
+									value={selectedVendor?.value || ''}
+									required={partnerType === 'vendor'}
+								/>
+							</div>
+
+							{#if selectedVendor}
+								<div
+									class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
+								>
+									<p class="font-bold text-gray-800">{selectedVendor.label}</p>
+									<p class="mt-1 text-xs">{selectedVendor.address || '-'}</p>
+								</div>
+							{/if}
+
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">Vendor Contract</div>
+								<Select
+									items={filteredVendorContracts}
+									bind:value={selectedVendorContract}
+									on:change={handleVendorContractChange}
+									placeholder={selectedVendor ? 'เลือกสัญญา (Optional)' : '-'}
+									disabled={!selectedVendor}
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input
+									type="hidden"
+									name="vendor_contract_id"
+									value={selectedVendorContract?.value || ''}
+								/>
+							</div>
+						{/if}
 					</div>
 
 					<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50/50 p-5">
@@ -318,40 +445,102 @@
 							/>
 						</div>
 						<div>
-							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>Customer Invoice</label
-							>
-							<input
-								id="invoice_no"
-								type="text"
-								name="invoice_no"
-								value={job.invoice_no || ''}
-								class="w-full rounded-md border-gray-300 p-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								Customer Invoice
+							</div>
+							<Select
+								items={salesDocOptions}
+								bind:value={selectedSalesDoc}
+								bind:filterText={invoiceFilterText}
+								on:change={handleInvoiceChange}
+								placeholder="ค้นหาเลขเอกสาร..."
+								container={browser ? document.body : null}
+								class="svelte-select-custom"
 							/>
+							<input
+								type="hidden"
+								name="invoice_no"
+								value={selectedSalesDoc?.value || invoiceFilterText || ''}
+							/>
+						</div>
+
+						<div class="col-span-1 mt-4 border-t border-gray-100 pt-6 md:col-span-2">
+							<label for="attachments" class="mb-3 block text-sm font-bold text-gray-700">
+								เอกสารแนบ (Attachments)
+							</label>
+
+							{#if data.existingAttachments && data.existingAttachments.length > 0}
+								<ul class="mb-4 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
+									{#each data.existingAttachments as file}
+										<li
+											class="flex items-center justify-between rounded border bg-white p-2 text-sm shadow-sm"
+										>
+											<a
+												href={file.url}
+												target="_blank"
+												rel="noopener noreferrer"
+												class="max-w-[250px] truncate text-blue-600 hover:underline sm:max-w-xs"
+											>
+												{file.file_original_name}
+											</a>
+											<button
+												type="submit"
+												formaction="?/deleteAttachment"
+												name="attachment_id"
+												value={file.id}
+												class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50 hover:text-red-700"
+											>
+												ลบ
+											</button>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+
+							<div
+								class="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 transition-colors hover:bg-gray-100"
+							>
+								<input
+									type="file"
+									name="attachments"
+									id="attachments"
+									multiple
+									class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-200"
+								/>
+								<p class="mt-2 text-xs text-gray-500">
+									* สามารถอัปโหลดไฟล์เพิ่มเติมได้ (เช่น B/L, Commercial Invoice)
+								</p>
+							</div>
 						</div>
 					</div>
 				</div>
 
 				<div class="flex items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6">
 					<div class="text-sm font-bold text-gray-600">Initial Amount:</div>
-					<div class="flex rounded-md shadow-sm">
+
+					<div
+						class="flex rounded-md border border-gray-300 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+					>
 						<select
 							name="currency"
 							aria-label="Currency"
-							value={job.currency}
-							class="rounded-l-md border-gray-300 bg-white px-3 py-2 font-bold focus:border-blue-500 focus:ring-blue-500"
+							bind:value={selectedCurrency}
+							class="w-24 border-0 bg-transparent px-3 py-2 font-bold text-gray-900 focus:ring-0"
 						>
-							<option value="THB">THB</option>
-							<option value="USD">USD</option>
-							<option value="EUR">EUR</option>
+							{#each activeCurrencies as curr}
+								<option value={curr.code} class="text-gray-900">{curr.code}</option>
+							{/each}
 						</select>
+
+						<div class="w-px bg-gray-300"></div>
+
 						<input
 							type="number"
 							step="0.01"
 							name="amount"
 							aria-label="Amount"
-							value={job.amount}
-							class="w-40 rounded-r-md border-l-0 border-gray-300 px-3 py-2 text-right text-lg font-bold focus:border-blue-500 focus:ring-blue-500"
+							bind:value={jobAmount}
+							class="w-40 border-0 bg-transparent px-3 py-2 text-right text-lg font-bold text-blue-700 outline-none focus:ring-0"
 						/>
 					</div>
 				</div>

@@ -1,5 +1,31 @@
 import { fail, redirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
+import fs from 'fs/promises';
+import path from 'path';
+import mime from 'mime-types';
+
+const UPLOAD_DIR = path.resolve('uploads', 'job_orders');
+
+async function saveFile(file: File) {
+	if (!file || file.size === 0) return null;
+	try {
+		await fs.mkdir(UPLOAD_DIR, { recursive: true });
+		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+		const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+		const systemName = `${uniqueSuffix}-${sanitizedOriginalName}`;
+		const uploadPath = path.join(UPLOAD_DIR, systemName);
+		await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
+		return {
+			systemName,
+			originalName: file.name,
+			mimeType: mime.lookup(file.name) || file.type || 'application/octet-stream',
+			size: file.size
+		};
+	} catch (e) {
+		console.error('Save file error:', e);
+		return null;
+	}
+}
 
 async function generateJobNumber(jobType: string, dateStr: string, connection: any) {
 	const date = new Date(dateStr);
@@ -8,22 +34,29 @@ async function generateJobNumber(jobType: string, dateStr: string, connection: a
 	const yy = String(year).slice(-2);
 	const mm = String(month).padStart(2, '0');
 
-	const updateQuery = `
-        INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
-        VALUES ('JOB', 'JOB-', ?, ?, 1, 4)
-        ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-    `;
-	await connection.execute(updateQuery, [year, month]);
+	const selectQuery = `SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' LIMIT 1`;
+	const [rows] = await connection.execute(selectQuery);
 
-	const selectQuery = `
-        SELECT last_number, padding_length 
-        FROM document_sequences 
-        WHERE document_type = 'JOB' AND year = ? AND month = ?
-    `;
-	const [rows] = await connection.execute(selectQuery, [year, month]);
+	let lastNumber = 0;
+	let padding = 4;
 
-	const lastNumber = rows[0].last_number;
-	const padding = rows[0].padding_length;
+	if ((rows as any[]).length > 0) {
+		await connection.execute(
+			`UPDATE document_sequences 
+             SET last_number = last_number + 1, year = ?, month = ? 
+             WHERE document_type = 'JOB'`,
+			[year, month]
+		);
+		lastNumber = (rows as any[])[0].last_number + 1;
+		padding = (rows as any[])[0].padding_length;
+	} else {
+		await connection.execute(
+			`INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length) 
+             VALUES ('JOB', '[SI,SE,AI,AF,SP]', ?, ?, 1, 4)`,
+			[year, month]
+		);
+		lastNumber = 1;
+	}
 
 	const runningNumber = String(lastNumber).padStart(padding, '0');
 	return `${jobType}${yy}${mm}${runningNumber}`;
@@ -40,10 +73,23 @@ export const load = async () => {
 		'SELECT id, code, name FROM liners WHERE status = "Active" ORDER BY name ASC'
 	);
 
+	const [currencies] = await pool.query(
+		'SELECT code, name, symbol FROM currencies WHERE is_active = 1 ORDER BY code ASC'
+	);
+	const [salesDocs] = await pool.query(
+		'SELECT document_number, total_amount FROM sales_documents WHERE status != "Cancelled" ORDER BY id DESC'
+	);
+
+	const [vendors] = await pool.query(
+		'SELECT id, name, company_name, address FROM vendors ORDER BY name ASC'
+	);
+	const [vendorContracts] = await pool.query(
+		'SELECT id, contract_number, title, vendor_id, contract_value FROM vendor_contracts WHERE status = "Active"'
+	);
+
 	const date = new Date();
 	const [seqRows] = await pool.query(
-		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' AND year = ? AND month = ?`,
-		[date.getFullYear(), date.getMonth() + 1]
+		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' LIMIT 1`
 	);
 	const nextSequence =
 		seqRows && (seqRows as any).length > 0 ? (seqRows as any)[0].last_number + 1 : 1;
@@ -54,6 +100,10 @@ export const load = async () => {
 		customers: JSON.parse(JSON.stringify(customers)),
 		contracts: JSON.parse(JSON.stringify(contracts)),
 		liners: JSON.parse(JSON.stringify(liners)),
+		currencies: JSON.parse(JSON.stringify(currencies)),
+		salesDocs: JSON.parse(JSON.stringify(salesDocs)),
+		vendors: JSON.parse(JSON.stringify(vendors)),
+		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
 		nextSequence,
 		paddingLength
 	};
@@ -66,9 +116,14 @@ export const actions = {
 		const job_type = formData.get('job_type')?.toString() || 'SI';
 		const job_date = formData.get('job_date')?.toString() || new Date().toISOString().split('T')[0];
 
+		const partner_type = formData.get('partner_type')?.toString() || 'customer';
+
 		const data = {
-			customer_id: formData.get('customer_id'),
-			contract_id: formData.get('contract_id') || null,
+			customer_id: partner_type === 'customer' ? formData.get('customer_id') || null : null,
+			contract_id: partner_type === 'customer' ? formData.get('contract_id') || null : null,
+			vendor_id: partner_type === 'vendor' ? formData.get('vendor_id') || null : null,
+			vendor_contract_id:
+				partner_type === 'vendor' ? formData.get('vendor_contract_id') || null : null,
 			job_type: job_type,
 			service_type: formData.get('service_type'),
 			location: formData.get('location'),
@@ -85,6 +140,8 @@ export const actions = {
 		};
 
 		const connection = await pool.getConnection();
+		let newJobId = null;
+
 		try {
 			await connection.beginTransaction();
 
@@ -92,15 +149,18 @@ export const actions = {
 
 			const sql = `
                 INSERT INTO job_orders (
-                    customer_id, contract_id, job_type, service_type, location, bl_number, invoice_no, 
+                    customer_id, contract_id, vendor_id, vendor_contract_id, 
+                    job_type, service_type, location, bl_number, invoice_no, 
                     liner_name, job_status, job_date, expire_date, remarks, 
                     amount, currency, job_number, created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
 				data.customer_id,
 				data.contract_id,
+				data.vendor_id,
+				data.vendor_contract_id,
 				data.job_type,
 				data.service_type,
 				data.location,
@@ -117,15 +177,40 @@ export const actions = {
 				data.created_by
 			];
 
-			await connection.execute(sql, insertValues);
+			const [result] = await connection.execute(sql, insertValues);
+			newJobId = (result as any).insertId;
+
+			const files = formData.getAll('attachments') as File[];
+			for (const file of files) {
+				const savedFile = await saveFile(file);
+				if (savedFile) {
+					await connection.execute(
+						`INSERT INTO job_order_attachments 
+                        (job_order_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+						[
+							newJobId,
+							savedFile.originalName,
+							savedFile.systemName,
+							savedFile.mimeType,
+							savedFile.size,
+							locals.user?.id || null
+						]
+					);
+				}
+			}
+
 			await connection.commit();
-			return { success: true };
 		} catch (err: any) {
 			await connection.rollback();
-			console.error(err);
+			console.error('Create Job Order Error:', err);
 			return fail(500, { message: 'บันทึกข้อมูลไม่สำเร็จ' });
 		} finally {
 			connection.release();
+		}
+
+		if (newJobId) {
+			throw redirect(303, `/freight-forwarder/job-orders/${newJobId}`);
 		}
 	}
 };

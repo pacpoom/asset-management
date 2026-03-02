@@ -1,23 +1,77 @@
 <script lang="ts">
-	export let data;
-	$: job = data.job;
+	import { enhance } from '$app/forms';
+	import { tick } from 'svelte';
+	import type { ActionData, PageData } from './$types';
+
+	interface Company {
+		name: string;
+		logo_path: string | null;
+		address_line_1: string | null;
+		address_line_2: string | null;
+		city: string | null;
+		state_province: string | null;
+		postal_code: string | null;
+		country: string | null;
+		phone: string | null;
+		email: string | null;
+		website: string | null;
+		tax_id: string | null;
+	}
+
+	type JobOrder = PageData['job'];
+	type Attachment = PageData['attachments'][0];
+
+	const { data, form } = $props<{ data: PageData; form: ActionData }>();
+
+	let job = $state<JobOrder>(data.job);
+	let attachments = $state<Attachment[]>(data.attachments || []);
+	let companyData = $state<Company | null>(data.company || null);
+
+	let isSaving = $state(false);
+	let updateStatusForm: HTMLFormElement;
+	let statusToUpdate = $state('');
+
+	$effect(() => {
+		job = data.job;
+		attachments = data.attachments || [];
+		companyData = data.company || null;
+	});
+
+	const formatCurrency = (amount: number | null | undefined) => {
+		if (amount === null || amount === undefined) return '-';
+		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+	};
+
+	const formatDate = (dateStr: string | null | undefined) => {
+		if (!dateStr) return '-';
+		return new Date(dateStr).toLocaleDateString('th-TH', {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric'
+		});
+	};
 
 	function getStatusClass(status: string) {
-		switch (status) {
-			case 'Pending':
-				return 'bg-blue-100 text-blue-800 border-blue-200';
-			case 'In Progress':
-				return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-			case 'Completed':
-				return 'bg-green-100 text-green-800 border-green-200';
-			case 'Cancelled':
-				return 'bg-red-100 text-red-800 border-red-200';
-			default:
-				return 'bg-gray-100 text-gray-800 border-gray-200';
-		}
+		const statusMap: Record<string, string> = {
+			Pending: 'bg-blue-100 text-blue-800',
+			'In Progress': 'bg-yellow-100 text-yellow-800',
+			Completed: 'bg-green-100 text-green-800',
+			Cancelled: 'bg-red-100 text-red-800'
+		};
+		return statusMap[status] || 'bg-gray-100 text-gray-800';
+	}
+
+	function getFileIcon(fileName: string): string {
+		const ext = fileName?.split('.').pop()?.toLowerCase() || '';
+		if (['pdf'].includes(ext)) return '📄';
+		if (['doc', 'docx'].includes(ext)) return '📝';
+		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
+		return '📎';
 	}
 
 	function formatJobNumber(type: string, dateStr: string, id: number) {
+		if (job.job_number) return job.job_number;
 		if (!type || !dateStr || !id) return `JOB-${id}`;
 		const d = new Date(dateStr);
 		const yy = String(d.getFullYear()).slice(-2);
@@ -25,221 +79,320 @@
 		const paddedId = String(id).padStart(4, '0');
 		return `${type}${yy}${mm}${paddedId}`;
 	}
+
+	async function updateStatus(e: Event) {
+		const newStatus = (e.currentTarget as HTMLSelectElement).value;
+		if (!newStatus) return;
+		statusToUpdate = newStatus;
+		isSaving = true;
+		await tick();
+		if (updateStatusForm) {
+			updateStatusForm.requestSubmit();
+		}
+	}
+
+	// สถานะที่มีให้เลือก (เผื่อว่าใน PageData ไม่ได้ส่ง availableStatuses มา)
+	const availableStatuses = data.availableStatuses || [
+		'Pending',
+		'In Progress',
+		'Completed',
+		'Cancelled'
+	];
 </script>
 
-<div class="min-h-screen bg-gray-100 p-6 pb-20">
-	<div class="mx-auto mb-6 flex max-w-4xl items-center justify-between">
-		<div class="flex items-center gap-4">
-			<a
-				href="/freight-forwarder/job-orders"
-				title="ย้อนกลับ"
-				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
+<svelte:head>
+	<title>ใบสั่งงาน {formatJobNumber(job.job_type, job.job_date, job.id)}</title>
+</svelte:head>
+
+<form
+	method="POST"
+	action="?/updateStatus"
+	use:enhance={() => {
+		return async ({ update }) => {
+			await update();
+			isSaving = false;
+		};
+	}}
+	class="hidden"
+	bind:this={updateStatusForm}
+>
+	<input type="hidden" name="status" bind:value={statusToUpdate} />
+</form>
+
+<div
+	class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center"
+>
+	<div class="flex items-center">
+		<a
+			href="/freight-forwarder/job-orders"
+			class="mr-3 text-gray-500 hover:text-gray-800"
+			title="Back to list"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="24"
+				height="24"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="h-6 w-6"><path d="m15 18-6-6 6-6"></path></svg
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="2"
-					stroke="currentColor"
-					class="h-5 w-5"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-					/></svg
+		</a>
+		<div>
+			<h1 class="text-2xl font-bold text-gray-800">
+				ใบสั่งงาน #{formatJobNumber(job.job_type, job.job_date, job.id)}
+			</h1>
+			<p class="mt-1 text-sm text-gray-500">
+				Customer: <span class="font-medium text-gray-700"
+					>{job.company_name || job.customer_name || '-'}</span
 				>
-			</a>
-			<div>
-				<h1 class="text-2xl font-bold text-gray-800">
-					Job Order: {formatJobNumber(job.job_type, job.job_date, job.id)}
-				</h1>
-				<p class="text-sm text-gray-500">รายละเอียดใบงานขนส่ง</p>
-			</div>
-		</div>
-		<div class="flex gap-3">
-			<a
-				href="/freight-forwarder/job-orders/{job.id}/edit"
-				class="flex items-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="1.5"
-					stroke="currentColor"
-					class="h-4 w-4"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
-					/></svg
-				>
-				แก้ไขข้อมูล
-			</a>
-			<button
-				class="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
-				onclick={() => window.print()}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="1.5"
-					stroke="currentColor"
-					class="h-4 w-4"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M6.728 6.75A.75.75 0 017.5 6h9a.75.75 0 01.728.75v3.75a.75.75 0 01-.728.75h-9a.75.75 0 01-.728-.75V6.75zM3 15.75v-1.5A2.25 2.25 0 015.25 12h13.5A2.25 2.25 0 0121 14.25v1.5a2.25 2.25 0 01-2.25 2.25h-13.5A2.25 2.25 0 013 15.75z"
-					/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12v3m-6-3v3" /></svg
-				>
-				พิมพ์ใบงาน
-			</button>
+				| Ref Invoice: {job.invoice_no || '-'}
+			</p>
 		</div>
 	</div>
 
-	<div
-		class="mx-auto max-w-4xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg print:border-none print:shadow-none"
-	>
-		<div class="h-2 w-full bg-gray-800 print:hidden"></div>
+	<div class="flex flex-shrink-0 items-center gap-2">
+		<span
+			class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold {getStatusClass(
+				job.job_status
+			)}"
+		>
+			{job.job_status}
+		</span>
 
-		<div class="p-8 md:p-12">
-			<div class="mb-10 flex items-start justify-between border-b border-gray-100 pb-8">
-				<div>
-					<h2 class="text-3xl font-black tracking-tight text-gray-800 uppercase">Job Order</h2>
-					<div class="mt-2 font-mono text-lg text-gray-500">
-						{formatJobNumber(job.job_type, job.job_date, job.id)}
-					</div>
-				</div>
-				<div class="text-right">
-					<span
-						class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-bold tracking-wider uppercase {getStatusClass(
-							job.job_status
-						)}"
-					>
-						{job.job_status}
-					</span>
-					<p class="mt-3 text-sm font-medium text-gray-500">
-						Job Date: <span class="text-gray-800"
-							>{new Date(job.job_date).toLocaleDateString('th-TH')}</span
-						>
-					</p>
-					{#if job.expire_date}
-						<p class="mt-1 text-sm font-medium text-gray-500">
-							Expire Date: <span class="text-gray-800"
-								>{new Date(job.expire_date).toLocaleDateString('th-TH')}</span
-							>
-						</p>
-					{/if}
-				</div>
-			</div>
+		<a
+			href="/freight-forwarder/job-orders/generate-pdf?id={job.id}"
+			target="_blank"
+			class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
+		>
+			<span>พิมพ์ PDF</span>
+		</a>
 
-			<div class="mb-10 grid grid-cols-1 gap-10 md:grid-cols-2">
-				<div>
-					<h3 class="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
-						Customer Information
-					</h3>
-					<div class="rounded-lg border border-gray-100 bg-gray-50 p-5">
-						<div class="text-lg font-bold text-gray-800">
-							{job.company_name || job.customer_name}
-						</div>
-						{#if job.company_name && job.customer_name}
-							<div class="mt-1 font-medium text-gray-700">Contact: {job.customer_name}</div>
-						{/if}
-						<div class="mt-2 text-sm leading-relaxed text-gray-500">
-							{job.customer_address || 'ไม่มีข้อมูลที่อยู่'}
-						</div>
-						{#if job.contract_number}
-							<div
-								class="mt-4 inline-block rounded border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700"
-							>
-								Contract: {job.contract_number}
-							</div>
-						{/if}
-					</div>
-				</div>
+		<a
+			href="/freight-forwarder/job-orders/{job.id}/edit"
+			class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
+		>
+			Edit
+		</a>
 
-				<div>
-					<h3 class="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
-						Shipment Details
-					</h3>
-					<div class="space-y-4 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-						<div class="grid grid-cols-2 gap-4">
-							<div>
-								<p class="text-xs text-gray-500 uppercase">Job Type</p>
-								<div class="mt-1 flex items-center gap-2">
-									<span class="font-bold text-gray-800">{job.job_type}</span>
-									{#if job.service_type}
-										<span
-											class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 uppercase"
-											>{job.service_type}</span
-										>
-									{/if}
-								</div>
-							</div>
-							<div>
-								<p class="text-xs text-gray-500 uppercase">B/L Number</p>
-								<p class="mt-1 font-mono font-bold text-blue-600">{job.bl_number}</p>
-							</div>
-						</div>
-
-						<div class="grid grid-cols-2 gap-4 border-t border-gray-100 pt-3">
-							<div>
-								<p class="text-xs text-gray-500 uppercase">Liner / Carrier</p>
-								<p class="mt-1 font-medium text-gray-800">{job.liner_name || '-'}</p>
-							</div>
-							<div>
-								<p class="text-xs text-gray-500 uppercase">Location / Port</p>
-								<p class="mt-1 font-medium text-gray-800">{job.location || '-'}</p>
-							</div>
-						</div>
-						{#if job.invoice_no}
-							<div class="border-t border-gray-100 pt-3">
-								<p class="text-xs text-gray-500 uppercase">Customer Invoice</p>
-								<p class="mt-1 font-medium text-gray-800">{job.invoice_no}</p>
-							</div>
-						{/if}
-					</div>
-				</div>
-			</div>
-
-			<h3 class="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
-				Financial Overview
-			</h3>
-			<div
-				class="mb-8 flex flex-col items-center justify-between rounded-lg border border-blue-100 bg-blue-50 p-6 md:flex-row"
+		<div class="relative">
+			<select
+				id="status-change-select"
+				onchange={updateStatus}
+				disabled={isSaving}
+				class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 			>
-				<div class="font-medium text-blue-800">ยอดเงินเบื้องต้น (Initial Amount)</div>
-				<div class="mt-2 font-mono text-3xl font-black text-blue-900 md:mt-0">
-					{Number(job.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-					<span class="text-lg text-blue-700">{job.currency}</span>
-				</div>
-			</div>
+				<option value="" disabled selected>Change Status</option>
+				{#each availableStatuses as status}
+					{#if status !== job.job_status}
+						<option value={status} class="bg-white text-gray-800">{status}</option>
+					{/if}
+				{/each}
+			</select>
+		</div>
+	</div>
+</div>
 
-			{#if job.remarks}
-				<div class="border-t border-gray-100 pt-6">
-					<h3 class="mb-2 text-xs font-bold tracking-wider text-gray-400 uppercase">Remarks</h3>
-					<p class="text-sm leading-relaxed whitespace-pre-line text-gray-600">{job.remarks}</p>
+<div class="mb-6 rounded-lg border bg-white p-6 shadow-sm">
+	<div class="flex flex-col justify-between gap-4 border-b pb-4 md:flex-row">
+		<div>
+			{#if companyData}
+				{#if companyData.logo_path}
+					<img
+						src={companyData.logo_path}
+						alt={companyData.name || 'Company Logo'}
+						class="mb-2 h-16 max-w-xs object-contain"
+					/>
+				{:else if companyData.name}
+					<h2 class="text-2xl font-bold text-gray-800">{companyData.name}</h2>
+				{/if}
+
+				<div class="mt-2 space-y-0.5 text-sm text-gray-500">
+					{#if companyData.address_line_1}<p>{companyData.address_line_1}</p>{/if}
+					{#if companyData.address_line_2}<p>{companyData.address_line_2}</p>{/if}
+					<p>
+						{companyData.city || ''}
+						{companyData.state_province || ''}
+						{companyData.postal_code || ''}
+					</p>
+					<p>{companyData.country || ''}</p>
+
+					{#if companyData.phone}<p class="mt-1">
+							<span class="font-semibold">Tel:</span>
+							{companyData.phone}
+						</p>{/if}
+					{#if companyData.email}<p>
+							<span class="font-semibold">Email:</span>
+							{companyData.email}
+						</p>{/if}
+
+					<p class="mt-1">
+						<span class="font-semibold text-gray-700">Tax ID:</span>
+						{companyData.tax_id || '-'}
+					</p>
 				</div>
+			{:else}
+				<h2 class="text-2xl font-bold text-gray-800">บริษัทของคุณ</h2>
+				<p class="mt-2 text-sm text-gray-500">(ไม่ได้ตั้งค่าข้อมูลบริษัท)</p>
+			{/if}
+		</div>
+
+		<div class="text-left md:text-right">
+			<h1 class="text-2xl font-bold text-gray-800 uppercase">JOB ORDER</h1>
+			<p class="text-sm text-gray-500">ใบสั่งงานขนส่ง</p>
+
+			<div class="mt-4 space-y-1">
+				<div class="text-sm">
+					<span class="font-semibold text-gray-600">เลขที่ / Job No.:</span>
+					<span class="font-medium text-gray-800"
+						>#{formatJobNumber(job.job_type, job.job_date, job.id)}</span
+					>
+				</div>
+				<div class="text-sm">
+					<span class="font-semibold text-gray-600">วันที่ / Job Date:</span>
+					<span class="font-medium text-gray-800">{formatDate(job.job_date)}</span>
+				</div>
+				{#if job.expire_date}
+					<div class="text-sm">
+						<span class="font-semibold text-gray-600">วันหมดอายุ / Expire:</span>
+						<span class="font-medium text-gray-800">{formatDate(job.expire_date)}</span>
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+
+	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+		<div class="md:col-span-2">
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">ลูกค้า (Customer)</h3>
+			<p class="font-semibold text-gray-800">
+				{job.company_name || job.customer_name || 'ไม่ระบุ'}
+			</p>
+
+			{#if job.company_name && job.customer_name}
+				<p class="mt-1 text-sm text-gray-600">Contact: {job.customer_name}</p>
 			{/if}
 
-			<div
-				class="mt-16 border-t border-gray-200 pt-6 text-center text-xs text-gray-400 print:hidden"
-			>
-				Created on {new Date(job.created_at).toLocaleString('th-TH')}
+			<p class="mt-1 text-sm whitespace-pre-wrap text-gray-600">{job.customer_address || '-'}</p>
+			<p class="mt-1 text-sm">
+				<span class="font-semibold text-gray-700">Tax ID:</span>
+				{job.customer_tax_id || '-'}
+			</p>
+
+			{#if job.contract_number}
+				<p class="mt-1 text-sm">
+					<span class="font-semibold text-gray-700">อ้างอิงสัญญา:</span>
+					{job.contract_number}
+				</p>
+			{/if}
+		</div>
+
+		<div class="md:col-span-1">
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
+			<p class="mt-1 text-xs text-gray-600">
+				<span class="font-semibold">ผู้เตรียม / Prepared By:</span>
+				{job.created_by_name || 'System Admin'}
+			</p>
+			<div class="mt-2 text-xs text-gray-600">
+				<span class="font-semibold">สร้างเมื่อ / Created At:</span>
+				<p>{formatDate(job.created_at)}</p>
 			</div>
 		</div>
 	</div>
 </div>
 
-<style>
-	@media print {
-		:global(body) {
-			background-color: white;
-		}
-		:global(nav),
-		:global(aside) {
-			display: none !important;
-		}
-	}
-</style>
+<div class="mb-6 rounded-lg border bg-white shadow-sm">
+	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
+		รายละเอียดการขนส่ง (Shipment Details)
+	</h3>
+	<div class="p-6">
+		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+			<div class="space-y-4">
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+					<span class="text-sm font-medium text-gray-600">Job Type</span>
+					<div class="flex items-center gap-2">
+						<span class="font-bold text-gray-900">{job.job_type}</span>
+						{#if job.service_type}
+							<span
+								class="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700 uppercase"
+							>
+								{job.service_type}
+							</span>
+						{/if}
+					</div>
+				</div>
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+					<span class="text-sm font-medium text-gray-600">B/L Number</span>
+					<span class="font-mono font-bold text-blue-600">{job.bl_number || '-'}</span>
+				</div>
+			</div>
+
+			<div class="space-y-4">
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+					<span class="text-sm font-medium text-gray-600">Liner / Carrier</span>
+					<span class="font-medium text-gray-900">{job.liner_name || '-'}</span>
+				</div>
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+					<span class="text-sm font-medium text-gray-600">Location / Port</span>
+					<span class="font-medium text-gray-900">{job.location || '-'}</span>
+				</div>
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+					<span class="text-sm font-medium text-gray-600">Customer Invoice Ref.</span>
+					<span class="font-medium text-gray-900">{job.invoice_no || '-'}</span>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
+	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">Financial Summary</h2>
+	<div class="mt-3 w-full space-y-2 text-sm">
+		<div class="flex w-full flex-col items-end justify-end">
+			<div class="flex w-full max-w-sm items-center justify-between border-t-2 pt-2">
+				<span class="text-base font-bold text-gray-900">Initial Amount:</span>
+				<span class="text-xl font-bold text-blue-700">
+					{formatCurrency(job.amount)}
+					<span class="ml-1 text-sm text-gray-500">{job.currency || 'THB'}</span>
+				</span>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="mb-6 grid grid-cols-1 gap-6">
+	<div class="rounded-lg border bg-white p-4 shadow-sm">
+		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">Remarks (หมายเหตุ)</h3>
+		<p class="text-sm whitespace-pre-wrap text-gray-600">{job.remarks || 'No remarks.'}</p>
+	</div>
+
+	<div class="rounded-lg border bg-white p-4 shadow-sm">
+		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">
+			Attachments ({attachments.length})
+		</h3>
+		<div class="space-y-2">
+			{#if attachments.length === 0}
+				<p class="text-sm text-gray-500">No attachments found.</p>
+			{:else}
+				{#each attachments as attachment (attachment.id)}
+					<div class="flex items-center justify-between rounded-md bg-gray-100 p-2 text-sm">
+						<div class="flex items-center gap-2 overflow-hidden">
+							<span class="flex-shrink-0 text-lg">{getFileIcon(attachment.file_original_name)}</span
+							>
+							<a
+								href={attachment.url || `/uploads/job_orders/${attachment.file_system_name}`}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="truncate text-blue-600 hover:underline"
+								title={attachment.file_original_name}>{attachment.file_original_name}</a
+							>
+						</div>
+					</div>
+				{/each}
+			{/if}
+		</div>
+	</div>
+</div>

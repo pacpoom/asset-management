@@ -1,8 +1,45 @@
 import { fail, redirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
+import fs from 'fs/promises';
+import path from 'path';
+import mime from 'mime-types';
+
+const UPLOAD_DIR = path.resolve('uploads', 'job_orders');
+
+async function saveFile(file: File) {
+	if (!file || file.size === 0) return null;
+	try {
+		await fs.mkdir(UPLOAD_DIR, { recursive: true });
+		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+		const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+		const systemName = `${uniqueSuffix}-${sanitizedOriginalName}`;
+		const uploadPath = path.join(UPLOAD_DIR, systemName);
+		await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
+		return {
+			systemName,
+			originalName: file.name,
+			mimeType: mime.lookup(file.name) || file.type || 'application/octet-stream',
+			size: file.size
+		};
+	} catch (e) {
+		console.error('Save file error:', e);
+		return null;
+	}
+}
+
+async function deleteFile(filename: string) {
+	if (!filename) return;
+	try {
+		const filePath = path.join(UPLOAD_DIR, filename);
+		await fs.unlink(filePath);
+	} catch (e) {
+		console.error('Delete file error:', e);
+	}
+}
 
 export const load = async ({ params }) => {
-	const [jobs] = await pool.query('SELECT * FROM job_orders WHERE id = ?', [params.id]);
+	const id = params.id;
+	const [jobs] = await pool.query('SELECT * FROM job_orders WHERE id = ?', [id]);
 	const job = (jobs as any[])[0];
 
 	if (!job) throw redirect(302, '/freight-forwarder/job-orders');
@@ -13,26 +50,54 @@ export const load = async ({ params }) => {
 	const [contracts] = await pool.query(
 		'SELECT id, contract_number, title, customer_id FROM contracts WHERE status = "Active"'
 	);
-
 	const [liners] = await pool.query(
 		'SELECT id, code, name FROM liners WHERE status = "Active" ORDER BY name ASC'
 	);
+
+	const [currencies] = await pool.query(
+		'SELECT code, name, symbol FROM currencies WHERE is_active = 1 ORDER BY code ASC'
+	);
+	const [salesDocs] = await pool.query(
+		'SELECT document_number, total_amount FROM sales_documents WHERE status != "Cancelled" ORDER BY id DESC'
+	);
+
+	const [vendors] = await pool.query(
+		'SELECT id, name, company_name, address FROM vendors ORDER BY name ASC'
+	);
+	const [vendorContracts] = await pool.query(
+		'SELECT id, contract_number, title, vendor_id, contract_value FROM vendor_contracts WHERE status = "Active"'
+	);
+
+	const [attachmentRows] = await pool.query(
+		'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
+		[id]
+	);
+	const attachments = (attachmentRows as any[]).map((f) => ({
+		...f,
+		url: `/uploads/job_orders/${f.file_system_name}`
+	}));
 
 	return {
 		job: JSON.parse(JSON.stringify(job)),
 		customers: JSON.parse(JSON.stringify(customers)),
 		contracts: JSON.parse(JSON.stringify(contracts)),
-		liners: JSON.parse(JSON.stringify(liners))
+		liners: JSON.parse(JSON.stringify(liners)),
+		currencies: JSON.parse(JSON.stringify(currencies)),
+		salesDocs: JSON.parse(JSON.stringify(salesDocs)),
+		vendors: JSON.parse(JSON.stringify(vendors)),
+		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
+		existingAttachments: JSON.parse(JSON.stringify(attachments))
 	};
 };
 
 export const actions = {
-	update: async ({ request, params }) => {
+	update: async ({ request, params, locals }) => {
 		const formData = await request.formData();
 		const id = params.id;
 
 		const job_type = formData.get('job_type') as string;
 		const job_date = formData.get('job_date') as string;
+		const partner_type = formData.get('partner_type')?.toString() || 'customer';
 
 		try {
 			const [existing] = await pool.query('SELECT job_number FROM job_orders WHERE id = ?', [id]);
@@ -47,8 +112,10 @@ export const actions = {
 			const new_job_number = `${job_type}${yy}${mm}${runningNum}`;
 
 			const data = [
-				formData.get('customer_id'),
-				formData.get('contract_id') || null,
+				partner_type === 'customer' ? formData.get('customer_id') || null : null,
+				partner_type === 'customer' ? formData.get('contract_id') || null : null,
+				partner_type === 'vendor' ? formData.get('vendor_id') || null : null,
+				partner_type === 'vendor' ? formData.get('vendor_contract_id') || null : null,
 				job_type,
 				formData.get('service_type'),
 				formData.get('location'),
@@ -67,16 +134,58 @@ export const actions = {
 
 			const sql = `
                 UPDATE job_orders SET
-                    customer_id = ?, contract_id = ?, job_type = ?, service_type = ?, location = ?, bl_number = ?, invoice_no = ?, 
+                    customer_id = ?, contract_id = ?, vendor_id = ?, vendor_contract_id = ?, 
+                    job_type = ?, service_type = ?, location = ?, bl_number = ?, invoice_no = ?, 
                     liner_name = ?, job_status = ?, job_date = ?, expire_date = ?, remarks = ?, 
                     amount = ?, currency = ?, job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;
 			await pool.execute(sql, data);
+
+			const files = formData.getAll('attachments') as File[];
+			for (const file of files) {
+				const savedFile = await saveFile(file);
+				if (savedFile) {
+					await pool.execute(
+						`INSERT INTO job_order_attachments 
+                        (job_order_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+						[
+							id,
+							savedFile.originalName,
+							savedFile.systemName,
+							savedFile.mimeType,
+							savedFile.size,
+							locals.user?.id || null
+						]
+					);
+				}
+			}
+
 			return { success: true };
 		} catch (err) {
 			console.error(err);
 			return fail(500, { message: 'อัปเดตไม่สำเร็จ' });
+		}
+	},
+
+	deleteAttachment: async ({ request }) => {
+		const formData = await request.formData();
+		const attachmentId = formData.get('attachment_id');
+
+		try {
+			const [rows] = await pool.query<any[]>(
+				'SELECT file_system_name FROM job_order_attachments WHERE id = ?',
+				[attachmentId]
+			);
+			if (rows.length > 0) {
+				await deleteFile(rows[0].file_system_name); // ลบไฟล์ใน Folder
+				await pool.execute('DELETE FROM job_order_attachments WHERE id = ?', [attachmentId]); // ลบข้อมูลใน DB
+				return { success: true };
+			}
+			return fail(404, { message: 'ไม่พบไฟล์' });
+		} catch (err: any) {
+			return fail(500, { message: err.message });
 		}
 	}
 };

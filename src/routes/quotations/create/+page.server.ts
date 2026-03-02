@@ -28,23 +28,37 @@ async function saveFile(file: File) {
 	}
 }
 
-async function generateQuotationNumber(dateStr: string) {
+async function generateQuotationNumber(dateStr: string, connection: any) {
 	const date = new Date(dateStr);
 	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const prefix = `QT-${year}${month}-`;
+	const month = date.getMonth() + 1;
+	const mm = String(month).padStart(2, '0');
 
-	const [rows] = await pool.query<any[]>(
-		`SELECT quotation_number FROM quotations WHERE quotation_number LIKE ? ORDER BY quotation_number DESC LIMIT 1`,
-		[`${prefix}%`]
-	);
+	const selectQuery = `SELECT prefix, last_number, padding_length FROM document_sequences WHERE document_type = 'QT' LIMIT 1`;
+	const [rows] = await connection.execute(selectQuery);
 
-	let nextNum = 1;
-	if (rows.length > 0) {
-		const lastNumStr = rows[0].quotation_number.split('-').pop();
-		nextNum = parseInt(lastNumStr) + 1;
+	let lastNumber = 0;
+	let padding = 4;
+	let prefix = 'QT-';
+
+	if ((rows as any[]).length > 0) {
+		await connection.execute(
+			`UPDATE document_sequences SET last_number = last_number + 1, year = ?, month = ? WHERE document_type = 'QT'`,
+			[year, month]
+		);
+		lastNumber = (rows as any[])[0].last_number + 1;
+		padding = (rows as any[])[0].padding_length;
+		prefix = (rows as any[])[0].prefix;
+	} else {
+		await connection.execute(
+			`INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length) VALUES ('QT', 'QT-', ?, ?, 1, 4)`,
+			[year, month]
+		);
+		lastNumber = 1;
 	}
-	return `${prefix}${String(nextNum).padStart(4, '0')}`;
+
+	const runningNumber = String(lastNumber).padStart(padding, '0');
+	return `${prefix}${year}${mm}-${runningNumber}`;
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -99,7 +113,7 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			const quotation_number = await generateQuotationNumber(quotation_date);
+			const quotation_number = await generateQuotationNumber(quotation_date, connection);
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO quotations 

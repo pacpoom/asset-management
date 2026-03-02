@@ -39,6 +39,14 @@ interface JobOrderData extends RowDataPacket {
 	customer_address: string | null;
 	customer_tax_id: string | null;
 	contract_number: string | null;
+
+	vendor_id: number | null;
+	vendor_name: string | null;
+	vendor_company_name: string | null;
+	vendor_address: string | null;
+	vendor_tax_id: string | null;
+	vendor_contract_number: string | null;
+
 	created_by_name: string | null;
 }
 
@@ -99,7 +107,16 @@ function getJobOrderHtml(
 
 	const displayJobNumber =
 		jobData.job_number || formatJobNumber(jobData.job_type, jobData.job_date, jobData.id);
-	const displayCustomerName = jobData.company_name || jobData.customer_name || 'ไม่ระบุลูกค้า';
+
+	const isVendor = !!jobData.vendor_id;
+	const partnerTitle = isVendor ? 'ผู้จำหน่าย (Vendor)' : 'ลูกค้า (Customer)';
+	const partnerCompanyName = isVendor
+		? jobData.vendor_company_name || jobData.vendor_name || 'ไม่ระบุผู้จำหน่าย'
+		: jobData.company_name || jobData.customer_name || 'ไม่ระบุลูกค้า';
+	const partnerContactName = isVendor ? jobData.vendor_name : jobData.customer_name;
+	const partnerAddress = isVendor ? jobData.vendor_address : jobData.customer_address;
+	const partnerTaxId = isVendor ? jobData.vendor_tax_id : jobData.customer_tax_id;
+	const partnerContract = isVendor ? jobData.vendor_contract_number : jobData.contract_number;
 
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
@@ -126,14 +143,14 @@ function getJobOrderHtml(
             </tr>
             <tr>
                 <td style="padding-top: 1rem; vertical-align: top;">
-                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0; color: #6B7280;">ลูกค้า (Customer)</h3>
-                    <p style="font-weight: bold; margin: 0 0 4px 0; font-size: 10pt;">${displayCustomerName}</p>
-                    ${jobData.company_name && jobData.customer_name ? `<p style="margin: 0 0 4px 0; font-size: 8pt;">Contact: ${jobData.customer_name}</p>` : ''}
+                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0; color: #6B7280;">${partnerTitle}</h3>
+                    <p style="font-weight: bold; margin: 0 0 4px 0; font-size: 10pt;">${partnerCompanyName}</p>
+                    ${partnerCompanyName && partnerContactName && partnerCompanyName !== partnerContactName ? `<p style="margin: 0 0 4px 0; font-size: 8pt;">Contact: ${partnerContactName}</p>` : ''}
                     <div style="font-size: 8pt; line-height: 1.4;">
-                        <p style="margin:0;">${jobData.customer_address || '-'}</p>
+                        <p style="margin:0;">${partnerAddress || '-'}</p>
                     </div>
-                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${jobData.customer_tax_id || '-'}</p>
-                    ${jobData.contract_number ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Contract:</span> ${jobData.contract_number}</p>` : ''}
+                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${partnerTaxId || '-'}</p>
+                    ${partnerContract ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Contract:</span> ${partnerContract}</p>` : ''}
                 </td>
                 <td style="padding-top: 1rem; vertical-align: top; text-align: right;">
                     <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0; color: #6B7280;">ผู้เปิดงาน (Prepared By)</h3>
@@ -162,7 +179,7 @@ function getJobOrderHtml(
                 <tr>
                     <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Port / Location</td>
                     <td style="padding: 10px; border: 1px solid #e5e7eb;">${jobData.location || '-'}</td>
-                    <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Customer Invoice</td>
+                    <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Ref Document</td>
                     <td style="padding: 10px; border: 1px solid #e5e7eb;">${jobData.invoice_no || '-'}</td>
                 </tr>
             </table>
@@ -234,16 +251,19 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// ดึงข้อมูล Job Order
 		const [rows] = await connection.execute<JobOrderData[]>(
 			`
             SELECT j.*, 
                    c.name as customer_name, c.company_name, c.address as customer_address, c.tax_id as customer_tax_id,
                    con.contract_number,
+                   v.name as vendor_name, v.company_name as vendor_company_name, v.address as vendor_address, v.tax_id as vendor_tax_id,
+                   vc.contract_number as vendor_contract_number,
                    u.full_name as created_by_name
             FROM job_orders j
             LEFT JOIN customers c ON j.customer_id = c.id
             LEFT JOIN contracts con ON j.contract_id = con.id
+            LEFT JOIN vendors v ON j.vendor_id = v.id
+            LEFT JOIN vendor_contracts vc ON j.vendor_contract_id = vc.id
             LEFT JOIN users u ON j.created_by = u.id
             WHERE j.id = ?
         `,
@@ -253,15 +273,12 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Job Order not found' }, { status: 404 });
 		const jobData = rows[0];
 
-		// ดึงข้อมูลบริษัท
 		const [company] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
 		const companyData = company[0] || null;
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		// สร้าง HTML
 		const html = getJobOrderHtml(companyData, jobData, logoBase64);
 
-		// สั่ง Puppeteer สร้างไฟล์ PDF
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
 			headless: true
