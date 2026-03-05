@@ -38,6 +38,22 @@
 	let imagePreviewUrl = $state<string | null>(null);
 	let removeImageFlag = $state(false);
 
+	let vendorSearchText = $state('');
+	let isVendorDropdownOpen = $state(false);
+	let customerSearchText = $state('');
+	let isCustomerDropdownOpen = $state(false);
+
+	const filteredVendors = $derived(
+		data.vendors?.filter((v: Vendor) =>
+			v.name.toLowerCase().includes(vendorSearchText.toLowerCase())
+		) || []
+	);
+	const filteredCustomers = $derived(
+		data.customers?.filter((c: Customer) =>
+			c.name.toLowerCase().includes(customerSearchText.toLowerCase())
+		) || []
+	);
+
 	// --- Derived Data ---
 	const filteredProducts = $derived(data.products || []);
 
@@ -66,9 +82,17 @@
 		imagePreviewUrl = null;
 		removeImageFlag = false;
 
+		isVendorDropdownOpen = false;
+		isCustomerDropdownOpen = false;
+
 		if (mode === 'edit' && product) {
 			selectedProduct = { ...product };
 			imagePreviewUrl = product.image_url;
+
+			vendorSearchText =
+				data.vendors?.find((v: Vendor) => v.id === product.preferred_vendor_id)?.name || '';
+			customerSearchText =
+				data.customers?.find((c: Customer) => c.id === product.preferred_customer_id)?.name || '';
 		} else {
 			selectedProduct = {
 				sku: '',
@@ -77,6 +101,9 @@
 				is_active: true,
 				quantity_on_hand: 0
 			} as any;
+
+			vendorSearchText = '';
+			customerSearchText = '';
 		}
 	}
 
@@ -758,37 +785,118 @@
 						{/if}
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<div>
+							<div class="relative">
 								<label for="preferred_vendor_id" class="mb-1 block text-sm font-medium"
 									>Preferred Vendor</label
 								>
-								<select
+								<input
+									type="hidden"
 									name="preferred_vendor_id"
-									id="preferred_vendor_id"
-									bind:value={selectedProduct.preferred_vendor_id}
-									class="w-full rounded-md border-gray-300 text-sm"
-								>
-									<option value={null}>-- None --</option>
-									{#each data.vendors as vendor (vendor.id)}
-										<option value={vendor.id}>{vendor.name}</option>
-									{/each}
-								</select>
+									value={selectedProduct?.preferred_vendor_id || ''}
+								/>
+								<input
+									type="text"
+									placeholder="-- พิมพ์ค้นหา หรือเลือก Vendor --"
+									bind:value={vendorSearchText}
+									onfocus={() => (isVendorDropdownOpen = true)}
+									onblur={() => setTimeout(() => (isVendorDropdownOpen = false), 200)}
+									oninput={() => {
+										selectedProduct!.preferred_vendor_id = null;
+										isVendorDropdownOpen = true;
+									}}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+								{#if isVendorDropdownOpen}
+									<ul
+										class="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg focus:outline-none"
+									>
+										<li>
+											<button
+												type="button"
+												class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+												onclick={() => {
+													selectedProduct!.preferred_vendor_id = null;
+													vendorSearchText = '';
+													isVendorDropdownOpen = false;
+												}}
+											>
+												-- None --
+											</button>
+										</li>
+										{#each filteredVendors as vendor (vendor.id)}
+											<li>
+												<button
+													type="button"
+													class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+													onclick={() => {
+														selectedProduct!.preferred_vendor_id = vendor.id;
+														vendorSearchText = vendor.name;
+														isVendorDropdownOpen = false;
+													}}
+												>
+													{vendor.name}
+												</button>
+											</li>
+										{/each}
+									</ul>
+								{/if}
 							</div>
-							<div>
+
+							<div class="relative">
 								<label for="preferred_customer_id" class="mb-1 block text-sm font-medium"
 									>Preferred Customer</label
 								>
-								<select
+								<input
+									type="hidden"
 									name="preferred_customer_id"
-									id="preferred_customer_id"
-									bind:value={selectedProduct.preferred_customer_id}
-									class="w-full rounded-md border-gray-300 text-sm"
-								>
-									<option value={null}>-- None --</option>
-									{#each data.customers as customer (customer.id)}
-										<option value={customer.id}>{customer.name}</option>
-									{/each}
-								</select>
+									value={selectedProduct?.preferred_customer_id || ''}
+								/>
+								<input
+									type="text"
+									placeholder="-- พิมพ์ค้นหา หรือเลือก Customer --"
+									bind:value={customerSearchText}
+									onfocus={() => (isCustomerDropdownOpen = true)}
+									onblur={() => setTimeout(() => (isCustomerDropdownOpen = false), 200)}
+									oninput={() => {
+										selectedProduct!.preferred_customer_id = null;
+										isCustomerDropdownOpen = true;
+									}}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+								{#if isCustomerDropdownOpen}
+									<ul
+										class="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg focus:outline-none"
+									>
+										<li>
+											<button
+												type="button"
+												class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+												onclick={() => {
+													selectedProduct!.preferred_customer_id = null;
+													customerSearchText = '';
+													isCustomerDropdownOpen = false;
+												}}
+											>
+												-- None --
+											</button>
+										</li>
+										{#each filteredCustomers as customer (customer.id)}
+											<li>
+												<button
+													type="button"
+													class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+													onclick={() => {
+														selectedProduct!.preferred_customer_id = customer.id;
+														customerSearchText = customer.name;
+														isCustomerDropdownOpen = false;
+													}}
+												>
+													{customer.name}
+												</button>
+											</li>
+										{/each}
+									</ul>
+								{/if}
 							</div>
 						</div>
 

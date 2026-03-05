@@ -3,22 +3,18 @@
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 
+	//declare const QRCode: any;
+
 	export let data: PageData;
-	let qrCanvas: HTMLCanvasElement; // ยังคงเก็บไว้เพื่อแสดง QR Code ในหน้า Svelte
+	let qrCanvas: HTMLCanvasElement;
 	let isGeneratingPdf = false;
 
-	// ไม่ต้องมีการประกาศ declare const QRCode, html2canvas, jspdf อีกต่อไป
-
 	onMount(() => {
-		// A simple check to see if the global QRCode object exists
-		// โหลด QRCode JS (ยังจำเป็นสำหรับการแสดงผลในหน้า Svelte นี้ก่อนพิมพ์)
 		const checkQRCode = () => {
-			if (typeof QRCode !== 'undefined') {
+			if (typeof window !== 'undefined' && (window as any).QRCode) {
 				try {
-					// Generate QR code once the library is available
-					// ปรับขนาด width ภายใน canvas ให้สัมพันธ์กับขนาด CSS
-					QRCode.toCanvas(qrCanvas, data.asset.asset_tag, {
-						width: 55, // pixels (ลดจาก 75)
+					(window as any).QRCode.toCanvas(qrCanvas, data.asset.asset_tag, {
+						width: 55,
 						margin: 1,
 						errorCorrectionLevel: 'H'
 					});
@@ -40,7 +36,8 @@
 
 		try {
 			// **เปลี่ยนจากการใช้ FormData ไปเป็น JSON body** เพื่อให้เข้าถึงใน +server.ts ได้ง่ายขึ้น
-			const response = await fetch('', { // ใช้ URL ว่างเพื่อเรียกไปยัง POST +server.ts ใน path ปัจจุบัน
+			const response = await fetch('', {
+				// ใช้ URL ว่างเพื่อเรียกไปยัง POST +server.ts ใน path ปัจจุบัน
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
@@ -50,10 +47,10 @@
 
 			// จัดการ Response
 			if (response.ok) {
-				// Server Endpoint จะส่งไฟล์กลับมาเป็น Response 
+				// Server Endpoint จะส่งไฟล์กลับมาเป็น Response
 				// เราจะอ่าน Response เป็น Blob (จะเป็น PDF หรือ HTML ขึ้นอยู่กับ Server)
 				const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
+				const url = URL.createObjectURL(blob);
 
 				// เปิด URL ใหม่ (จะเป็น PDF หรือ HTML)
 				window.open(url, '_blank');
@@ -125,12 +122,13 @@
 <style>
 	/* CSS สำหรับแสดงผลในหน้า Svelte (preview) */
 	:global(body) {
-		background-color: #f0f2f5; 
+		background-color: #f0f2f5;
 		margin: 0;
-		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+		font-family:
+			-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
 			'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
 	}
-    /* แก้ไข Layout หลักให้ใช้ Flexbox เต็มหน้าจอและจัดให้อยู่กึ่งกลาง */
+	/* แก้ไข Layout หลักให้ใช้ Flexbox เต็มหน้าจอและจัดให้อยู่กึ่งกลาง */
 	:global(main) {
 		display: flex;
 		justify-content: center; /* จัดแนวนอนกึ่งกลาง */
@@ -140,25 +138,25 @@
 
 	.print-container {
 		text-align: center;
-		padding: 20px; 
-        /* เพิ่ม background และ shadow เพื่อให้เป็นเหมือน "กล่อง" ตรงกลาง */
-        background-color: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-        /* กำหนดขนาดสูงสุดเพื่อไม่ให้กว้างเกินไป */
-        max-width: 90%;
+		padding: 20px;
+		/* เพิ่ม background และ shadow เพื่อให้เป็นเหมือน "กล่อง" ตรงกลาง */
+		background-color: white;
+		border-radius: 12px;
+		box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+		/* กำหนดขนาดสูงสุดเพื่อไม่ให้กว้างเกินไป */
+		max-width: 90%;
 	}
 
 	/* Label dimensions and styling (for Svelte preview only) */
 	.label {
 		/* ขนาด 5cm x 3cm สำหรับ Preview */
-		width: 50mm; 
-		height: 30mm; 
+		width: 50mm;
+		height: 30mm;
 		border: 1px dashed #999;
 		padding: 2mm;
 		display: flex;
 		justify-content: space-between;
-		align-items: stretch; 
+		align-items: stretch;
 		background-color: white;
 		box-sizing: border-box;
 		overflow: hidden;
@@ -168,7 +166,7 @@
 	.info {
 		display: flex;
 		flex-direction: column;
-		justify-content: space-around; 
+		justify-content: space-around;
 		flex-grow: 1;
 		padding-right: 2mm;
 		text-align: left;
@@ -187,17 +185,13 @@
 		font-size: 7.5pt; /* ปรับลดขนาดตัวอักษรของชื่อ Asset: 8pt -> 7.5pt */
 		font-weight: bold;
 		margin-bottom: 1mm;
-        /* *** แก้ไข: ทำให้ข้อความตัดขึ้นบรรทัดใหม่ได้ 2 บรรทัด *** */
-        max-width: 100%; 
-        white-space: normal; /* อนุญาตให้ข้อความตัดบรรทัด */
-        line-height: 1.1; /* ปรับลด line-height เล็กน้อย */
-        max-height: 16.5pt; /* จำกัดความสูง: 7.5pt * 1.1 * 2 = 16.5pt (ประมาณ 2 บรรทัด) */
-        overflow: hidden;
+		/* *** แก้ไข: ทำให้ข้อความตัดขึ้นบรรทัดใหม่ได้ 2 บรรทัด *** */
+		max-width: 100%;
+		white-space: normal; /* อนุญาตให้ข้อความตัดบรรทัด */
+		line-height: 1.1; /* ปรับลด line-height เล็กน้อย */
+		max-height: 16.5pt; /* จำกัดความสูง: 7.5pt * 1.1 * 2 = 16.5pt (ประมาณ 2 บรรทัด) */
+		overflow: hidden;
 	}
-    /* ลบ CSS ที่ทำให้ตัดด้วยจุดไข่ปลาออก */
-    .info-line.name .info-value {
-        /* ลบ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; ออก */
-    }
 
 	.info-label {
 		font-weight: 600;
@@ -218,20 +212,20 @@
 	.qr-code {
 		display: flex;
 		/* *** การแก้ไขที่ 3: จัด QR code ให้อยู่ด้านล่างขวา (ชิดด้านล่าง) *** */
-        align-items: flex-end; /* จัดให้อยู่ชิดด้านล่าง */
+		align-items: flex-end; /* จัดให้อยู่ชิดด้านล่าง */
 		justify-content: center;
 		flex-shrink: 0;
 		/* *** การแก้ไขที่ 4: ลดขนาด QR Code (15mm -> 12mm) *** */
-		width: 12mm; 
+		width: 12mm;
 		height: 12mm;
-        /* ลบ align-self: center; ออก */
+		/* ลบ align-self: center; ออก */
 	}
 
 	.controls {
 		margin-top: 20px;
-        display: flex;
-        justify-content: center;
-        gap: 15px; /* เพิ่มระยะห่างระหว่างปุ่ม */
+		display: flex;
+		justify-content: center;
+		gap: 15px; /* เพิ่มระยะห่างระหว่างปุ่ม */
 	}
 
 	.print-button,
@@ -270,44 +264,44 @@
 		.no-print {
 			display: none !important;
 		}
-        /* ยกเลิกการจัดกึ่งกลางเพื่อให้พิมพ์ได้เต็มหน้ากระดาษ */
-        :global(main) {
-            display: block; 
-            min-height: auto;
-        }
-        .print-container {
-            padding: 0;
-            margin: 0;
-            box-shadow: none;
-            background-color: transparent;
-        }
+		/* ยกเลิกการจัดกึ่งกลางเพื่อให้พิมพ์ได้เต็มหน้ากระดาษ */
+		:global(main) {
+			display: block;
+			min-height: auto;
+		}
+		.print-container {
+			padding: 0;
+			margin: 0;
+			box-shadow: none;
+			background-color: transparent;
+		}
 
 		/* กำหนดขนาดหน้ากระดาษสำหรับการสั่งพิมพ์ปกติ (Ctrl+P) */
 		@page {
 			size: 50mm 30mm;
 			margin: 0;
 		}
-		
+
 		/* จัดการ Label ให้ไม่มีขอบและจัดวางพอดี */
 		.label {
-			border: none; 
+			border: none;
 			margin: 0;
 			padding: 0;
-			width: 50mm; 
+			width: 50mm;
 			height: 30mm;
 			box-shadow: none;
-			page-break-after: always; 
+			page-break-after: always;
 		}
-        /* ต้องกำหนดขนาด QR code ใน media print ด้วย */
-        .qr-code {
-            width: 12mm; 
-            height: 12mm;
-            align-items: flex-end; /* จัดให้อยู่ชิดด้านล่าง */
-        }
-        /* ต้องปรับขนาดฟอนต์ใน media print สำหรับชื่อ Asset ด้วย */
-        .info-line.name {
-            font-size: 7.5pt; /* ปรับ font-size ในการพิมพ์ */
-            max-height: 16.5pt; /* 2 บรรทัด */
-        }
+		/* ต้องกำหนดขนาด QR code ใน media print ด้วย */
+		.qr-code {
+			width: 12mm;
+			height: 12mm;
+			align-items: flex-end; /* จัดให้อยู่ชิดด้านล่าง */
+		}
+		/* ต้องปรับขนาดฟอนต์ใน media print สำหรับชื่อ Asset ด้วย */
+		.info-line.name {
+			font-size: 7.5pt; /* ปรับ font-size ในการพิมพ์ */
+			max-height: 16.5pt; /* 2 บรรทัด */
+		}
 	}
 </style>

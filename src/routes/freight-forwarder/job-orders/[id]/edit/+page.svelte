@@ -67,9 +67,6 @@
 
 	function handleVendorContractChange(e: CustomEvent) {
 		const detail = e.detail;
-		if (detail && detail.amount !== undefined) {
-			jobAmount = detail.amount;
-		}
 	}
 
 	let jobTypeOptions = [
@@ -112,15 +109,17 @@
 		amount: doc.total_amount
 	}));
 
-	let selectedSalesDoc = salesDocOptions.find((opt: any) => opt.value === job.invoice_no) || null;
+	let selectedSalesDoc = job.invoice_no
+		? job.invoice_no
+				.split(',')
+				.map((inv: string) => salesDocOptions.find((opt: any) => opt.value === inv.trim()))
+				.filter(Boolean)
+		: null;
 
-	let invoiceFilterText = selectedSalesDoc ? '' : job.invoice_no || '';
+	let invoiceFilterText = '';
 
 	function handleInvoiceChange(e: CustomEvent) {
 		const detail = e.detail;
-		if (detail && detail.amount !== undefined) {
-			jobAmount = detail.amount;
-		}
 	}
 </script>
 
@@ -445,22 +444,16 @@
 							/>
 						</div>
 						<div>
-							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								Customer Invoice
-							</div>
-							<Select
-								items={salesDocOptions}
-								bind:value={selectedSalesDoc}
-								bind:filterText={invoiceFilterText}
-								on:change={handleInvoiceChange}
-								placeholder="ค้นหาเลขเอกสาร..."
-								container={browser ? document.body : null}
-								class="svelte-select-custom"
-							/>
+							</label>
 							<input
-								type="hidden"
+								type="text"
+								id="invoice_no"
 								name="invoice_no"
-								value={selectedSalesDoc?.value || invoiceFilterText || ''}
+								bind:value={job.invoice_no}
+								placeholder="เช่น INV-001, INV-002"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 

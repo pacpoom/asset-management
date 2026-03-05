@@ -76,40 +76,39 @@ export const POST: RequestHandler = async ({ request, params }) => {
             <meta charset="utf-8">
             <style>
                 @page {
-                    size: 50mm 30mm; /* 5cm x 3cm */
+                    size: 50mm 30mm; /* ขนาดสติ๊กเกอร์ 5cm x 3cm */
                     margin: 0;
                 }
 
                 body {
                     font-family: Arial, sans-serif;
                     margin: 0;
-                    padding: 1mm 2mm; 
+                    padding: 0; 
                     height: 30mm;
                     width: 50mm;
                     box-sizing: border-box;
-                    display: flex; 
-                    flex-direction: column;
                 }
 
                 .label {
-                    width: 100%;
-                    height: 100%;
+                    width: 50mm;
+                    height: 30mm;
+                    padding: 2mm; 
                     display: flex;
                     justify-content: space-between;
                     align-items: stretch;
                     box-sizing: border-box;
+                    background-color: white;
                 }
 
                 .info {
                     display: flex;
                     flex-direction: column;
-                    justify-content: flex-start; /* เปลี่ยนเป็น flex-start เพื่อเรียงจากบนลงล่าง */
+                    justify-content: space-around; 
                     flex-grow: 1;
-                    padding-right: 1mm;
+                    padding-right: 2mm;
                     text-align: left;
-                    font-size: 7pt; /* ปรับลดขนาดลงนิดหน่อยเพื่อให้พอดีกับโลโก้ */
-                    line-height: 1.1;
-                    overflow: hidden;
+                    font-size: 6.5pt; 
+                    line-height: 1.3; 
                 }
 
                 .info-line {
@@ -117,7 +116,6 @@ export const POST: RequestHandler = async ({ request, params }) => {
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    margin-bottom: 0.5mm; /* ระยะห่างระหว่างบรรทัด */
                 }
 
                 .info-line.name {
@@ -128,8 +126,10 @@ export const POST: RequestHandler = async ({ request, params }) => {
                     display: -webkit-box;
                     -webkit-line-clamp: 2;
                     -webkit-box-orient: vertical;
-                    overflow: hidden; 
                     white-space: normal;
+                    line-height: 1.1;
+                    max-height: 16.5pt; 
+                    overflow: hidden;
                 }
                 
                 .info-line.name .info-value {
@@ -139,9 +139,8 @@ export const POST: RequestHandler = async ({ request, params }) => {
                 .info-label {
                     font-weight: bold; 
                     color: #000;
-                    margin-right: 2mm; 
+                    margin-right: 1.5mm; 
                     flex-shrink: 0;
-                    width: 20px; /* จัดให้ Label ตรงกัน */
                 }
 
                 .info-value {
@@ -151,23 +150,23 @@ export const POST: RequestHandler = async ({ request, params }) => {
                 
                 .qr-code {
                     flex-shrink: 0;
-                    width: 12mm; /* ขยาย QR Code เล็กน้อย */
-                    height: 100%; /* ให้เต็มความสูงด้านขวา */
+                    width: 12mm;
+                    height: 100%;
                     display: flex;
                     flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
+                    align-items: flex-end; 
+                    justify-content: flex-start; 
                 }
+                
                 .qr-code img {
-                    width: 100%;
-                    height: auto;
+                    width: 12mm;
+                    height: 12mm;
                 }
             </style>
         </head>
         <body>
             <div class="label">
                 <div class="info">
-                    ${logoHtml}
 
                     <div class="info-line name">
                         <span class="info-value">${asset.name}</span>
