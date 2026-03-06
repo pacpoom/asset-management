@@ -64,11 +64,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		}));
 
 		const [vendors] = await pool.query('SELECT id, name FROM vendors ORDER BY name ASC');
-
 		const [products] = await pool.query(
 			'SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
+		
+		// โหลดรายการสถานที่จัดส่ง
+		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
 
 		return {
 			document: JSON.parse(JSON.stringify(document)),
@@ -76,7 +78,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			existingAttachments: JSON.parse(JSON.stringify(attachments)),
 			vendors: JSON.parse(JSON.stringify(vendors)),
 			products: JSON.parse(JSON.stringify(products)),
-			units: JSON.parse(JSON.stringify(units))
+			units: JSON.parse(JSON.stringify(units)),
+			deliveryAddresses: JSON.parse(JSON.stringify(deliveryAddresses))
 		};
 	} catch (err: any) {
 		console.error('Load edit error:', err);
@@ -90,6 +93,8 @@ export const actions: Actions = {
 		const formData = await request.formData();
 
 		const vendor_id = formData.get('vendor_id');
+		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
+		
 		const document_date = formData.get('document_date')?.toString();
 		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
 		const due_date = formData.get('due_date')?.toString() || null;
@@ -115,7 +120,7 @@ export const actions: Actions = {
 
 			await connection.execute(
 				`UPDATE purchase_documents SET 
-                 document_date = ?, credit_term = ?, due_date = ?, vendor_id = ?, reference_doc = ?, notes = ?,
+                 document_date = ?, credit_term = ?, due_date = ?, vendor_id = ?, delivery_address_id = ?, reference_doc = ?, notes = ?,
                  subtotal = ?, discount_amount = ?, total_after_discount = ?,
                  vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, wht_amount = ?, total_amount = ?
                  WHERE id = ?`,
@@ -124,6 +129,7 @@ export const actions: Actions = {
 					credit_term,
 					due_date,
 					vendor_id,
+					delivery_address_id,
 					reference_doc,
 					notes,
 					subtotal,
