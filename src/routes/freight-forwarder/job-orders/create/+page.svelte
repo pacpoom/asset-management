@@ -26,26 +26,6 @@
 	let selectedLiner: any = null;
 
 	let jobAmount: number | string = '';
-	let selectedSalesDoc: any = null;
-
-	$: salesDocOptions = (data.salesDocs || []).map((doc: any) => ({
-		value: doc.document_number,
-		label: doc.document_number,
-		amount: doc.total_amount
-	}));
-
-	$: if (selectedSalesDoc && selectedSalesDoc.amount !== undefined) {
-		jobAmount = selectedSalesDoc.amount;
-	}
-
-	function handleInvoiceInput(e: Event) {
-		const val = (e.target as HTMLInputElement).value;
-
-		const foundDoc = (data.salesDocs || []).find((doc: any) => doc.document_number === val);
-		if (foundDoc) {
-			jobAmount = foundDoc.total_amount;
-		}
-	}
 
 	let isSaving = false;
 	let selectedCustomer: any = null;
@@ -197,10 +177,6 @@
 					amount: c.contract_value
 				}))
 		: [];
-
-	$: if (partnerType === 'vendor' && selectedVendorContract && selectedVendorContract.amount) {
-		jobAmount = selectedVendorContract.amount;
-	}
 </script>
 
 {#if toastMessage}
@@ -589,17 +565,16 @@
 							/>
 						</div>
 						<div>
-							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								Customer Invoice
-							</div>
-							<Select
-								items={salesDocOptions}
-								bind:value={selectedSalesDoc}
-								placeholder="ค้นหาเลขเอกสาร..."
-								container={browser ? document.body : null}
-								class="svelte-select-custom"
+							</label>
+							<input
+								type="text"
+								id="invoice_no"
+								name="invoice_no"
+								placeholder="เช่น INV-001, INV-002"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
-							<input type="hidden" name="invoice_no" value={selectedSalesDoc?.value || ''} />
 						</div>
 
 						<div class="col-span-1 mt-4 md:col-span-2">

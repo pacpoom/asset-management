@@ -178,14 +178,24 @@ export const actions = {
 				'SELECT file_system_name FROM job_order_attachments WHERE id = ?',
 				[attachmentId]
 			);
+
 			if (rows.length > 0) {
-				await deleteFile(rows[0].file_system_name); // ลบไฟล์ใน Folder
-				await pool.execute('DELETE FROM job_order_attachments WHERE id = ?', [attachmentId]); // ลบข้อมูลใน DB
-				return { success: true };
+				const filename = rows[0].file_system_name;
+				const filePath = path.join(UPLOAD_DIR, filename);
+
+				try {
+					await fs.unlink(filePath);
+				} catch (err) {
+					console.warn(`ลบไฟล์ในโฟลเดอร์ไม่สำเร็จ (อาจไม่มีไฟล์อยู่แล้ว): ${filePath}`);
+				}
 			}
-			return fail(404, { message: 'ไม่พบไฟล์' });
-		} catch (err: any) {
-			return fail(500, { message: err.message });
+
+			await pool.execute('DELETE FROM job_order_attachments WHERE id = ?', [attachmentId]);
+
+			return { success: true };
+		} catch (err) {
+			console.error(err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบข้อมูล' });
 		}
 	}
 };

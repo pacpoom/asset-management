@@ -220,15 +220,6 @@
 					</p>
 					<p>{companyData.country || ''}</p>
 
-					{#if companyData.phone}<p class="mt-1">
-							<span class="font-semibold">Tel:</span>
-							{companyData.phone}
-						</p>{/if}
-					{#if companyData.email}<p>
-							<span class="font-semibold">Email:</span>
-							{companyData.email}
-						</p>{/if}
-
 					<p class="mt-1">
 						<span class="font-semibold text-gray-700">Tax ID:</span>
 						{companyData.tax_id || '-'}

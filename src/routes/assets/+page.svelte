@@ -5,7 +5,6 @@
 	// --- NEW: Import the image compressor utility ---
 	import { compressImage } from '$lib/utils/image-compressor';
 
-
 	type Asset = PageData['assets'][0];
 
 	// FIX: Cannot use `export let` in runes mode — use $props() instead
@@ -18,58 +17,62 @@
 	let assetToView = $state<Asset | null>(null); // For detail modal
 	let isLoading = $state(false);
 	let searchQuery = $state(data.searchQuery ?? '');
-    
-    // --- NEW: State for image compression ---
-    let originalImageFile: File | null = $state(null);
-    let isCompressing = $state(false);
-    let compressionError = $state<string | null>(null);
 
-    // --- NEW: Global Notification States ---
-    let globalMessage = $state<{ success: boolean, text: string, type: 'success' | 'error' } | null>(null);
-    let messageTimeout: NodeJS.Timeout;
+	// --- NEW: State for image compression ---
+	let originalImageFile: File | null = $state(null);
+	let isCompressing = $state(false);
+	let compressionError = $state<string | null>(null);
 
-    // --- NEW: Function to handle file input change and trigger compression ---
-    async function onFileSelected(event: Event) {
-        const input = event.target as HTMLInputElement;
-        if (input.files && input.files.length > 0) {
-            const file = input.files[0];
-            
-            // Basic validation for file type
-            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-                compressionError = 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP) เท่านั้น';
-                originalImageFile = null;
-                return;
-            }
+	// --- NEW: Global Notification States ---
+	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(
+		null
+	);
+	let messageTimeout: NodeJS.Timeout;
 
-            isCompressing = true;
-            compressionError = null;
-            try {
-                // Compress the image with default settings
-                const compressedFile = await compressImage(file);
-                originalImageFile = compressedFile; // Store the compressed file to be used in the form
-            } catch (error) {
-                console.error('Image compression failed:', error);
-                compressionError = 'เกิดข้อผิดพลาดในการบีบอัดรูปภาพ';
-                originalImageFile = null;
-            } finally {
-                isCompressing = false;
-            }
-        }
-    }
+	// --- NEW: Function to handle file input change and trigger compression ---
+	async function onFileSelected(event: Event) {
+		const input = event.target as HTMLInputElement;
+		if (input.files && input.files.length > 0) {
+			const file = input.files[0];
 
+			// Basic validation for file type
+			if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+				compressionError = 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP) เท่านั้น';
+				originalImageFile = null;
+				return;
+			}
+
+			isCompressing = true;
+			compressionError = null;
+			try {
+				// Compress the image with default settings
+				const compressedFile = await compressImage(file);
+				originalImageFile = compressedFile; // Store the compressed file to be used in the form
+			} catch (error) {
+				console.error('Image compression failed:', error);
+				compressionError = 'เกิดข้อผิดพลาดในการบีบอัดรูปภาพ';
+				originalImageFile = null;
+			} finally {
+				isCompressing = false;
+			}
+		}
+	}
 
 	function openModal(mode: 'add' | 'edit', asset: Asset | null = null) {
 		modalMode = mode;
-        // Clear global message and image states when opening a modal
-        globalMessage = null; 
-        originalImageFile = null;
-        compressionError = null;
-        isCompressing = false;
+		globalMessage = null;
+		originalImageFile = null;
+		compressionError = null;
+		isCompressing = false;
+		isUserDropdownOpen = false;
 
 		if (mode === 'edit' && asset) {
-			selectedAsset = { ...asset }; // Create a copy to edit
+			selectedAsset = { ...asset };
+			userSearchText =
+				data.users?.find((u: any) => u.id === asset.assigned_to_user_id)?.full_name || '';
 		} else {
-			selectedAsset = { status: 'In Storage', asset_tag: '', asset_tag_sub: undefined }; // Defaults for new asset
+			selectedAsset = { status: 'In Storage', asset_tag: '', asset_tag_sub: undefined };
+			userSearchText = '';
 		}
 	}
 
@@ -85,36 +88,55 @@
 	function closeDetailModal() {
 		assetToView = null;
 	}
-    
-    // Helper to display a temporary global message
-    function showGlobalMessage(message: { success: boolean, text: string, type: 'success' | 'error' }) {
-        clearTimeout(messageTimeout);
-        globalMessage = message;
-        messageTimeout = setTimeout(() => { globalMessage = null; }, 5000);
-    }
 
-    // NEW FUNCTION: Handle print click and stop propagation manually
-    function handlePrintClick(e: Event) {
-        // Prevent the click event from propagating up to the <tr> element's onclick handler
-        e.stopPropagation();
-    }
+	// Helper to display a temporary global message
+	function showGlobalMessage(message: {
+		success: boolean;
+		text: string;
+		type: 'success' | 'error';
+	}) {
+		clearTimeout(messageTimeout);
+		globalMessage = message;
+		messageTimeout = setTimeout(() => {
+			globalMessage = null;
+		}, 5000);
+	}
+
+	// NEW FUNCTION: Handle print click and stop propagation manually
+	function handlePrintClick(e: Event) {
+		// Prevent the click event from propagating up to the <tr> element's onclick handler
+		e.stopPropagation();
+	}
 
 	// This reactive block handles form submission results for the delete action
 	$effect.pre(() => {
-        if (form?.message && form.action === 'deleteAsset') {
-            // If delete action fails (though it should redirect on success)
-            showGlobalMessage({ 
-                success: false, 
-                text: form.message as string, 
-                type: 'error' 
-            });
-        }
+		if (form?.message && form.action === 'deleteAsset') {
+			// If delete action fails (though it should redirect on success)
+			showGlobalMessage({
+				success: false,
+				text: form.message as string,
+				type: 'error'
+			});
+		}
 	});
 
-
 	// FIX: Use $derived for reactive calculation instead of $:
-	const paginationRange = $derived(() => {
-		const delta = 1; // How many pages to show before and after the current page
+	// --- NEW: State for User Search Dropdown ---
+	let userSearchText = $state('');
+	let isUserDropdownOpen = $state(false);
+
+	const filteredUsers = $derived.by(() => {
+		return (
+			data.users?.filter(
+				(u: any) =>
+					u.full_name.toLowerCase().includes(userSearchText.toLowerCase()) ||
+					u.email.toLowerCase().includes(userSearchText.toLowerCase())
+			) || []
+		);
+	});
+
+	const paginationRange = $derived.by(() => {
+		const delta = 1;
 		const left = data.currentPage - delta;
 		const right = data.currentPage + delta + 1;
 		const range: number[] = [];
@@ -158,23 +180,54 @@
 
 <!-- Global Notifications (NEW) -->
 {#if globalMessage}
-    <div 
-        transition:fade 
-        class="fixed top-4 right-4 z-[70] max-w-sm rounded-lg shadow-xl p-4 font-semibold text-sm transform transition-transform"
-        class:bg-green-100={globalMessage?.type === 'success'}
-        class:text-green-800={globalMessage?.type === 'success'}
-        class:bg-red-100={globalMessage?.type === 'error'}
-        class:text-red-800={globalMessage?.type === 'error'}
-    >
-        <div class="flex items-center gap-2">
-            {#if globalMessage?.type === 'success'}
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            {:else}
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            {/if}
-            <p>{globalMessage?.text}</p>
-        </div>
-    </div>
+	<div
+		transition:fade
+		class="fixed top-4 right-4 z-[70] max-w-sm transform rounded-lg p-4 text-sm font-semibold shadow-xl transition-transform"
+		class:bg-green-100={globalMessage?.type === 'success'}
+		class:text-green-800={globalMessage?.type === 'success'}
+		class:bg-red-100={globalMessage?.type === 'error'}
+		class:text-red-800={globalMessage?.type === 'error'}
+	>
+		<div class="flex items-center gap-2">
+			{#if globalMessage?.type === 'success'}
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="h-5 w-5"
+					><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline
+						points="22 4 12 14.01 9 11.01"
+					/></svg
+				>
+			{:else}
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="h-5 w-5"
+					><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line
+						x1="9"
+						y1="9"
+						x2="15"
+						y2="15"
+					/></svg
+				>
+			{/if}
+			<p>{globalMessage?.text}</p>
+		</div>
+	</div>
 {/if}
 
 <!-- Main Header -->
@@ -190,7 +243,7 @@
 			<input type="hidden" name="search" value={searchQuery} />
 			<button
 				type="submit"
-				class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+				class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -214,7 +267,7 @@
 		<!-- ADD NEW ASSET BUTTON -->
 		<button
 			onclick={() => openModal('add')}
-			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -241,7 +294,7 @@
 			name="search"
 			bind:value={searchQuery}
 			placeholder="ค้นหาด้วยรหัสสินทรัพย์, รหัสย่อย, ชื่อ, ผู้รับผิดชอบ, หมวดหมู่, สถานที่..."
-			class="w-full rounded-lg border-gray-300 py-2 pl-10 pr-4 focus:border-blue-500 focus:ring-blue-500"
+			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 			<svg
@@ -289,9 +342,7 @@
 				</tr>
 			{:else}
 				{#each data.assets as asset (asset.id)}
-					<tr
-						class="hover:bg-gray-50"
-					>
+					<tr class="hover:bg-gray-50">
 						<td class="px-4 py-3">
 							<div
 								class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border bg-gray-100"
@@ -313,17 +364,19 @@
 										class="h-5 w-5 text-gray-400"
 									>
 										<rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-										<circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"
+										<circle cx="9" cy="9" r="2" /><path
+											d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"
 										/>
 									</svg>
 								{/if}
 							</div>
 						</td>
 						<td class="px-4 py-3 font-mono text-xs text-gray-700">{asset.asset_tag}</td>
-						<td class="px-4 py-3 font-mono text-xs text-gray-700">{asset.asset_tag_sub ?? 'N/A'}</td>
+						<td class="px-4 py-3 font-mono text-xs text-gray-700">{asset.asset_tag_sub ?? 'N/A'}</td
+						>
 						<!-- FIX: ย้าย Event Listener สำหรับเปิด Detail Modal มาที่ชื่อ Asset Name -->
-						<td 
-							class="px-4 py-3 font-medium text-gray-900 cursor-pointer hover:underline hover:text-blue-600"
+						<td
+							class="cursor-pointer px-4 py-3 font-medium text-gray-900 hover:text-blue-600 hover:underline"
 							role="button"
 							tabindex="0"
 							onclick={() => openDetailModal(asset)}
@@ -339,14 +392,18 @@
 								'In Use'
 									? 'bg-green-100 text-green-800'
 									: asset.status === 'In Storage'
-									? 'bg-blue-100 text-blue-800'
-									: asset.status === 'Under Maintenance'
-									? 'bg-yellow-100 text-yellow-800'
-									: 'bg-red-100 text-red-800'}"
+										? 'bg-blue-100 text-blue-800'
+										: asset.status === 'Under Maintenance'
+											? 'bg-yellow-100 text-yellow-800'
+											: 'bg-red-100 text-red-800'}"
 							>
-								{asset.status === 'In Use' ? 'ใช้งานอยู่' : 
-								 asset.status === 'In Storage' ? 'ในคลังสินค้า' : 
-								 asset.status === 'Under Maintenance' ? 'อยู่ระหว่างซ่อมบำรุง' : 'จำหน่าย/ทิ้ง'}
+								{asset.status === 'In Use'
+									? 'ใช้งานอยู่'
+									: asset.status === 'In Storage'
+										? 'ในคลังสินค้า'
+										: asset.status === 'Under Maintenance'
+											? 'อยู่ระหว่างซ่อมบำรุง'
+											: 'จำหน่าย/ทิ้ง'}
 							</span>
 						</td>
 						<td class="px-4 py-3 text-gray-600">{asset.location_name ?? 'N/A'}</td>
@@ -443,7 +500,7 @@
 		<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
 			<a
 				href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'}
-				class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 {data.currentPage ===
+				class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 focus:z-20 focus:outline-offset-0 {data.currentPage ===
 				1
 					? 'pointer-events-none opacity-50'
 					: ''}"
@@ -461,17 +518,17 @@
 			{#each paginationRange as pageNum}
 				{#if typeof pageNum === 'string'}
 					<span
-						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300"
+						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset"
 					>
 						...
 					</span>
 				{:else}
 					<a
-						href={getPageUrl(pageNum)}
+						href={getPageUrl(Number(pageNum))}
 						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum ===
 						data.currentPage
 							? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
-							: 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+							: 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
 						aria-current={pageNum === data.currentPage ? 'page' : undefined}
 					>
 						{pageNum}
@@ -480,7 +537,7 @@
 			{/each}
 			<a
 				href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'}
-				class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 {data.currentPage ===
+				class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 focus:z-20 focus:outline-offset-0 {data.currentPage ===
 				data.totalPages
 					? 'pointer-events-none opacity-50'
 					: ''}"
@@ -518,7 +575,7 @@
 		></div>
 
 		<div
-			class="relative flex w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all max-h-[90vh]"
+			class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
 		>
 			<div class="flex-shrink-0 border-b border-gray-200 px-6 py-4">
 				<h2 id="modal-title" class="text-lg font-bold text-gray-900">
@@ -532,15 +589,15 @@
 				enctype="multipart/form-data"
 				use:enhance={({ formData }) => {
 					isLoading = true;
-                    // --- NEW: Replace original image with compressed one ---
-                    if (originalImageFile) {
-                        formData.set('image', originalImageFile);
-                    }
+					// --- NEW: Replace original image with compressed one ---
+					if (originalImageFile) {
+						formData.set('image', originalImageFile);
+					}
 
 					return async ({ update }) => {
 						await update();
 						isLoading = false;
-						
+
 						// FIX: Check form result here to close modal reliably
 						const isAssetAction = form?.action === 'addAsset' || form?.action === 'editAsset';
 						if (isAssetAction) {
@@ -601,7 +658,9 @@
 
 					<!-- Asset Name -->
 					<div>
-						<label for="name" class="mb-1 block text-sm font-medium text-gray-700">ชื่อสินทรัพย์</label>
+						<label for="name" class="mb-1 block text-sm font-medium text-gray-700"
+							>ชื่อสินทรัพย์</label
+						>
 						<input
 							type="text"
 							name="name"
@@ -620,9 +679,9 @@
 							bind:value={selectedAsset.status}
 							class="w-full rounded-md border-gray-300"
 						>
-							<option value="In Storage">ในคลังสินค้า</option> 
+							<option value="In Storage">ในคลังสินค้า</option>
 							<option value="In Use">ใช้งานอยู่</option>
-							<option value="Under Maintenance">อยู่ระหว่างซ่อมบำรุง</option> 
+							<option value="Under Maintenance">อยู่ระหว่างซ่อมบำรุง</option>
 							<option value="Disposed">จำหน่าย/ทิ้ง</option>
 						</select>
 					</div>
@@ -695,21 +754,61 @@
 						</div>
 					</div>
 					<!-- Assigned User -->
-					<div>
+					<div class="relative">
 						<label for="assigned_to_user_id" class="mb-1 block text-sm font-medium text-gray-700"
 							>ผู้รับผิดชอบ</label
 						>
-						<select
+						<input
+							type="hidden"
 							name="assigned_to_user_id"
-							id="assigned_to_user_id"
-							bind:value={selectedAsset.assigned_to_user_id}
-							class="w-full rounded-md border-gray-300"
-						>
-							<option value={undefined}>ไม่ได้กำหนด</option>
-							{#each data.users as user}
-								<option value={user.id}>{user.full_name} ({user.email})</option>
-							{/each}
-						</select>
+							value={selectedAsset?.assigned_to_user_id || ''}
+						/>
+						<input
+							type="text"
+							placeholder="-- พิมพ์ค้นหา หรือเลือกผู้รับผิดชอบ --"
+							bind:value={userSearchText}
+							onfocus={() => (isUserDropdownOpen = true)}
+							onblur={() => setTimeout(() => (isUserDropdownOpen = false), 200)}
+							oninput={() => {
+								selectedAsset!.assigned_to_user_id = undefined;
+								isUserDropdownOpen = true;
+							}}
+							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+						/>
+						{#if isUserDropdownOpen}
+							<ul
+								class="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg focus:outline-none"
+							>
+								<li>
+									<button
+										type="button"
+										class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+										onclick={() => {
+											selectedAsset!.assigned_to_user_id = undefined;
+											userSearchText = '';
+											isUserDropdownOpen = false;
+										}}
+									>
+										-- ไม่ได้กำหนด --
+									</button>
+								</li>
+								{#each filteredUsers as user (user.id)}
+									<li>
+										<button
+											type="button"
+											class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+											onclick={() => {
+												selectedAsset!.assigned_to_user_id = user.id;
+												userSearchText = user.full_name;
+												isUserDropdownOpen = false;
+											}}
+										>
+											{user.full_name} <span class="text-xs opacity-75">({user.email})</span>
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
 					</div>
 
 					<!-- Image Upload (with compression) -->
@@ -725,20 +824,22 @@
 							onchange={onFileSelected}
 							class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2"
 						/>
-                        {#if isCompressing}
-                            <p class="mt-2 text-sm text-blue-600">กำลังบีบอัดรูปภาพ...</p>
-                        {/if}
-                        {#if compressionError}
-                            <p class="mt-2 text-sm text-red-600">{compressionError}</p>
-                        {/if}
-                        {#if originalImageFile && !isCompressing}
-                             <p class="mt-2 text-sm text-green-600">รูปภาพพร้อมอัปโหลดแล้ว</p>
-                        {/if}
+						{#if isCompressing}
+							<p class="mt-2 text-sm text-blue-600">กำลังบีบอัดรูปภาพ...</p>
+						{/if}
+						{#if compressionError}
+							<p class="mt-2 text-sm text-red-600">{compressionError}</p>
+						{/if}
+						{#if originalImageFile && !isCompressing}
+							<p class="mt-2 text-sm text-green-600">รูปภาพพร้อมอัปโหลดแล้ว</p>
+						{/if}
 					</div>
 
 					<!-- Notes -->
 					<div>
-						<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">บันทึก/หมายเหตุ</label>
+						<label for="notes" class="mb-1 block text-sm font-medium text-gray-700"
+							>บันทึก/หมายเหตุ</label
+						>
 						<textarea
 							name="notes"
 							id="notes"
@@ -768,13 +869,13 @@
 						disabled={isLoading || isCompressing}
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-400"
 					>
-						{#if isLoading} 
-                            กำลังบันทึก... 
-                        {:else if isCompressing}
-                            กำลังบีบอัด...
-                        {:else} 
-                            บันทึกสินทรัพย์ 
-                        {/if}
+						{#if isLoading}
+							กำลังบันทึก...
+						{:else if isCompressing}
+							กำลังบีบอัด...
+						{:else}
+							บันทึกสินทรัพย์
+						{/if}
 					</button>
 				</div>
 			</form>
@@ -826,14 +927,13 @@
 							stroke-linejoin="round"
 							class="h-6 w-6"
 						>
-							<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line
-							>
+							<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
 						</svg>
 					</button>
 				</div>
 				<div class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
 					<div
-						class="flex items-center justify-center rounded-lg border bg-gray-50 aspect-video overflow-hidden"
+						class="flex aspect-video items-center justify-center overflow-hidden rounded-lg border bg-gray-50"
 					>
 						{#if assetToView.image_url}
 							<img
@@ -851,8 +951,7 @@
 								class="h-16 w-16 text-gray-400"
 							>
 								<rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-								<circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"
-								/>
+								<circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
 							</svg>
 						{/if}
 					</div>
@@ -860,9 +959,13 @@
 						<div>
 							<p class="font-semibold text-gray-700">สถานะ</p>
 							<p class="text-gray-600">
-								{assetToView.status === 'In Use' ? 'ใช้งานอยู่' : 
-								 assetToView.status === 'In Storage' ? 'ในคลังสินค้า' : 
-								 assetToView.status === 'Under Maintenance' ? 'อยู่ระหว่างซ่อมบำรุง' : 'จำหน่าย/ทิ้ง'}
+								{assetToView.status === 'In Use'
+									? 'ใช้งานอยู่'
+									: assetToView.status === 'In Storage'
+										? 'ในคลังสินค้า'
+										: assetToView.status === 'Under Maintenance'
+											? 'อยู่ระหว่างซ่อมบำรุง'
+											: 'จำหน่าย/ทิ้ง'}
 							</p>
 						</div>
 						<div>
@@ -892,7 +995,7 @@
 					</div>
 					<div class="md:col-span-2">
 						<p class="font-semibold text-gray-700">บันทึก/หมายเหตุ</p>
-						<p class="mt-1 text-gray-600 whitespace-pre-wrap">
+						<p class="mt-1 whitespace-pre-wrap text-gray-600">
 							{assetToView.notes || 'ไม่มีบันทึก/หมายเหตุ'}
 						</p>
 					</div>
@@ -938,11 +1041,15 @@
 
 <!-- Delete Confirmation Modal -->
 {#if assetToDelete}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="alertdialog">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+		role="alertdialog"
+	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold text-gray-900">ยืนยันการลบ</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบสินทรัพย์ "<strong>{assetToDelete.name}</strong>"? การดำเนินการนี้ไม่สามารถย้อนกลับได้
+				คุณแน่ใจหรือไม่ที่จะลบสินทรัพย์ "<strong>{assetToDelete.name}</strong>"?
+				การดำเนินการนี้ไม่สามารถย้อนกลับได้
 			</p>
 			<form
 				method="POST"
@@ -951,10 +1058,10 @@
 					return async ({ update }) => {
 						await update();
 						assetToDelete = null;
-                        // Show global message after delete (redirect on success already handled)
-                        if (form?.message) {
-                            showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
-                        }
+						// Show global message after delete (redirect on success already handled)
+						if (form?.message) {
+							showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
+						}
 					};
 				}}
 				class="mt-6 flex justify-end gap-3"
@@ -967,7 +1074,10 @@
 				>
 					ยกเลิก
 				</button>
-				<button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white">
+				<button
+					type="submit"
+					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white"
+				>
 					ลบ
 				</button>
 			</form>
@@ -980,8 +1090,9 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		display: -webkit-box;
-		-webkit-line-clamp: 2; /* number of lines to show */
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 		-webkit-box-orient: vertical;
-		word-break: break-word; /* Ensure long words without spaces can break */
+		word-break: break-word;
 	}
 </style>
