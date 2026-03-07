@@ -23,23 +23,35 @@
 
 	function getDocTypeName(type: string) {
 		switch (type) {
-			case 'PR': return 'ใบเสนอซื้อ (PR)';
-			case 'PO': return 'ใบสั่งซื้อ (PO)';
-			case 'GR': return 'ใบรับของ (GR)';
-			case 'AP': return 'บันทึกตั้งหนี้ (AP)';
-			case 'PV': return 'ใบสำคัญจ่าย (PV)';
-			default: return type;
+			case 'PR':
+				return 'ใบเสนอซื้อ (PR)';
+			case 'PO':
+				return 'ใบสั่งซื้อ (PO)';
+			case 'GR':
+				return 'ใบรับของ (GR)';
+			case 'AP':
+				return 'บันทึกตั้งหนี้ (AP)';
+			case 'PV':
+				return 'ใบสำคัญจ่าย (PV)';
+			default:
+				return type;
 		}
 	}
 
 	function getDocTypeEnName(type: string) {
 		switch (type) {
-			case 'PR': return 'PURCHASE REQUISITION';
-			case 'PO': return 'PURCHASE ORDER';
-			case 'GR': return 'GOODS RECEIPT';
-			case 'AP': return 'AP INVOICE';
-			case 'PV': return 'PAYMENT VOUCHER';
-			default: return 'PURCHASE DOCUMENT';
+			case 'PR':
+				return 'PURCHASE REQUISITION';
+			case 'PO':
+				return 'PURCHASE ORDER';
+			case 'GR':
+				return 'GOODS RECEIPT';
+			case 'AP':
+				return 'AP INVOICE';
+			case 'PV':
+				return 'PAYMENT VOUCHER';
+			default:
+				return 'PURCHASE DOCUMENT';
 		}
 	}
 
@@ -109,39 +121,75 @@
 	<input type="hidden" name="status" bind:value={statusToUpdate} />
 </form>
 
-<div class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center">
+<div
+	class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center"
+>
 	<div class="flex items-center">
-		<a href="/purchase-documents" class="mr-3 text-gray-500 hover:text-gray-800" title="กลับหน้ารายการ">
-			<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><path d="m15 18-6-6 6-6"></path></svg>
+		<a
+			href="/purchase-documents"
+			class="mr-3 text-gray-500 hover:text-gray-800"
+			title="กลับหน้ารายการ"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="24"
+				height="24"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="h-6 w-6"><path d="m15 18-6-6 6-6"></path></svg
+			>
 		</a>
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">{getDocTypeName(document.document_type)} #{document.document_number}</h1>
+			<h1 class="text-2xl font-bold text-gray-800">
+				{getDocTypeName(document.document_type)} #{document.document_number}
+			</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				Vendor: <span class="font-medium text-gray-700">{document.vendor_name}</span> | Ref: {document.reference_doc || '-'}
+				Vendor: <span class="font-medium text-gray-700">{document.vendor_name}</span> | Ref: {document.reference_doc ||
+					'-'}
 			</p>
 		</div>
 	</div>
 
 	<div class="flex flex-wrap items-center gap-2">
-		<span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold {getStatusClass(document.status)}">
+		<span
+			class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold {getStatusClass(
+				document.status
+			)}"
+		>
 			{document.status}
 		</span>
 
 		<!-- ส่วนปุ่ม Auto-Generate Documents -->
 		{#if document.document_type === 'PR'}
-			<a href="/purchase-documents/new?source_id={document.id}&target_type=PO" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600">
+			<a
+				href="/purchase-documents/new?source_id={document.id}&target_type=PO"
+				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
+			>
 				แปลงเป็น PO
 			</a>
 		{:else if document.document_type === 'PO'}
-			<a href="/purchase-documents/new?source_id={document.id}&target_type=GR" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600">
+			<a
+				href="/purchase-documents/new?source_id={document.id}&target_type=GR"
+				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
+			>
 				สร้างใบรับของ (GR)
 			</a>
 		{:else if document.document_type === 'GR'}
-			<a href="/purchase-documents/new?source_id={document.id}&target_type=AP" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600">
+			<a
+				href="/purchase-documents/new?source_id={document.id}&target_type=AP"
+				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
+			>
 				ตั้งหนี้ (AP)
 			</a>
 		{:else if document.document_type === 'AP'}
-			<a href="/purchase-documents/new?source_id={document.id}&target_type=PV" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600">
+			<a
+				href="/purchase-documents/new?source_id={document.id}&target_type=PV"
+				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
+			>
 				ทำจ่าย (PV)
 			</a>
 		{/if}
@@ -158,7 +206,7 @@
 			href="/purchase-documents/{document.id}/edit"
 			class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-50"
 		>
-			แก้ไข
+			Edit
 		</a>
 
 		<div class="relative">
@@ -168,7 +216,7 @@
 				disabled={isSaving}
 				class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 			>
-				<option value="" disabled selected>เปลี่ยนสถานะ</option>
+				<option value="" disabled selected>Change Status</option>
 				{#each data.availableStatuses as status}
 					{#if status !== document.status}
 						<option value={status} class="bg-white text-gray-800">{status}</option>
@@ -184,7 +232,11 @@
 		<div>
 			{#if companyData}
 				{#if companyData.logo_path}
-					<img src={companyData.logo_path} alt={companyData.name || 'Company Logo'} class="mb-2 h-16 max-w-xs object-contain" />
+					<img
+						src={companyData.logo_path}
+						alt={companyData.name || 'Company Logo'}
+						class="mb-2 h-16 max-w-xs object-contain"
+					/>
 				{:else if companyData.name}
 					<h2 class="text-2xl font-bold text-gray-800">{companyData.name}</h2>
 				{/if}
@@ -192,11 +244,18 @@
 				<div class="mt-2 space-y-0.5 text-sm text-gray-500">
 					{#if companyData.address_line_1}<p>{companyData.address_line_1}</p>{/if}
 					{#if companyData.address_line_2}<p>{companyData.address_line_2}</p>{/if}
-					<p>{companyData.city || ''} {companyData.state_province || ''} {companyData.postal_code || ''}</p>
+					<p>
+						{companyData.city || ''}
+						{companyData.state_province || ''}
+						{companyData.postal_code || ''}
+					</p>
 					<p>{companyData.country || ''}</p>
-					{#if companyData.phone}<p class="mt-1"><span class="font-semibold">Tel:</span> {companyData.phone}</p>{/if}
-					{#if companyData.email}<p><span class="font-semibold">Email:</span> {companyData.email}</p>{/if}
-					<p class="mt-1"><span class="font-semibold text-gray-700">Tax ID:</span> {companyData.tax_id || '-'}</p>
+					<!-- {#if companyData.phone}<p class="mt-1"><span class="font-semibold">Tel:</span> {companyData.phone}</p>{/if}
+					{#if companyData.email}<p><span class="font-semibold">Email:</span> {companyData.email}</p>{/if} -->
+					<p class="mt-1">
+						<span class="font-semibold text-gray-700">Tax ID:</span>
+						{companyData.tax_id || '-'}
+					</p>
 				</div>
 			{:else}
 				<p class="text-sm text-red-500">ไม่พบข้อมูลบริษัท</p>
@@ -204,8 +263,10 @@
 		</div>
 
 		<div class="text-left md:text-right">
-			<h1 class="text-2xl font-bold text-gray-800 uppercase">{getDocTypeName(document.document_type)}</h1>
-			<p class="text-sm text-gray-500 font-bold">{getDocTypeEnName(document.document_type)}</p>
+			<h1 class="text-2xl font-bold text-gray-800 uppercase">
+				{getDocTypeName(document.document_type)}
+			</h1>
+			<p class="text-sm font-bold text-gray-500">{getDocTypeEnName(document.document_type)}</p>
 
 			<div class="mt-4 space-y-1">
 				<div class="text-sm">
@@ -218,7 +279,11 @@
 				</div>
 				<div class="text-sm">
 					<span class="font-semibold text-gray-600">เครดิต / Term:</span>
-					<span class="font-medium text-gray-800">{document.credit_term && document.credit_term > 0 ? `${document.credit_term} วัน (Days)` : 'เงินสด (Cash)'}</span>
+					<span class="font-medium text-gray-800"
+						>{document.credit_term && document.credit_term > 0
+							? `${document.credit_term} วัน (Days)`
+							: 'เงินสด (Cash)'}</span
+					>
 				</div>
 				<div class="text-sm">
 					<span class="font-semibold text-gray-600">อ้างอิง / Ref:</span>
@@ -234,27 +299,33 @@
 			<p class="font-semibold text-gray-800">{document.vendor_name}</p>
 			<p class="text-sm whitespace-pre-wrap text-gray-600">{document.vendor_address || '-'}</p>
 			<p class="mt-1 text-sm">
-				<span class="font-semibold text-gray-700">Tax ID:</span> {document.vendor_tax_id || '-'}
+				<span class="font-semibold text-gray-700">Tax ID:</span>
+				{document.vendor_tax_id || '-'}
 			</p>
 		</div>
 
 		<div class="md:col-span-1">
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
 			<p class="mt-1 text-xs text-gray-600">
-				<span class="font-semibold">ผู้จัดทำ / Prepared By:</span> {document.created_by_name}
+				<span class="font-semibold">ผู้จัดทำ / Prepared By:</span>
+				{document.created_by_name}
 			</p>
 			{#if document.due_date}
-			<div class="mt-2">
-				<span class="text-xs font-semibold tracking-wider text-red-600 uppercase">วันครบกำหนดชำระ (Due Date)</span>
-				<p class="font-bold text-red-700">{formatDate(document.due_date)}</p>
-			</div>
+				<div class="mt-2">
+					<span class="text-xs font-semibold tracking-wider text-red-600 uppercase"
+						>วันครบกำหนดชำระ (Due Date)</span
+					>
+					<p class="font-bold text-red-700">{formatDate(document.due_date)}</p>
+				</div>
 			{/if}
 		</div>
 	</div>
 </div>
 
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
-	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">รายการสั่งซื้อ/บริการ ({items.length})</h3>
+	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
+		รายการสั่งซื้อ/บริการ ({items.length})
+	</h3>
 	<div class="overflow-x-auto">
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
@@ -296,7 +367,7 @@
 
 <div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
 	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">Financial Summary</h2>
-	<div class="w-full space-y-2 text-sm mt-3">
+	<div class="mt-3 w-full space-y-2 text-sm">
 		<div class="flex items-center justify-between">
 			<span class="font-medium text-gray-600">Subtotal:</span>
 			<span class="font-medium text-gray-800">{formatCurrency(document.subtotal)}</span>
@@ -314,22 +385,28 @@
 			<span class="font-medium text-gray-800">{formatCurrency(document.total_after_discount)}</span>
 		</div>
 
-		<div class="flex items-center justify-between mt-1">
+		<div class="mt-1 flex items-center justify-between">
 			<span class="font-medium text-gray-600">VAT ({Number(document.vat_rate ?? 0)}%):</span>
 			<span class="font-medium text-gray-800">{formatCurrency(document.vat_amount)}</span>
 		</div>
 
 		{#if parseFloat(document.withholding_tax_amount || document.wht_amount || '0') > 0}
-			{@const activeWhtRates = [...new Set(items.map((i: any) => parseFloat(i.wht_rate || '0')).filter((r: number) => r > 0))]}
+			{@const activeWhtRates = [
+				...new Set(
+					items.map((i: any) => parseFloat(i.wht_rate || '0')).filter((r: number) => r > 0)
+				)
+			]}
 			<div class="flex items-center justify-between">
 				<span class="font-medium text-gray-600">
 					WHT ({activeWhtRates.length > 0 ? activeWhtRates.join('%, ') + '%' : 'Total'}):
 				</span>
-				<span class="font-medium text-red-600">- {formatCurrency(document.withholding_tax_amount || document.wht_amount)}</span>
+				<span class="font-medium text-red-600"
+					>- {formatCurrency(document.withholding_tax_amount || document.wht_amount)}</span
+				>
 			</div>
 		{/if}
 
-		<div class="flex items-center justify-between border-t-2 pt-2 mt-2">
+		<div class="mt-2 flex items-center justify-between border-t-2 pt-2">
 			<span class="text-base font-bold text-gray-900">Grand Total (ต้องชำระ):</span>
 			<span class="text-xl font-bold text-indigo-700">{formatCurrency(document.total_amount)}</span>
 		</div>
@@ -337,13 +414,15 @@
 </div>
 
 <div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-	<div class="rounded-lg border bg-white p-4 shadow-sm h-full">
+	<div class="h-full rounded-lg border bg-white p-4 shadow-sm">
 		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">Notes (หมายเหตุ)</h3>
 		<p class="text-sm whitespace-pre-wrap text-gray-600">{document.notes || 'No notes.'}</p>
 	</div>
 
-	<div class="rounded-lg border bg-white p-4 shadow-sm h-full">
-		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">Attachments ({attachments.length})</h3>
+	<div class="h-full rounded-lg border bg-white p-4 shadow-sm">
+		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">
+			Attachments ({attachments.length})
+		</h3>
 		<div class="space-y-2">
 			{#if attachments.length === 0}
 				<p class="text-sm text-gray-500">No attachments found.</p>
@@ -351,8 +430,15 @@
 				{#each attachments as attachment (attachment.id)}
 					<div class="flex items-center justify-between rounded-md bg-gray-100 p-2 text-sm">
 						<div class="flex items-center gap-2 overflow-hidden">
-							<span class="flex-shrink-0 text-lg">{getFileIcon(attachment.file_original_name)}</span>
-							<a href={attachment.url} target="_blank" rel="noopener noreferrer" class="truncate text-indigo-600 hover:underline" title={attachment.file_original_name}>{attachment.file_original_name}</a>
+							<span class="flex-shrink-0 text-lg">{getFileIcon(attachment.file_original_name)}</span
+							>
+							<a
+								href={attachment.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="truncate text-indigo-600 hover:underline"
+								title={attachment.file_original_name}>{attachment.file_original_name}</a
+							>
 						</div>
 					</div>
 				{/each}
