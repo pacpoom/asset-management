@@ -33,6 +33,11 @@ interface DocumentData extends RowDataPacket {
 	vendor_tax_id: string | null;
 	created_by_name: string;
 
+	delivery_location_name: string | null;
+	delivery_address_line: string | null;
+	delivery_contact_name: string | null;
+	delivery_contact_phone: string | null;
+
 	subtotal: number;
 	discount_amount: number;
 	total_after_discount: number;
@@ -228,21 +233,32 @@ function getInvoiceHtml(
                         <p style="margin:0;"><span style="font-weight: 600;">เครดิต / Term:</span> ${creditTermDisplay}</p>
                         ${docData.due_date ? `<p style="margin:0; color: #b91c1c;"><span style="font-weight: 600;">ครบกำหนด / Due:</span> ${formatDateOnly(docData.due_date)}</p>` : ''}
                         ${docData.reference_doc ? `<p style="margin:0;"><span style="font-weight: 600;">อ้างอิง / Ref:</span> ${docData.reference_doc}</p>` : ''}
+                        <p style="margin:0;"><span style="font-weight: 600;">ผู้จัดทำ / Prepared By:</span> ${docData.created_by_name}</p>
                     </div>
                 </td>
             </tr>
             <tr>
-                <td style="padding-top: 1rem; vertical-align: top;">
+                <td style="padding-top: 1rem; vertical-align: top; width: 55%; padding-right: 1rem;">
                     <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ผู้จำหน่าย (Vendor)</h3>
                     <p style="font-weight: bold; margin: 0 0 4px 0;">${docData.vendor_name}</p>
                     <div style="font-size: 8pt; line-height: 1.4;">
-                        <p style="margin:0;">${docData.vendor_address || '-'}</p>
+                        <p style="margin:0; white-space: pre-wrap;">${docData.vendor_address || '-'}</p>
                     </div>
                     <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${docData.vendor_tax_id || '-'}</p>
                 </td>
-                <td style="padding-top: 1rem; vertical-align: top; text-align: right;">
-                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ผู้จัดทำ (Prepared By)</h3>
-                    <p style="font-size: 8pt;">${docData.created_by_name}</p>
+                <td style="padding-top: 1rem; vertical-align: top; width: 45%;">
+                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">สถานที่จัดส่ง (Shipping Address)</h3>
+                    ${docData.delivery_location_name ? `
+                    <p style="font-weight: bold; margin: 0 0 4px 0;">${docData.delivery_location_name}</p>
+                    <div style="font-size: 8pt; line-height: 1.4;">
+                        <p style="margin:0; white-space: pre-wrap;">${docData.delivery_address_line || '-'}</p>
+                        ${(docData.delivery_contact_name || docData.delivery_contact_phone) ? `
+                        <p style="margin:4px 0 0 0;">
+                            ${docData.delivery_contact_name ? `<span style="font-weight: 600;">ผู้ติดต่อ:</span> ${docData.delivery_contact_name}` : ''} 
+                            ${docData.delivery_contact_phone ? `<span style="font-weight: 600; ${docData.delivery_contact_name ? 'margin-left: 8px;' : ''}">โทร:</span> ${docData.delivery_contact_phone}` : ''}
+                        </p>` : ''}
+                    </div>
+                    ` : '<p style="font-size: 8pt; margin: 0;">-</p>'}
                 </td>
             </tr>
         </table>
@@ -438,10 +454,13 @@ export const GET = async ({ url }) => {
 			`
             SELECT pd.*, 
                    v.name as vendor_name, v.address as vendor_address, v.tax_id as vendor_tax_id, 
-                   u.full_name as created_by_name
+                   u.full_name as created_by_name,
+                   da.name as delivery_location_name, da.address_line as delivery_address_line,
+                   da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
+            LEFT JOIN delivery_addresses da ON pd.delivery_address_id = da.id
             WHERE pd.id = ?
         `,
 			[id]
