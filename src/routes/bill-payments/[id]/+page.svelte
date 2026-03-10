@@ -6,6 +6,7 @@
 	import { invalidateAll, goto } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t } from '$lib/i18n';
 
 	type PagePaymentType = PageData['payment'];
 	interface BillPaymentDetailHeader extends PagePaymentType {
@@ -408,10 +409,12 @@
 			>
 		</a>
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">รายละเอียดรายการจ่ายเงิน #{paymentData.id}</h1>
+			<h1 class="text-2xl font-bold text-gray-800">
+				{$t('Bill Payment Details #')}{paymentData.id}
+			</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				Vendor: <span class="font-medium text-gray-700">{paymentData.vendor_name}</span> | Ref: {paymentData.payment_reference ||
-					'-'}
+				{$t('Vendor')}: <span class="font-medium text-gray-700">{paymentData.vendor_name}</span> |
+				{$t('Reference')}: {paymentData.payment_reference || '-'}
 			</p>
 		</div>
 	</div>
@@ -422,7 +425,7 @@
 				paymentData.status
 			)}"
 		>
-			{paymentData.status}
+			{$t('Status_' + paymentData.status)}
 		</span>
 
 		{#if paymentData.status === 'Submitted'}
@@ -432,7 +435,7 @@
 				class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
 				role="button"
 			>
-				<span>พิมพ์ PDF (ดาวน์โหลด)</span>
+				<span>{$t('Download PDF')}</span>
 			</a>
 		{/if}
 
@@ -441,7 +444,7 @@
 			class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
 			disabled={isSaving}
 		>
-			Edit
+			{$t('Edit')}
 		</button>
 
 		<div class="relative">
@@ -452,10 +455,10 @@
 				class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 				disabled={isSaving}
 			>
-				<option value="" disabled selected>Change Status</option>
+				<option value="" disabled selected>{$t('Change Status')}</option>
 				{#each data.availableStatuses as status}
 					{#if status !== paymentData.status}
-						<option value={status} class="bg-white text-gray-800">{status}</option>
+						<option value={status} class="bg-white text-gray-800">{$t('Status_' + status)}</option>
 					{/if}
 				{/each}
 			</select>
@@ -466,7 +469,7 @@
 			class="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 disabled:opacity-50"
 			disabled={isSaving}
 		>
-			Delete
+			{$t('Delete')}
 		</button>
 	</div>
 </div>

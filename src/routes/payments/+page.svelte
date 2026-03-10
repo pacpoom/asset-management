@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
 	$: ({ vouchers, currentType } = data);
@@ -28,11 +29,13 @@
 		goto(`?${params.toString()}`);
 	}
 
-	const formatCurrency = (amount: number) =>
-		new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+	$: currentLoc = $locale === 'th' ? 'th-TH' : $locale === 'zh' ? 'zh-CN' : 'en-US';
 
-	const formatDate = (dateStr: string) =>
-		new Date(dateStr).toLocaleDateString('th-TH', {
+	$: formatCurrency = (amount: number) =>
+		new Intl.NumberFormat(currentLoc, { style: 'currency', currency: 'THB' }).format(amount);
+
+	$: formatDate = (dateStr: string) =>
+		new Date(dateStr).toLocaleDateString(currentLoc, {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
@@ -40,16 +43,16 @@
 </script>
 
 <svelte:head>
-	<title>รายการรับ-จ่าย (Vouchers)</title>
+	<title>{$t('Vouchers Title')}</title>
 </svelte:head>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="text-2xl font-bold text-gray-800">ใบสำคัญรับ-จ่าย (Vouchers)</h1>
+	<h1 class="text-2xl font-bold text-gray-800">{$t('Vouchers Title')}</h1>
 	<a
 		href="/payments/new"
 		class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
 	>
-		+ สร้างใบสำคัญ
+		{$t('Create Voucher')}
 	</a>
 </div>
 
@@ -61,7 +64,7 @@
 				? 'border-blue-500 text-blue-600'
 				: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 		>
-			ทั้งหมด
+			{$t('All')}
 		</button>
 		<button
 			on:click={() => setType('RV')}
@@ -69,7 +72,7 @@
 				? 'border-green-500 text-green-600'
 				: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 		>
-			ใบสำคัญรับ (RV)
+			{$t('Receipt Voucher (RV)')}
 		</button>
 		<button
 			on:click={() => setType('PV')}
@@ -77,7 +80,7 @@
 				? 'border-red-500 text-red-600'
 				: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 		>
-			ใบสำคัญจ่าย (PV)
+			{$t('Payment Voucher (PV)')}
 		</button>
 	</nav>
 </div>
@@ -86,13 +89,13 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">วันที่</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">เลขที่เอกสาร</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">ประเภท</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">คู่ค้า/ผู้ติดต่อ</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">รายละเอียด</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">จำนวนเงิน</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">จัดการ</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Partner/Contact')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Description')}</th>
+				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Amount')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Manage')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -108,7 +111,7 @@
 								? 'bg-green-100 text-green-800'
 								: 'bg-red-100 text-red-800'}"
 						>
-							{v.voucher_type === 'RV' ? 'รับ (RV)' : 'จ่าย (PV)'}
+							{v.voucher_type === 'RV' ? $t('Receive (RV)') : $t('Pay (PV)')}
 						</span>
 					</td>
 					<td class="px-4 py-3 text-gray-900">{v.contact_name || '-'}</td>
@@ -121,7 +124,7 @@
 							<a
 								href="/payments/{v.id}"
 								class="text-gray-400 transition-colors hover:text-blue-600"
-								title="ดูรายละเอียด"
+								title={$t('View Details')}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -144,7 +147,7 @@
 									target="_blank"
 									rel="noopener noreferrer"
 									class="text-gray-400 transition-colors hover:text-gray-600"
-									title="พิมพ์ PDF"
+									title={$t('Print PDF')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -160,7 +163,10 @@
 									</svg>
 								</a>
 							{:else}
-								<span class="cursor-not-allowed text-gray-200" title="ต้องยืนยันเอกสารก่อนพิมพ์">
+								<span
+									class="cursor-not-allowed text-gray-200"
+									title={$t('Must confirm before printing')}
+								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 20 20"
@@ -179,7 +185,7 @@
 							<a
 								href="/payments/{v.id}/edit"
 								class="text-gray-400 transition-colors hover:text-yellow-600"
-								title="แก้ไข"
+								title={$t('Edit')}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -197,7 +203,7 @@
 								type="button"
 								on:click={() => openDeleteModal(v)}
 								class="text-gray-400 transition-colors hover:text-red-600"
-								title="ลบ"
+								title={$t('Delete')}
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
@@ -218,7 +224,7 @@
 			{/each}
 			{#if vouchers.length === 0}
 				<tr>
-					<td colspan="7" class="py-8 text-center text-gray-500">ไม่พบข้อมูล</td>
+					<td colspan="7" class="py-8 text-center text-gray-500">{$t('No data found')}</td>
 				</tr>
 			{/if}
 		</tbody>
@@ -232,10 +238,11 @@
 		<div
 			class="w-full transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all sm:max-w-lg"
 		>
-			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">{$t('Confirm Delete')}</h3>
 			<p class="text-sm text-gray-500">
-				คุณแน่ใจหรือไม่ที่จะลบเอกสารเลขที่ <strong>{itemToDelete?.voucher_number}</strong>?
-				<br />การกระทำนี้ไม่สามารถย้อนกลับได้
+				{$t('Are you sure you want to delete document no.')}
+				<strong>{itemToDelete?.voucher_number}</strong>?
+				<br />{$t('This action cannot be undone.')}
 			</p>
 			<div class="mt-6 flex justify-end gap-3">
 				<button
@@ -243,7 +250,7 @@
 					on:click={closeDeleteModal}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 				<form
 					method="POST"
@@ -264,9 +271,9 @@
 						class="flex items-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
 					>
 						{#if isDeleting}
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete')}
 						{/if}
 					</button>
 				</form>

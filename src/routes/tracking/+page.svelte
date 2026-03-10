@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { fade, slide } from 'svelte/transition';
+	import { t } from '$lib/i18n'; // 🌟 นำเข้าฟังก์ชันแปลภาษา
 
-	let { form } = $props();
+	// 🌟 ป้องกัน Error (เผื่อไว้)
+	let { form }: { form: any } = $props();
 	let isSearching = $state(false);
 
 	function getStatusColor(status: string) {
@@ -14,22 +16,16 @@
 		};
 		return colors[status] || 'bg-gray-100 text-gray-700';
 	}
-
-	function getStatusLabel(status: string) {
-		const map: Record<string, string> = {
-			Pending: 'รอดำเนินการ',
-			'In Progress': 'กำลังซ่อม',
-			Completed: 'เสร็จสิ้น',
-			Cancelled: 'ยกเลิก'
-		};
-		return map[status] || status;
-	}
 </script>
+
+<svelte:head>
+	<title>{$t('Track Repair')}</title>
+</svelte:head>
 
 <div class="mx-auto max-w-xl p-4 sm:p-8">
 	<div class="mb-8 text-center">
-		<h1 class="text-3xl font-black text-gray-900">🔍 ติดตามสถานะแจ้งซ่อม</h1>
-		<p class="mt-2 text-gray-500">กรอกเลข Ticket หรือ เบอร์โทรศัพท์ เพื่อค้นหา</p>
+		<h1 class="text-3xl font-black text-gray-900">{$t('Track Repair Title')}</h1>
+		<p class="mt-2 text-gray-500">{$t('Track Repair Desc')}</p>
 	</div>
 
 	<div class="mb-8 rounded-3xl border border-gray-100 bg-white p-6 shadow-lg">
@@ -48,7 +44,7 @@
 				<input
 					type="text"
 					name="keyword"
-					placeholder="เช่น 251225-001 หรือ 0812345678"
+					placeholder={$t('Search Placeholder')}
 					required
 					value={form?.keyword ?? ''}
 					class="w-full rounded-2xl border-2 border-gray-100 bg-gray-50 py-4 pr-4 pl-12 text-lg font-bold text-gray-700 transition-all placeholder:font-normal focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
@@ -72,7 +68,7 @@
 				disabled={isSearching}
 				class="mt-4 w-full rounded-2xl bg-blue-600 py-4 font-bold text-white shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 active:scale-95 disabled:opacity-50"
 			>
-				{isSearching ? 'กำลังค้นหา...' : 'ตรวจสอบสถานะ'}
+				{isSearching ? $t('Searching...') : $t('Check Status')}
 			</button>
 		</form>
 
@@ -90,7 +86,7 @@
 		<div class="space-y-6" transition:fade>
 			<div class="mb-4 flex items-center gap-2">
 				<span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700"
-					>ผลลัพธ์: {form.results.length} รายการ</span
+					>{$t('Results:')} {form.results.length} {$t('items')}</span
 				>
 			</div>
 
@@ -102,7 +98,7 @@
 						<span
 							class={`rounded-full px-3 py-1 text-xs font-black tracking-wider uppercase ${getStatusColor(item.repair_status)}`}
 						>
-							{getStatusLabel(item.repair_status)}
+							{$t('Status_' + item.repair_status)}
 						</span>
 					</div>
 
@@ -113,7 +109,7 @@
 					</div>
 
 					<div class="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-						<p class="mb-1 text-xs font-bold text-gray-400 uppercase">อุปกรณ์ / อาการเสีย</p>
+						<p class="mb-1 text-xs font-bold text-gray-400 uppercase">{$t('Asset / Issue')}</p>
 						<p class="text-lg font-bold text-gray-800">{item.asset_name}</p>
 						<p class="mt-1 text-gray-600 italic">"{item.issue_description}"</p>
 					</div>
@@ -129,7 +125,7 @@
 										d="M5 13l4 4L19 7"
 									/></svg
 								>
-								การแก้ไขเสร็จสิ้น
+								{$t('Resolution Completed')}
 							</p>
 
 							{#if item.completion_image_url}
@@ -142,14 +138,14 @@
 
 							{#if item.admin_notes}
 								<div class="rounded-xl bg-white/60 p-3 text-sm font-medium text-green-800">
-									<span class="font-bold">ช่างแจ้งว่า:</span>
+									<span class="font-bold">{$t('Technician Note:')}</span>
 									{item.admin_notes}
 								</div>
 							{/if}
 						</div>
 					{:else if item.repair_status === 'In Progress'}
 						<div class="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-center">
-							<p class="text-sm font-bold text-blue-600">กำลังดำเนินการซ่อม...</p>
+							<p class="text-sm font-bold text-blue-600">{$t('Repair is in progress...')}</p>
 						</div>
 					{/if}
 				</div>

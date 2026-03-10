@@ -6,22 +6,22 @@
 	import { slide, fade, fly } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
 
+	import { locale, t } from '$lib/i18n';
+
 	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>();
 	type Menu = LayoutServerData['menus'][0];
 
 	let isSidebarOpen = $state(false);
 
 	let isSidebarPinned = $state(false);
-	// สถานะสำหรับ "โฮเวอร์" (Hover) เมนู
 	let isSidebarHovering = $state(false);
-	// สถานะที่บอกว่าเมนู "ขยายเต็ม" หรือไม่
 	const isSidebarExpanded = $derived(isSidebarPinned || isSidebarHovering);
 
-	// State for collapsible sub-menus (when not collapsed)
 	let openMenuIds = $state(new Set<number>());
 	let isAdminMenuOpen = $state(false);
+	let isLangMenuDesktop = $state(false);
+	let isLangMenuMobile = $state(false);
 
-	// ฟังก์ชันสร้างตัวย่อ (Initials)
 	function getInitials(nameOrEmail: string | null | undefined): string {
 		if (!nameOrEmail) return '??';
 		const nameParts = nameOrEmail.includes(' ') ? nameOrEmail.split(' ') : null;
@@ -40,7 +40,6 @@
 
 	// Function to toggle *any* menu ID (only used when not collapsed)
 	function toggleMenu(id: number) {
-		// if (isSidebarCollapsed) return; // (logic changed)
 		const newSet = new Set(openMenuIds);
 		if (newSet.has(id)) {
 			newSet.delete(id);
@@ -81,10 +80,8 @@
 	$effect(() => {
 		if ($navigating) {
 			isSidebarOpen = false;
-			// --- REMOVED: flyoutMenuId logic ---
 		}
 		if (!isSidebarPinned) {
-			// (logic changed)
 			openMenuIds = new Set<number>();
 			isAdminMenuOpen = false;
 		}
@@ -149,7 +146,7 @@
 										)
 											? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 											: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} pr-8 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-										title={menu.title}
+										title={$t(menu.title)}
 									>
 										<span
 											class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110"
@@ -157,7 +154,7 @@
 										>
 										<span
 											class="overflow-hidden font-medium whitespace-nowrap transition-all duration-100"
-											>{menu.title}</span
+											>{$t(menu.title)}</span
 										>
 									</a>
 									<button
@@ -194,7 +191,7 @@
 									)
 										? 'bg-blue-100 text-blue-700'
 										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
-									title={menu.title}
+									title={$t(menu.title)}
 								>
 									<span
 										class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
@@ -213,9 +210,8 @@
 										: 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
                                 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
-  
-                               {!isSidebarExpanded && !isFlyout ? 'justify-center' : ''}"
-								title={!isSidebarExpanded && !isFlyout ? menu.title : ''}
+                                {!isSidebarExpanded && !isFlyout ? 'justify-center' : ''}"
+								title={!isSidebarExpanded && !isFlyout ? $t(menu.title) : ''}
 							>
 								<span
 									class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
@@ -225,7 +221,7 @@
 								<span
 									class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
 								>
-									{menu.title}
+									{$t(menu.title)}
 								</span>
 							</a>
 						{/if}
@@ -237,7 +233,7 @@
 								)
 									? 'bg-blue-100 text-blue-700'
 									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
-								title={menu.title}
+								title={$t(menu.title)}
 							>
 								<span
 									class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
@@ -261,7 +257,7 @@
 									>
 									<span
 										class="overflow-hidden font-medium whitespace-nowrap transition-all duration-100"
-										>{menu.title}</span
+										>{$t(menu.title)}</span
 									>
 								</div>
 								<svg
@@ -286,14 +282,14 @@
 							!isFlyout
 								? 'justify-center'
 								: ''}"
-							title={!isSidebarExpanded && !isFlyout ? menu.title : ''}
+							title={!isSidebarExpanded && !isFlyout ? $t(menu.title) : ''}
 						>
 							<span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
 								>{menu.icon || 'circle'}</span
 							>
 							<span
 								class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
-								>{menu.title}</span
+								>{$t(menu.title)}</span
 							>
 						</div>
 					{/if}
@@ -343,14 +339,12 @@
 			onmouseleave={() => (isSidebarHovering = false)}
 		>
 			<div class="flex h-full flex-col overflow-x-hidden overflow-y-auto">
-				<!-- Sidebar Header -->
 				<div
 					class="mb-6 flex flex-shrink-0 items-center gap-3 px-2 transition-all duration-300 {isSidebarExpanded ||
 					isSidebarOpen
 						? 'flex-col py-6'
 						: 'h-16 justify-center'}"
 				>
-					<!-- Logo -->
 					<div
 						class="{isSidebarExpanded || isSidebarOpen
 							? 'h-24 w-24'
@@ -367,7 +361,6 @@
 						{/if}
 					</div>
 
-					<!-- System Name -->
 					<span
 						class={`text-center font-bold text-gray-900 transition-all duration-100 ${
 							isSidebarExpanded || isSidebarOpen
@@ -389,7 +382,7 @@
 								: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
 							focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
 							{!isSidebarExpanded ? 'justify-center' : ''}"
-							title={!isSidebarExpanded ? 'Dashboard' : ''}
+							title={!isSidebarExpanded ? $t('Dashboard') : ''}
 						>
 							<span
 								class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
@@ -401,7 +394,7 @@
 									!isSidebarExpanded ? 'lg:hidden' : ''
 								}`}
 							>
-								Dashboard
+								{$t('Dashboard')}
 							</span>
 						</a>
 
@@ -425,7 +418,7 @@
 									class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none {!isSidebarExpanded
 										? 'justify-center'
 										: ''} {isAdminSectionActive ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}"
-									title={!isSidebarExpanded ? 'System Management' : ''}
+									title={!isSidebarExpanded ? $t('System Management') : ''}
 								>
 									<div class="flex items-center gap-3">
 										<span class="material-symbols-outlined h-6 w-6 flex-shrink-0 text-gray-400"
@@ -434,7 +427,7 @@
 										<span
 											class={`overflow-hidden px-0 text-xs font-semibold whitespace-nowrap text-gray-400 uppercase transition-all duration-100 ${!isSidebarExpanded ? 'lg:hidden' : ''}`}
 										>
-											System Management
+											{$t('System Management')}
 										</span>
 									</div>
 									<svg
@@ -463,10 +456,10 @@
 												)
 													? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 													: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-												title="Roles & Permissions"
+												title={$t('Roles & Permissions')}
 												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
 													>shield_person</span
-												><span class="font-medium">Roles & Permissions</span></a
+												><span class="font-medium">{$t('Roles & Permissions')}</span></a
 											>
 										</li>
 										<li>
@@ -477,10 +470,10 @@
 												)
 													? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 													: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-												title="Permissions"
+												title={$t('Permissions')}
 												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
 													>verified_user</span
-												><span class="font-medium">Permissions</span></a
+												><span class="font-medium">{$t('Permissions')}</span></a
 											>
 										</li>
 										<li>
@@ -491,9 +484,9 @@
 												)
 													? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 													: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-												title="Menu Management"
+												title={$t('Menu Management')}
 												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span
-												><span class="font-medium">Menu Management</span></a
+												><span class="font-medium">{$t('Menu Management')}</span></a
 											>
 										</li>
 									</ul>
@@ -531,6 +524,69 @@
 
 				{#if $page.data.user}
 					<div class="ml-auto flex items-center gap-4">
+						<div class="relative">
+							<button
+								type="button"
+								onclick={() => (isLangMenuMobile = !isLangMenuMobile)}
+								onblur={() => setTimeout(() => (isLangMenuMobile = false), 200)}
+								class="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 shadow-sm transition-colors hover:bg-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+							>
+								{#if $locale === 'th'}
+									<img
+										src="https://flagcdn.com/w20/th.png"
+										alt="TH"
+										class="w-6 rounded-sm shadow-sm"
+									/>
+								{:else}
+									<img
+										src="https://flagcdn.com/w20/gb.png"
+										alt="EN"
+										class="w-6 rounded-sm shadow-sm"
+									/>
+								{/if}
+								<svg
+									class="h-4 w-4 text-gray-500"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M19 9l-7 7-7-7"
+									/>
+								</svg>
+							</button>
+
+							{#if isLangMenuMobile}
+								<div
+									class="absolute top-full left-0 z-50 mt-1 w-28 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg"
+								>
+									<button
+										type="button"
+										onclick={() => {
+											$locale = 'th';
+											isLangMenuMobile = false;
+										}}
+										class="flex w-full items-center gap-3 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-blue-50 hover:text-blue-700"
+									>
+										<img src="https://flagcdn.com/w20/th.png" alt="TH" class="w-5 rounded-[2px]" /> ไทย
+									</button>
+									<button
+										type="button"
+										onclick={() => {
+											$locale = 'en';
+											isLangMenuMobile = false;
+										}}
+										class="flex w-full items-center gap-3 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-blue-50 hover:text-blue-700"
+									>
+										<img src="https://flagcdn.com/w20/gb.png" alt="EN" class="w-5 rounded-[2px]" /> Eng
+									</button>
+								</div>
+							{/if}
+						</div>
+
 						<div class="text-right">
 							<a
 								href="/profile"
@@ -558,7 +614,6 @@
 				{/if}
 			</header>
 
-			<!-- Mobile Header -->
 			<header
 				class="sticky top-0 z-10 flex min-h-[4rem] items-center justify-between border-b border-gray-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur-sm lg:hidden"
 			>
@@ -570,6 +625,69 @@
 					<span class="material-symbols-outlined h-6 w-6">menu</span>
 				</button>
 				<div class="flex items-center gap-3">
+					<div class="relative">
+						<button
+							type="button"
+							onclick={() => (isLangMenuDesktop = !isLangMenuDesktop)}
+							onblur={() => setTimeout(() => (isLangMenuDesktop = false), 200)}
+							class="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-2 py-1.5 shadow-sm transition-colors hover:bg-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+						>
+							{#if $locale === 'th'}
+								<img
+									src="https://flagcdn.com/w20/th.png"
+									alt="TH"
+									class="w-6 rounded-sm shadow-sm"
+								/>
+							{:else}
+								<img
+									src="https://flagcdn.com/w20/gb.png"
+									alt="EN"
+									class="w-6 rounded-sm shadow-sm"
+								/>
+							{/if}
+							<svg
+								class="h-4 w-4 text-gray-500"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M19 9l-7 7-7-7"
+								/>
+							</svg>
+						</button>
+
+						{#if isLangMenuDesktop}
+							<div
+								class="absolute top-full right-0 z-50 mt-1 w-28 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg"
+							>
+								<button
+									type="button"
+									onclick={() => {
+										$locale = 'th';
+										isLangMenuDesktop = false;
+									}}
+									class="flex w-full items-center gap-3 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-blue-50 hover:text-blue-700"
+								>
+									<img src="https://flagcdn.com/w20/th.png" alt="TH" class="w-5 rounded-[2px]" /> ไทย
+								</button>
+								<button
+									type="button"
+									onclick={() => {
+										$locale = 'en';
+										isLangMenuDesktop = false;
+									}}
+									class="flex w-full items-center gap-3 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-blue-50 hover:text-blue-700"
+								>
+									<img src="https://flagcdn.com/w20/gb.png" alt="EN" class="w-5 rounded-[2px]" /> Eng
+								</button>
+							</div>
+						{/if}
+					</div>
+
 					{#if data.companyLogoPath}
 						<img src={data.companyLogoPath} alt="Company Logo" class="h-10 w-10 object-contain" />
 					{:else}

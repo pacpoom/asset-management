@@ -5,8 +5,8 @@
 	import { invalidateAll, goto } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t } from '$lib/i18n';
 
-	// --- Types ---
 	export type Vendor = PageData['vendors'][0];
 	export type Unit = PageData['units'][0];
 	export type VendorContract = PageData['contracts'][0];
@@ -26,7 +26,6 @@
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	// --- List/Filter State ---
 	let searchQuery = $state(data.searchQuery ?? '');
 	let filterVendor = $state(data.filters?.vendor ?? '');
 	let filterStatus = $state(data.filters?.status ?? '');
@@ -45,10 +44,8 @@
 	let vat_selection = $state(7);
 	let wht_selection = $state(0);
 
-	// --- Detail/Action State ---
 	let paymentToDelete = $state<PaymentHeader | null>(null);
 	let isDeleting = $state(false);
-	// UI state
 	let isSaving = $state(false);
 	let globalMessage = $state<{ text: string; type: 'success' | 'error' } | null>(null);
 	let messageTimeout: NodeJS.Timeout;
@@ -61,7 +58,6 @@
 		}, duration);
 	}
 
-	// --- Derived Calculations ---
 	const subTotal = $derived(items.reduce((sum, item) => sum + item.line_total, 0));
 	const totalAfterDiscount = $derived(subTotal - (discountAmount || 0));
 
@@ -73,7 +69,6 @@
 	);
 	const grandTotal = $derived(totalAfterDiscount + vatAmount - withholdingTaxAmount);
 
-	// --- Derived Contracts ---
 	const filteredContracts = $derived(
 		vendor_id ? (data.contracts || []).filter((c: VendorContract) => c.vendor_id == vendor_id) : []
 	);
@@ -85,7 +80,6 @@
 		}))
 	);
 
-	// --- Pagination Logic ---
 	const paginationRange = $derived(() => {
 		if (!data.totalPages || data.totalPages <= 1) return [];
 		const delta = 1;
@@ -124,7 +118,6 @@
 		goto(getPageUrl(1));
 	}
 
-	// --- General Functions ---
 	function formatCurrency(value: number | null | undefined, currency: string = 'THB') {
 		if (value === null || value === undefined) return '-';
 		return new Intl.NumberFormat('th-TH', {
@@ -157,7 +150,6 @@
 		return statusMap[status] || 'bg-yellow-100 text-yellow-800';
 	}
 
-	// --- Form/Modal Functions ---
 	function closeCreateModal() {
 		isCreateModalOpen = false;
 	}
@@ -225,7 +217,6 @@
 		if (fileInput) fileInput.value = '';
 	}
 
-	// --- Reactive Effects for Form ---
 	$effect.pre(() => {
 		if (form?.action === 'savePayment') {
 			if (form.success) {
@@ -252,7 +243,7 @@
 </script>
 
 <svelte:head>
-	<title>รายการจ่ายเงิน (Payments)</title>
+	<title>{$t('Bill Payments Title')}</title>
 	<link rel="stylesheet" href="https://unpkg.com/svelte-select@latest/dist/stylesheet.css" />
 </svelte:head>
 
@@ -270,8 +261,8 @@
 
 <div class="mb-6 flex items-center justify-between">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">รายการจ่ายเงิน (Payments)</h1>
-		<p class="mt-1 text-sm text-gray-500">บันทึกการชำระเงินให้แก่ผู้จัดจำหน่าย/ซัพพลายเออร์</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Bill Payments Title')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Bill Payments Desc')}</p>
 	</div>
 	<button
 		onclick={() => {
@@ -289,7 +280,7 @@
 			class="h-4 w-4"
 			><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 		>
-		สร้างรายการใหม่
+		{$t('Create New Record')}
 	</button>
 </div>
 
@@ -302,7 +293,7 @@
 			type="search"
 			id="search"
 			bind:value={searchQuery}
-			placeholder="ค้นหาเลขที่อ้างอิง หรือ Vendor..."
+			placeholder={$t('Search Payment Placeholder')}
 			class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 			onchange={applyFilters}
 		/>
@@ -328,7 +319,7 @@
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุก Vendor --</option>
+			<option value="">{$t('All Vendors')}</option>
 			{#each data.vendors as vendor (vendor.id)}<option value={vendor.id}>{vendor.name}</option
 				>{/each}
 		</select>
@@ -341,8 +332,10 @@
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุกสถานะ --</option>
-			{#each data.availableStatuses as status}<option value={status}>{status}</option>{/each}
+			<option value="">{$t('All Statuses')}</option>
+			{#each data.availableStatuses as status}<option value={status}
+					>{$t('Status_' + status)}</option
+				>{/each}
 		</select>
 	</div>
 	<div class="flex items-center">
@@ -350,7 +343,7 @@
 			type="button"
 			onclick={applyFilters}
 			class="w-full rounded-lg bg-blue-500 px-4 py-2 text-sm text-white shadow-sm transition hover:bg-blue-600"
-			>Apply Filters</button
+			>{$t('Apply Filters')}</button
 		>
 	</div>
 </div>
@@ -359,21 +352,23 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">ID</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Reference</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Vendor</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Date</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">Amount</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Status</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Prepared By</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Docs</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Actions</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('ID')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Reference')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Vendor')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Date')}</th>
+				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Amount')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Prepared By')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Docs')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if payments.length === 0}
 				<tr>
-					<td colspan="10" class="py-12 text-center text-gray-500"> ไม่พบรายการจ่ายเงิน </td>
+					<td colspan="10" class="py-12 text-center text-gray-500">
+						{$t('No bill payments found.')}
+					</td>
 				</tr>
 			{:else}
 				{#each payments as payment (payment.id)}
@@ -399,7 +394,7 @@
 									payment.status
 								)}"
 							>
-								{payment.status}
+								{$t('Status_' + payment.status)}
 							</span>
 						</td>
 						<td class="px-4 py-3 text-center align-middle text-gray-600"
@@ -413,8 +408,8 @@
 								<a
 									href="/bill-payments/{payment.id}"
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-									aria-label="View Details"
-									title="View Details"
+									aria-label={$t('View Details')}
+									title={$t('View Details')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -437,8 +432,8 @@
 								<a
 									href="/bill-payments/{payment.id}/edit"
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-orange-600"
-									aria-label="Edit"
-									title="Edit"
+									aria-label={$t('Edit')}
+									title={$t('Edit')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -460,8 +455,8 @@
 									href="/bill-payments/generate-pdf?id={payment.id}"
 									target="_blank"
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-purple-600"
-									aria-label="Print PDF"
-									title="Print PDF"
+									aria-label={$t('Print PDF')}
+									title={$t('Print PDF')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -482,8 +477,8 @@
 								<button
 									onclick={() => (paymentToDelete = payment)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
-									aria-label="Delete payment"
-									title="Delete Payment"
+									aria-label={$t('Delete Payment')}
+									title={$t('Delete Payment')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -511,7 +506,8 @@
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
 		<div>
 			<p class="text-sm text-gray-700">
-				Page <span class="font-medium">{data.currentPage}</span> of
+				{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
+				{$t('of')}
 				<span class="font-medium">{data.totalPages}</span>
 			</p>
 		</div>
@@ -523,7 +519,7 @@
 					? 'pointer-events-none opacity-50'
 					: ''}"
 				aria-disabled={data.currentPage === 1}
-				><span class="sr-only">Previous</span><svg
+				><span class="sr-only">{$t('Previous')}</span><svg
 					class="h-5 w-5"
 					viewBox="0 0 20 20"
 					fill="currentColor"
@@ -555,7 +551,7 @@
 					? 'pointer-events-none opacity-50'
 					: ''}"
 				aria-disabled={data.currentPage === data.totalPages}
-				><span class="sr-only">Next</span><svg
+				><span class="sr-only">{$t('Next')}</span><svg
 					class="h-5 w-5"
 					viewBox="0 0 20 20"
 					fill="currentColor"
@@ -580,7 +576,7 @@
 			class="relative flex max-h-[95vh] w-full max-w-7xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
 		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
-				<h2 class="text-lg font-bold text-gray-900">บันทึกรายการจ่ายเงินใหม่</h2>
+				<h2 class="text-lg font-bold text-gray-900">{$t('Create New Payment Record')}</h2>
 			</div>
 
 			<form
@@ -622,7 +618,7 @@
 					<div class="grid grid-cols-1 gap-4 md:grid-cols-4">
 						<div>
 							<label for="vendor_id_modal" class="mb-1 block text-sm font-medium text-gray-700"
-								>ผู้จัดจำหน่าย (Vendor) <span class="text-red-500">*</span></label
+								>{$t('Vendor (Supplier)')} <span class="text-red-500">*</span></label
 							>
 							<select
 								id="vendor_id_modal"
@@ -632,7 +628,7 @@
 								onchange={onVendorChange}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							>
-								<option value={undefined} disabled>-- เลือก Vendor --</option>
+								<option value={undefined} disabled>{$t('Select Vendor')}</option>
 
 								{#each data.vendors || [] as vendor (vendor.id)}
 									<option value={vendor.id}>{vendor.name}</option>
@@ -642,7 +638,7 @@
 						<div>
 							<label
 								for="vendor_contract_id_modal"
-								class="mb-1 block text-sm font-medium text-gray-700">สัญญา (Contract)</label
+								class="mb-1 block text-sm font-medium text-gray-700">{$t('Contract')}</label
 							>
 							<select
 								id="vendor_contract_id_modal"
@@ -651,7 +647,7 @@
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								disabled={!vendor_id || filteredContracts.length === 0}
 							>
-								<option value={undefined}>-- ไม่ผูกกับสัญญา --</option>
+								<option value={undefined}>{$t('No Contract Attached')}</option>
 								{#each filteredContracts as contract (contract.id)}
 									<option value={contract.id}
 										>{contract.contract_number
@@ -663,7 +659,7 @@
 						</div>
 						<div>
 							<label for="payment_date_modal" class="mb-1 block text-sm font-medium text-gray-700"
-								>วันที่จ่ายเงิน <span class="text-red-500">*</span></label
+								>{$t('Payment Date')} <span class="text-red-500">*</span></label
 							>
 							<input
 								type="date"
@@ -677,7 +673,8 @@
 						<div>
 							<label
 								for="payment_reference_modal"
-								class="mb-1 block text-sm font-medium text-gray-700">เลขที่อ้างอิง (ถ้ามี)</label
+								class="mb-1 block text-sm font-medium text-gray-700"
+								>{$t('Reference No. (Optional)')}</label
 							>
 							<input
 								type="text"
@@ -691,27 +688,29 @@
 					</div>
 
 					<div>
-						<h3 class="text-md mb-2 font-semibold text-gray-800">รายการจ่าย</h3>
+						<h3 class="text-md mb-2 font-semibold text-gray-800">{$t('Payment Items')}</h3>
 						<div class="overflow-x-auto rounded border border-gray-200">
 							<table class="min-w-full divide-y divide-gray-200 text-sm">
 								<thead class="bg-gray-50">
 									<tr>
-										<th class="w-10 px-3 py-2 text-left font-medium text-gray-500">ลำดับ</th>
+										<th class="w-10 px-3 py-2 text-left font-medium text-gray-500">{$t('No.')}</th>
 										<th class="w-[25%] px-3 py-2 text-left font-semibold text-gray-400"
-											>สินค้า/บริการ (Product) <span class="text-red-500">*</span></th
+											>{$t('Product/Service')} <span class="text-red-500">*</span></th
 										>
 										<th class="min-w-[250px] px-3 py-2 text-left font-semibold text-gray-600"
-											>รายละเอียด</th
+											>{$t('Description')}</th
 										>
 										<th class="w-[100px] px-3 py-2 text-right font-semibold text-gray-600"
-											>จำนวน <span class="text-red-500"></span></th
+											>{$t('Quantity')} <span class="text-red-500"></span></th
 										>
-										<th class="w-[130px] px-3 py-2 text-left font-semibold text-gray-600">หน่วย</th>
-										<th class="w-[120px] px-3 py-2 text-right font-semibold text-gray-600"
-											>ราคา/หน่วย <span class="text-red-500"></span></th
+										<th class="w-[130px] px-3 py-2 text-left font-semibold text-gray-600"
+											>{$t('Unit')}</th
 										>
 										<th class="w-[120px] px-3 py-2 text-right font-semibold text-gray-600"
-											>ราคารวม</th
+											>{$t('Unit Price')} <span class="text-red-500"></span></th
+										>
+										<th class="w-[120px] px-3 py-2 text-right font-semibold text-gray-600"
+											>{$t('Total Price')}</th
 										>
 										<th class="w-10 px-3 py-2 text-center font-semibold text-gray-600"></th>
 									</tr>
@@ -720,7 +719,7 @@
 									{#if items.length === 0}
 										<tr
 											><td colspan="8" class="py-4 text-center text-gray-500 italic"
-												>-- กด "เพิ่มรายการ" เพื่อเริ่มต้น --</td
+												>{$t('Click "Add Item" to start')}</td
 											></tr
 										>
 									{/if}
@@ -736,7 +735,7 @@
 														item.product_object = null;
 														onProductSelectChange(item);
 													}}
-													placeholder="-- ค้นหา/เลือกสินค้า --"
+													placeholder={$t('Search/Select Product')}
 													required
 													container={browser ? document.body : null}
 													floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
@@ -749,7 +748,7 @@
 												<input
 													type="text"
 													bind:value={item.description}
-													placeholder="รายละเอียดเพิ่มเติม..."
+													placeholder={$t('Additional details...')}
 													class="w-full rounded-md border-gray-300 py-1 text-sm"
 												/>
 											</td>
@@ -768,7 +767,7 @@
 													bind:value={item.unit_id}
 													class="w-full rounded-md border-gray-300 py-1 text-sm"
 												>
-													<option value={null}>-- N/A --</option>
+													<option value={null}>{$t('-- N/A --')}</option>
 													{#each data.units as unit (unit.id)}
 														<option value={unit.id}>{unit.symbol}</option>
 													{/each}
@@ -795,7 +794,7 @@
 													type="button"
 													onclick={() => removeLineItem(item.id)}
 													class="p-1 text-red-500 hover:text-red-700"
-													title="Remove Item"
+													title={$t('Remove Item')}
 												>
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
@@ -829,7 +828,7 @@
 									d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
 								/></svg
 							>
-							เพิ่มรายการ
+							{$t('Add Item')}
 						</button>
 					</div>
 
@@ -837,14 +836,14 @@
 						<div>
 							<div class="w-full space-y-2 text-sm">
 								<div class="flex items-center justify-between">
-									<span class="font-medium text-gray-600">รวมเป็นเงิน (Subtotal):</span>
+									<span class="font-medium text-gray-600">{$t('Subtotal:')}</span>
 									<span class="text-base font-semibold text-gray-800"
 										>{formatCurrency(subTotal)}</span
 									>
 								</div>
 								<div class="flex items-center justify-between gap-4">
 									<label for="discountAmount_modal" class="font-medium text-gray-600"
-										>ส่วนลด (Discount):</label
+										>{$t('Discount:')}</label
 									>
 									<input
 										type="number"
@@ -860,7 +859,7 @@
 									/>
 								</div>
 								<div class="flex items-center justify-between border-t pt-2">
-									<span class="font-medium text-gray-600">ราคาหลังหักส่วนลด:</span>
+									<span class="font-medium text-gray-600">{$t('Total after discount:')}</span>
 									<span class="text-base font-semibold text-gray-800"
 										>{formatCurrency(totalAfterDiscount)}</span
 									>
@@ -868,7 +867,9 @@
 
 								<div class="flex items-center justify-between gap-4">
 									<div class="flex items-center">
-										<label for="vat_selection_modal" class="font-medium text-gray-600">VAT:</label>
+										<label for="vat_selection_modal" class="font-medium text-gray-600"
+											>{$t('VAT:')}</label
+										>
 										<select
 											id="vat_selection_modal"
 											bind:value={vat_selection}
@@ -885,16 +886,16 @@
 								<div class="flex items-center justify-between gap-4">
 									<div class="flex items-center">
 										<label for="wht_selection_modal" class="font-medium text-gray-600"
-											>หักภาษี ณ ที่จ่าย:</label
+											>{$t('Withholding Tax:')}</label
 										>
 										<select
 											id="wht_selection_modal"
 											bind:value={wht_selection}
 											class="ml-2 h-7 w-32 cursor-pointer rounded-md border-gray-300 bg-white py-0 pr-7 pl-2 text-center text-sm focus:border-blue-500 focus:ring-blue-500"
 										>
-											<option value={0}>-- ไม่หัก --</option>
-											<option value={1}>หัก 1%</option>
-											<option value={3}>หัก 3%</option>
+											<option value={0}>{$t('-- No WHT --')}</option>
+											<option value={1}>{$t('Deduct 1%')}</option>
+											<option value={3}>{$t('Deduct 3%')}</option>
 										</select>
 									</div>
 
@@ -903,7 +904,7 @@
 									</span>
 								</div>
 								<div class="mt-2 flex items-center justify-between border-t-2 border-gray-300 pt-2">
-									<span class="text-base font-bold text-gray-900">จำนวนเงินรวมทั้งสิ้น:</span>
+									<span class="text-base font-bold text-gray-900">{$t('Grand Total:')}</span>
 									<span class="text-xl font-bold text-blue-700">{formatCurrency(grandTotal)}</span>
 								</div>
 							</div>
@@ -911,7 +912,7 @@
 
 						<div>
 							<label for="notes_modal" class="mb-1 block text-sm font-medium text-gray-700"
-								>หมายเหตุ (Notes)</label
+								>{$t('Notes/Remarks')}</label
 							>
 							<textarea
 								id="notes_modal"
@@ -923,8 +924,7 @@
 
 							<label
 								for="attachments_modal"
-								class="mt-4 mb-1 block text-sm font-medium text-gray-700"
-								>แนบไฟล์ (Attachments)</label
+								class="mt-4 mb-1 block text-sm font-medium text-gray-700">{$t('Attachments')}</label
 							>
 							<input
 								type="file"
@@ -953,7 +953,7 @@
 						}}
 						class="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 transition hover:bg-gray-300"
 					>
-						ยกเลิก
+						{$t('Cancel')}
 					</button>
 					<button
 						type="submit"
@@ -979,7 +979,7 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path></svg
 							>
-							กำลังบันทึก...
+							{$t('Saving...')}
 						{:else}
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -990,7 +990,7 @@
 									d="M7.707 10.293a1 1 0 1 0-1.414 1.414l3 3a1 1 0 0 0 1.414 0l3-3a1 1 0 0 0-1.414-1.414L11 11.586V6h5a1 1 0 0 1 1 1v3a1 1 0 1 1-2 0V8h-3v3.586L12.293 10.293zM3 4a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1zm-.707 6.293a1 1 0 0 0 0 1.414L6 15.414V19a1 1 0 1 0 2 0v-3.586L3.707 10.707a1 1 0 0 0-1.414-.414z"
 								/></svg
 							>
-							บันทึกรายการจ่าย
+							{$t('Save Payment Record')}
 						{/if}
 					</button>
 				</div>
@@ -1005,11 +1005,12 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">ยืนยันการลบรายการจ่ายเงิน</h3>
+			<h3 class="text-lg font-bold">{$t('Confirm Delete Payment')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบรายการจ่ายเงิน #{paymentToDelete.id} (Ref: {paymentToDelete.payment_reference ??
-					'-'})?
-				<br />การดำเนินการนี้จะลบรายการสินค้าและเอกสารแนบทั้งหมดที่เกี่ยวข้อง
+				{$t('Are you sure you want to delete payment')} #{paymentToDelete.id}
+				{$t('(Ref:')}
+				{paymentToDelete.payment_reference ?? '-'})?
+				<br />{$t('This action will delete all related items and attachments.')}
 			</p>
 			{#if form?.message && !form.success && form.action === 'deletePayment'}
 				<p class="mt-2 text-sm text-red-600"><strong>Error:</strong> {form.message}</p>
@@ -1030,7 +1031,7 @@
 				<button
 					type="button"
 					onclick={() => (paymentToDelete = null)}
-					class="rounded-md border bg-white px-4 py-2 text-sm">ยกเลิก</button
+					class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Cancel')}</button
 				>
 				<button
 					type="submit"
@@ -1038,9 +1039,9 @@
 					class="rounded-md bg-red-600 px-4 py-2 text-sm text-white disabled:bg-red-400 disabled:opacity-50"
 				>
 					{#if isDeleting}
-						กำลังลบ...
+						{$t('Deleting...')}
 					{:else}
-						ลบ
+						{$t('Delete')}
 					{/if}
 				</button>
 			</form>

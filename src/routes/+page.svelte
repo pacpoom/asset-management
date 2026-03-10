@@ -5,6 +5,8 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store'; // ดึง get มาใช้เพื่อดึงคำแปลไปใส่ในกราฟ
+	import { t } from '$lib/i18n'; // 🌟 ดึงตัวช่วยแปลภาษามาใช้
 
 	const { data } = $props<{ data: PageData }>();
 
@@ -67,7 +69,7 @@
 			}
 		};
 
-		// แก้ไข: ระบุ type (c: any) เพื่อแก้ปัญหา Parameter implicitly has an 'any' type
+		// 🌟 ใช้ get(t)('...') เพื่อดึงคำแปลไปแสดงในกราฟ
 		if (categoryChartCanvas && data.assetsByCategory?.length > 0) {
 			new Chart(categoryChartCanvas, {
 				type: 'doughnut',
@@ -75,7 +77,7 @@
 					labels: data.assetsByCategory.map((c: any) => c.name),
 					datasets: [
 						{
-							label: 'Assets',
+							label: get(t)('Asset Count'),
 							data: data.assetsByCategory.map((c: any) => c.count),
 							backgroundColor: chartColors,
 							borderColor: '#ffffff',
@@ -99,7 +101,6 @@
 			});
 		}
 
-		// แก้ไข: ระบุ type (l: any) เพื่อแก้ปัญหา Parameter implicitly has an 'any' type
 		if (locationChartCanvas && data.assetsByLocation?.length > 0) {
 			new Chart(locationChartCanvas, {
 				type: 'bar',
@@ -107,7 +108,7 @@
 					labels: data.assetsByLocation.map((l: any) => l.name),
 					datasets: [
 						{
-							label: 'จำนวนสินทรัพย์',
+							label: get(t)('Asset Count'),
 							data: data.assetsByLocation.map((l: any) => l.count),
 							backgroundColor: chartColors[0] + '80',
 							borderColor: chartColors[0],
@@ -125,21 +126,21 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard - Core Business</title>
+	<title>{$t('Dashboard')} - Core Business</title>
 </svelte:head>
 
 <div class="space-y-8">
 	<div>
-		<h1 class="text-3xl font-bold text-gray-800">Dashboard</h1>
+		<h1 class="text-3xl font-bold text-gray-800">{$t('Dashboard')}</h1>
 		<p class="mt-1 text-gray-500">
-			ภาพรวมของระบบจัดการสินทรัพย์
-			{#if data.user}, ยินดีต้อนรับคุณ <span class="font-semibold">{data.user.email}</span>!{/if}
+			{$t('Dashboard Overview')}
+			{#if data.user}{$t('Welcome')}<span class="font-semibold">{data.user.email}</span>!{/if}
 		</p>
 	</div>
 
 	{#if data.error}
 		<div class="rounded-lg bg-red-100 p-4 text-center text-red-700">
-			<p><strong>เกิดข้อผิดพลาด:</strong> {data.error}</p>
+			<p><strong>{$t('Error')}</strong> {data.error}</p>
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -167,7 +168,7 @@
 						</div>
 						<div class="ml-5 w-0 flex-1">
 							<dl>
-								<dt class="truncate text-sm font-medium text-gray-500">สินทรัพย์ทั้งหมด</dt>
+								<dt class="truncate text-sm font-medium text-gray-500">{$t('Total Assets')}</dt>
 								<dd class="text-3xl font-bold text-gray-900">
 									{data.totalAssets ?? 0}
 								</dd>
@@ -200,7 +201,7 @@
 						</div>
 						<div class="ml-5 w-0 flex-1">
 							<dl>
-								<dt class="truncate text-sm font-medium text-gray-500">ผู้ขาย (Vendors)</dt>
+								<dt class="truncate text-sm font-medium text-gray-500">{$t('Total Vendors')}</dt>
 								<dd class="text-3xl font-bold text-gray-900">
 									{data.totalVendors ?? 0}
 								</dd>
@@ -240,7 +241,7 @@
 						</div>
 						<div class="ml-5 w-0 flex-1">
 							<dl>
-								<dt class="truncate text-sm font-medium text-gray-500">ผู้ใช้งาน</dt>
+								<dt class="truncate text-sm font-medium text-gray-500">{$t('Total Users')}</dt>
 								<dd class="text-3xl font-bold text-gray-900">
 									{data.totalUsers ?? 0}
 								</dd>
@@ -278,7 +279,7 @@
 						</div>
 						<div class="ml-5 w-0 flex-1">
 							<dl>
-								<dt class="truncate text-sm font-medium text-gray-500">PR รออนุมัติ</dt>
+								<dt class="truncate text-sm font-medium text-gray-500">{$t('Pending PR')}</dt>
 								<dd class="text-3xl font-bold text-gray-900">
 									{data.pendingPRs ?? 0}
 								</dd>
@@ -291,24 +292,24 @@
 
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
 			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
-				<h3 class="text-lg font-semibold text-gray-900">สินทรัพย์ตามหมวดหมู่</h3>
+				<h3 class="text-lg font-semibold text-gray-900">{$t('Assets by Category')}</h3>
 
 				<div class="mt-4 h-72">
 					{#if data.assetsByCategory?.length > 0}
 						<canvas bind:this={categoryChartCanvas}></canvas>
 					{:else}
-						<div class="flex h-full items-center justify-center text-gray-500">ไม่มีข้อมูล</div>
+						<div class="flex h-full items-center justify-center text-gray-500">{$t('No Data')}</div>
 					{/if}
 				</div>
 			</div>
 
 			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-3">
-				<h3 class="text-lg font-semibold text-gray-900">สินทรัพย์ตามสถานที่</h3>
+				<h3 class="text-lg font-semibold text-gray-900">{$t('Assets by Location')}</h3>
 				<div class="mt-4 h-72">
 					{#if data.assetsByLocation?.length > 0}
 						<canvas bind:this={locationChartCanvas}></canvas>
 					{:else}
-						<div class="flex h-full items-center justify-center text-gray-500">ไม่มีข้อมูล</div>
+						<div class="flex h-full items-center justify-center text-gray-500">{$t('No Data')}</div>
 					{/if}
 				</div>
 			</div>

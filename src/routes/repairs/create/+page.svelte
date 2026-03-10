@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { fade, fly, slide } from 'svelte/transition';
+	import { t } from '$lib/i18n'; // 🌟 นำเข้าฟังก์ชันแปลภาษา
+	import { get } from 'svelte/store'; // สำหรับเรียกใช้ในฟังก์ชัน
 
-	let { data, form } = $props(); // รับ data จาก server
+	// 🌟 ป้องกัน Error TypeScript
+	let { data, form }: { data: any; form: any } = $props();
 	let isSubmitting = $state(false);
 	let previewUrl = $state<string | null>(null);
 
@@ -31,7 +34,9 @@
 	function selectAsset(asset: any) {
 		selectedAsset = asset;
 		assetSearchTerm = asset.asset_tag; // แสดง Tag ในช่องค้นหา
-		manualAssetName = asset.name; // Auto-fill ชื่ออุปกรณ์
+		manualAssetName = asset.name;
+
+		// Auto-fill ชื่ออุปกรณ์
 		if (asset.location_name) {
 			locationText = asset.location_name; // Auto-fill สถานที่ถ้ามี
 		}
@@ -60,7 +65,7 @@
 	function getLocation() {
 		if (!navigator.geolocation) {
 			locationStatus = 'error';
-			locationError = 'เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง';
+			locationError = get(t)('Browser no GPS support');
 			return;
 		}
 
@@ -71,7 +76,7 @@
 				lat = position.coords.latitude;
 				lng = position.coords.longitude;
 				locationStatus = 'success';
-				
+
 				// ถ้ามีข้อความเดิมอยู่แล้ว ให้ต่อท้ายด้วยพิกัด
 				const coordText = `(GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)})`;
 				if (locationText && !locationText.includes('GPS:')) {
@@ -82,7 +87,7 @@
 			},
 			(error) => {
 				locationStatus = 'error';
-				locationError = 'กรุณาอนุญาตให้เข้าถึงพิกัด (GPS) ในการตั้งค่า';
+				locationError = get(t)('Please allow GPS access');
 			},
 			{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
 		);
@@ -107,26 +112,28 @@
 					/></svg
 				>
 			</div>
-			<h2 class="text-3xl font-black text-gray-900">บันทึกสำเร็จ!</h2>
+			<h2 class="text-3xl font-black text-gray-900">{$t('Repair Success')}</h2>
 			<div class="my-8 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50 px-4 py-8">
-				<p class="text-xs font-bold tracking-widest text-blue-400 uppercase">เลขที่ใบแจ้งซ่อม</p>
+				<p class="text-xs font-bold tracking-widest text-blue-400 uppercase">
+					{$t('Repair Ticket No')}
+				</p>
 				<p class="mt-2 font-mono text-5xl font-black text-blue-700">{form.ticketId}</p>
 			</div>
 			<div class="flex gap-3">
 				<a href="/repairs" class="flex-1 rounded-xl bg-gray-100 py-4 font-bold text-gray-700"
-					>ดูรายการ</a
+					>{$t('View List')}</a
 				>
 				<button
 					onclick={() => window.location.reload()}
 					class="flex-1 rounded-xl bg-blue-600 py-4 font-bold text-white shadow-lg"
-					>แจ้งเพิ่ม</button
+					>{$t('Report Another')}</button
 				>
 			</div>
 		</div>
 	{:else}
 		<div class="mb-8 text-center sm:text-left">
-			<h1 class="text-3xl font-black text-gray-900">แจ้งซ่อม (Repair)</h1>
-			<p class="mt-1 font-medium text-gray-500">กรอกรายละเอียดเพื่อให้ทีมช่างเข้าแก้ไขได้ตรงจุด</p>
+			<h1 class="text-3xl font-black text-gray-900">{$t('Report Repair')}</h1>
+			<p class="mt-1 font-medium text-gray-500">{$t('Report Repair Desc')}</p>
 		</div>
 
 		<form
@@ -142,10 +149,9 @@
 			enctype="multipart/form-data"
 			class="space-y-6 rounded-3xl border border-gray-100 bg-white p-6 shadow-xl sm:p-10"
 		>
-			<!-- 1. ชื่อผู้แจ้งซ่อม (ดึงจาก Login) -->
 			<div>
 				<label for="reporter_name" class="mb-2 block text-sm font-bold text-gray-700"
-					>ชื่อผู้แจ้งซ่อม *</label
+					>{$t('Reporter Name *')}</label
 				>
 				<input
 					type="text"
@@ -153,44 +159,45 @@
 					id="reporter_name"
 					required
 					bind:value={reporterName}
-					placeholder="ระบุชื่อ-นามสกุลของคุณ"
+					placeholder={$t('Enter your full name')}
 					class="w-full rounded-2xl border-gray-200 bg-gray-50 p-4 font-medium transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
 				/>
 				{#if data.user}
-					<p class="mt-1 text-xs text-green-600 font-medium">✓ ดึงข้อมูลจากบัญชีผู้ใช้: {data.user.username || data.user.email}</p>
+					<p class="mt-1 text-xs font-medium text-green-600">
+						✓ {$t('Retrieved from user account:')}
+						{data.user.full_name || data.user.email}
+					</p>
 				{/if}
 			</div>
 
-			<!-- 2. ค้นหา Asset Tag -->
 			<div class="rounded-2xl border border-gray-200 bg-gray-50/50 p-5">
 				<label for="asset_search" class="mb-2 block text-sm font-bold text-blue-800"
-					>ค้นหาจากรหัสทรัพย์สิน (Asset Tag) *</label
+					>{$t('Search by Asset Tag *')}</label
 				>
 				<div class="relative">
 					<div class="flex gap-2">
 						<input
 							type="text"
 							id="asset_search"
-							placeholder="พิมพ์รหัส Tag หรือ ชื่ออุปกรณ์..."
+							placeholder={$t('Type Tag or Asset Name...')}
 							autocomplete="off"
 							class="w-full rounded-xl border-gray-300 p-4 font-mono text-sm shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
 							bind:value={assetSearchTerm}
 							onfocus={() => (isAssetDropdownOpen = true)}
 						/>
 						{#if selectedAsset}
-							<button 
-								type="button" 
+							<button
+								type="button"
 								onclick={clearAssetSelection}
 								class="rounded-xl border border-red-200 bg-white px-4 text-red-600 hover:bg-red-50"
 							>
-								เคลียร์
+								{$t('Clear')}
 							</button>
 						{/if}
 					</div>
 
 					<input type="hidden" name="asset_id" value={selectedAsset?.id || ''} />
 
-					<!-- Dropdown ผลลัพธ์การค้นหา -->
 					{#if isAssetDropdownOpen && assetSearchTerm.length > 0 && !selectedAsset}
 						<div
 							class="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-2xl"
@@ -202,25 +209,26 @@
 									class="w-full border-b border-gray-50 px-4 py-3 text-left last:border-0 hover:bg-blue-50"
 									onclick={() => selectAsset(asset)}
 								>
-									<div class="flex justify-between items-center">
-										<span class="font-bold text-blue-600 font-mono">{asset.asset_tag}</span>
-										<span class="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{asset.location_name || 'ไม่ระบุที่ตั้ง'}</span>
+									<div class="flex items-center justify-between">
+										<span class="font-mono font-bold text-blue-600">{asset.asset_tag}</span>
+										<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-400"
+											>{asset.location_name || $t('No location specified')}</span
+										>
 									</div>
-									<div class="text-xs text-gray-600 mt-1">{asset.name}</div>
+									<div class="mt-1 text-xs text-gray-600">{asset.name}</div>
 								</button>
 							{:else}
 								<div class="px-4 py-3 text-sm text-gray-400 italic text-center">
-									ไม่พบข้อมูล (คุณสามารถกรอกชื่อเองด้านล่าง)
+									{$t('No data found (can manual enter)')}
 								</div>
 							{/each}
 						</div>
 					{/if}
 				</div>
 
-				<!-- ชื่ออุปกรณ์ (Auto-fill หรือ กรอกเอง) -->
 				<div class="mt-4">
 					<label for="asset_name" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-						>ชื่ออุปกรณ์ (Asset Name)</label
+						>{$t('Asset Name Label')}</label
 					>
 					<input
 						type="text"
@@ -228,16 +236,15 @@
 						id="asset_name"
 						required
 						bind:value={manualAssetName}
-						placeholder="เช่น แอร์ห้อง IT, ปั๊มน้ำชั้น 1"
+						placeholder={$t('e.g., IT Room AC')}
 						class="w-full rounded-xl border-gray-200 bg-white p-3 text-sm font-medium transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
 					/>
 				</div>
 			</div>
 
-			<!-- 3. สถานที่ -->
 			<div class="rounded-2xl border border-blue-100 bg-blue-50/30 p-5">
 				<label for="location_name" class="mb-2 block text-sm font-bold text-gray-700"
-					>สถานที่ / พิกัด GPS *</label
+					>{$t('Location / GPS *')}</label
 				>
 
 				<div class="flex flex-col gap-3">
@@ -247,7 +254,7 @@
 						id="location_name"
 						bind:value={locationText}
 						required
-						placeholder="พิมพ์ชื่อตึก แผนก หรือกดปุ่มแชร์พิกัด"
+						placeholder={$t('Type building or share location')}
 						class="w-full rounded-xl border-blue-200 bg-white p-4 font-medium shadow-sm transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
 					/>
 
@@ -269,7 +276,9 @@
 								d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
 							/></svg
 						>
-						{locationStatus === 'loading' ? 'กำลังดึงพิกัด...' : 'แนบพิกัด GPS ปัจจุบัน'}
+						{locationStatus === 'loading'
+							? $t('Fetching coordinates...')
+							: $t('Attach Current GPS')}
 					</button>
 				</div>
 
@@ -281,17 +290,16 @@
 				<input type="hidden" name="longitude" value={lng} />
 			</div>
 
-			<!-- 4. อาการเสีย -->
 			<div>
 				<label for="issue_description" class="mb-2 block text-sm font-bold text-gray-700"
-					>รายละเอียดอาการเสีย *</label
+					>{$t('Issue Description *')}</label
 				>
 				<textarea
 					name="issue_description"
 					id="issue_description"
 					rows="3"
 					required
-					placeholder="บอกอาการที่พบ..."
+					placeholder={$t('Describe the issue...')}
 					class="w-full rounded-2xl border-gray-200 bg-gray-50 p-4 font-medium transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
 				></textarea>
 			</div>
@@ -299,19 +307,19 @@
 			<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 				<div>
 					<label for="contact_info" class="mb-2 block text-sm font-bold text-gray-700"
-						>เบอร์โทรศัพท์ / Line</label
+						>{$t('Phone / Line')}</label
 					>
 					<input
 						type="text"
 						name="contact_info"
 						id="contact_info"
-						placeholder="ระบุเพื่อติดต่อกลับ"
+						placeholder={$t('Enter for contact back')}
 						class="w-full rounded-2xl border-gray-200 bg-gray-50 p-4 font-medium transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
 					/>
 				</div>
 				<div>
 					<label for="repair_image" class="mb-2 block text-sm font-bold text-gray-700"
-						>ถ่ายรูปอุปกรณ์ที่เสีย</label
+						>{$t('Take photo of broken asset')}</label
 					>
 					<input
 						type="file"
@@ -338,7 +346,7 @@
 				disabled={isSubmitting || locationStatus === 'loading'}
 				class="w-full rounded-2xl bg-blue-600 py-5 text-xl font-black text-white shadow-xl shadow-blue-200 transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50"
 			>
-				{isSubmitting ? 'กำลังบันทึกข้อมูล...' : 'ส่งแจ้งซ่อม'}
+				{isSubmitting ? $t('Saving...') : $t('Submit Repair Ticket')}
 			</button>
 		</form>
 	{/if}

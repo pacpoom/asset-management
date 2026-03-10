@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
 	$: ({ invoices, currentPage, totalPages, searchQuery, filterStatus } = data);
@@ -63,11 +64,15 @@
 		}
 	}
 
-	const formatCurrency = (amount: number) =>
-		new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
-	const formatDate = (dateStr: string) =>
+	// 🌟 ปรับระบบวันที่และตัวเลข ให้เปลี่ยนตามภาษาที่เลือกอัตโนมัติ
+	$: currentLoc = $locale === 'th' ? 'th-TH' : $locale === 'zh' ? 'zh-CN' : 'en-US';
+
+	$: formatCurrency = (amount: number) =>
+		new Intl.NumberFormat(currentLoc, { style: 'currency', currency: 'THB' }).format(amount);
+
+	$: formatDate = (dateStr: string) =>
 		dateStr
-			? new Date(dateStr).toLocaleDateString('th-TH', {
+			? new Date(dateStr).toLocaleDateString(currentLoc, {
 					year: 'numeric',
 					month: 'short',
 					day: 'numeric'
@@ -76,13 +81,13 @@
 </script>
 
 <svelte:head>
-	<title>ใบแจ้งหนี้ (Invoices)</title>
+	<title>{$t('Invoices Title')}</title>
 </svelte:head>
 
 <div class="mb-6 flex items-center justify-between">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">ใบแจ้งหนี้ (Invoices)</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการเอกสารเรียกเก็บเงินลูกค้า</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Invoices Title')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Invoices Desc')}</p>
 	</div>
 	<a
 		href="/invoices/new"
@@ -98,7 +103,7 @@
 		>
 			<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 		</svg>
-		สร้างใบแจ้งหนี้
+		{$t('Create Invoice')}
 	</a>
 </div>
 
@@ -124,7 +129,7 @@
 			type="search"
 			bind:value={searchInput}
 			on:input={handleSearch}
-			placeholder="ค้นหาเลขที่เอกสาร หรือ ชื่อลูกค้า..."
+			placeholder={$t('Search Invoice Placeholder')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 	</div>
@@ -134,12 +139,12 @@
 			on:change={applyFilters}
 			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุกสถานะ --</option>
-			<option value="Draft">Draft (ร่าง)</option>
-			<option value="Sent">Sent (ส่งแล้ว)</option>
-			<option value="Paid">Paid (ชำระแล้ว)</option>
-			<option value="Overdue">Overdue (เกินกำหนด)</option>
-			<option value="Void">Void (ยกเลิก)</option>
+			<option value="">{$t('All Statuses')}</option>
+			<option value="Draft">{$t('Status_Draft')}</option>
+			<option value="Sent">{$t('Status_Sent')}</option>
+			<option value="Paid">{$t('Status_Paid')}</option>
+			<option value="Overdue">{$t('Status_Overdue')}</option>
+			<option value="Void">{$t('Status_Void')}</option>
 		</select>
 	</div>
 </div>
@@ -149,25 +154,25 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">เลขที่เอกสาร</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">วันที่</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">ครบกำหนด</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">ลูกค้า</th>
-					<th class="px-4 py-3 text-right font-semibold text-gray-600">ยอดเงินรวม</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">สถานะ</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">จัดการ</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Due Date')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Customer')}</th>
+					<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Total Amount')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Manage')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#if invoices.length === 0}
 					<tr>
-						<td colspan="7" class="py-8 text-center text-gray-500">ไม่พบรายการใบแจ้งหนี้</td>
+						<td colspan="7" class="py-8 text-center text-gray-500">{$t('No invoices found')}</td>
 					</tr>
 				{:else}
 					{#each invoices as invoice}
 						<tr class="transition-colors hover:bg-gray-50">
 							<td class="px-4 py-3 font-medium text-blue-600">
-								<a href="/invoices/{invoice.id}">{invoice.invoice_number || '(Draft)'}</a>
+								<a href="/invoices/{invoice.id}">{invoice.invoice_number || $t('Status_Draft')}</a>
 							</td>
 							<td class="px-4 py-3 whitespace-nowrap text-gray-600"
 								>{formatDate(invoice.invoice_date)}</td
@@ -188,7 +193,7 @@
 										invoice.status
 									)}"
 								>
-									{invoice.status}
+									{$t('Status_' + invoice.status)}
 								</span>
 							</td>
 							<td class="px-4 py-3 text-center">
@@ -196,7 +201,7 @@
 									<a
 										href="/invoices/{invoice.id}"
 										class="text-gray-400 transition-colors hover:text-blue-600"
-										title="ดูรายละเอียด"
+										title={$t('View Details')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -219,7 +224,7 @@
 											target="_blank"
 											rel="noopener noreferrer"
 											class="text-gray-400 transition-colors hover:text-gray-600"
-											title="พิมพ์ PDF"
+											title={$t('Print PDF')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -237,7 +242,7 @@
 									{:else}
 										<span
 											class="cursor-not-allowed text-gray-200"
-											title="ต้องยืนยันเอกสารก่อนพิมพ์"
+											title={$t('Must confirm before printing')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -257,7 +262,7 @@
 									<a
 										href="/invoices/{invoice.id}/edit"
 										class="text-gray-400 transition-colors hover:text-yellow-600"
-										title="แก้ไข"
+										title={$t('Edit')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -275,7 +280,7 @@
 										type="button"
 										on:click={() => openDeleteModal(invoice)}
 										class="text-gray-400 transition-colors hover:text-red-600"
-										title="ลบ"
+										title={$t('Delete')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -307,17 +312,19 @@
 		<div
 			class="w-full transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all sm:max-w-lg"
 		>
-			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">{$t('Confirm Delete')}</h3>
 			<p class="text-sm text-gray-500">
-				คุณแน่ใจหรือไม่ที่จะลบใบแจ้งหนี้ <strong>{itemToDelete?.invoice_number}</strong>? <br />
-				การกระทำนี้ไม่สามารถเรียกคืนได้
+				{$t('Are you sure you want to delete invoice')}
+				<strong>{itemToDelete?.invoice_number}</strong>?
+				<br />
+				{$t('This action cannot be undone.')}
 			</p>
 			<div class="mt-6 flex justify-end gap-3">
 				<button
 					type="button"
 					on:click={closeDeleteModal}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
-					>ยกเลิก</button
+					>{$t('Cancel')}</button
 				>
 				<form
 					method="POST"
@@ -356,9 +363,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path></svg
 							>
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete')}
 						{/if}
 					</button>
 				</form>

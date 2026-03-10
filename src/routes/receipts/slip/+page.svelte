@@ -3,6 +3,7 @@
 	import type { PageData } from './$types';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
 	$: ({ customers, products, units, prefilledData } = data);
@@ -45,7 +46,6 @@
 			line_total: 0
 		}
 	];
-
 	let selectedCustomer: any = null;
 	let referenceDoc = '';
 	let notes = '';
@@ -57,7 +57,6 @@
 	$: if (prefilledData) {
 		if (prefilledData.reference_doc && prefilledData.reference_doc !== lastProcessedRef) {
 			lastProcessedRef = prefilledData.reference_doc;
-
 			if (prefilledData.customer_id != null) {
 				const targetId = Number(prefilledData.customer_id);
 				const foundCustomer = customers.find((c: any) => c.id == targetId);
@@ -70,7 +69,6 @@
 			notes = prefilledData.notes || '';
 			discountAmount = parseFloat(prefilledData.discount_amount || '0');
 			vatRate = parseFloat(prefilledData.vat_rate || '7');
-
 			if (prefilledData.items && prefilledData.items.length > 0) {
 				items = prefilledData.items.map((i: any) => {
 					const foundProduct = products.find((p: any) => p.id == i.product_id);
@@ -108,8 +106,11 @@
 	$: grandTotal = totalAfterDiscount + vatAmount - totalWhtAmount;
 	$: itemsJson = JSON.stringify(items);
 
+	// 🌟 ปรับรูปแบบตัวเลขให้เปลี่ยนตามภาษาที่เลือก
+	$: currentLoc = $locale === 'th' ? 'th-TH' : $locale === 'zh' ? 'zh-CN' : 'en-US';
+
 	function formatCurrency(val: number) {
-		return new Intl.NumberFormat('th-TH', {
+		return new Intl.NumberFormat(currentLoc, {
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
 		}).format(val || 0);
@@ -142,7 +143,6 @@
 
 	function onProductChange(index: number, selected: any) {
 		items[index].product_object = selected;
-
 		if (selected && selected.product) {
 			const product = selected.product;
 			items[index].product_id = product.id;
@@ -166,13 +166,15 @@
 </script>
 
 <svelte:head>
-	<title>สร้างใบเสร็จรับเงินใหม่</title>
+	<title>{$t('Create Receipt Title')}</title>
 </svelte:head>
 
 <div
 	class="mx-auto mb-10 max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6"
 >
-	<h1 class="mb-6 text-2xl font-bold text-gray-800">สร้างใบเสร็จรับเงิน (New Receipt)</h1>
+	<h1 class="mb-6 text-2xl font-bold text-gray-800">
+		{$t('Receipts Title')} ({$t('Status_Draft')})
+	</h1>
 
 	<form
 		method="POST"
@@ -188,7 +190,6 @@
 			formData.set('vat_amount', vatAmount.toString());
 			formData.set('withholding_tax_amount', totalWhtAmount.toString());
 			formData.set('total_amount', grandTotal.toString());
-
 			return async ({ update }) => {
 				await update({ reset: false });
 				isSaving = false;
@@ -198,11 +199,11 @@
 		<div class="relative z-50 mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div>
 				<label class="mb-1 block text-sm font-medium text-gray-700">
-					<span class="mb-1 block">ลูกค้า <span class="text-red-500">*</span></span>
+					<span class="mb-1 block">{$t('Customer')} <span class="text-red-500">*</span></span>
 					<Select
 						items={customerOptions}
 						bind:value={selectedCustomer}
-						placeholder="-- เลือกลูกค้า --"
+						placeholder={$t('Select Customer')}
 						container={browser ? document.body : null}
 					/>
 				</label>
@@ -210,7 +211,7 @@
 			</div>
 			<div>
 				<label for="receipt_date" class="mb-1 block text-sm font-medium text-gray-700"
-					>วันที่เอกสาร <span class="text-red-500">*</span></label
+					>{$t('Date')} <span class="text-red-500">*</span></label
 				>
 				<input
 					type="date"
@@ -223,7 +224,7 @@
 			</div>
 			<div>
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>เอกสารอ้างอิง (เช่น ใบวางบิล)</label
+					>{$t('Reference Doc (e.g., Billing Note)')}</label
 				>
 				<input
 					type="text"
@@ -231,11 +232,12 @@
 					name="reference_doc"
 					bind:value={referenceDoc}
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-					placeholder="เช่น INV-2023..."
+					placeholder={$t('e.g. INV-2023...')}
 				/>
 			</div>
 			<div>
-				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label
+				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Attachments')}</label
 				>
 				<input
 					type="file"
@@ -248,23 +250,27 @@
 		</div>
 
 		<div class="relative z-10 mb-6">
-			<h3 class="mb-2 text-lg font-medium text-gray-800">รายการสินค้า</h3>
+			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Products/Items')}</h3>
 			<div class="overflow-x-visible rounded-lg border">
 				<table class="min-w-full table-fixed divide-y divide-gray-200 text-sm">
 					<thead class="bg-gray-50">
 						<tr>
-							<th class="w-10 px-3 py-3 text-center font-medium text-gray-500">ลำดับ</th>
+							<th class="w-10 px-3 py-3 text-center font-medium text-gray-500">{$t('No.')}</th>
 							<th class="w-[280px] max-w-[280px] px-3 py-3 text-left font-semibold text-gray-600"
-								>สินค้า</th
+								>{$t('Product')}</th
 							>
 							<th class="w-[220px] max-w-[220px] px-3 py-3 text-left font-semibold text-gray-600"
-								>รายละเอียด</th
+								>{$t('Description')}</th
 							>
-							<th class="w-20 px-2 py-3 text-center font-semibold text-gray-600">จำนวน</th>
-							<th class="w-20 px-2 py-3 text-center font-semibold text-gray-600">หน่วย</th>
-							<th class="w-28 px-2 py-3 text-center font-semibold text-gray-600">ราคา/หน่วย</th>
-							<th class="w-24 px-2 py-3 text-center font-semibold text-red-600">WHT</th>
-							<th class="w-32 px-3 py-3 text-right font-semibold text-gray-600">รวมเงิน</th>
+							<th class="w-20 px-2 py-3 text-center font-semibold text-gray-600"
+								>{$t('Quantity')}</th
+							>
+							<th class="w-20 px-2 py-3 text-center font-semibold text-gray-600">{$t('Unit')}</th>
+							<th class="w-28 px-2 py-3 text-center font-semibold text-gray-600"
+								>{$t('Unit Price')}</th
+							>
+							<th class="w-24 px-2 py-3 text-center font-semibold text-red-600">{$t('WHT')}</th>
+							<th class="w-32 px-3 py-3 text-right font-semibold text-gray-600">{$t('Total')}</th>
 							<th class="w-10 px-3 py-3"></th>
 						</tr>
 					</thead>
@@ -279,7 +285,7 @@
 											value={item.product_object}
 											on:change={(e: any) => onProductChange(index, e.detail)}
 											on:clear={() => onProductChange(index, null)}
-											placeholder="-- ค้นหา/เลือก --"
+											placeholder={$t('-- Search/Select --')}
 											floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 											container={browser ? document.body : null}
 										/>
@@ -354,13 +360,15 @@
 			<button
 				type="button"
 				on:click={addItem}
-				class="mt-3 text-sm font-medium text-blue-600 hover:text-blue-800">+ เพิ่มรายการ</button
+				class="mt-3 text-sm font-medium text-blue-600 hover:text-blue-800"
+				>+ {$t('Add Item')}</button
 			>
 		</div>
 
 		<div class="mb-6 flex flex-col gap-6 border-t border-gray-200 pt-6 md:flex-row">
 			<div class="w-full md:w-2/3">
-				<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+				<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">{$t('Notes')}</label
+				>
 				<textarea
 					id="notes"
 					name="notes"
@@ -371,11 +379,11 @@
 			</div>
 			<div class="w-full space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-5 md:w-1/3">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">รวมเป็นเงิน (Subtotal)</span>
+					<span class="text-gray-600">{$t('Total Amount (Subtotal)')}</span>
 					<span class="font-medium">{formatCurrency(subtotal)}</span>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">ส่วนลด (Discount)</span>
+					<span class="text-gray-600">{$t('Discount')}</span>
 					<input
 						type="number"
 						bind:value={discountAmount}
@@ -394,13 +402,13 @@
 				<div
 					class="flex items-center justify-between border-t border-dashed pt-2 text-sm font-bold text-red-600"
 				>
-					<span>หัก ณ ที่จ่ายรวม (Total WHT)</span>
+					<span>{$t('Total WHT')}</span>
 					<span>-{formatCurrency(totalWhtAmount)}</span>
 				</div>
 				<div
 					class="flex justify-between border-t-2 border-gray-300 pt-3 text-xl font-black text-blue-700"
 				>
-					<span>ยอดสุทธิ (Grand Total)</span>
+					<span>{$t('Grand Total')}</span>
 					<span>{formatCurrency(grandTotal)}</span>
 				</div>
 			</div>
@@ -410,7 +418,7 @@
 			<a
 				href="/receipts"
 				class="rounded-md border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-				>ยกเลิก</a
+				>{$t('Cancel')}</a
 			>
 			<button
 				type="submit"
@@ -436,9 +444,9 @@
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						></path></svg
 					>
-					กำลังบันทึก...
+					{$t('Saving...')}
 				{:else}
-					บันทึกรายการ
+					{$t('Save Data')}
 				{/if}
 			</button>
 		</div>

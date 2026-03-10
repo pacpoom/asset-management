@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
 	$: ({ documents, currentPage, totalPages, searchQuery, filterStatus, filterType } = data);
@@ -59,13 +60,13 @@
 	function getDocTypeName(type: string) {
 		switch (type) {
 			case 'QT':
-				return 'ใบเสนอราคา';
+				return 'Quotation';
 			case 'BN':
-				return 'ใบวางบิล';
+				return 'Billing Note';
 			case 'INV':
-				return 'ใบแจ้งหนี้';
+				return 'Invoice';
 			case 'RE':
-				return 'ใบเสร็จรับเงิน';
+				return 'Receipt';
 			default:
 				return type;
 		}
@@ -86,11 +87,14 @@
 		}
 	}
 
-	const formatCurrency = (amount: number) =>
-		new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
-	const formatDate = (dateStr: string) =>
+	$: currentLoc = $locale === 'th' ? 'th-TH' : 'en-US';
+
+	$: formatCurrency = (amount: number) =>
+		new Intl.NumberFormat(currentLoc, { style: 'currency', currency: 'THB' }).format(amount);
+
+	$: formatDate = (dateStr: string) =>
 		dateStr
-			? new Date(dateStr).toLocaleDateString('th-TH', {
+			? new Date(dateStr).toLocaleDateString(currentLoc, {
 					year: 'numeric',
 					month: 'short',
 					day: 'numeric'
@@ -99,19 +103,19 @@
 </script>
 
 <svelte:head>
-	<title>เอกสารการขาย (Sales Documents)</title>
+	<title>{$t('Sales Documents Title')}</title>
 </svelte:head>
 
 <div class="mb-6 flex items-center justify-between">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">เอกสารการขาย (Sales Documents)</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการใบเสนอราคา ใบวางบิล ใบแจ้งหนี้ และใบเสร็จ</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Sales Documents Title')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Sales Documents Desc')}</p>
 	</div>
 	<a
 		href="/sales-documents/new"
 		class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
 	>
-		+ สร้างเอกสารใหม่
+		{$t('Create New Document')}
 	</a>
 </div>
 
@@ -123,7 +127,7 @@
 			type="search"
 			bind:value={searchInput}
 			on:input={handleSearch}
-			placeholder="ค้นหาเลขที่เอกสาร หรือ ชื่อลูกค้า..."
+			placeholder={$t('Search Document Placeholder')}
 			class="w-full rounded-lg border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 	</div>
@@ -133,11 +137,11 @@
 			on:change={applyFilters}
 			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุกประเภทเอกสาร --</option>
-			<option value="QT">ใบเสนอราคา (QT)</option>
-			<option value="BN">ใบวางบิล (BN)</option>
-			<option value="INV">ใบแจ้งหนี้ (INV)</option>
-			<option value="RE">ใบเสร็จรับเงิน (RE)</option>
+			<option value="">{$t('All Document Types')}</option>
+			<option value="QT">{$t('Quotation (QT)')}</option>
+			<option value="BN">{$t('Billing Note (BN)')}</option>
+			<option value="INV">{$t('Invoice (INV)')}</option>
+			<option value="RE">{$t('Receipt (RE)')}</option>
 		</select>
 	</div>
 	<div>
@@ -146,12 +150,12 @@
 			on:change={applyFilters}
 			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุกสถานะ --</option>
-			<option value="Draft">Draft (ร่าง)</option>
-			<option value="Sent">Sent (ส่งแล้ว)</option>
-			<option value="Paid">Paid (ชำระแล้ว)</option>
-			<option value="Overdue">Overdue (เกินกำหนด)</option>
-			<option value="Void">Void (ยกเลิก)</option>
+			<option value="">{$t('All Statuses')}</option>
+			<option value="Draft">{$t('Status_Draft')}</option>
+			<option value="Sent">{$t('Status_Sent')}</option>
+			<option value="Paid">{$t('Status_Paid')}</option>
+			<option value="Overdue">{$t('Status_Overdue')}</option>
+			<option value="Void">{$t('Status_Void')}</option>
 		</select>
 	</div>
 </div>
@@ -161,19 +165,19 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">ประเภท</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">เลขที่เอกสาร</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">วันที่</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">ลูกค้า</th>
-					<th class="px-4 py-3 text-right font-semibold text-gray-600">ยอดเงินรวม</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">สถานะ</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">จัดการ</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Customer')}</th>
+					<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Total Amount')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Manage')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#if documents.length === 0}
 					<tr>
-						<td colspan="7" class="py-8 text-center text-gray-500">ไม่พบเอกสาร</td>
+						<td colspan="7" class="py-8 text-center text-gray-500">{$t('No documents found')}</td>
 					</tr>
 				{:else}
 					{#each documents as doc}
@@ -184,7 +188,7 @@
 										doc.document_type
 									)} border-current opacity-80"
 								>
-									{getDocTypeName(doc.document_type)}
+									{$t(getDocTypeName(doc.document_type))}
 								</span>
 							</td>
 							<td class="px-4 py-3 font-medium text-blue-600">
@@ -203,7 +207,7 @@
 										doc.status
 									)}"
 								>
-									{doc.status}
+									{$t('Status_' + doc.status)}
 								</span>
 							</td>
 							<td class="px-4 py-3 text-center">
@@ -211,7 +215,7 @@
 									<a
 										href="/sales-documents/{doc.id}"
 										class="text-gray-400 transition-colors hover:text-blue-600"
-										title="ดูรายละเอียด"
+										title={$t('View Details')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -234,7 +238,7 @@
 											target="_blank"
 											rel="noopener noreferrer"
 											class="text-gray-400 transition-colors hover:text-gray-600"
-											title="พิมพ์ PDF"
+											title={$t('Print PDF')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -252,7 +256,7 @@
 									{:else}
 										<span
 											class="cursor-not-allowed text-gray-200"
-											title="ต้องบันทึกเอกสารก่อนพิมพ์"
+											title={$t('Must save document before printing')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -272,7 +276,7 @@
 									<a
 										href="/sales-documents/{doc.id}/edit"
 										class="text-gray-400 transition-colors hover:text-yellow-600"
-										title="แก้ไข"
+										title={$t('Edit')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -290,7 +294,7 @@
 										type="button"
 										on:click={() => openDeleteModal(doc)}
 										class="text-gray-400 transition-colors hover:text-red-600"
-										title="ลบ"
+										title={$t('Delete')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -322,17 +326,19 @@
 		<div
 			class="w-full transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all sm:max-w-lg"
 		>
-			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">{$t('Confirm Delete')}</h3>
 			<p class="text-sm text-gray-500">
-				คุณแน่ใจหรือไม่ที่จะลบเอกสาร <strong>{itemToDelete?.document_number}</strong>?
+				{$t('Are you sure you want to delete document')}
+				<strong>{itemToDelete?.document_number}</strong>?
 			</p>
 			<div class="mt-6 flex justify-end gap-3">
 				<button
 					type="button"
 					on:click={closeDeleteModal}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700"
-					>ยกเลิก</button
 				>
+					{$t('Cancel')}
+				</button>
 				<form
 					method="POST"
 					action="?/delete"
@@ -349,9 +355,14 @@
 					<button
 						type="submit"
 						disabled={isDeleting}
-						class="rounded-md bg-red-600 px-4 py-2 text-sm text-white"
-						>{isDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}</button
+						class="rounded-md bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50"
 					>
+						{#if isDeleting}
+							{$t('Deleting...')}
+						{:else}
+							{$t('Confirm Delete')}
+						{/if}
+					</button>
 				</form>
 			</div>
 		</div>

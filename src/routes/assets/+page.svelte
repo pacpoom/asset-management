@@ -2,42 +2,36 @@
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
-	// --- NEW: Import the image compressor utility ---
 	import { compressImage } from '$lib/utils/image-compressor';
+	import { t } from '$lib/i18n';
+	import { get } from 'svelte/store';
 
 	type Asset = PageData['assets'][0];
 
-	// FIX: Cannot use `export let` in runes mode — use $props() instead
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	// FIX: Must use $state for all variables that are updated to be reactive
 	let modalMode = $state<'add' | 'edit' | null>(null);
 	let selectedAsset = $state<Partial<Asset> | null>(null);
 	let assetToDelete = $state<Asset | null>(null);
-	let assetToView = $state<Asset | null>(null); // For detail modal
+	let assetToView = $state<Asset | null>(null);
 	let isLoading = $state(false);
 	let searchQuery = $state(data.searchQuery ?? '');
 
-	// --- NEW: State for image compression ---
 	let originalImageFile: File | null = $state(null);
 	let isCompressing = $state(false);
 	let compressionError = $state<string | null>(null);
 
-	// --- NEW: Global Notification States ---
 	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(
 		null
 	);
 	let messageTimeout: NodeJS.Timeout;
 
-	// --- NEW: Function to handle file input change and trigger compression ---
 	async function onFileSelected(event: Event) {
 		const input = event.target as HTMLInputElement;
 		if (input.files && input.files.length > 0) {
 			const file = input.files[0];
-
-			// Basic validation for file type
 			if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-				compressionError = 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP) เท่านั้น';
+				compressionError = get(t)('Please select an image file (JPG, PNG, WEBP) only.');
 				originalImageFile = null;
 				return;
 			}
@@ -45,12 +39,11 @@
 			isCompressing = true;
 			compressionError = null;
 			try {
-				// Compress the image with default settings
 				const compressedFile = await compressImage(file);
-				originalImageFile = compressedFile; // Store the compressed file to be used in the form
+				originalImageFile = compressedFile;
 			} catch (error) {
 				console.error('Image compression failed:', error);
-				compressionError = 'เกิดข้อผิดพลาดในการบีบอัดรูปภาพ';
+				compressionError = get(t)('Error compressing image.');
 				originalImageFile = null;
 			} finally {
 				isCompressing = false;
@@ -89,7 +82,6 @@
 		assetToView = null;
 	}
 
-	// Helper to display a temporary global message
 	function showGlobalMessage(message: {
 		success: boolean;
 		text: string;
@@ -102,16 +94,12 @@
 		}, 5000);
 	}
 
-	// NEW FUNCTION: Handle print click and stop propagation manually
 	function handlePrintClick(e: Event) {
-		// Prevent the click event from propagating up to the <tr> element's onclick handler
 		e.stopPropagation();
 	}
 
-	// This reactive block handles form submission results for the delete action
 	$effect.pre(() => {
 		if (form?.message && form.action === 'deleteAsset') {
-			// If delete action fails (though it should redirect on success)
 			showGlobalMessage({
 				success: false,
 				text: form.message as string,
@@ -120,8 +108,6 @@
 		}
 	});
 
-	// FIX: Use $derived for reactive calculation instead of $:
-	// --- NEW: State for User Search Dropdown ---
 	let userSearchText = $state('');
 	let isUserDropdownOpen = $state(false);
 
@@ -175,10 +161,9 @@
 </script>
 
 <svelte:head>
-	<title>การจัดการสินทรัพย์</title>
+	<title>{$t('Asset Management')}</title>
 </svelte:head>
 
-<!-- Global Notifications (NEW) -->
 {#if globalMessage}
 	<div
 		transition:fade
@@ -230,15 +215,12 @@
 	</div>
 {/if}
 
-<!-- Main Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">การจัดการสินทรัพย์</h1>
-		<p class="mt-1 text-sm text-gray-500">ดู เพิ่ม และจัดการสินทรัพย์ทั้งหมดของบริษัท</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Asset Management')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('View, add, and manage all company assets')}</p>
 	</div>
-	<!-- Action Buttons -->
 	<div class="flex items-center gap-2">
-		<!-- EXPORT TO CSV BUTTON: ACTION UPDATED to dedicated endpoint /assets/export -->
 		<form method="POST" action="/assets/export">
 			<input type="hidden" name="search" value={searchQuery} />
 			<button
@@ -260,11 +242,10 @@
 						points="7 10 12 15 17 10"
 					/><line x1="12" y1="15" x2="12" y2="3" /></svg
 				>
-				ส่งออกเป็น CSV
+				{$t('Export to CSV')}
 			</button>
 		</form>
 
-		<!-- ADD NEW ASSET BUTTON -->
 		<button
 			onclick={() => openModal('add')}
 			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
@@ -281,19 +262,18 @@
 			>
 				<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 			</svg>
-			เพิ่มสินทรัพย์ใหม่
+			{$t('Add New Asset')}
 		</button>
 	</div>
 </div>
 
-<!-- Search Input -->
 <div class="mb-4">
 	<form method="GET" class="relative">
 		<input
 			type="search"
 			name="search"
 			bind:value={searchQuery}
-			placeholder="ค้นหาด้วยรหัสสินทรัพย์, รหัสย่อย, ชื่อ, ผู้รับผิดชอบ, หมวดหมู่, สถานที่..."
+			placeholder={$t('Search Asset Placeholder')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -313,20 +293,19 @@
 	</form>
 </div>
 
-<!-- Assets Table -->
 <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">รูปภาพ</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">รหัสสินทรัพย์</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">รหัสย่อย</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">ชื่อ</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">หมวดหมู่</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">ผู้รับผิดชอบ</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">สถานะ</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">สถานที่</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">การดำเนินการ</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Image')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Asset Tag')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Sub Tag')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Name')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Category')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Assigned To')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Status')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Location')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -334,9 +313,9 @@
 				<tr>
 					<td colspan="9" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery}
-							ไม่พบสินทรัพย์ที่ค้นหา: "{data.searchQuery}"
+							{$t('No assets found for:')} "{data.searchQuery}"
 						{:else}
-							ไม่พบสินทรัพย์
+							{$t('No assets found')}
 						{/if}
 					</td>
 				</tr>
@@ -374,7 +353,6 @@
 						<td class="px-4 py-3 font-mono text-xs text-gray-700">{asset.asset_tag}</td>
 						<td class="px-4 py-3 font-mono text-xs text-gray-700">{asset.asset_tag_sub ?? 'N/A'}</td
 						>
-						<!-- FIX: ย้าย Event Listener สำหรับเปิด Detail Modal มาที่ชื่อ Asset Name -->
 						<td
 							class="cursor-pointer px-4 py-3 font-medium text-gray-900 hover:text-blue-600 hover:underline"
 							role="button"
@@ -398,12 +376,12 @@
 											: 'bg-red-100 text-red-800'}"
 							>
 								{asset.status === 'In Use'
-									? 'ใช้งานอยู่'
+									? $t('In Use')
 									: asset.status === 'In Storage'
-										? 'ในคลังสินค้า'
+										? $t('In Storage')
 										: asset.status === 'Under Maintenance'
-											? 'อยู่ระหว่างซ่อมบำรุง'
-											: 'จำหน่าย/ทิ้ง'}
+											? $t('Under Maintenance')
+											: $t('Disposed')}
 							</span>
 						</td>
 						<td class="px-4 py-3 text-gray-600">{asset.location_name ?? 'N/A'}</td>
@@ -412,7 +390,7 @@
 								<button
 									onclick={() => openModal('edit', asset)}
 									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-blue-600"
-									aria-label="แก้ไขสินทรัพย์"
+									aria-label={$t('Edit Asset')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -433,7 +411,7 @@
 								<button
 									onclick={() => (assetToDelete = asset)}
 									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-600"
-									aria-label="ลบสินทรัพย์"
+									aria-label={$t('Delete Asset')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -451,13 +429,12 @@
 										/></svg
 									>
 								</button>
-								<!-- NEW Print Button -->
 								<a
 									href="/assets/print/{asset.id}"
 									target="_blank"
 									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-green-600"
-									aria-label="พิมพ์ฉลาก"
-									title="พิมพ์ฉลาก"
+									aria-label={$t('Print Label')}
+									title={$t('Print Label')}
 									onclick={handlePrintClick}
 								>
 									<svg
@@ -488,13 +465,14 @@
 	</table>
 </div>
 
-<!-- Pagination Controls -->
 {#if data.totalPages > 1}
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
 		<div>
 			<p class="text-sm text-gray-700">
-				แสดงหน้า <span class="font-medium">{data.currentPage}</span> จาก
-				<span class="font-medium">{data.totalPages}</span> หน้า
+				{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
+				{$t('of')}
+				<span class="font-medium">{data.totalPages}</span>
+				{$t('pages')}
 			</p>
 		</div>
 		<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
@@ -506,7 +484,7 @@
 					: ''}"
 				aria-disabled={data.currentPage === 1}
 			>
-				<span class="sr-only">ก่อนหน้า</span>
+				<span class="sr-only">{$t('Previous')}</span>
 				<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
 					<path
 						fill-rule="evenodd"
@@ -543,7 +521,7 @@
 					: ''}"
 				aria-disabled={data.currentPage === data.totalPages}
 			>
-				<span class="sr-only">ถัดไป</span>
+				<span class="sr-only">{$t('Next')}</span>
 				<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
 					<path
 						fill-rule="evenodd"
@@ -556,7 +534,6 @@
 	</div>
 {/if}
 
-<!-- Add/Edit Asset Modal -->
 {#if modalMode && selectedAsset}
 	<div
 		transition:slide={{ duration: 150 }}
@@ -571,7 +548,7 @@
 			onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeModal()}
 			role="button"
 			tabindex="0"
-			aria-label="ปิด Modal"
+			aria-label={$t('Close')}
 		></div>
 
 		<div
@@ -579,7 +556,7 @@
 		>
 			<div class="flex-shrink-0 border-b border-gray-200 px-6 py-4">
 				<h2 id="modal-title" class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? 'เพิ่มสินทรัพย์ใหม่' : 'แก้ไขสินทรัพย์'}
+					{modalMode === 'add' ? $t('Add New Asset') : $t('Edit Asset')}
 				</h2>
 			</div>
 
@@ -597,7 +574,6 @@
 					return async ({ update }) => {
 						await update();
 						isLoading = false;
-
 						// FIX: Check form result here to close modal reliably
 						const isAssetAction = form?.action === 'addAsset' || form?.action === 'editAsset';
 						if (isAssetAction) {
@@ -622,29 +598,28 @@
 				class="flex flex-1 flex-col overflow-hidden"
 			>
 				<div class="space-y-6 overflow-y-auto p-6">
-					<!-- Hidden fields for edit -->
 					{#if modalMode === 'edit'}
 						<input type="hidden" name="id" value={selectedAsset.id} />
 						<input type="hidden" name="existing_image_url" value={selectedAsset.image_url ?? ''} />
 					{/if}
 
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-						<!-- Asset Tag -->
 						<div>
 							<label for="asset_tag" class="mb-1 block text-sm font-medium text-gray-700"
-								>รหัสสินทรัพย์ (Asset Tag)</label
+								>{$t('Asset Tag')}</label
 							>
 							<input
 								type="text"
-								value={modalMode === 'add' ? 'ระบบจะสร้างให้โดยอัตโนมัติ' : selectedAsset.asset_tag}
+								value={modalMode === 'add'
+									? $t('Auto-generated by system')
+									: selectedAsset.asset_tag}
 								class="w-full rounded-md border-gray-300 bg-gray-100"
 								readonly
 							/>
 						</div>
-						<!-- Asset Sub Tag -->
 						<div>
 							<label for="asset_tag_sub" class="mb-1 block text-sm font-medium text-gray-700"
-								>รหัสสินทรัพย์ย่อย (Asset Sub Tag)</label
+								>{$t('Asset Sub Tag')}</label
 							>
 							<input
 								type="text"
@@ -656,10 +631,9 @@
 						</div>
 					</div>
 
-					<!-- Asset Name -->
 					<div>
 						<label for="name" class="mb-1 block text-sm font-medium text-gray-700"
-							>ชื่อสินทรัพย์</label
+							>{$t('Asset Name')}</label
 						>
 						<input
 							type="text"
@@ -670,27 +644,27 @@
 							class="w-full rounded-md border-gray-300"
 						/>
 					</div>
-					<!-- Status -->
 					<div>
-						<label for="status" class="mb-1 block text-sm font-medium text-gray-700">สถานะ</label>
+						<label for="status" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Status')}</label
+						>
 						<select
 							name="status"
 							id="status"
 							bind:value={selectedAsset.status}
 							class="w-full rounded-md border-gray-300"
 						>
-							<option value="In Storage">ในคลังสินค้า</option>
-							<option value="In Use">ใช้งานอยู่</option>
-							<option value="Under Maintenance">อยู่ระหว่างซ่อมบำรุง</option>
-							<option value="Disposed">จำหน่าย/ทิ้ง</option>
+							<option value="In Storage">{$t('In Storage')}</option>
+							<option value="In Use">{$t('In Use')}</option>
+							<option value="Under Maintenance">{$t('Under Maintenance')}</option>
+							<option value="Disposed">{$t('Disposed')}</option>
 						</select>
 					</div>
 
-					<!-- Purchase Date & Cost -->
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 						<div>
 							<label for="purchase_date" class="mb-1 block text-sm font-medium text-gray-700"
-								>วันที่ซื้อ</label
+								>{$t('Purchase Date')}</label
 							>
 							<input
 								type="date"
@@ -703,7 +677,7 @@
 						</div>
 						<div>
 							<label for="purchase_cost" class="mb-1 block text-sm font-medium text-gray-700"
-								>มูลค่า (บาท)</label
+								>{$t('Cost (THB)')}</label
 							>
 							<input
 								type="number"
@@ -717,11 +691,10 @@
 						</div>
 					</div>
 
-					<!-- Category & Location -->
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 						<div>
 							<label for="category_id" class="mb-1 block text-sm font-medium text-gray-700"
-								>หมวดหมู่</label
+								>{$t('Category')}</label
 							>
 							<select
 								name="category_id"
@@ -730,7 +703,7 @@
 								bind:value={selectedAsset.category_id}
 								class="w-full rounded-md border-gray-300"
 							>
-								<option disabled selected value={undefined}>เลือกหมวดหมู่</option>
+								<option disabled selected value={undefined}>{$t('Select Category')}</option>
 								{#each data.categories as category}
 									<option value={category.id}>{category.name}</option>
 								{/each}
@@ -738,7 +711,7 @@
 						</div>
 						<div>
 							<label for="location_id" class="mb-1 block text-sm font-medium text-gray-700"
-								>สถานที่</label
+								>{$t('Location')}</label
 							>
 							<select
 								name="location_id"
@@ -753,10 +726,9 @@
 							</select>
 						</div>
 					</div>
-					<!-- Assigned User -->
 					<div class="relative">
 						<label for="assigned_to_user_id" class="mb-1 block text-sm font-medium text-gray-700"
-							>ผู้รับผิดชอบ</label
+							>{$t('Assigned To')}</label
 						>
 						<input
 							type="hidden"
@@ -765,7 +737,7 @@
 						/>
 						<input
 							type="text"
-							placeholder="-- พิมพ์ค้นหา หรือเลือกผู้รับผิดชอบ --"
+							placeholder={$t('Search or select assignee')}
 							bind:value={userSearchText}
 							onfocus={() => (isUserDropdownOpen = true)}
 							onblur={() => setTimeout(() => (isUserDropdownOpen = false), 200)}
@@ -789,7 +761,7 @@
 											isUserDropdownOpen = false;
 										}}
 									>
-										-- ไม่ได้กำหนด --
+										{$t('Unassigned')}
 									</button>
 								</li>
 								{#each filteredUsers as user (user.id)}
@@ -811,10 +783,9 @@
 						{/if}
 					</div>
 
-					<!-- Image Upload (with compression) -->
 					<div>
 						<label for="image" class="mb-1 block text-sm font-medium text-gray-700"
-							>รูปภาพสินทรัพย์</label
+							>{$t('Asset Image')}</label
 						>
 						<input
 							type="file"
@@ -825,20 +796,19 @@
 							class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2"
 						/>
 						{#if isCompressing}
-							<p class="mt-2 text-sm text-blue-600">กำลังบีบอัดรูปภาพ...</p>
+							<p class="mt-2 text-sm text-blue-600">{$t('Compressing image...')}</p>
 						{/if}
 						{#if compressionError}
 							<p class="mt-2 text-sm text-red-600">{compressionError}</p>
 						{/if}
 						{#if originalImageFile && !isCompressing}
-							<p class="mt-2 text-sm text-green-600">รูปภาพพร้อมอัปโหลดแล้ว</p>
+							<p class="mt-2 text-sm text-green-600">{$t('Image ready for upload')}</p>
 						{/if}
 					</div>
 
-					<!-- Notes -->
 					<div>
 						<label for="notes" class="mb-1 block text-sm font-medium text-gray-700"
-							>บันทึก/หมายเหตุ</label
+							>{$t('Notes/Remarks')}</label
 						>
 						<textarea
 							name="notes"
@@ -862,7 +832,7 @@
 						onclick={closeModal}
 						class="rounded-md border bg-white px-4 py-2 text-sm font-medium"
 					>
-						ยกเลิก
+						{$t('Cancel')}
 					</button>
 					<button
 						type="submit"
@@ -870,11 +840,11 @@
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-blue-400"
 					>
 						{#if isLoading}
-							กำลังบันทึก...
+							{$t('Saving...')}
 						{:else if isCompressing}
-							กำลังบีบอัด...
+							{$t('Compressing...')}
 						{:else}
-							บันทึกสินทรัพย์
+							{$t('Save Asset')}
 						{/if}
 					</button>
 				</div>
@@ -883,7 +853,6 @@
 	</div>
 {/if}
 
-<!-- Asset Detail Modal -->
 {#if assetToView}
 	<div
 		transition:fade={{ duration: 150 }}
@@ -898,7 +867,7 @@
 			onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeDetailModal()}
 			role="button"
 			tabindex="0"
-			aria-label="ปิด Modal"
+			aria-label={$t('Close')}
 		></div>
 
 		<div class="relative w-full max-w-2xl rounded-xl bg-white shadow-2xl" transition:slide>
@@ -913,7 +882,7 @@
 					<button
 						onclick={closeDetailModal}
 						class="-m-2 rounded-full p-2 text-gray-400 hover:text-gray-600"
-						aria-label="ปิด"
+						aria-label={$t('Close')}
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -957,35 +926,35 @@
 					</div>
 					<div class="space-y-4 text-sm">
 						<div>
-							<p class="font-semibold text-gray-700">สถานะ</p>
+							<p class="font-semibold text-gray-700">{$t('Status')}</p>
 							<p class="text-gray-600">
 								{assetToView.status === 'In Use'
-									? 'ใช้งานอยู่'
+									? $t('In Use')
 									: assetToView.status === 'In Storage'
-										? 'ในคลังสินค้า'
+										? $t('In Storage')
 										: assetToView.status === 'Under Maintenance'
-											? 'อยู่ระหว่างซ่อมบำรุง'
-											: 'จำหน่าย/ทิ้ง'}
+											? $t('Under Maintenance')
+											: $t('Disposed')}
 							</p>
 						</div>
 						<div>
-							<p class="font-semibold text-gray-700">ผู้รับผิดชอบ</p>
-							<p class="text-gray-600">{assetToView.assigned_user_name ?? 'ไม่ได้กำหนด'}</p>
+							<p class="font-semibold text-gray-700">{$t('Assigned To')}</p>
+							<p class="text-gray-600">{assetToView.assigned_user_name ?? $t('Unassigned')}</p>
 						</div>
 						<div>
-							<p class="font-semibold text-gray-700">สถานที่</p>
+							<p class="font-semibold text-gray-700">{$t('Location')}</p>
 							<p class="text-gray-600">{assetToView.location_name ?? 'N/A'}</p>
 						</div>
 						<div>
-							<p class="font-semibold text-gray-700">หมวดหมู่</p>
+							<p class="font-semibold text-gray-700">{$t('Category')}</p>
 							<p class="text-gray-600">{assetToView.category_name ?? 'N/A'}</p>
 						</div>
 						<div>
-							<p class="font-semibold text-gray-700">วันที่ซื้อ</p>
+							<p class="font-semibold text-gray-700">{$t('Purchase Date')}</p>
 							<p class="text-gray-600">{assetToView.purchase_date}</p>
 						</div>
 						<div>
-							<p class="font-semibold text-gray-700">มูลค่าที่ซื้อ</p>
+							<p class="font-semibold text-gray-700">{$t('Cost (THB)')}</p>
 							<p class="text-gray-600">
 								{new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(
 									assetToView.purchase_cost
@@ -994,14 +963,13 @@
 						</div>
 					</div>
 					<div class="md:col-span-2">
-						<p class="font-semibold text-gray-700">บันทึก/หมายเหตุ</p>
+						<p class="font-semibold text-gray-700">{$t('Notes/Remarks')}</p>
 						<p class="mt-1 whitespace-pre-wrap text-gray-600">
-							{assetToView.notes || 'ไม่มีบันทึก/หมายเหตุ'}
+							{assetToView.notes || $t('No notes/remarks')}
 						</p>
 					</div>
 				</div>
 			</div>
-			<!-- Modal Footer with Buttons -->
 			<div
 				class="flex flex-shrink-0 items-center justify-end gap-3 rounded-b-xl border-t border-gray-200 bg-gray-50 p-4"
 			>
@@ -1010,7 +978,7 @@
 					onclick={closeDetailModal}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium"
 				>
-					ปิด
+					{$t('Close')}
 				</button>
 				<a
 					href="/assets/print/{assetToView.id}"
@@ -1032,24 +1000,23 @@
 							d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
 						></path><rect x="6" y="14" width="12" height="8"></rect></svg
 					>
-					พิมพ์ฉลาก
+					{$t('Print Label')}
 				</a>
 			</div>
 		</div>
 	</div>
 {/if}
 
-<!-- Delete Confirmation Modal -->
 {#if assetToDelete}
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="text-lg font-bold text-gray-900">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบสินทรัพย์ "<strong>{assetToDelete.name}</strong>"?
-				การดำเนินการนี้ไม่สามารถย้อนกลับได้
+				{$t('Are you sure you want to delete the asset')} "<strong>{assetToDelete.name}</strong>"?
+				{$t('This action cannot be undone.')}
 			</p>
 			<form
 				method="POST"
@@ -1072,13 +1039,13 @@
 					onclick={() => (assetToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium"
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 				<button
 					type="submit"
 					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white"
 				>
-					ลบ
+					{$t('Delete')}
 				</button>
 			</form>
 		</div>

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { fade, fly, slide, scale } from 'svelte/transition';
+	import { t } from '$lib/i18n';
 
-	let { data } = $props();
+	let { data } = $props<{ data: any }>();
 
 	let selectedRepair = $state<any>(null);
 	let showViewModal = $state(false);
@@ -22,7 +23,12 @@
 		data.assets.filter(
 			(a: any) =>
 				a.asset_tag.toLowerCase().includes(historySearchTerm.toLowerCase()) ||
-				a.name.toLowerCase().includes(historySearchTerm.toLowerCase())
+				a.name.toLowerCase().includes(historySearchTerm.toLowerCase()) ||
+				data.repairs.some(
+					(r: any) =>
+						r.asset_id === a.id &&
+						r.ticket_code.toLowerCase().includes(historySearchTerm.toLowerCase())
+				)
 		)
 	);
 
@@ -53,16 +59,6 @@
 			Cancelled: 'bg-red-100 text-red-700 border-red-200'
 		};
 		return base + (styles[status] || 'bg-gray-100 text-gray-700 border-gray-200');
-	}
-
-	function getStatusLabel(status: string) {
-		const map: Record<string, string> = {
-			Pending: 'รอดำเนินการ',
-			'In Progress': 'กำลังซ่อม',
-			Completed: 'เสร็จสิ้น',
-			Cancelled: 'ยกเลิก'
-		};
-		return map[status] || status;
 	}
 
 	function closeModals() {
@@ -101,26 +97,26 @@
 <div class="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
 	<div class="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 		<div>
-			<h1 class="text-2xl font-bold text-gray-900">🛠️ รายการแจ้งซ่อม (Repairs)</h1>
-			<p class="mt-1 text-sm font-medium text-gray-500">จัดการสถานะและตรวจสอบประวัติสินทรัพย์</p>
+			<h1 class="text-2xl font-bold text-gray-900">{$t('Repairs List')}</h1>
+			<p class="mt-1 text-sm font-medium text-gray-500">{$t('Repairs List Desc')}</p>
 		</div>
 		<a
 			href="/repairs/create"
 			class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700"
-			>+ แจ้งซ่อมใหม่</a
+			>{$t('New Repair Ticket')}</a
 		>
 	</div>
 
 	<div class="mb-10 rounded-2xl border border-blue-100 bg-blue-50/50 p-6 shadow-sm">
 		<div class="mb-4 flex items-center justify-between">
-			<h2 class="text-lg font-bold text-blue-900">🔍 ตรวจสอบประวัติรายเครื่อง</h2>
+			<h2 class="text-lg font-bold text-blue-900">{$t('Check Asset History')}</h2>
 			{#if selectedAssetForHistory}
 				<button
 					onclick={() => {
 						selectedAssetForHistory = null;
 						historySearchTerm = '';
 					}}
-					class="text-xs font-bold text-red-600 hover:underline">ล้างการค้นหา</button
+					class="text-xs font-bold text-red-600 hover:underline">{$t('Clear Search')}</button
 				>
 			{/if}
 		</div>
@@ -128,7 +124,7 @@
 		<div class="relative max-w-md">
 			<input
 				type="text"
-				placeholder="พิมพ์รหัส Asset Tag เพื่อดูประวัติซ่อม..."
+				placeholder={$t('Search Asset History Placeholder')}
 				class="w-full rounded-xl border-gray-200 p-4 text-sm shadow-sm focus:ring-4 focus:ring-blue-100"
 				bind:value={historySearchTerm}
 				onfocus={() => (isHistoryDropdownOpen = true)}
@@ -151,7 +147,7 @@
 							<div class="text-xs text-gray-500">{asset.name}</div>
 						</button>
 					{:else}
-						<div class="px-4 py-3 text-sm text-gray-400 italic">ไม่พบข้อมูลสินทรัพย์</div>
+						<div class="px-4 py-3 text-sm text-gray-400 italic">{$t('No Asset Found')}</div>
 					{/each}
 				</div>
 			{/if}
@@ -160,7 +156,8 @@
 		{#if selectedAssetForHistory}
 			<div class="mt-6" transition:fade>
 				<p class="mb-3 text-xs font-bold text-gray-400 uppercase">
-					ประวัติการซ่อมของ: <span class="text-blue-600"
+					{$t('Repair History For:')}
+					<span class="text-blue-600"
 						>[{selectedAssetForHistory.asset_tag}] {selectedAssetForHistory.name}</span
 					>
 				</p>
@@ -176,7 +173,7 @@
 							<div class="mb-2 flex justify-between">
 								<span class="font-mono text-xs font-bold text-blue-600">#{item.ticket_code}</span>
 								<span class={getStatusClass(item.repair_status)} style="font-size: 10px;"
-									>{item.repair_status}</span
+									>{$t('Status_' + item.repair_status)}</span
 								>
 							</div>
 							<p class="text-[10px] font-bold text-gray-400 uppercase">
@@ -190,7 +187,7 @@
 						<div
 							class="col-span-full py-6 text-center text-gray-400 text-sm italic bg-white rounded-xl border border-dashed"
 						>
-							ยังไม่เคยมีประวัติการซ่อม
+							{$t('No Repair History')}
 						</div>
 					{/each}
 				</div>
@@ -203,13 +200,13 @@
 			<table class="w-full text-left text-sm text-gray-600">
 				<thead class="border-b bg-gray-50 text-xs font-bold tracking-wider text-gray-500 uppercase">
 					<tr>
-						<th class="px-6 py-4 text-center">รูปภาพ</th>
-						<th class="px-6 py-4">Ticket / วันที่</th>
-						<th class="px-6 py-4">อุปกรณ์ / สถานที่</th>
-						<th class="px-6 py-4">ชื่อ-นามสกุล</th>
-						<th class="px-6 py-4 text-center">รหัสสินทรัพย์ (Asset Tag)</th>
-						<th class="px-6 py-4 text-center">สถานะ</th>
-						<th class="px-6 py-4 text-center">จัดการ</th>
+						<th class="px-6 py-4 text-center">{$t('Image')}</th>
+						<th class="px-6 py-4">{$t('Ticket / Date')}</th>
+						<th class="px-6 py-4">{$t('Asset / Location')}</th>
+						<th class="px-6 py-4">{$t('Reporter Name')}</th>
+						<th class="px-6 py-4 text-center">{$t('Asset Tag')}</th>
+						<th class="px-6 py-4 text-center">{$t('Status')}</th>
+						<th class="px-6 py-4 text-center">{$t('Actions')}</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200">
@@ -223,13 +220,9 @@
 											openImageViewer(repair.image_url);
 										}}
 										class="relative h-14 w-14 overflow-hidden rounded-lg border border-gray-200 shadow-sm transition-transform hover:scale-105"
-										title="คลิกเพื่อดูรูปขนาดใหญ่"
+										title={$t('Click to view large image')}
 									>
-										<img
-											src={repair.image_url}
-											alt="Repair"
-											class="h-full w-full object-cover"
-										/>
+										<img src={repair.image_url} alt="Repair" class="h-full w-full object-cover" />
 										<div
 											class="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity hover:bg-black/10 hover:opacity-100"
 										>
@@ -251,12 +244,7 @@
 									<div
 										class="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-gray-100 text-gray-300"
 									>
-										<svg
-											class="h-6 w-6"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-										>
+										<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 											<path
 												stroke-linecap="round"
 												stroke-linejoin="round"
@@ -287,7 +275,7 @@
 							</td>
 							<td class="px-6 py-4 text-center">
 								<span class={getStatusClass(repair.repair_status)}
-									>{getStatusLabel(repair.repair_status)}</span
+									>{$t('Status_' + repair.repair_status)}</span
 								>
 							</td>
 							<td class="px-6 py-4 text-center">
@@ -298,8 +286,8 @@
 											showViewModal = true;
 										}}
 										class="rounded-lg p-2 text-gray-400 transition-colors hover:text-blue-600"
-										title="ดูรายละเอียด"
-										aria-label="ดูรายละเอียด"
+										title={$t('View Details')}
+										aria-label={$t('View Details')}
 									>
 										<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
 											><path
@@ -320,7 +308,7 @@
 										href={`/repairs/print/${repair.id}`}
 										target="_blank"
 										class="rounded-lg p-2 text-gray-400 transition-colors hover:text-purple-600"
-										title="พิมพ์ใบแจ้งซ่อม"
+										title={$t('Print Repair Form')}
 									>
 										<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 											<path
@@ -335,8 +323,8 @@
 									<button
 										onclick={() => openEditModal(repair)}
 										class="rounded-lg p-2 text-gray-400 transition-colors hover:text-amber-600"
-										title="จัดการข้อมูล"
-										aria-label="จัดการข้อมูล"
+										title={$t('Manage Data')}
+										aria-label={$t('Manage Data')}
 									>
 										<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
 											><path
@@ -350,8 +338,8 @@
 									<button
 										onclick={() => (repairToDelete = repair)}
 										class="rounded-lg p-2 text-gray-400 transition-colors hover:text-red-600"
-										title="ลบ"
-										aria-label="ลบ"
+										title={$t('Delete')}
+										aria-label={$t('Delete')}
 									>
 										<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
 											><path
@@ -383,12 +371,12 @@
 		>
 			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h3 class="text-lg font-bold text-gray-900">
-					รายละเอียด Ticket #{selectedRepair.ticket_code}
+					{$t('Ticket Details #')}{selectedRepair.ticket_code}
 				</h3>
 				<button
 					onclick={closeModals}
 					class="p-1 text-gray-400 hover:text-gray-600"
-					aria-label="ปิดหน้าต่าง"
+					aria-label={$t('Close Window')}
 				>
 					<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"
 						><path
@@ -403,34 +391,36 @@
 			<div class="max-h-[75vh] space-y-6 overflow-y-auto p-6 text-sm text-gray-800">
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<p class="text-xs font-bold text-gray-400 uppercase">อุปกรณ์ที่แจ้ง</p>
+						<p class="text-xs font-bold text-gray-400 uppercase">{$t('Reported Asset')}</p>
 						<p class="font-semibold">{selectedRepair.asset_name}</p>
 					</div>
 					<div>
-						<p class="text-xs font-bold text-gray-400 uppercase">สถานะ</p>
+						<p class="text-xs font-bold text-gray-400 uppercase">{$t('Status')}</p>
 						<div class="mt-1">
 							<span class={getStatusClass(selectedRepair.repair_status)}
-								>{getStatusLabel(selectedRepair.repair_status)}</span
+								>{$t('Status_' + selectedRepair.repair_status)}</span
 							>
 						</div>
 					</div>
 					<div>
-						<p class="text-xs font-bold text-gray-400 uppercase">ผู้แจ้งซ่อม</p>
+						<p class="text-xs font-bold text-gray-400 uppercase">{$t('Reporter')}</p>
 						<p class="font-medium">{selectedRepair.reporter_name}</p>
 					</div>
 					<div>
-						<p class="text-xs font-bold text-gray-400 uppercase">เบอร์ติดต่อ</p>
+						<p class="text-xs font-bold text-gray-400 uppercase">{$t('Contact Number')}</p>
 						<p>{selectedRepair.contact_info || '-'}</p>
 					</div>
 				</div>
 				<div>
-					<p class="text-xs font-bold text-gray-400 uppercase">รายละเอียดอาการเสีย</p>
+					<p class="text-xs font-bold text-gray-400 uppercase">{$t('Issue Description')}</p>
 					<div class="mt-1 rounded-lg border bg-gray-50 p-3 italic">
 						"{selectedRepair.issue_description}"
 					</div>
 				</div>
 				{#if selectedRepair.image_url}<div>
-						<p class="mb-2 text-xs font-bold text-gray-400 uppercase">รูปถ่ายจากผู้แจ้ง:</p>
+						<p class="mb-2 text-xs font-bold text-gray-400 uppercase">
+							{$t('Photo from Reporter:')}
+						</p>
 						<button
 							type="button"
 							class="w-full overflow-hidden rounded-lg border shadow-sm transition-opacity hover:opacity-90"
@@ -449,13 +439,13 @@
 						<div
 							class="flex items-center justify-between border-b bg-gray-50 px-3 py-2 text-xs font-bold"
 						>
-							<span class="text-gray-500">📍 ตำแหน่งพิกัด (GPS)</span>
+							<span class="text-gray-500">{$t('GPS Location')}</span>
 							<a
 								href={`https://www.google.com/maps?q=${selectedRepair.latitude},${selectedRepair.longitude}`}
 								target="_blank"
 								class="text-blue-600 hover:underline"
 							>
-								เปิด Google Maps
+								{$t('Open Google Maps')}
 							</a>
 						</div>
 						<iframe
@@ -471,7 +461,9 @@
 
 				{#if selectedRepair.completion_image_url}
 					<div class="rounded-xl border border-green-100 bg-green-50 p-4">
-						<p class="mb-2 text-xs font-bold text-green-600 uppercase">✅ ผลการดำเนินการ:</p>
+						<p class="mb-2 text-xs font-bold text-green-600 uppercase">
+							{$t('Resolution Result:')}
+						</p>
 						<button
 							type="button"
 							class="w-full overflow-hidden rounded-lg border-2 border-white shadow-sm transition-opacity hover:opacity-90"
@@ -493,7 +485,7 @@
 				<button
 					onclick={closeModals}
 					class="rounded-lg border bg-white px-6 py-2 font-bold text-gray-700 hover:bg-gray-50"
-					>ปิด</button
+					>{$t('Close')}</button
 				>
 			</div>
 		</div>
@@ -511,7 +503,7 @@
 		>
 			<div class="border-b bg-amber-50 px-6 py-4">
 				<h3 class="text-lg font-bold text-amber-800">
-					จัดการงานซ่อม #{selectedRepair.ticket_code}
+					{$t('Manage Repair #')}{selectedRepair.ticket_code}
 				</h3>
 			</div>
 			<form
@@ -537,13 +529,13 @@
 
 				<div>
 					<label for="asset_search" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-						>ระบุรหัสสินทรัพย์ในระบบ (Asset Tag)</label
+						>{$t('Specify System Asset Tag')}</label
 					>
 					<div class="relative">
 						<input
 							type="text"
 							id="asset_search"
-							placeholder="พิมพ์เลข Tag หรือชื่ออุปกรณ์..."
+							placeholder={$t('Search Tag or Asset Name...')}
 							class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 							bind:value={assetEditSearchTerm}
 							onfocus={() => (isAssetEditDropdownOpen = true)}
@@ -565,7 +557,7 @@
 									</button>
 								{:else}
 									<div class="px-4 py-3 text-sm text-gray-400 italic text-center">
-										ไม่พบรหัสสินทรัพย์
+										{$t('Asset Tag Not Found')}
 									</div>
 								{/each}
 							</div>
@@ -575,31 +567,31 @@
 
 				<div>
 					<label for="repair_status" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-						>อัปเดตสถานะ</label
+						>{$t('Update Status')}</label
 					><select
 						name="repair_status"
 						id="repair_status"
 						bind:value={selectedRepair.repair_status}
 						class="w-full rounded-lg border-gray-300 text-sm"
-						>{#each statuses as s}<option value={s}>{getStatusLabel(s)}</option>{/each}</select
+						>{#each statuses as s}<option value={s}>{$t('Status_' + s)}</option>{/each}</select
 					>
 				</div>
 				<div>
 					<label for="admin_notes" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-						>หมายเหตุช่าง / ผลการซ่อม</label
+						>{$t('Technician Notes / Result')}</label
 					><textarea
 						name="admin_notes"
 						id="admin_notes"
 						rows="2"
 						class="w-full rounded-lg border-gray-300 text-sm"
-						placeholder="ระบุการแก้ไข..."
+						placeholder={$t('Specify resolution...')}
 						bind:value={selectedRepair.admin_notes}
 					></textarea>
 				</div>
 
 				<div>
 					<label for="completion_image" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-						>อัปโหลดรูปยืนยันหลังซ่อม (ส่งให้ User)</label
+						>{$t('Upload Completion Image')}</label
 					>
 					{#if selectedRepair.completion_image_url}
 						<div class="relative mb-2 h-20 w-32 overflow-hidden rounded border">
@@ -611,7 +603,7 @@
 							<div
 								class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity hover:opacity-100"
 							>
-								<span class="text-[10px] font-bold text-white">มีรูปเดิมอยู่แล้ว</span>
+								<span class="text-[10px] font-bold text-white">{$t('Existing Image')}</span>
 							</div>
 						</div>
 					{/if}
@@ -622,7 +614,9 @@
 						accept="image/*"
 						class="w-full text-xs text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 					/>
-					<p class="mt-1 text-[10px] text-gray-400 italic">* เลือกไฟล์ใหม่เพื่อแทนที่รูปเดิม</p>
+					<p class="mt-1 text-[10px] text-gray-400 italic">
+						{$t('* Select a new file to replace the existing image')}
+					</p>
 				</div>
 
 				<div class="flex gap-2 pt-4">
@@ -630,13 +624,13 @@
 						type="button"
 						onclick={closeModals}
 						class="flex-1 rounded-lg py-2 font-bold text-gray-500 transition-colors hover:bg-gray-100"
-						>ยกเลิก</button
+						>{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
 						disabled={isUpdating}
 						class="flex-1 rounded-lg bg-blue-600 py-2 font-bold text-white shadow-sm transition-all disabled:opacity-50"
-						>{isUpdating ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</button
+						>{isUpdating ? $t('Saving...') : $t('Save Data')}</button
 					>
 				</div>
 			</form>
@@ -662,15 +656,16 @@
 					/></svg
 				>
 			</div>
-			<h3 class="text-lg font-bold text-gray-900">ยืนยันการลบ?</h3>
+			<h3 class="text-lg font-bold text-gray-900">{$t('Confirm Deletion?')}</h3>
 			<p class="mt-1 text-sm text-gray-500">
-				คุณต้องการลบ Ticket <strong>#{repairToDelete.ticket_code}</strong> ใช่หรือไม่?
+				{$t('Do you want to delete Ticket')} <strong>#{repairToDelete.ticket_code}</strong>
+				{$t('?')}
 			</p>
 			<div class="mt-6 flex gap-2">
 				<button
 					onclick={() => (repairToDelete = null)}
 					class="flex-1 rounded-lg py-2 font-bold text-gray-500 transition-colors hover:bg-gray-100"
-					>ยกเลิก</button
+					>{$t('Cancel')}</button
 				>
 				<form
 					method="POST"
@@ -686,7 +681,7 @@
 					<input type="hidden" name="id" value={repairToDelete.id} /><button
 						type="submit"
 						class="w-full rounded-lg bg-red-600 py-2 font-bold text-white shadow-sm transition-colors hover:bg-red-700"
-						>ลบข้อมูล</button
+						>{$t('Delete Data')}</button
 					>
 				</form>
 			</div>
@@ -694,7 +689,6 @@
 	</div>
 {/if}
 
-<!-- Image Viewer Modal -->
 {#if showImageModal && viewingImageUrl}
 	<div
 		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm"
@@ -710,7 +704,7 @@
 		<button
 			class="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-white/20 hover:text-white"
 			onclick={closeImageViewer}
-			aria-label="Close image viewer"
+			aria-label={$t('Close image viewer')}
 		>
 			<svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"
 				><path
@@ -723,7 +717,7 @@
 		</button>
 		<img
 			src={viewingImageUrl}
-			alt="Full size view"
+			alt={$t('Full size view')}
 			class="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl"
 			transition:scale={{ start: 0.9, duration: 300 }}
 		/>

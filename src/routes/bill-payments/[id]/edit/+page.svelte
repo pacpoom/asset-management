@@ -4,6 +4,7 @@
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 	import { invalidateAll } from '$app/navigation';
+	import { t, locale } from '$lib/i18n';
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -24,20 +25,17 @@
 	// --- Initialize Data ---
 	const payment = data.payment;
 
-	// Header Fields
 	let vendor_id = $state(payment.vendor_id);
 	let vendor_contract_id = $state(payment.vendor_contract_id);
 	let payment_date = $state(new Date(payment.payment_date).toISOString().split('T')[0]);
 	let payment_reference = $state(payment.payment_reference || '');
 	let notes = $state(payment.notes || '');
 
-	// Calculation Fields
 	let discountAmount = $state(Number(payment.discount_amount));
 	let vat_selection = $state(Number(payment.vat_rate));
 	let calculateWHT = $state(Number(payment.withholding_tax_rate) > 0);
 	let wht_selection = $state(Number(payment.withholding_tax_rate));
 
-	// Items Data
 	let initialItems: BillPaymentItem[] = (data.items || []).map((item: any) => {
 		const prod = (data.products || []).find((p: any) => p.id === item.product_id);
 		return {
@@ -74,6 +72,7 @@
 	const subTotal = $derived(
 		items.reduce((sum: number, item: BillPaymentItem) => sum + item.line_total, 0)
 	);
+
 	const totalAfterDiscount = $derived(subTotal - (discountAmount || 0));
 	const vatAmount = $derived(vat_selection > 0 ? (totalAfterDiscount * vat_selection) / 100 : 0);
 	const withholdingTaxAmount = $derived(
@@ -94,7 +93,10 @@
 	);
 
 	function formatCurrency(val: number) {
-		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(val);
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			style: 'currency',
+			currency: 'THB'
+		}).format(val);
 	}
 
 	function onVendorChange() {
@@ -143,7 +145,7 @@
 	}
 
 	async function deleteAttachment(attachmentId: number) {
-		if (!confirm('ต้องการลบไฟล์แนบนี้ใช่หรือไม่?')) return;
+		if (!confirm($t('Are you sure you want to delete this attachment?'))) return;
 
 		const formData = new FormData();
 		formData.append('attachment_id', attachmentId.toString());
@@ -156,15 +158,17 @@
 		if (response.ok) {
 			await invalidateAll();
 		} else {
-			alert('เกิดข้อผิดพลาดในการลบไฟล์');
+			alert($t('Error deleting attachment'));
 		}
 	}
 </script>
 
 <div class="container mx-auto max-w-7xl p-6">
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-800">แก้ไขรายการจ่ายเงิน #{payment.id}</h1>
-		<a href="/bill-payments" class="text-sm text-gray-500 hover:underline">กลับหน้ารายการ</a>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Edit Bill Payment #')}{payment.id}</h1>
+		<a href="/bill-payments" class="text-sm text-gray-500 hover:text-blue-600 hover:underline"
+			>{$t('Back to list')}</a
+		>
 	</div>
 
 	<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-lg">
@@ -185,7 +189,7 @@
 			<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-4">
 				<div>
 					<label for="vendor_id" class="mb-1 block text-sm font-medium text-gray-700"
-						>Vendor <span class="text-red-500">*</span></label
+						>{$t('Vendor')} <span class="text-red-500">*</span></label
 					>
 					<select
 						id="vendor_id"
@@ -195,13 +199,13 @@
 						required
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					>
-						<option value={null}>-- เลือก Vendor --</option>
+						<option value={null}>{$t('Select Vendor')}</option>
 						{#each data.vendors as v}<option value={v.id}>{v.name}</option>{/each}
 					</select>
 				</div>
 				<div>
 					<label for="vendor_contract_id" class="mb-1 block text-sm font-medium text-gray-700"
-						>สัญญา (Contract)</label
+						>{$t('Contract')}</label
 					>
 					<select
 						id="vendor_contract_id"
@@ -210,7 +214,7 @@
 						disabled={!vendor_id}
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					>
-						<option value={null}>-- ไม่ระบุ --</option>
+						<option value={null}>{$t('Not specified')}</option>
 						{#each filteredContracts as c}<option value={c.id}
 								>{c.contract_number ? c.contract_number + ' - ' : ''}{c.title}</option
 							>{/each}
@@ -218,7 +222,7 @@
 				</div>
 				<div>
 					<label for="payment_date" class="mb-1 block text-sm font-medium text-gray-700"
-						>วันที่จ่าย <span class="text-red-500">*</span></label
+						>{$t('Payment Date')} <span class="text-red-500">*</span></label
 					>
 					<input
 						id="payment_date"
@@ -231,7 +235,7 @@
 				</div>
 				<div>
 					<label for="payment_reference" class="mb-1 block text-sm font-medium text-gray-700"
-						>Reference</label
+						>{$t('Reference')}</label
 					>
 					<input
 						id="payment_reference"
@@ -247,19 +251,22 @@
 				<table class="min-w-full divide-y divide-gray-200 text-sm">
 					<thead class="bg-gray-50">
 						<tr>
-							<th class="w-[15%] px-4 py-2 text-left font-semibold text-gray-600">สินค้า/บริการ</th>
-
-							<th class="px-4 py-2 text-center font-semibold text-gray-600">รายละเอียด</th>
-
-							<th class="w-[120px] px-4 py-2 text-center font-semibold text-gray-600">จำนวน</th>
-
-							<th class="w-[140px] px-4 py-2 text-center font-semibold text-gray-600">หน่วย</th>
-
-							<th class="w-[150px] px-4 py-2 text-center font-semibold text-gray-600">ราคา/หน่วย</th
+							<th class="w-[15%] px-4 py-2 text-left font-semibold text-gray-600"
+								>{$t('Product/Service')}</th
 							>
-
-							<th class="w-[150px] px-4 py-2 text-center font-semibold text-gray-600">รวม</th>
-
+							<th class="px-4 py-2 text-center font-semibold text-gray-600">{$t('Description')}</th>
+							<th class="w-[120px] px-4 py-2 text-center font-semibold text-gray-600"
+								>{$t('Quantity')}</th
+							>
+							<th class="w-[140px] px-4 py-2 text-center font-semibold text-gray-600"
+								>{$t('Unit')}</th
+							>
+							<th class="w-[150px] px-4 py-2 text-center font-semibold text-gray-600"
+								>{$t('Unit Price')}</th
+							>
+							<th class="w-[150px] px-4 py-2 text-center font-semibold text-gray-600"
+								>{$t('Total Price')}</th
+							>
 							<th class="w-10 px-4 py-2"></th>
 						</tr>
 					</thead>
@@ -275,7 +282,7 @@
 											item.product_object = null;
 											onProductSelectChange(item);
 										}}
-										placeholder="-- ค้นหา/เลือกสินค้า --"
+										placeholder={$t('-- Search/Select Product --')}
 										required
 										--inputStyles="padding: 2px 0;"
 										--itemIsActive="background: #e0f2fe;"
@@ -321,7 +328,7 @@
 									<button
 										type="button"
 										onclick={() => removeLineItem(item.id)}
-										class="text-red-500 hover:text-red-700">ลบ</button
+										class="text-red-500 hover:text-red-700">{$t('Delete')}</button
 									>
 								</td>
 							</tr>
@@ -332,14 +339,16 @@
 					<button
 						type="button"
 						onclick={addLineItem}
-						class="text-sm font-medium text-blue-600 hover:text-blue-800">+ เพิ่มรายการ</button
+						class="text-sm font-medium text-blue-600 hover:text-blue-800">{$t('Add Item')}</button
 					>
 				</div>
 			</div>
 
 			<div class="grid grid-cols-1 gap-8 md:grid-cols-2">
 				<div>
-					<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+					<label for="notes" class="mb-1 block text-sm font-medium text-gray-700"
+						>{$t('Notes')}</label
+					>
 					<textarea
 						id="notes"
 						name="notes"
@@ -350,7 +359,7 @@
 
 					<div class="mt-4">
 						<label for="new_attachments" class="mb-1 block text-sm font-medium text-gray-700"
-							>แนบไฟล์เพิ่ม</label
+							>{$t('Attach more files')}</label
 						>
 						<input
 							id="new_attachments"
@@ -363,7 +372,7 @@
 
 						{#if data.attachments.length > 0}
 							<div class="mt-3 space-y-2">
-								<p class="text-sm font-semibold text-gray-600">ไฟล์แนบเดิม:</p>
+								<p class="text-sm font-semibold text-gray-600">{$t('Existing Attachments:')}</p>
 								{#each data.attachments as file}
 									<div class="flex items-center justify-between rounded bg-gray-50 p-2 text-sm">
 										<span class="truncate">{file.file_original_name}</span>
@@ -372,7 +381,7 @@
 											onclick={() => deleteAttachment(file.id)}
 											class="font-medium text-red-500 hover:text-red-700"
 										>
-											ลบ
+											{$t('Delete')}
 										</button>
 									</div>
 								{/each}
@@ -383,11 +392,11 @@
 
 				<div class="space-y-3 text-sm">
 					<div class="flex justify-between">
-						<span class="text-gray-600">รวมเป็นเงิน</span>
+						<span class="text-gray-600">{$t('Subtotal')}</span>
 						<span class="font-semibold">{formatCurrency(subTotal)}</span>
 					</div>
 					<div class="flex items-center justify-between">
-						<span class="text-gray-600">ส่วนลด</span>
+						<span class="text-gray-600">{$t('Discount')}</span>
 						<input
 							type="number"
 							name="discountAmount"
@@ -396,7 +405,7 @@
 						/>
 					</div>
 					<div class="flex justify-between">
-						<span class="text-gray-600">หลังหักส่วนลด</span>
+						<span class="text-gray-600">{$t('After Discount')}</span>
 						<span class="font-semibold">{formatCurrency(totalAfterDiscount)}</span>
 					</div>
 
@@ -417,13 +426,13 @@
 
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2">
-							<span class="text-gray-600">หัก ณ ที่จ่าย</span>
+							<span class="text-gray-600">{$t('WHT')}</span>
 							<select
 								name="withholdingTaxRate"
 								bind:value={wht_selection}
 								class="h-7 rounded border-gray-300 py-0 text-sm"
 							>
-								<option value={0}>ไม่หัก</option>
+								<option value={0}>{$t('None')}</option>
 								<option value={1}>1%</option>
 								<option value={3}>3%</option>
 							</select>
@@ -432,7 +441,7 @@
 					</div>
 
 					<div class="flex justify-between border-t pt-2 text-lg font-bold text-blue-700">
-						<span>ยอดรวมทั้งสิ้น</span>
+						<span>{$t('Grand Total')}</span>
 						<span>{formatCurrency(grandTotal)}</span>
 					</div>
 				</div>
@@ -441,14 +450,14 @@
 			<div class="mt-8 flex justify-end gap-3 border-t pt-4">
 				<a
 					href="/bill-payments"
-					class="rounded-lg bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300">ยกเลิก</a
+					class="rounded-lg bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300">{$t('Cancel')}</a
 				>
 				<button
 					type="submit"
 					disabled={isSaving}
 					class="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
 				>
-					{isSaving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+					{isSaving ? $t('Saving...') : $t('Save Changes')}
 				</button>
 			</div>
 		</form>

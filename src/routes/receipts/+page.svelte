@@ -2,18 +2,16 @@
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
 
-	// ตัวแปรสำหรับรับค่าจาก Server
 	$: ({ receipts, currentPage, totalPages, searchQuery, filterStatus } = data);
 
-	// ตัวแปรสำหรับ Filter
 	let searchInput = searchQuery;
 	let statusInput = filterStatus;
 	let searchTimeout: NodeJS.Timeout;
 
-	// --- ส่วนจัดการ Modal ลบ ---
 	let isDeleteModalOpen = false;
 	let itemToDelete: any = null;
 	let isDeleting = false;
@@ -27,7 +25,6 @@
 		isDeleteModalOpen = false;
 		itemToDelete = null;
 	}
-	// ---------------------------
 
 	// ฟังก์ชันจัดการการค้นหา
 	function handleSearch() {
@@ -65,28 +62,29 @@
 		}
 	}
 
-	function formatCurrency(amount: number) {
-		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
-	}
+	$: currentLoc = $locale === 'th' ? 'th-TH' : $locale === 'zh' ? 'zh-CN' : 'en-US';
 
-	function formatDate(dateStr: string) {
+	$: formatCurrency = (amount: number) =>
+		new Intl.NumberFormat(currentLoc, { style: 'currency', currency: 'THB' }).format(amount);
+
+	$: formatDate = (dateStr: string) => {
 		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleDateString('th-TH', {
+		return new Date(dateStr).toLocaleDateString(currentLoc, {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
 		});
-	}
+	};
 </script>
 
 <svelte:head>
-	<title>ใบเสร็จรับเงิน (Receipts)</title>
+	<title>{$t('Receipts Title')}</title>
 </svelte:head>
 
 <div class="mb-6 flex items-center justify-between">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">ใบเสร็จรับเงิน (Receipts)</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการเอกสารการรับเงินจากลูกค้า</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Receipts Title')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Receipts Desc')}</p>
 	</div>
 	<a
 		href="/receipts/slip"
@@ -102,7 +100,7 @@
 		>
 			<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 		</svg>
-		สร้างใบเสร็จใหม่
+		{$t('Create Receipt')}
 	</a>
 </div>
 
@@ -128,7 +126,7 @@
 			type="search"
 			bind:value={searchInput}
 			on:input={handleSearch}
-			placeholder="ค้นหาเลขที่เอกสาร หรือ ชื่อลูกค้า..."
+			placeholder={$t('Search Receipt Placeholder')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 	</div>
@@ -136,12 +134,12 @@
 		<select
 			bind:value={statusInput}
 			on:change={applyFilters}
-			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+			class="w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุกสถานะ --</option>
-			<option value="Draft">Draft (ร่าง)</option>
-			<option value="Issued">Issued (ออกเอกสารแล้ว)</option>
-			<option value="Void">Void (ยกเลิก)</option>
+			<option value="">{$t('All Statuses')}</option>
+			<option value="Draft">{$t('Status_Draft')}</option>
+			<option value="Issued">{$t('Status_Issued')}</option>
+			<option value="Void">{$t('Status_Void')}</option>
 		</select>
 	</div>
 </div>
@@ -151,24 +149,24 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">เลขที่เอกสาร</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">วันที่</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">ลูกค้า</th>
-					<th class="px-4 py-3 text-right font-semibold text-gray-600">ยอดเงินรวม</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">สถานะ</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">จัดการ</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Customer')}</th>
+					<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Total Amount')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Manage')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#if receipts.length === 0}
 					<tr>
-						<td colspan="6" class="py-8 text-center text-gray-500">ไม่พบรายการใบเสร็จ</td>
+						<td colspan="6" class="py-8 text-center text-gray-500">{$t('No receipts found')}</td>
 					</tr>
 				{:else}
 					{#each receipts as receipt}
 						<tr class="transition-colors hover:bg-gray-50">
 							<td class="px-4 py-3 font-medium text-blue-600">
-								<a href="/receipts/{receipt.id}">{receipt.receipt_number || '(Draft)'}</a>
+								<a href="/receipts/{receipt.id}">{receipt.receipt_number || $t('Status_Draft')}</a>
 							</td>
 							<td class="px-4 py-3 whitespace-nowrap text-gray-600"
 								>{formatDate(receipt.receipt_date)}</td
@@ -183,7 +181,7 @@
 										receipt.status
 									)}"
 								>
-									{receipt.status}
+									{$t('Status_' + receipt.status)}
 								</span>
 							</td>
 							<td class="px-4 py-3 text-center">
@@ -191,7 +189,7 @@
 									<a
 										href="/receipts/{receipt.id}"
 										class="text-gray-400 transition-colors hover:text-blue-600"
-										title="ดูรายละเอียด"
+										title={$t('View Details')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -214,7 +212,7 @@
 											target="_blank"
 											rel="noopener noreferrer"
 											class="text-gray-400 transition-colors hover:text-gray-600"
-											title="พิมพ์ PDF"
+											title={$t('Print PDF')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -232,7 +230,7 @@
 									{:else}
 										<span
 											class="cursor-not-allowed text-gray-200"
-											title="ต้องยืนยันเอกสารก่อนพิมพ์"
+											title={$t('Must confirm before printing')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -252,7 +250,7 @@
 									<a
 										href="/receipts/{receipt.id}/edit"
 										class="text-gray-400 transition-colors hover:text-yellow-600"
-										title="แก้ไข"
+										title={$t('Edit')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -270,7 +268,7 @@
 										type="button"
 										on:click={() => openDeleteModal(receipt)}
 										class="text-gray-400 transition-colors hover:text-red-600"
-										title="ลบ"
+										title={$t('Delete')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -302,7 +300,8 @@
 		<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
 			<div>
 				<p class="text-sm text-gray-700">
-					หน้า <span class="font-medium">{currentPage}</span> จาก
+					{$t('Showing page')} <span class="font-medium">{currentPage}</span>
+					{$t('of')}
 					<span class="font-medium">{totalPages}</span>
 				</p>
 			</div>
@@ -313,7 +312,7 @@
 						disabled={currentPage === 1}
 						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
 					>
-						<span class="sr-only">Previous</span>
+						<span class="sr-only">{$t('Previous')}</span>
 						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
 							><path
 								fill-rule="evenodd"
@@ -327,7 +326,7 @@
 						disabled={currentPage === totalPages}
 						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
 					>
-						<span class="sr-only">Next</span>
+						<span class="sr-only">{$t('Next')}</span>
 						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
 							><path
 								fill-rule="evenodd"
@@ -349,10 +348,14 @@
 		<div
 			class="w-full transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all sm:max-w-lg"
 		>
-			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">
+				{$t('Confirm Delete Receipt')}
+			</h3>
 			<p class="text-sm text-gray-500">
-				คุณแน่ใจหรือไม่ที่จะลบใบเสร็จ <strong>{itemToDelete?.receipt_number}</strong>? <br />
-				การกระทำนี้ไม่สามารถเรียกคืนได้
+				{$t('Are you sure you want to delete receipt')}
+				<strong>{itemToDelete?.receipt_number}</strong>?
+				<br />
+				{$t('This action cannot be undone')}
 			</p>
 
 			<div class="mt-6 flex justify-end gap-3">
@@ -361,7 +364,7 @@
 					on:click={closeDeleteModal}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 
 				<form
@@ -401,9 +404,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path></svg
 							>
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete Receipt')}
 						{/if}
 					</button>
 				</form>

@@ -4,6 +4,7 @@
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 	import type { ActionData, PageData } from './$types';
+	import { t, locale } from '$lib/i18n'; // 🌟 ดึงตัวแปลภาษามา
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -34,7 +35,8 @@
 
 	let discountAmount = $state(0);
 	let vatRate = $state(7);
-	let whtRate = $state(0); // WHT รวม (Global WHT ด้านล่างสุด)
+	let whtRate = $state(0);
+	// WHT รวม (Global WHT ด้านล่างสุด)
 
 	let globalMessage = $state<{ text: string; type: 'success' | 'error' } | null>(null);
 	let messageTimeout: NodeJS.Timeout;
@@ -51,11 +53,9 @@
 	const subTotal = $derived(items.reduce((sum, item) => sum + (item.amount || 0), 0));
 	const totalAfterDiscount = $derived(Math.max(0, subTotal - (discountAmount || 0)));
 	const vatAmount = $derived(vatRate > 0 ? (totalAfterDiscount * vatRate) / 100 : 0);
-
 	const totalWhtAmount = $derived(
 		items.reduce((sum, item) => sum + ((item.amount || 0) * (item.wht_rate || 0)) / 100, 0)
 	);
-
 	const grandTotal = $derived(totalAfterDiscount + vatAmount - totalWhtAmount);
 
 	const customerOptions = $derived(
@@ -73,8 +73,11 @@
 		}))
 	);
 
+	// 🌟 ปรับรูปแบบตัวเลขให้เปลี่ยนตามภาษาแบบ Reactive ของ Svelte 5
+	const currentLoc = $derived($locale === 'th' ? 'th-TH' : $locale === 'zh' ? 'zh-CN' : 'en-US');
+
 	function formatCurrency(val: number) {
-		return new Intl.NumberFormat('th-TH', {
+		return new Intl.NumberFormat(currentLoc, {
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
 		}).format(val || 0);
@@ -131,17 +134,17 @@
 </script>
 
 <svelte:head>
-	<title>สร้างใบวางบิลใหม่ (New Billing Note)</title>
+	<title>{$t('Create Billing Note (New Billing Note)')}</title>
 	<link rel="stylesheet" href="https://unpkg.com/svelte-select@latest/dist/stylesheet.css" />
 </svelte:head>
 
 <div class="mx-auto max-w-7xl p-4 md:p-6">
 	<div class="mb-6">
-		<h1 class="text-2xl font-bold text-gray-800">สร้างใบวางบิลใหม่</h1>
-		<p class="mt-1 text-sm text-gray-500">กรอกข้อมูลเพื่อสร้างเอกสารใบวางบิล</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Create Billing Note')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Fill info to create billing note')}</p>
 	</div>
 
-	<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+	<div class="relative z-0 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 		<form
 			method="POST"
 			action="?/create"
@@ -188,13 +191,13 @@
 				<div class="relative z-50 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
 					<div class="md:col-span-2">
 						<label for="customer_select" class="mb-1 block text-sm font-medium text-gray-700"
-							>ลูกค้า <span class="text-red-500">*</span></label
+							>{$t('Customer')} <span class="text-red-500">*</span></label
 						>
 						<Select
 							id="customer_select"
 							items={customerOptions}
 							bind:value={selectedCustomer}
-							placeholder="-- ค้นหา/เลือกลูกค้า --"
+							placeholder={$t('-- Search/Select Customer --')}
 							class="w-full"
 							required
 							container={browser ? document.body : null}
@@ -203,7 +206,7 @@
 					</div>
 					<div>
 						<label for="billing_date" class="mb-1 block text-sm font-medium text-gray-700"
-							>วันที่วางบิล <span class="text-red-500">*</span></label
+							>{$t('Billing Date')} <span class="text-red-500">*</span></label
 						>
 						<input
 							id="billing_date"
@@ -216,7 +219,7 @@
 					</div>
 					<div>
 						<label for="due_date" class="mb-1 block text-sm font-medium text-gray-700"
-							>วันครบกำหนด</label
+							>{$t('Due Date')}</label
 						>
 						<input
 							id="due_date"
@@ -229,26 +232,36 @@
 				</div>
 
 				<div>
-					<h3 class="text-md mb-2 font-semibold text-gray-800">รายการสินค้า (วางบิล)</h3>
+					<h3 class="text-md mb-2 font-semibold text-gray-800">{$t('Billing Items')}</h3>
 					<div class="relative z-10 overflow-x-visible rounded border border-gray-200">
 						<table class="min-w-full table-fixed divide-y divide-gray-200 text-sm">
 							<thead class="bg-gray-50">
 								<tr>
-									<th class="w-10 px-3 py-3 text-center text-gray-500">ลำดับ</th>
+									<th class="w-10 px-3 py-3 text-center text-gray-500">{$t('No.')}</th>
 
 									<th
 										class="w-[200px] max-w-[200px] px-3 py-3 text-left font-semibold text-gray-600"
 									>
-										สินค้า/บริการ
+										{$t('Product/Service')}
 									</th>
 
-									<th class="w-48 px-3 py-3 text-left font-semibold text-gray-600">รายละเอียด</th>
+									<th class="w-48 px-3 py-3 text-left font-semibold text-gray-600"
+										>{$t('Description')}</th
+									>
 
-									<th class="w-24 px-3 py-3 text-center font-semibold text-gray-600">จำนวน</th>
-									<th class="w-24 px-3 py-3 text-center font-semibold text-gray-600">หน่วย</th>
-									<th class="w-28 px-3 py-3 text-center font-semibold text-gray-600">ราคา/หน่วย</th>
-									<th class="w-24 px-3 py-3 text-center font-semibold text-red-600">WHT</th>
-									<th class="w-32 px-3 py-3 text-right font-semibold text-gray-600">รวมเงิน</th>
+									<th class="w-24 px-3 py-3 text-center font-semibold text-gray-600"
+										>{$t('Quantity')}</th
+									>
+									<th class="w-24 px-3 py-3 text-center font-semibold text-gray-600"
+										>{$t('Unit')}</th
+									>
+									<th class="w-28 px-3 py-3 text-center font-semibold text-gray-600"
+										>{$t('Unit Price')}</th
+									>
+									<th class="w-24 px-3 py-3 text-center font-semibold text-red-600">{$t('WHT')}</th>
+									<th class="w-32 px-3 py-3 text-right font-semibold text-gray-600"
+										>{$t('Total')}</th
+									>
 									<th class="w-10 px-3 py-3"></th>
 								</tr>
 							</thead>
@@ -262,7 +275,7 @@
 													items={productOptions}
 													bind:value={item.product_object}
 													on:change={() => onProductChange(item)}
-													placeholder="เลือกสินค้า..."
+													placeholder={$t('-- Search/Select --')}
 													container={browser ? document.body : null}
 													floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 												/>
@@ -272,7 +285,7 @@
 											<input
 												type="text"
 												bind:value={item.description}
-												placeholder="รายละเอียดเพิ่มเติม"
+												placeholder={$t('Additional details...')}
 												class="w-full truncate rounded-md border-gray-300 py-1.5 text-sm focus:border-blue-500 focus:ring-blue-500"
 											/>
 										</td>
@@ -326,7 +339,8 @@
 												type="button"
 												onclick={() => removeLineItem(item.id)}
 												class="rounded p-1 text-red-500 hover:bg-red-50 hover:text-red-700"
-												aria-label="ลบรายการ"
+												aria-label={$t('Delete Item')}
+												title={$t('Delete Item')}
 											>
 												<svg
 													xmlns="http://www.w3.org/2000/svg"
@@ -352,13 +366,15 @@
 						onclick={addLineItem}
 						class="mt-3 flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-100"
 					>
-						+ เพิ่มรายการใหม่
+						{$t('Add Item')}
 					</button>
 				</div>
 
 				<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 					<div>
-						<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+						<label for="notes" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Notes')}</label
+						>
 						<textarea
 							id="notes"
 							name="notes"
@@ -367,7 +383,7 @@
 							class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						></textarea>
 						<label for="attachments_modal" class="mt-4 mb-1 block text-sm font-medium text-gray-700"
-							>แนบไฟล์</label
+							>{$t('Attachments')}</label
 						>
 						<input
 							type="file"
@@ -381,11 +397,11 @@
 
 					<div class="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-5">
 						<div class="flex justify-between text-sm">
-							<span class="font-medium text-gray-600">รวมเป็นเงิน:</span>
+							<span class="font-medium text-gray-600">{$t('Subtotal:')}</span>
 							<span class="font-medium">{formatCurrency(subTotal)}</span>
 						</div>
 						<div class="flex items-center justify-between gap-2 text-sm">
-							<label for="discount_amount" class="text-gray-600">ส่วนลด:</label>
+							<label for="discount_amount" class="text-gray-600">{$t('Discount:')}</label>
 							<div class="flex items-center gap-2">
 								<input
 									id="discount_amount"
@@ -401,7 +417,7 @@
 							</div>
 						</div>
 						<div class="flex justify-between border-t border-dashed border-gray-300 pt-2 text-sm">
-							<span class="font-medium text-gray-600">ราคาหลังหักส่วนลด:</span>
+							<span class="font-medium text-gray-600">{$t('After Discount:')}</span>
 							<span class="font-medium">{formatCurrency(totalAfterDiscount)}</span>
 						</div>
 						<div class="flex items-center justify-between gap-2 text-sm">
@@ -417,15 +433,12 @@
 							</div>
 							<span class="font-medium text-gray-800">+{formatCurrency(vatAmount)}</span>
 						</div>
-						<div class="flex items-center justify-between gap-2 text-sm">
-							<div class="flex items-center justify-between gap-2 text-sm">
-								<span class="font-medium text-gray-600">หัก ณ ที่จ่าย (WHT) รวม:</span>
-								<span class="font-medium text-red-600">-{formatCurrency(totalWhtAmount)}</span>
-							</div>
+						<div class="flex items-center justify-between text-sm">
+							<span class="font-medium text-gray-600">{$t('Total WHT:')}</span>
 							<span class="font-medium text-red-600">-{formatCurrency(totalWhtAmount)}</span>
 						</div>
 						<div class="mt-2 flex items-center justify-between border-t-2 border-gray-300 pt-3">
-							<span class="text-base font-bold text-gray-800">ยอดรวมทั้งสิ้น:</span>
+							<span class="text-base font-bold text-gray-800">{$t('Grand Total:')}</span>
 							<span class="text-2xl font-black text-blue-700">{formatCurrency(grandTotal)}</span>
 						</div>
 					</div>
@@ -443,14 +456,14 @@
 						href="/billing-notes"
 						class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-gray-200 focus:outline-none"
 					>
-						ยกเลิก
+						{$t('Cancel')}
 					</a>
 					<button
 						type="submit"
 						disabled={isSaving || items.length === 0}
 						class="rounded-lg bg-blue-600 px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 					>
-						{#if isSaving}กำลังบันทึก...{:else}บันทึกใบวางบิล{/if}
+						{#if isSaving}{$t('Saving...')}{:else}{$t('Save Billing Note')}{/if}
 					</button>
 				</div>
 			</div>

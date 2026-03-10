@@ -2,14 +2,11 @@
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
-	import { invalidateAll, goto } from '$app/navigation'; // For refreshing data and navigation
+	import { invalidateAll, goto } from '$app/navigation';
+	import { t, locale } from '$lib/i18n';
 
-	// --- Types ---
 	type ChartOfAccount = PageData['accounts'][0];
 
-	// --- Props & State (Svelte 5 Runes) ---
-	// data.accounts คือข้อมูลที่ถูกกรองแล้วจาก Server
-	// data.filters คือสถานะฟิลเตอร์ปัจจุบันที่ Server ส่งกลับมา
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let modalMode = $state<'add' | 'edit' | null>(null);
@@ -21,18 +18,15 @@
 	);
 	let messageTimeout: NodeJS.Timeout;
 
-	// --- SERVER-SIDE FILTER STATE (Derived from load data) ---
-	// ใช้ตัวแปร $state สำหรับ UI input, โดยตั้งค่าเริ่มต้นจากค่าที่ Server ส่งมา (data.filters)
 	let currentSearch = $state(data.filters.search);
 	let currentType = $state(data.filters.type);
 	let currentActive = $state(data.filters.activeStatus);
 
-	// --- Functions ---
 	function openModal(mode: 'add' | 'edit', account: ChartOfAccount | null = null) {
 		modalMode = mode;
-		globalMessage = null; // Clear message on open
+		globalMessage = null;
 		if (mode === 'edit' && account) {
-			selectedAccount = { ...account }; // Copy for editing
+			selectedAccount = { ...account };
 		} else {
 			selectedAccount = {
 				account_code: '',
@@ -60,75 +54,58 @@
 		}, duration);
 	}
 
-	// --- NEW: Function to apply filters by updating the URL ---
-	// การเปลี่ยนแปลง URL จะ trigger ให้ load function บน Server ทำงานซ้ำ
 	function applyFilters() {
 		const url = new URL(window.location.href);
-
-		// Update Search
 		if (currentSearch) {
 			url.searchParams.set('search', currentSearch);
 		} else {
 			url.searchParams.delete('search');
 		}
 
-		// Update Type
 		if (currentType) {
 			url.searchParams.set('type', currentType);
 		} else {
 			url.searchParams.delete('type');
 		}
 
-		// Update Active Status
 		if (currentActive !== 'all') {
 			url.searchParams.set('active', currentActive);
 		} else {
 			url.searchParams.delete('active');
 		}
 
-		// Navigate, which triggers the server load function
 		goto(url.toString(), { keepFocus: true, replaceState: true });
 	}
 
-	// --- REMOVED: Derived State for Filtering (Now Server-Side) ---
-	// const filteredAccounts = $derived(() => { ... });
-	// เราจะใช้ data.accounts โดยตรงเนื่องจากถูกกรองโดย Server แล้ว
-
-	// --- Reactive Effects (Svelte 5 Runes) ---
 	$effect.pre(() => {
-		// Handle saveAccount results
 		if (form?.action === 'saveAccount') {
 			if (form.success) {
 				closeModal();
 				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
-				invalidateAll(); // Refresh account list data (which also re-runs the load function)
+				invalidateAll();
 			} else if (form.message) {
-				// Keep modal open, show error globally
 				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
 			}
-			form.action = undefined; // Consume the action state
+			form.action = undefined;
 		}
 
-		// Handle deleteAccount results
 		if (form?.action === 'deleteAccount') {
 			if (form.success) {
 				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
-				invalidateAll(); // Refresh data after delete
+				invalidateAll();
 			} else if (form.message) {
-				// Show error message if delete failed (e.g., due to FK constraint)
 				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
 			}
-			accountToDelete = null; // Close confirmation modal regardless of outcome
+			accountToDelete = null;
 			form.action = undefined;
 		}
 	});
 </script>
 
 <svelte:head>
-	<title>Chart of Accounts</title>
+	<title>{$t('Chart Of Account')}</title>
 </svelte:head>
 
-<!-- Global Notifications -->
 {#if globalMessage}
 	<div
 		transition:fade
@@ -141,11 +118,10 @@
 	</div>
 {/if}
 
-<!-- Main Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">Chart of Accounts</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการผังบัญชีสำหรับระบบ</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Chart Of Account')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Chart of Accounts Desc')}</p>
 	</div>
 	<button
 		onclick={() => openModal('add')}
@@ -160,11 +136,10 @@
 			class="h-4 w-4"
 			><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 		>
-		เพิ่มบัญชีใหม่
+		{$t('Add New Account')}
 	</button>
 </div>
 
-<!-- Filters -->
 <div
 	class="mb-4 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-3"
 >
@@ -175,7 +150,7 @@
 			id="search"
 			bind:value={currentSearch}
 			oninput={applyFilters}
-			placeholder="ค้นหารหัสบัญชี หรือ ชื่อบัญชี..."
+			placeholder={$t('Search Account Placeholder')}
 			class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -200,7 +175,7 @@
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุกประเภทบัญชี --</option>
+			<option value="">{$t('All Account Types')}</option>
 			{#each data.accountTypes as type}
 				<option value={type}>{type}</option>
 			{/each}
@@ -214,24 +189,23 @@
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="all">-- ทุกสถานะ --</option>
-			<option value="active">Active</option>
-			<option value="inactive">Inactive</option>
+			<option value="all">{$t('All Statuses')}</option>
+			<option value="active">{$t('Active Status')}</option>
+			<option value="inactive">{$t('Inactive Status')}</option>
 		</select>
 	</div>
 </div>
 
-<!-- Accounts Table -->
 <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Code</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Name</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Type</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Description</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Active</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Actions</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Code')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Name')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Description')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Active')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -239,9 +213,9 @@
 				<tr>
 					<td colspan="6" class="py-12 text-center text-gray-500">
 						{#if data.filters.search || data.filters.type || data.filters.activeStatus !== 'all'}
-							ไม่พบข้อมูลบัญชีตามเงื่อนไขที่กำหนด
+							{$t('No accounts matching criteria')}
 						{:else}
-							ไม่พบข้อมูลผังบัญชี
+							{$t('No account data found')}
 						{/if}
 					</td>
 				</tr>
@@ -272,7 +246,8 @@
 								<button
 									onclick={() => openModal('edit', account)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-									aria-label="Edit account"
+									aria-label={$t('Edit Account')}
+									title={$t('Edit Account')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -289,7 +264,8 @@
 								<button
 									onclick={() => (accountToDelete = account)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
-									aria-label="Delete account"
+									aria-label={$t('Delete')}
+									title={$t('Delete')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -312,7 +288,6 @@
 	</table>
 </div>
 
-<!-- Add/Edit Account Modal -->
 {#if modalMode && selectedAccount}
 	<div
 		transition:slide
@@ -322,7 +297,7 @@
 		<div class="relative w-full max-w-lg transform rounded-xl bg-white shadow-2xl">
 			<div class="border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? 'เพิ่มบัญชีใหม่' : 'แก้ไขบัญชี'}
+					{modalMode === 'add' ? $t('Add New Account') : $t('Edit Account')}
 				</h2>
 			</div>
 
@@ -347,7 +322,7 @@
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div>
 							<label for="account_code" class="mb-1 block text-sm font-medium text-gray-700"
-								>Account Code *</label
+								>{$t('Account Code')} *</label
 							>
 							<input
 								type="text"
@@ -360,7 +335,7 @@
 						</div>
 						<div>
 							<label for="account_name" class="mb-1 block text-sm font-medium text-gray-700"
-								>Account Name *</label
+								>{$t('Account Name')} *</label
 							>
 							<input
 								type="text"
@@ -375,7 +350,7 @@
 
 					<div>
 						<label for="account_type" class="mb-1 block text-sm font-medium text-gray-700"
-							>Account Type *</label
+							>{$t('Account Type')} *</label
 						>
 						<select
 							name="account_type"
@@ -384,7 +359,7 @@
 							required
 							class="w-full rounded-md border-gray-300"
 						>
-							<option value="" disabled>-- Select Type --</option>
+							<option value="" disabled>{$t('Select Account Type')}</option>
 							{#each data.accountTypes as type}
 								<option value={type}>{type}</option>
 							{/each}
@@ -393,7 +368,7 @@
 
 					<div>
 						<label for="description" class="mb-1 block text-sm font-medium text-gray-700"
-							>Description</label
+							>{$t('Description')}</label
 						>
 						<textarea
 							name="description"
@@ -412,13 +387,12 @@
 							bind:checked={selectedAccount.is_active}
 							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
-						<label for="is_active" class="ml-2 block text-sm text-gray-900">Active</label>
+						<label for="is_active" class="ml-2 block text-sm text-gray-900">{$t('Active')}</label>
 					</div>
 
-					<!-- Display form error messages -->
 					{#if form?.message && !form.success && form.action === 'saveAccount'}
 						<div class="rounded-md bg-red-50 p-3 text-sm text-red-600">
-							<p><strong>Error:</strong> {form.message}</p>
+							<p><strong>{$t('Error')}</strong> {form.message}</p>
 						</div>
 					{/if}
 				</div>
@@ -427,7 +401,7 @@
 						type="button"
 						onclick={closeModal}
 						class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-						>Cancel</button
+						>{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
@@ -435,9 +409,9 @@
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
 					>
 						{#if isSaving}
-							Saving...
+							{$t('Saving...')}
 						{:else}
-							Save Account
+							{$t('Save Account')}
 						{/if}
 					</button>
 				</div>
@@ -446,23 +420,22 @@
 	</div>
 {/if}
 
-<!-- Delete Confirmation Modal -->
 {#if accountToDelete}
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">ยืนยันการลบ</h3>
+			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบบัญชี: <br />
+				{$t('Are you sure you want to delete the account')} <br />
 				<strong class="font-mono text-xs"
 					>{accountToDelete.account_code} - {accountToDelete.account_name}</strong
 				>?
-				<br />การดำเนินการนี้ไม่สามารถย้อนกลับได้
+				<br />{$t('This action cannot be undone.')}
 			</p>
 			{#if form?.message && !form.success && form.action === 'deleteAccount'}
-				<p class="mt-2 text-sm text-red-600"><strong>Error:</strong> {form.message}</p>
+				<p class="mt-2 text-sm text-red-600"><strong>{$t('Error')}</strong> {form.message}</p>
 			{/if}
 			<form method="POST" action="?/deleteAccount" use:enhance class="mt-6 flex justify-end gap-3">
 				<input type="hidden" name="id" value={accountToDelete.id} />
@@ -470,12 +443,12 @@
 					type="button"
 					onclick={() => (accountToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-					>Cancel</button
+					>{$t('Cancel')}</button
 				>
 				<button
 					type="submit"
 					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
-					>Delete</button
+					>{$t('Delete')}</button
 				>
 			</form>
 		</div>

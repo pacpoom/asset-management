@@ -3,6 +3,7 @@
 	import type { PageData } from './$types';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
 	$: ({ customers, products, units } = data);
@@ -96,14 +97,21 @@
 	}
 
 	let isSaving = false;
+
+	$: currentLoc = $locale === 'th' ? 'th-TH' : $locale === 'zh' ? 'zh-CN' : 'en-US';
+	$: formatNumber = (amount: number) =>
+		new Intl.NumberFormat(currentLoc, {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2
+		}).format(amount);
 </script>
 
 <svelte:head>
-	<title>สร้างใบเสนอราคาใหม่</title>
+	<title>{$t('Create Quotation')}</title>
 </svelte:head>
 
 <div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-	<h1 class="mb-6 text-2xl font-bold text-gray-800">สร้างใบเสนอราคา (New Quotation)</h1>
+	<h1 class="mb-6 text-2xl font-bold text-gray-800">{$t('Create Quotation (New Quotation)')}</h1>
 
 	<form
 		method="POST"
@@ -120,7 +128,7 @@
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div>
 				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700"
-					>ลูกค้า <span class="text-red-500">*</span></label
+					>{$t('Customer')} <span class="text-red-500">*</span></label
 				>
 				<select
 					id="customer_id"
@@ -128,7 +136,7 @@
 					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				>
-					<option value="">-- เลือกลูกค้า --</option>
+					<option value="">{$t('Select Customer')}</option>
 					{#each customers as customer}
 						<option value={customer.id}>{customer.name}</option>
 					{/each}
@@ -137,7 +145,7 @@
 			<div class="grid grid-cols-2 gap-4">
 				<div>
 					<label for="quotation_date" class="mb-1 block text-sm font-medium text-gray-700"
-						>วันที่เอกสาร <span class="text-red-500">*</span></label
+						>{$t('Document Date')} <span class="text-red-500">*</span></label
 					>
 					<input
 						type="date"
@@ -150,7 +158,7 @@
 				</div>
 				<div>
 					<label for="valid_until" class="mb-1 block text-sm font-medium text-gray-700"
-						>ยืนยันราคาถึง</label
+						>{$t('Valid Until')}</label
 					>
 					<input
 						type="date"
@@ -163,73 +171,73 @@
 						<button
 							type="button"
 							on:click={() => setValidDays(7)}
-							class="hover:text-blue-600 hover:underline">7 วัน</button
+							class="hover:text-blue-600 hover:underline">{$t('7 Days')}</button
 						>
 						<button
 							type="button"
 							on:click={() => setValidDays(15)}
-							class="hover:text-blue-600 hover:underline">15 วัน</button
+							class="hover:text-blue-600 hover:underline">{$t('15 Days')}</button
 						>
 						<button
 							type="button"
 							on:click={() => setValidDays(30)}
-							class="hover:text-blue-600 hover:underline">30 วัน</button
+							class="hover:text-blue-600 hover:underline">{$t('30 Days')}</button
 						>
 					</div>
 				</div>
 			</div>
 			<div>
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>เอกสารอ้างอิง (RFQ)</label
+					>{$t('Reference Doc (RFQ)')}</label
 				>
 				<input
 					type="text"
 					id="reference_doc"
 					name="reference_doc"
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-					placeholder="เช่น RFQ-2023..."
+					placeholder={$t('e.g. RFQ-2023...')}
 				/>
 			</div>
 			<div>
-				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label
+				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Attachments')}</label
 				>
 				<input
 					type="file"
 					id="attachments"
 					name="attachments"
 					multiple
-					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold
-file:text-blue-700 hover:file:bg-blue-100"
+					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 				/>
 			</div>
 		</div>
 
 		<div class="mb-6">
-			<h3 class="mb-2 text-lg font-medium text-gray-800">รายการสินค้า</h3>
+			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Products/Items')}</h3>
 			<div class="overflow-x-auto rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
 						<tr>
 							<th class="w-[280px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-								>สินค้า</th
+								>{$t('Product')}</th
 							>
 							<th class="w-[220px] px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-								>รายละเอียด</th
+								>{$t('Description')}</th
 							>
 							<th class="w-20 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>จำนวน</th
+								>{$t('Quantity')}</th
 							>
 							<th class="w-20 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
-								>หน่วย</th
+								>{$t('Unit')}</th
 							>
 							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>ราคา/หน่วย</th
+								>{$t('Unit Price')}</th
 							>
 							<th class="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
-								>WHT</th
+								>{$t('WHT')}</th
 							>
 							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>รวม</th
+								>{$t('Total')}</th
 							>
 							<th class="w-10 px-3 py-2"></th>
 						</tr>
@@ -244,7 +252,7 @@ file:text-blue-700 hover:file:bg-blue-100"
 											value={item.product_object}
 											on:change={(e) => onProductSelect(index, e.detail)}
 											on:clear={() => onProductSelect(index, null)}
-											placeholder="-- ค้นหา/เลือก --"
+											placeholder={$t('-- Search/Select --')}
 											floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 											container={browser ? document.body : null}
 											--inputStyles="padding: 2px 0; font-size: 0.875rem;"
@@ -258,6 +266,7 @@ file:text-blue-700 hover:file:bg-blue-100"
 									<input
 										type="text"
 										bind:value={item.description}
+										placeholder={$t('Additional details...')}
 										class="w-full truncate rounded-md border-gray-300 text-sm"
 										required
 									/>
@@ -325,7 +334,7 @@ file:text-blue-700 hover:file:bg-blue-100"
 									</select>
 								</td>
 								<td class="px-3 py-2 text-right font-medium text-gray-700">
-									{item.line_total.toFixed(2)}
+									{formatNumber(item.line_total)}
 								</td>
 								<td class="px-3 py-2 text-center">
 									{#if items.length > 1}
@@ -333,7 +342,8 @@ file:text-blue-700 hover:file:bg-blue-100"
 											type="button"
 											on:click={() => removeItem(index)}
 											class="text-red-500 hover:text-red-700"
-											aria-label="ลบรายการ"
+											aria-label={$t('Delete Item')}
+											title={$t('Delete Item')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -360,18 +370,18 @@ file:text-blue-700 hover:file:bg-blue-100"
 				on:click={addItem}
 				class="mt-2 flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
 			>
-				+ เพิ่มรายการ
+				{$t('Add Item')}
 			</button>
 		</div>
 
 		<div class="mb-6 flex justify-end">
 			<div class="w-full space-y-2 rounded-lg bg-gray-50 p-4 md:w-1/3">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">รวมเป็นเงิน (Subtotal)</span>
-					<span class="font-medium">{subtotal.toFixed(2)}</span>
+					<span class="text-gray-600">{$t('Subtotal')}</span>
+					<span class="font-medium">{formatNumber(subtotal)}</span>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">ส่วนลด (Discount)</span>
+					<span class="text-gray-600">{$t('Discount')}</span>
 					<input
 						type="number"
 						name="discount_amount"
@@ -392,21 +402,21 @@ file:text-blue-700 hover:file:bg-blue-100"
 							<option value={7}>7%</option>
 						</select>
 					</span>
-					<span class="font-medium">{vatAmount.toFixed(2)}</span>
+					<span class="font-medium">{formatNumber(vatAmount)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 
 				<div class="flex items-center justify-between text-sm text-red-600">
-					<span class="flex items-center font-bold">หัก ณ ที่จ่ายรวม (Total WHT)</span>
-					<span class="font-bold">- {totalWhtAmount.toFixed(2)}</span>
+					<span class="flex items-center font-bold">{$t('Total WHT')}</span>
+					<span class="font-bold">- {formatNumber(totalWhtAmount)}</span>
 					<input type="hidden" name="withholding_tax_amount" value={totalWhtAmount} />
 				</div>
 
 				<div
 					class="flex justify-between border-t border-gray-300 pt-2 text-base font-bold text-gray-900"
 				>
-					<span>ยอดสุทธิ (Grand Total)</span>
-					<span class="text-blue-600">{grandTotal.toFixed(2)}</span>
+					<span>{$t('Grand Total')}</span>
+					<span class="text-blue-600">{formatNumber(grandTotal)}</span>
 				</div>
 			</div>
 		</div>
@@ -417,7 +427,7 @@ file:text-blue-700 hover:file:bg-blue-100"
 		<input type="hidden" name="total_amount" value={grandTotal} />
 
 		<div class="mb-6">
-			<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+			<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">{$t('Notes')}</label>
 			<textarea
 				id="notes"
 				name="notes"
@@ -431,7 +441,7 @@ file:text-blue-700 hover:file:bg-blue-100"
 				href="/quotations"
 				class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 			>
-				ยกเลิก
+				{$t('Cancel')}
 			</a>
 			<button
 				type="submit"
@@ -453,9 +463,9 @@ file:text-blue-700 hover:file:bg-blue-100"
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						></path>
 					</svg>
-					กำลังบันทึก...
+					{$t('Saving...')}
 				{:else}
-					บันทึกรายการ
+					{$t('Save Data')}
 				{/if}
 			</button>
 		</div>
