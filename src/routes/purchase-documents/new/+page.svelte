@@ -4,10 +4,10 @@
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
-	import { t, locale } from '$lib/i18n'; // 🌟 ดึงระบบแปลภาษา
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
-	$: ({ vendors, units, prefillData } = data);
+	$: ({ vendors, units, prefillData, jobOrders } = data);
 
 	let localProducts = data.products || [];
 	let localAddresses = data.deliveryAddresses || [];
@@ -33,6 +33,21 @@
 	let selectedVendorId: string | number = '';
 
 	let selectedDeliveryAddressId: string | number = '';
+
+	// 🌟 ตัวแปรเก็บค่า Job Order ที่ถูกเลือก
+	let selectedJobObj: any = null;
+	let selectedJobId: string | number = '';
+
+	// 🌟 กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือกอยู่เท่านั้น
+	$: availableJobOrders = (jobOrders || []).filter((j: any) => 
+		selectedVendorId ? j.vendor_id == selectedVendorId : false
+	);
+
+	$: jobOrderOptions = availableJobOrders.map((j: any) => ({
+		value: j.id,
+		label: j.job_number,
+		job: j
+	}));
 
 	let referenceDoc = '';
 	let notes = '';
@@ -61,6 +76,14 @@
 
 			if (prefillData.document.delivery_address_id) {
 				selectedDeliveryAddressId = prefillData.document.delivery_address_id;
+			}
+
+			// 🌟 ถ้าเอกสารอ้างอิงมี Job Order ติดมาด้วย ให้ดึงมาแสดงด้วย
+			if (prefillData.document.job_id) {
+				selectedJobId = prefillData.document.job_id;
+				// กรณี prefill เราอาจจะต้องหาใน jobOrders ทั้งหมดเผื่อไว้
+				const allJobsOptions = (jobOrders || []).map((j: any) => ({ value: j.id, label: j.job_number, job: j }));
+				selectedJobObj = allJobsOptions.find((j: any) => j.value == selectedJobId) || null;
 			}
 
 			creditTerm = prefillData.document.credit_term;
@@ -98,6 +121,16 @@
 	function onVendorChange(selected: any) {
 		selectedVendorObj = selected;
 		selectedVendorId = selected ? selected.value : '';
+
+		// 🌟 เคลียร์ค่า Job Order ทิ้งเมื่อมีการเปลี่ยน Vendor
+		selectedJobObj = null;
+		selectedJobId = '';
+	}
+
+	// 🌟 ฟังก์ชันจัดการเมื่อเปลี่ยน Job Order
+	function onJobChange(selected: any) {
+		selectedJobObj = selected;
+		selectedJobId = selected ? selected.value : '';
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
@@ -206,7 +239,6 @@
 		closeAddressModal();
 	}
 
-	// 🌟 ปรับรูปแบบตัวเลขให้เปลี่ยนตามภาษาอัตโนมัติ
 	$: currentLoc = $locale === 'th' ? 'th-TH' : 'en-US';
 	$: formatNumber = (amount: number) =>
 		new Intl.NumberFormat(currentLoc, {
@@ -241,7 +273,7 @@
 		}}
 	>
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-			<div class="relative z-50">
+			<div class="relative z-[60]">
 				<label for="document_type" class="mb-1 block text-sm font-medium text-gray-700">
 					{$t('Document Type')} <span class="text-red-500">*</span>
 				</label>
@@ -259,7 +291,7 @@
 				</select>
 			</div>
 
-			<div class="relative z-40">
+			<div class="relative z-[50]">
 				<label for="vendor_id" class="mb-1 block text-sm font-medium text-gray-700">
 					{$t('Vendor')} <span class="text-red-500">*</span>
 				</label>
@@ -278,7 +310,7 @@
 				<input type="hidden" name="vendor_id" value={selectedVendorId} required />
 			</div>
 
-			<div class="relative z-30 grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+			<div class="relative z-40 grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
@@ -325,6 +357,41 @@
 				</div>
 			</div>
 
+			<!-- 🌟 เพิ่ม Dropdown เลือก Job Order -->
+			<div class="relative z-[35] md:col-span-1">
+				<label for="job_id" class="mb-1 block text-sm font-medium text-gray-700">
+					{$t('Job Order (Optional)')}
+				</label>
+				<Select
+					id="job_id"
+					items={jobOrderOptions}
+					value={selectedJobObj}
+					on:change={(e) => onJobChange(e.detail)}
+					on:clear={() => onJobChange(null)}
+					placeholder={selectedVendorId ? $t('Select Job Order...') : $t('Please select a vendor first')}
+					disabled={!selectedVendorId}
+					container={browser ? document.body : null}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0e7ff;"
+				/>
+				<input type="hidden" name="job_id" value={selectedJobId} />
+			</div>
+
+			<div class="relative z-30 md:col-span-1">
+				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Supplier Reference Doc')}</label
+				>
+				<input
+					type="text"
+					id="reference_doc"
+					name="reference_doc"
+					bind:value={referenceDoc}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
+					placeholder={$t('e.g. QT-Supplier-2026...')}
+				/>
+			</div>
+
 			<div class="relative z-20 md:col-span-1">
 				<div class="mb-1 flex items-center justify-between">
 					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700"
@@ -353,21 +420,7 @@
 				</select>
 			</div>
 
-			<div class="relative z-10 md:col-span-1">
-				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Supplier Reference Doc')}</label
-				>
-				<input
-					type="text"
-					id="reference_doc"
-					name="reference_doc"
-					bind:value={referenceDoc}
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
-					placeholder={$t('e.g. QT-Supplier-2026...')}
-				/>
-			</div>
-
-			<div class="md:col-span-2">
+			<div class="md:col-span-1">
 				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Attachments (Quotation, Delivery Photo, etc.)')}</label
 				>
@@ -383,7 +436,7 @@
 
 		<div class="mb-6">
 			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Purchase/Service Items')}</h3>
-			<div class="relative z-0 overflow-x-visible rounded-lg border">
+			<div class="relative z-10 overflow-x-visible rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
@@ -574,7 +627,7 @@
 
 {#if showAddressModal}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity"
+		class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity"
 	>
 		<div class="fixed inset-0" on:click={closeAddressModal} role="presentation"></div>
 		<div
@@ -807,7 +860,7 @@
 
 {#if toastMessage}
 	<div
-		class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[70] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-xl"
+		class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[200] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-xl"
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
