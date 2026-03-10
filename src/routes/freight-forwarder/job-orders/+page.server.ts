@@ -3,9 +3,12 @@ import { fail } from '@sveltejs/kit';
 
 export const load = async () => {
 	const sql = `
-		SELECT j.*, c.name as customer_name, c.company_name 
+		SELECT j.*, 
+		       c.name as customer_name, c.company_name,
+		       v.name as vendor_name, v.company_name as vendor_company_name
 		FROM job_orders j
 		LEFT JOIN customers c ON j.customer_id = c.id
+		LEFT JOIN vendors v ON j.vendor_id = v.id
 		ORDER BY j.job_date DESC, j.id DESC
 		LIMIT 100
 	`;

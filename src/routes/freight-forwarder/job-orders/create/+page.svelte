@@ -156,8 +156,6 @@
 		showToast('ลบตัวเลือกเรียบร้อยแล้ว', 'success');
 	}
 
-	let partnerType = 'customer';
-
 	$: vendorOptions = (data.vendors || []).map((v: any) => ({
 		value: v.id,
 		label: v.company_name ? `${v.company_name} (${v.name})` : v.name,
@@ -262,7 +260,7 @@
 	</div>
 
 	<div
-		class="mx-auto max-w-4xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+		class="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
 	>
 		<div class="h-1.5 w-full bg-blue-600"></div>
 
@@ -281,114 +279,107 @@
 		>
 			<div class="divide-y divide-gray-100">
 				<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-2">
-					<div class="space-y-5">
-						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
-							Partner Information
-						</h2>
+					<div class="space-y-6">
+						<!-- Customer Section -->
+						<div class="rounded-lg border border-blue-100 bg-blue-50/30 p-4">
+							<h2 class="mb-4 text-xs font-bold tracking-wider text-blue-800 uppercase">
+								Customer Information
+							</h2>
+							<div class="space-y-4">
+								<div>
+									<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+										ลูกค้า (Customer) <span class="text-red-500">*</span>
+									</div>
+									<Select
+										items={customerOptions}
+										bind:value={selectedCustomer}
+										placeholder="ค้นหาลูกค้า..."
+										container={browser ? document.body : null}
+										class="svelte-select-custom"
+									/>
+									<input
+										type="hidden"
+										name="customer_id"
+										value={selectedCustomer?.value || ''}
+										required
+									/>
+								</div>
 
-						<div>
-							<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-								ประเภท (Type) <span class="text-red-500">*</span>
+								{#if selectedCustomer}
+									<div
+										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
+									>
+										<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
+										<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
+									</div>
+								{/if}
+
+								<div>
+									<div class="mb-1.5 block text-sm font-semibold text-gray-700">Contract (Optional)</div>
+									<Select
+										items={filteredContracts}
+										bind:value={selectedContract}
+										placeholder={selectedCustomer ? 'เลือกสัญญา' : '-'}
+										disabled={!selectedCustomer}
+										container={browser ? document.body : null}
+										class="svelte-select-custom"
+									/>
+									<input type="hidden" name="contract_id" value={selectedContract?.value || ''} />
+								</div>
 							</div>
-							<select
-								name="partner_type"
-								bind:value={partnerType}
-								class="w-full rounded-md border border-gray-300 bg-white p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-							>
-								<option value="customer">ลูกค้า (Customer)</option>
-								<option value="vendor">ผู้จำหน่าย (Vendor)</option>
-							</select>
 						</div>
 
-						{#if partnerType === 'customer'}
-							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Customer <span class="text-red-500">*</span>
+						<!-- Vendor Section -->
+						<div class="rounded-lg border border-gray-200 bg-gray-50/50 p-4">
+							<h2 class="mb-4 text-xs font-bold tracking-wider text-gray-600 uppercase">
+								Vendor Information <span class="text-gray-400 font-normal normal-case">(Optional)</span>
+							</h2>
+							<div class="space-y-4">
+								<div>
+									<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+										ผู้จำหน่าย (Vendor)
+									</div>
+									<Select
+										items={vendorOptions}
+										bind:value={selectedVendor}
+										placeholder="ค้นหาผู้จำหน่าย (ถ้ามี)..."
+										container={browser ? document.body : null}
+										class="svelte-select-custom"
+									/>
+									<input
+										type="hidden"
+										name="vendor_id"
+										value={selectedVendor?.value || ''}
+									/>
 								</div>
-								<Select
-									items={customerOptions}
-									bind:value={selectedCustomer}
-									placeholder="ค้นหาลูกค้า..."
-									container={browser ? document.body : null}
-									class="svelte-select-custom"
-								/>
-								<input
-									type="hidden"
-									name="customer_id"
-									value={selectedCustomer?.value || ''}
-									required={partnerType === 'customer'}
-								/>
-							</div>
 
-							{#if selectedCustomer}
-								<div
-									class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
-								>
-									<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
-									<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
+								{#if selectedVendor}
+									<div
+										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
+									>
+										<p class="font-bold text-gray-800">{selectedVendor.label}</p>
+										<p class="mt-1 text-xs">{selectedVendor.address || '-'}</p>
+									</div>
+								{/if}
+
+								<div>
+									<div class="mb-1.5 block text-sm font-semibold text-gray-700">Vendor Contract</div>
+									<Select
+										items={filteredVendorContracts}
+										bind:value={selectedVendorContract}
+										placeholder={selectedVendor ? 'เลือกสัญญาผู้จำหน่าย' : '-'}
+										disabled={!selectedVendor}
+										container={browser ? document.body : null}
+										class="svelte-select-custom"
+									/>
+									<input
+										type="hidden"
+										name="vendor_contract_id"
+										value={selectedVendorContract?.value || ''}
+									/>
 								</div>
-							{/if}
-
-							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">Contract</div>
-								<Select
-									items={filteredContracts}
-									bind:value={selectedContract}
-									placeholder={selectedCustomer ? 'เลือกสัญญา (Optional)' : '-'}
-									disabled={!selectedCustomer}
-									container={browser ? document.body : null}
-									class="svelte-select-custom"
-								/>
-								<input type="hidden" name="contract_id" value={selectedContract?.value || ''} />
 							</div>
-						{/if}
-
-						{#if partnerType === 'vendor'}
-							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Vendor <span class="text-red-500">*</span>
-								</div>
-								<Select
-									items={vendorOptions}
-									bind:value={selectedVendor}
-									placeholder="ค้นหาผู้จำหน่าย..."
-									container={browser ? document.body : null}
-									class="svelte-select-custom"
-								/>
-								<input
-									type="hidden"
-									name="vendor_id"
-									value={selectedVendor?.value || ''}
-									required={partnerType === 'vendor'}
-								/>
-							</div>
-
-							{#if selectedVendor}
-								<div
-									class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
-								>
-									<p class="font-bold text-gray-800">{selectedVendor.label}</p>
-									<p class="mt-1 text-xs">{selectedVendor.address || '-'}</p>
-								</div>
-							{/if}
-
-							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">Vendor Contract</div>
-								<Select
-									items={filteredVendorContracts}
-									bind:value={selectedVendorContract}
-									placeholder={selectedVendor ? 'เลือกสัญญา (Optional)' : '-'}
-									disabled={!selectedVendor}
-									container={browser ? document.body : null}
-									class="svelte-select-custom"
-								/>
-								<input
-									type="hidden"
-									name="vendor_contract_id"
-									value={selectedVendorContract?.value || ''}
-								/>
-							</div>
-						{/if}
+						</div>
 					</div>
 
 					<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50/50 p-5">

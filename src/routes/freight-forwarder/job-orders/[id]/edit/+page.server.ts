@@ -97,7 +97,6 @@ export const actions = {
 
 		const job_type = formData.get('job_type') as string;
 		const job_date = formData.get('job_date') as string;
-		const partner_type = formData.get('partner_type')?.toString() || 'customer';
 
 		try {
 			const [existing] = await pool.query('SELECT job_number FROM job_orders WHERE id = ?', [id]);
@@ -112,10 +111,10 @@ export const actions = {
 			const new_job_number = `${job_type}${yy}${mm}${runningNum}`;
 
 			const data = [
-				partner_type === 'customer' ? formData.get('customer_id') || null : null,
-				partner_type === 'customer' ? formData.get('contract_id') || null : null,
-				partner_type === 'vendor' ? formData.get('vendor_id') || null : null,
-				partner_type === 'vendor' ? formData.get('vendor_contract_id') || null : null,
+				formData.get('customer_id') || null,
+				formData.get('contract_id') || null,
+				formData.get('vendor_id') || null,
+				formData.get('vendor_contract_id') || null,
 				job_type,
 				formData.get('service_type'),
 				formData.get('location'),
