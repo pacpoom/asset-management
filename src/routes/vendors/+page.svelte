@@ -2,8 +2,20 @@
 	import { enhance } from '$app/forms';
 	import { slide, fade } from 'svelte/transition';
 	import { invalidateAll } from '$app/navigation';
+	import { t, locale } from '$lib/i18n';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	let { data, form } = $props();
+
+	let userOptions = $derived(
+		(data.users || []).map((u: any) => ({
+			value: u.id,
+			label: u.full_name
+		}))
+	);
+	let selectedUserObj = $state<any>(null);
+
 	let modalMode = $state<'add' | 'edit' | null>(null);
 	let selectedVendor = $state<any>(null);
 	let vendorToDelete = $state<any>(null);
@@ -43,10 +55,13 @@
 		if (mode === 'edit' && vendor) {
 			selectedVendor = { ...vendor };
 			documentsForSelectedVendor = vendor.documents ? [...vendor.documents] : [];
-
 			notesForSelectedVendor = vendor.note_history ? [...vendor.note_history] : [];
+			selectedUserObj = vendor.assigned_to_user_id
+				? userOptions.find((o: any) => o.value === vendor.assigned_to_user_id) || null
+				: null;
 		} else {
 			selectedVendor = { name: '', company_name: null, assigned_to_user_id: undefined };
+			selectedUserObj = null;
 		}
 	}
 
@@ -71,10 +86,11 @@
 		}, duration);
 	}
 
+	// 🌟 ปรับวันที่และเวลาให้เปลี่ยนรูปแบบไปตามภาษาปัจจุบัน
 	function formatDateTime(isoString: string | Date | null | undefined): string {
 		if (!isoString) return '-';
 		try {
-			return new Date(isoString).toLocaleString('th-TH', {
+			return new Date(isoString).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
 				year: 'numeric',
 				month: 'short',
 				day: 'numeric',
@@ -107,22 +123,40 @@
 		if (form?.action === 'saveVendor') {
 			if (form.success) {
 				closeModal();
-				showGlobalMessage({ success: true, text: form.message ?? 'Success', type: 'success' });
+				showGlobalMessage({
+					success: true,
+					text: (form.message as string) ?? 'Success',
+					type: 'success'
+				});
 				invalidateAll();
 			} else if (form.message) {
-				showGlobalMessage({ success: false, text: form.message ?? 'Error', type: 'error' });
+				showGlobalMessage({
+					success: false,
+					text: (form.message as string) ?? 'Error',
+					type: 'error'
+				});
 			}
+			(form as any).action = undefined;
 		}
 
 		if (form?.action === 'deleteVendor') {
 			if (form.success) {
-				showGlobalMessage({ success: true, text: 'ลบข้อมูลสำเร็จ', type: 'success' });
+				showGlobalMessage({
+					success: true,
+					text: $t('Vendor deleted successfully'),
+					type: 'success'
+				});
 				vendorToDelete = null;
 				invalidateAll();
 			} else if (form.message) {
-				showGlobalMessage({ success: false, text: form.message, type: 'error' });
+				showGlobalMessage({
+					success: false,
+					text: (form.message as string) ?? 'Error',
+					type: 'error'
+				});
 				vendorToDelete = null;
 			}
+			(form as any).action = undefined;
 		}
 	});
 
@@ -152,7 +186,8 @@
 		return rangeWithDots;
 	});
 
-	function getPageUrl(pageNum: number) {
+	// 🌟 แก้ Type Error ให้รับ parameter แบบ number | string ได้
+	function getPageUrl(pageNum: number | string) {
 		const params = new URLSearchParams();
 		params.set('page', pageNum.toString());
 		if (data.searchQuery) {
@@ -163,7 +198,7 @@
 </script>
 
 <svelte:head>
-	<title>Vendor Management</title>
+	<title>{$t('Vendor Management')}</title>
 </svelte:head>
 
 {#if globalMessage}
@@ -180,8 +215,8 @@
 
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">Vendor Management</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการข้อมูลซัพพลายเออร์ / ผู้จัดจำหน่าย</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Vendor Management')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Manage vendor data')}</p>
 	</div>
 	<button
 		onclick={() => openModal('add')}
@@ -196,7 +231,7 @@
 			class="h-4 w-4"
 			><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 		>
-		เพิ่มซัพพลายเออร์ใหม่
+		{$t('Add New Vendor')}
 	</button>
 </div>
 
@@ -206,7 +241,7 @@
 			type="search"
 			name="search"
 			bind:value={searchQuery}
-			placeholder="ค้นหา..."
+			placeholder={$t('Search Vendor Placeholder')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -229,18 +264,21 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">ชื่อผู้ติดต่อ</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">ชื่อบริษัท</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">อีเมล</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">โทรศัพท์</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Tax ID</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">ผู้ดูแล</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">จัดการ</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Contact Name')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Company Name')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Email')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Phone')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Tax ID')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Assigned To')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.vendors.length === 0}
-				<tr><td colspan="7" class="py-12 text-center text-gray-500">ไม่พบข้อมูล</td></tr>
+				<tr
+					><td colspan="7" class="py-12 text-center text-gray-500">{$t('No vendor data found')}</td
+					></tr
+				>
 			{:else}
 				{#each data.vendors as vendor (vendor.id)}
 					<tr class="hover:bg-gray-50">
@@ -255,7 +293,7 @@
 								<button
 									onclick={() => openModal('edit', vendor)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-									aria-label="Edit"
+									aria-label={$t('Edit')}
 									><svg
 										xmlns="http://www.w3.org/2000/svg"
 										width="16"
@@ -270,7 +308,7 @@
 								<button
 									onclick={() => (vendorToDelete = vendor)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
-									aria-label="Delete"
+									aria-label={$t('Delete')}
 									><svg
 										xmlns="http://www.w3.org/2000/svg"
 										width="16"
@@ -293,31 +331,45 @@
 
 {#if data.totalPages > 1}
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
-		<div><p class="text-sm text-gray-700">หน้า {data.currentPage} / {data.totalPages}</p></div>
+		<div>
+			<p class="text-sm text-gray-700">
+				{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
+				{$t('of')} <span class="font-medium">{data.totalPages}</span>
+			</p>
+		</div>
 		<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm">
 			<a
 				href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'}
 				class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
 				1
 					? 'pointer-events-none opacity-50'
-					: ''}"><span class="sr-only">Previous</span>&larr;</a
+					: ''}"
+				aria-disabled={data.currentPage === 1}
 			>
+				<span class="sr-only">Previous</span>&larr;
+			</a>
 			{#each paginationRange as pageNum}
-				{#if typeof pageNum === 'string'}<span class="px-4 py-2">...</span>
-				{:else}<a
+				{#if typeof pageNum === 'string'}
+					<span class="px-4 py-2">...</span>
+				{:else}
+					<a
 						href={getPageUrl(pageNum)}
 						class="px-4 py-2 {pageNum === data.currentPage
 							? 'bg-blue-600 text-white'
 							: 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}">{pageNum}</a
-					>{/if}
+					>
+				{/if}
 			{/each}
 			<a
 				href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'}
 				class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
 				data.totalPages
 					? 'pointer-events-none opacity-50'
-					: ''}"><span class="sr-only">Next</span>&rarr;</a
+					: ''}"
+				aria-disabled={data.currentPage === data.totalPages}
 			>
+				<span class="sr-only">Next</span>&rarr;
+			</a>
 		</nav>
 	</div>
 {/if}
@@ -333,7 +385,7 @@
 		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? 'เพิ่มซัพพลายเออร์' : 'แก้ไขซัพพลายเออร์'}
+					{modalMode === 'add' ? $t('Add New Vendor') : $t('Edit Vendor')}
 				</h2>
 			</div>
 
@@ -358,7 +410,8 @@
 							/>{/if}
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label for="name" class="block text-sm font-medium">ชื่อผู้ติดต่อ *</label><input
+								<label for="name" class="block text-sm font-medium">{$t('Contact Name')} *</label>
+								<input
 									type="text"
 									name="name"
 									id="name"
@@ -368,7 +421,10 @@
 								/>
 							</div>
 							<div>
-								<label for="company_name" class="block text-sm font-medium">ชื่อบริษัท</label><input
+								<label for="company_name" class="block text-sm font-medium"
+									>{$t('Company Name')}</label
+								>
+								<input
 									type="text"
 									name="company_name"
 									id="company_name"
@@ -379,7 +435,8 @@
 						</div>
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label for="email" class="block text-sm font-medium">อีเมล</label><input
+								<label for="email" class="block text-sm font-medium">{$t('Email')}</label>
+								<input
 									type="email"
 									name="email"
 									id="email"
@@ -388,7 +445,8 @@
 								/>
 							</div>
 							<div>
-								<label for="phone" class="block text-sm font-medium">โทรศัพท์</label><input
+								<label for="phone" class="block text-sm font-medium">{$t('Phone')}</label>
+								<input
 									type="tel"
 									name="phone"
 									id="phone"
@@ -398,8 +456,8 @@
 							</div>
 						</div>
 						<div>
-							<label for="tax_id" class="block text-sm font-medium">เลขประจำตัวผู้เสียภาษี</label
-							><input
+							<label for="tax_id" class="block text-sm font-medium">{$t('Tax ID')}</label>
+							<input
 								type="text"
 								name="tax_id"
 								id="tax_id"
@@ -408,7 +466,8 @@
 							/>
 						</div>
 						<div>
-							<label for="address" class="block text-sm font-medium">ที่อยู่</label><textarea
+							<label for="address" class="block text-sm font-medium">{$t('Address')}</label>
+							<textarea
 								name="address"
 								id="address"
 								rows="2"
@@ -417,19 +476,23 @@
 							></textarea>
 						</div>
 						<div>
-							<label for="assigned_to_user_id" class="block text-sm font-medium">ผู้ดูแล</label>
-							<select
+							<span class="mb-1 block text-sm font-medium text-gray-700">{$t('Assigned To')}</span>
+							<Select
+								items={userOptions}
+								bind:value={selectedUserObj}
+								placeholder={$t('-- Not assigned --')}
+								container={browser ? document.body : null}
+								floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+							/>
+							<input
+								type="hidden"
 								name="assigned_to_user_id"
-								id="assigned_to_user_id"
-								bind:value={selectedVendor.assigned_to_user_id}
-								class="w-full rounded-md border-gray-300"
-							>
-								<option value={undefined}>-- ไม่ได้กำหนด --</option>
-								{#each data.users as user}<option value={user.id}>{user.full_name}</option>{/each}
-							</select>
+								value={selectedUserObj?.value ?? ''}
+							/>
 						</div>
 						<div>
-							<label for="notes" class="block text-sm font-medium">บันทึกเพิ่มเติม</label><textarea
+							<label for="notes" class="block text-sm font-medium">{$t('Additional Notes')}</label>
+							<textarea
 								name="notes"
 								id="notes"
 								rows="2"
@@ -442,7 +505,7 @@
 
 				{#if modalMode === 'edit' && selectedVendor.id}
 					<div class="border-t bg-gray-50 px-6 py-4">
-						<h3 class="mb-2 text-sm font-semibold">เอกสารแนบ</h3>
+						<h3 class="mb-2 text-sm font-semibold">{$t('Attachments')}</h3>
 						<form
 							method="POST"
 							action="?/uploadDocument"
@@ -454,14 +517,11 @@
 									isUploadingDocument = false;
 
 									const actionResult = result as any;
-
 									if (actionResult.type === 'success' && actionResult.data?.newDocument) {
 										const newDoc = actionResult.data.newDocument;
-
 										if (!documentsForSelectedVendor.some((d: any) => d.id === newDoc.id)) {
 											documentsForSelectedVendor = [newDoc, ...documentsForSelectedVendor];
 										}
-
 										uploadError = null;
 										if (fileInputRef) fileInputRef.value = '';
 										isFileSelected = false;
@@ -486,8 +546,9 @@
 								type="submit"
 								disabled={!isFileSelected || isUploadingDocument}
 								class="rounded bg-green-600 px-3 py-1 text-xs text-white disabled:opacity-50"
-								>Upload</button
 							>
+								{$t('Upload')}
+							</button>
 						</form>
 						{#if uploadError}<p class="mb-2 text-xs text-red-600">{uploadError}</p>{/if}
 						<ul class="space-y-1">
@@ -502,7 +563,7 @@
 									<button
 										onclick={() => (documentToDelete = doc)}
 										class="text-red-500 hover:text-red-700"
-										type="button">ลบเอกสาร</button
+										type="button">{$t('Delete Document')}</button
 									>
 								</li>
 							{/each}
@@ -510,7 +571,7 @@
 					</div>
 
 					<div class="border-t bg-gray-50 px-6 py-4">
-						<h3 class="mb-2 text-sm font-semibold">Note History</h3>
+						<h3 class="mb-2 text-sm font-semibold">{$t('Note History')}</h3>
 						<form
 							method="POST"
 							action="?/addNote"
@@ -529,15 +590,16 @@
 								name="note"
 								required
 								bind:value={newNote}
-								placeholder="พิมพ์โน้ต..."
+								placeholder={$t('Type a note...')}
 								class="flex-1 rounded border-gray-300 text-sm"
 							/>
 							<button
 								type="submit"
 								disabled={!newNote || isAddingNote}
 								class="rounded bg-indigo-600 px-3 py-1 text-xs text-white disabled:opacity-50"
-								>Add</button
 							>
+								{$t('Add')}
+							</button>
 						</form>
 						<ul class="max-h-40 space-y-2 overflow-y-auto">
 							{#each notesForSelectedVendor as note (note.id)}
@@ -562,14 +624,14 @@
 				<button
 					type="button"
 					onclick={closeModal}
-					class="rounded-md border bg-white px-4 py-2 text-sm">Cancel</button
+					class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Cancel')}</button
 				>
 				<button
 					type="submit"
 					form="vendorForm"
 					disabled={isSavingVendor}
 					class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white disabled:bg-blue-400"
-					>Save</button
+					>{$t('Save')}</button
 				>
 			</div>
 		</div>
@@ -579,8 +641,10 @@
 {#if vendorToDelete}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
 		<div class="max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">ยืนยันการลบ</h3>
-			<p class="mt-2 text-sm text-gray-600">ต้องการลบ "{vendorToDelete.name}" ใช่หรือไม่?</p>
+			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
+			<p class="mt-2 text-sm text-gray-600">
+				{$t('Are you sure you want to delete vendor:')} "{vendorToDelete.name}"?
+			</p>
 			<form
 				method="POST"
 				action="?/deleteVendor"
@@ -596,9 +660,9 @@
 				<button
 					type="button"
 					onclick={() => (vendorToDelete = null)}
-					class="rounded border px-3 py-1 text-sm">ยกเลิก</button
+					class="rounded border px-3 py-1 text-sm">{$t('Cancel')}</button
 				>
-				<button class="rounded bg-red-600 px-3 py-1 text-sm text-white">ลบ</button>
+				<button class="rounded bg-red-600 px-3 py-1 text-sm text-white">{$t('Delete')}</button>
 			</form>
 		</div>
 	</div>
@@ -607,7 +671,7 @@
 {#if documentToDelete}
 	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
 		<div class="max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">ลบเอกสาร?</h3>
+			<h3 class="text-lg font-bold">{$t('Delete document?')}</h3>
 			<p class="mt-2 text-sm text-gray-600">{documentToDelete.file_name}</p>
 			<form
 				method="POST"
@@ -619,7 +683,6 @@
 						isDeletingDocument = false;
 
 						const actionResult = result as any;
-
 						if (actionResult.type === 'success') {
 							if (actionResult.data?.deletedDocumentId) {
 								documentsForSelectedVendor = documentsForSelectedVendor.filter(
@@ -646,7 +709,7 @@
 					class="rounded border px-3 py-1 text-sm hover:bg-gray-100"
 					disabled={isDeletingDocument}
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 
 				<button
@@ -655,12 +718,29 @@
 					disabled={isDeletingDocument}
 				>
 					{#if isDeletingDocument}
-						กำลังลบ...
+						{$t('Deleting...')}
 					{:else}
-						ลบเอกสาร
+						{$t('Delete Document')}
 					{/if}
 				</button>
 			</form>
 		</div>
 	</div>
 {/if}
+
+<style>
+	:global(div.svelte-select) {
+		min-height: 38px;
+		border: 1px solid #d1d5db !important;
+		border-radius: 0.375rem !important;
+	}
+	:global(div.svelte-select .input) {
+		font-size: 0.875rem;
+	}
+	:global(div.svelte-select .list) {
+		border-radius: 0.375rem;
+		border-color: #d1d5db;
+		z-index: 9999 !important;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+</style>

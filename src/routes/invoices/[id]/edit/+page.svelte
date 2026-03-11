@@ -3,6 +3,7 @@
 	import type { PageData } from './$types';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
 	$: ({ invoice, existingItems, existingAttachments, customers, products, units } = data);
@@ -36,10 +37,6 @@
 		dueDate = invoice.due_date ? new Date(invoice.due_date).toISOString().split('T')[0] : '';
 		discountAmount = parseFloat(invoice.discount_amount || '0');
 		vatRate = parseFloat(invoice.vat_rate || '7');
-
-		// if (String(invoice.customer_id) !== selectedCustomerId) {
-		// 	selectedCustomerId = invoice.customer_id ? String(invoice.customer_id) : '';
-		// }
 	}
 
 	$: if (existingItems && items.length === 0) {
@@ -78,6 +75,13 @@
 	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
 	$: itemsJson = JSON.stringify(items);
 
+	$: formatCurrency = (val: number) => {
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2
+		}).format(val || 0);
+	};
+
 	function addItem() {
 		items = [
 			...items,
@@ -104,7 +108,6 @@
 
 	function onProductChange(index: number, selected: any) {
 		items[index].product_object = selected;
-
 		if (selected) {
 			const product = selected.product;
 			items[index].product_id = product.id;
@@ -134,14 +137,17 @@
 </script>
 
 <svelte:head>
-	<title>แก้ไขใบแจ้งหนี้ {invoice?.invoice_number}</title>
+	<title>{$t('Edit Invoice: ')} {invoice?.invoice_number}</title>
 </svelte:head>
 
 <div class="mx-auto mb-10 max-w-7xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-800">แก้ไขใบแจ้งหนี้: {invoice?.invoice_number}</h1>
+		<h1 class="text-2xl font-bold text-gray-800">
+			{$t('Edit Invoice: ')}
+			{invoice?.invoice_number}
+		</h1>
 		<span class="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700"
-			>สถานะ: {invoice?.status}</span
+			>{$t('Status: ')} {$t('Status_' + invoice?.status)}</span
 		>
 	</div>
 
@@ -160,7 +166,7 @@
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div>
 				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700"
-					>ลูกค้า <span class="text-red-500">*</span></label
+					>{$t('Customer')} <span class="text-red-500">*</span></label
 				>
 				<select
 					id="customer_id"
@@ -169,7 +175,7 @@
 					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 				>
-					<option value="">-- เลือกลูกค้า --</option>
+					<option value="">{$t('Select Customer')}</option>
 					{#each customers as customer}
 						<option value={String(customer.id)}>{customer.name}</option>
 					{/each}
@@ -178,7 +184,7 @@
 			<div class="grid grid-cols-2 gap-4">
 				<div>
 					<label for="invoice_date" class="mb-1 block text-sm font-medium text-gray-700"
-						>วันที่เอกสาร <span class="text-red-500">*</span></label
+						>{$t('Document Date')} <span class="text-red-500">*</span></label
 					>
 					<input
 						type="date"
@@ -191,7 +197,7 @@
 				</div>
 				<div>
 					<label for="due_date" class="mb-1 block text-sm font-medium text-gray-700"
-						>ครบกำหนดชำระ</label
+						>{$t('Due Date')}</label
 					>
 					<input
 						type="date"
@@ -204,19 +210,19 @@
 						<button
 							type="button"
 							on:click={() => setCreditTerm(7)}
-							class="hover:text-blue-600 hover:underline">7 วัน</button
+							class="hover:text-blue-600 hover:underline">{$t('7 Days')}</button
 						>
 						<button
 							type="button"
 							on:click={() => setCreditTerm(30)}
-							class="hover:text-blue-600 hover:underline">30 วัน</button
+							class="hover:text-blue-600 hover:underline">{$t('30 Days')}</button
 						>
 					</div>
 				</div>
 			</div>
 			<div>
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>เอกสารอ้างอิง</label
+					>{$t('Reference Document')}</label
 				>
 				<input
 					type="text"
@@ -229,35 +235,32 @@
 		</div>
 
 		<div class="mb-6">
-			<h3 class="mb-2 text-lg font-medium text-gray-800">รายการสินค้า</h3>
-			<div class="overflow-x-auto rounded-lg border">
+			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Products/Items')}</h3>
+			<div class="overflow-x-visible rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
 						<tr>
-							<th class="w-40 px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th
+							<th class="w-40 px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase"
+								>{$t('Product')}</th
 							>
-							<!-- <th class="w-1/2 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-								>รายละเอียด</th
-							> -->
-							<th class="w-40 px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase">รายละเอียด</th>
-
+							<th class="w-40 px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase"
+								>{$t('Description')}</th
+							>
 							<th class="w-25 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>จำนวน</th
+								>{$t('Quantity')}</th
 							>
 							<th class="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase"
-								>หน่วย</th
+								>{$t('Unit')}</th
 							>
 							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>ราคา/หน่วย</th
+								>{$t('Unit Price')}</th
 							>
-
 							<th
 								class="w-30 px-3 py-2 text-center text-xs font-medium text-gray-500 text-red-600 uppercase"
 								>WHT</th
 							>
-
 							<th class="w-28 px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"
-								>รวม</th
+								>{$t('Total')}</th
 							>
 							<th class="w-10 px-3 py-2"></th>
 						</tr>
@@ -271,7 +274,7 @@
 										value={item.product_object}
 										on:change={(e) => onProductChange(index, e.detail)}
 										on:clear={() => onProductChange(index, null)}
-										placeholder="-- ค้นหา/เลือก --"
+										placeholder={$t('-- Search/Select --')}
 										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 										container={browser ? document.body : null}
 										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
@@ -353,16 +356,11 @@
 
 								<td class="px-3 py-2 text-right">
 									<div class="font-bold text-gray-900">
-										{(item.line_total - (item.line_total * item.wht_rate) / 100).toLocaleString(
-											'th-TH',
-											{ minimumFractionDigits: 2 }
-										)}
+										{formatCurrency(item.line_total - (item.line_total * item.wht_rate) / 100)}
 									</div>
 									{#if item.wht_rate > 0}
 										<div class="mt-0.5 text-[10px] font-normal text-red-500">
-											(-{((item.line_total * item.wht_rate) / 100).toLocaleString('th-TH', {
-												minimumFractionDigits: 2
-											})})
+											(-{formatCurrency((item.line_total * item.wht_rate) / 100)})
 										</div>
 									{/if}
 								</td>
@@ -372,7 +370,7 @@
 											type="button"
 											on:click={() => removeItem(index)}
 											class="text-red-500 hover:text-red-700"
-											title="ลบรายการ"
+											title={$t('Delete')}
 										>
 											<span class="material-symbols-outlined text-[20px]">delete</span>
 										</button>
@@ -388,14 +386,16 @@
 				on:click={addItem}
 				class="mt-2 flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
 			>
-				+ เพิ่มรายการ
+				{$t('Add Item')}
 			</button>
 		</div>
 
 		<div class="mb-6 flex flex-col gap-6 md:flex-row">
 			<div class="w-full space-y-4 md:w-2/3">
 				<div>
-					<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+					<label for="notes" class="mb-1 block text-sm font-medium text-gray-700"
+						>{$t('Notes')}</label
+					>
 					<textarea
 						id="notes"
 						name="notes"
@@ -406,9 +406,9 @@
 				</div>
 
 				<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-					<h4 class="mb-2 text-sm font-medium text-gray-900">ไฟล์แนบที่มีอยู่</h4>
+					<h4 class="mb-2 text-sm font-medium text-gray-900">{$t('Existing Attachments')}</h4>
 					{#if existingAttachments.length === 0}
-						<p class="text-sm text-gray-500">ไม่มีไฟล์แนบ</p>
+						<p class="text-sm text-gray-500">{$t('No attachments')}</p>
 					{:else}
 						<ul class="space-y-2">
 							{#each existingAttachments as file}
@@ -428,7 +428,7 @@
 										name="attachment_id"
 										value={file.id}
 										class="rounded border border-red-200 px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700"
-										>ลบ</button
+										>{$t('Delete')}</button
 									>
 								</li>
 							{/each}
@@ -436,7 +436,7 @@
 					{/if}
 					<div class="mt-4">
 						<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
-							>เพิ่มไฟล์แนบใหม่</label
+							>{$t('Upload additional files')}</label
 						>
 						<input
 							type="file"
@@ -453,11 +453,11 @@
 				class="h-fit w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3"
 			>
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">รวมเป็นเงิน (Subtotal)</span>
-					<span class="font-medium">{subtotal.toFixed(2)}</span>
+					<span class="text-gray-600">{$t('Subtotal')}</span>
+					<span class="font-medium">{formatCurrency(subtotal)}</span>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">ส่วนลด (Discount)</span>
+					<span class="text-gray-600">{$t('Discount')}</span>
 					<input
 						type="number"
 						name="discount_amount"
@@ -467,12 +467,12 @@
 					/>
 				</div>
 				<div class="flex justify-between border-t border-gray-200 pt-2 text-sm">
-					<span class="text-gray-600">หลังหักส่วนลด (After Discount)</span>
-					<span class="font-medium">{totalAfterDiscount.toFixed(2)}</span>
+					<span class="text-gray-600">{$t('After Discount')}</span>
+					<span class="font-medium">{formatCurrency(totalAfterDiscount)}</span>
 				</div>
 				<div class="mt-2 flex items-center justify-between text-sm">
 					<span class="text-gray-600">
-						ภาษีมูลค่าเพิ่ม (VAT)
+						VAT
 						<select
 							name="vat_rate"
 							bind:value={vatRate}
@@ -482,23 +482,23 @@
 							<option value={7}>7%</option>
 						</select>
 					</span>
-					<span class="font-medium text-green-600">+{vatAmount.toFixed(2)}</span>
+					<span class="font-medium text-green-600">+{formatCurrency(vatAmount)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 
 				<div
 					class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600"
 				>
-					<span class="font-medium">หัก ณ ที่จ่ายรวม (Total WHT)</span>
-					<span class="font-bold">-{whtAmount.toFixed(2)}</span>
+					<span class="font-medium">{$t('Total WHT')}</span>
+					<span class="font-bold">-{formatCurrency(whtAmount)}</span>
 
 					<input type="hidden" name="wht_amount" value={whtAmount} />
 					<input type="hidden" name="wht_rate" value={0} />
 				</div>
 
 				<div class="flex justify-between pt-2 text-lg font-black text-gray-900">
-					<span>ยอดสุทธิ (Grand Total)</span>
-					<span class="text-blue-700">{grandTotal.toFixed(2)}</span>
+					<span>{$t('Grand Total')}</span>
+					<span class="text-blue-700">{formatCurrency(grandTotal)}</span>
 				</div>
 			</div>
 		</div>
@@ -513,7 +513,7 @@
 				href="/invoices/{invoice?.id}"
 				class="rounded-md border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
 			>
-				ยกเลิก
+				{$t('Cancel')}
 			</a>
 			<button
 				type="submit"
@@ -521,9 +521,9 @@
 				class="flex items-center rounded-md bg-blue-600 px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
 			>
 				{#if isSaving}
-					กำลังบันทึก...
+					{$t('Saving...')}
 				{:else}
-					บันทึกการแก้ไข
+					{$t('Save Changes')}
 				{/if}
 			</button>
 		</div>
@@ -544,5 +544,8 @@
 		border-color: #d1d5db;
 		z-index: 9999 !important;
 		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+	:global(.selectContainer) {
+		overflow: visible !important;
 	}
 </style>

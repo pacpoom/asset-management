@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { tick } from 'svelte';
 	import type { ActionData, PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
 	interface Company {
 		name: string;
@@ -39,12 +40,15 @@
 
 	const formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
-		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			style: 'currency',
+			currency: 'THB'
+		}).format(amount);
 	};
 
 	const formatDate = (dateStr: string | null | undefined) => {
 		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleDateString('th-TH', {
+		return new Date(dateStr).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
@@ -91,7 +95,6 @@
 		}
 	}
 
-	// สถานะที่มีให้เลือก (เผื่อว่าใน PageData ไม่ได้ส่ง availableStatuses มา)
 	const availableStatuses = data.availableStatuses || [
 		'Pending',
 		'In Progress',
@@ -101,7 +104,7 @@
 </script>
 
 <svelte:head>
-	<title>ใบสั่งงาน {formatJobNumber(job.job_type, job.job_date, job.id)}</title>
+	<title>{$t('Job Order')} {formatJobNumber(job.job_type, job.job_date, job.id)}</title>
 </svelte:head>
 
 <form
@@ -126,7 +129,7 @@
 		<a
 			href="/freight-forwarder/job-orders"
 			class="mr-3 text-gray-500 hover:text-gray-800"
-			title="Back to list"
+			title={$t('Back')}
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -143,13 +146,14 @@
 		</a>
 		<div>
 			<h1 class="text-2xl font-bold text-gray-800">
-				ใบสั่งงาน #{formatJobNumber(job.job_type, job.job_date, job.id)}
+				{$t('Job Order')} #{formatJobNumber(job.job_type, job.job_date, job.id)}
 			</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				Customer: <span class="font-medium text-gray-700"
-					>{job.company_name || job.customer_name || '-'}</span
+				{$t('Customer')}:
+				<span class="font-medium text-gray-700">{job.company_name || job.customer_name || '-'}</span
 				>
-				| Ref Invoice: {job.invoice_no || '-'}
+				| {$t('Ref Invoice:')}
+				{job.invoice_no || '-'}
 			</p>
 		</div>
 	</div>
@@ -160,7 +164,7 @@
 				job.job_status
 			)}"
 		>
-			{job.job_status}
+			{$t('Status_' + job.job_status) || job.job_status}
 		</span>
 
 		<a
@@ -168,14 +172,14 @@
 			target="_blank"
 			class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
 		>
-			<span>พิมพ์ PDF</span>
+			<span>{$t('Print PDF')}</span>
 		</a>
 
 		<a
 			href="/freight-forwarder/job-orders/{job.id}/edit"
 			class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
 		>
-			Edit
+			{$t('Edit')}
 		</a>
 
 		<div class="relative">
@@ -183,12 +187,14 @@
 				id="status-change-select"
 				onchange={updateStatus}
 				disabled={isSaving}
-				class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
+				class="cursor-pointer rounded-lg border-none bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 			>
-				<option value="" disabled selected>Change Status</option>
+				<option value="" disabled selected>{$t('Change Status')}</option>
 				{#each availableStatuses as status}
 					{#if status !== job.job_status}
-						<option value={status} class="bg-white text-gray-800">{status}</option>
+						<option value={status} class="bg-white text-gray-800">
+							{$t('Status_' + status) || status}
+						</option>
 					{/if}
 				{/each}
 			</select>
@@ -226,29 +232,29 @@
 					</p>
 				</div>
 			{:else}
-				<h2 class="text-2xl font-bold text-gray-800">บริษัทของคุณ</h2>
-				<p class="mt-2 text-sm text-gray-500">(ไม่ได้ตั้งค่าข้อมูลบริษัท)</p>
+				<h2 class="text-2xl font-bold text-gray-800">{$t('Your Company')}</h2>
+				<p class="mt-2 text-sm text-gray-500">{$t('(Company data not set)')}</p>
 			{/if}
 		</div>
 
 		<div class="text-left md:text-right">
 			<h1 class="text-2xl font-bold text-gray-800 uppercase">JOB ORDER</h1>
-			<p class="text-sm text-gray-500">ใบสั่งงานขนส่ง</p>
+			<p class="text-sm text-gray-500">{$t('Freight Forwarder Job Order')}</p>
 
 			<div class="mt-4 space-y-1">
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">เลขที่ / Job No.:</span>
+					<span class="font-semibold text-gray-600">{$t('Job No.:')}</span>
 					<span class="font-medium text-gray-800"
 						>#{formatJobNumber(job.job_type, job.job_date, job.id)}</span
 					>
 				</div>
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">วันที่ / Job Date:</span>
+					<span class="font-semibold text-gray-600">{$t('Job Date:')}</span>
 					<span class="font-medium text-gray-800">{formatDate(job.job_date)}</span>
 				</div>
 				{#if job.expire_date}
 					<div class="text-sm">
-						<span class="font-semibold text-gray-600">วันหมดอายุ / Expire:</span>
+						<span class="font-semibold text-gray-600">{$t('Expire Date:')}</span>
 						<span class="font-medium text-gray-800">{formatDate(job.expire_date)}</span>
 					</div>
 				{/if}
@@ -258,9 +264,9 @@
 
 	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 		<div class="md:col-span-2">
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ลูกค้า (Customer)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Customer')}</h3>
 			<p class="font-semibold text-gray-800">
-				{job.company_name || job.customer_name || 'ไม่ระบุ'}
+				{job.company_name || job.customer_name || $t('Unknown')}
 			</p>
 
 			{#if job.company_name && job.customer_name}
@@ -275,20 +281,20 @@
 
 			{#if job.contract_number}
 				<p class="mt-1 text-sm">
-					<span class="font-semibold text-gray-700">อ้างอิงสัญญา:</span>
+					<span class="font-semibold text-gray-700">{$t('Contract Ref.:')}</span>
 					{job.contract_number}
 				</p>
 			{/if}
 		</div>
 
 		<div class="md:col-span-1">
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('More Info')}</h3>
 			<p class="mt-1 text-xs text-gray-600">
-				<span class="font-semibold">ผู้เตรียม / Prepared By:</span>
-				{job.created_by_name || 'System Admin'}
+				<span class="font-semibold">{$t('Prepared By:')}</span>
+				{job.created_by_name || $t('System Admin')}
 			</p>
 			<div class="mt-2 text-xs text-gray-600">
-				<span class="font-semibold">สร้างเมื่อ / Created At:</span>
+				<span class="font-semibold">{$t('Created At:')}</span>
 				<p>{formatDate(job.created_at)}</p>
 			</div>
 		</div>
@@ -297,13 +303,13 @@
 
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
-		รายละเอียดการขนส่ง (Shipment Details)
+		{$t('Shipment Details')}
 	</h3>
 	<div class="p-6">
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div class="space-y-4">
 				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
-					<span class="text-sm font-medium text-gray-600">Job Type</span>
+					<span class="text-sm font-medium text-gray-600">{$t('Job Type')}</span>
 					<div class="flex items-center gap-2">
 						<span class="font-bold text-gray-900">{job.job_type}</span>
 						{#if job.service_type}
@@ -316,22 +322,22 @@
 					</div>
 				</div>
 				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
-					<span class="text-sm font-medium text-gray-600">B/L Number</span>
+					<span class="text-sm font-medium text-gray-600">{$t('B/L Number')}</span>
 					<span class="font-mono font-bold text-blue-600">{job.bl_number || '-'}</span>
 				</div>
 			</div>
 
 			<div class="space-y-4">
 				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
-					<span class="text-sm font-medium text-gray-600">Liner / Carrier</span>
+					<span class="text-sm font-medium text-gray-600">{$t('Liner / Carrier')}</span>
 					<span class="font-medium text-gray-900">{job.liner_name || '-'}</span>
 				</div>
 				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
-					<span class="text-sm font-medium text-gray-600">Location / Port</span>
+					<span class="text-sm font-medium text-gray-600">{$t('Location / Port')}</span>
 					<span class="font-medium text-gray-900">{job.location || '-'}</span>
 				</div>
 				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
-					<span class="text-sm font-medium text-gray-600">Customer Invoice Ref.</span>
+					<span class="text-sm font-medium text-gray-600">{$t('Customer Invoice Ref.')}</span>
 					<span class="font-medium text-gray-900">{job.invoice_no || '-'}</span>
 				</div>
 			</div>
@@ -340,11 +346,11 @@
 </div>
 
 <div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
-	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">Financial Summary</h2>
+	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">{$t('Financial Summary')}</h2>
 	<div class="mt-3 w-full space-y-2 text-sm">
 		<div class="flex w-full flex-col items-end justify-end">
 			<div class="flex w-full max-w-sm items-center justify-between border-t-2 pt-2">
-				<span class="text-base font-bold text-gray-900">Initial Amount:</span>
+				<span class="text-base font-bold text-gray-900">{$t('Initial Amount:')}</span>
 				<span class="text-xl font-bold text-blue-700">
 					{formatCurrency(job.amount)}
 					<span class="ml-1 text-sm text-gray-500">{job.currency || 'THB'}</span>
@@ -356,17 +362,17 @@
 
 <div class="mb-6 grid grid-cols-1 gap-6">
 	<div class="rounded-lg border bg-white p-4 shadow-sm">
-		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">Remarks (หมายเหตุ)</h3>
-		<p class="text-sm whitespace-pre-wrap text-gray-600">{job.remarks || 'No remarks.'}</p>
+		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">{$t('Remarks')}</h3>
+		<p class="text-sm whitespace-pre-wrap text-gray-600">{job.remarks || $t('No remarks.')}</p>
 	</div>
 
 	<div class="rounded-lg border bg-white p-4 shadow-sm">
 		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">
-			Attachments ({attachments.length})
+			{$t('Attachments')} ({attachments.length})
 		</h3>
 		<div class="space-y-2">
 			{#if attachments.length === 0}
-				<p class="text-sm text-gray-500">No attachments found.</p>
+				<p class="text-sm text-gray-500">{$t('No attachments found.')}</p>
 			{:else}
 				{#each attachments as attachment (attachment.id)}
 					<div class="flex items-center justify-between rounded-md bg-gray-100 p-2 text-sm">

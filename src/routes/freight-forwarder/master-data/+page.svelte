@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { fade, scale } from 'svelte/transition';
+	import { t } from '$lib/i18n';
 
 	export let data;
 
@@ -120,10 +121,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{$t('Master Data Management')}</title>
+</svelte:head>
+
 <div class="min-h-screen bg-gray-50 p-6">
 	<div class="mb-6">
-		<h1 class="text-2xl font-bold text-gray-800">Master Data Management</h1>
-		<p class="text-sm text-gray-500">จัดการข้อมูลหลักในระบบ (สายเรือ, สกุลเงิน)</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Master Data Management')}</h1>
+		<p class="text-sm text-gray-500">{$t('Manage master data (Liners, Currencies)')}</p>
 	</div>
 
 	<div class="mb-6 border-b border-gray-200">
@@ -135,7 +140,7 @@
 					? 'border-blue-500 text-blue-600'
 					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
-				Liners / Carriers
+				{$t('Liners / Carriers')}
 			</button>
 			<button
 				onclick={() => (activeTab = 'currencies')}
@@ -144,7 +149,7 @@
 					? 'border-blue-500 text-blue-600'
 					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
-				Currencies (สกุลเงิน)
+				{$t('Currencies')}
 			</button>
 		</nav>
 	</div>
@@ -171,7 +176,7 @@
 				<input
 					type="text"
 					bind:value={linerSearchQuery}
-					placeholder="ค้นหาชื่อ หรือ รหัส..."
+					placeholder={$t('Search name or code...')}
 					class="block w-full rounded-lg border-0 py-2 pr-3 pl-10 text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 focus:ring-inset sm:text-sm sm:leading-6"
 				/>
 			</div>
@@ -190,7 +195,7 @@
 				>
 					<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 				</svg>
-				เพิ่มสายเรือ
+				{$t('Add Liner')}
 			</button>
 		</div>
 
@@ -200,19 +205,19 @@
 					<thead class="bg-gray-50 text-gray-700">
 						<tr>
 							<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-								>Code</th
+								>{$t('Code')}</th
 							>
 							<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-								>Carrier Name</th
+								>{$t('Carrier Name')}</th
 							>
 							<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-								>Contact Info</th
+								>{$t('Contact Info')}</th
 							>
 							<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
-								>Status</th
+								>{$t('Status')}</th
 							>
 							<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
-								>Action</th
+								>{$t('Action')}</th
 							>
 						</tr>
 					</thead>
@@ -240,12 +245,12 @@
 									{#if liner.status === 'Active'}
 										<span
 											class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-green-600/20 ring-inset"
-											>Active</span
+											>{$t('Active')}</span
 										>
 									{:else}
 										<span
 											class="inline-flex items-center rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset"
-											>Inactive</span
+											>{$t('Inactive')}</span
 										>
 									{/if}
 								</td>
@@ -255,7 +260,7 @@
 											type="button"
 											onclick={() => openLinerEditModal(liner)}
 											class="text-gray-400 transition-colors hover:text-yellow-600"
-											title="แก้ไข"
+											title={$t('Edit')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -272,7 +277,7 @@
 											type="button"
 											onclick={() => openLinerDeleteModal(liner.id, liner.name)}
 											class="text-gray-400 transition-colors hover:text-red-600"
-											title="ลบ"
+											title={$t('Delete')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -292,10 +297,11 @@
 							</tr>
 						{/each}
 						{#if filteredLiners.length === 0}
-							<tr
-								><td colspan="5" class="py-12 text-center text-gray-400">ไม่พบข้อมูลสายเดินเรือ</td
-								></tr
-							>
+							<tr>
+								<td colspan="5" class="py-12 text-center text-gray-400"
+									>{$t('No liner data found')}</td
+								>
+							</tr>
 						{/if}
 					</tbody>
 				</table>
@@ -319,7 +325,7 @@
 				>
 					<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 				</svg>
-				เพิ่มสกุลเงิน
+				{$t('Add Currency')}
 			</button>
 		</div>
 
@@ -327,12 +333,20 @@
 			<table class="min-w-full divide-y divide-gray-200 text-sm">
 				<thead class="bg-gray-50 text-gray-700">
 					<tr>
-						<th class="px-6 py-3 text-left font-semibold text-gray-500 uppercase">Code</th>
-						<th class="px-6 py-3 text-left font-semibold text-gray-500 uppercase">Name</th>
-						<th class="px-6 py-3 text-center font-semibold text-gray-500 uppercase">Symbol</th>
-						<th class="px-6 py-3 text-right font-semibold text-gray-500 uppercase">Rate (THB)</th>
-						<th class="px-6 py-3 text-center font-semibold text-gray-500 uppercase">Status</th>
-						<th class="px-6 py-3 text-center font-semibold text-gray-500 uppercase">Action</th>
+						<th class="px-6 py-3 text-left font-semibold text-gray-500 uppercase">{$t('Code')}</th>
+						<th class="px-6 py-3 text-left font-semibold text-gray-500 uppercase">{$t('Name')}</th>
+						<th class="px-6 py-3 text-center font-semibold text-gray-500 uppercase"
+							>{$t('Symbol')}</th
+						>
+						<th class="px-6 py-3 text-right font-semibold text-gray-500 uppercase"
+							>{$t('Rate (THB)')}</th
+						>
+						<th class="px-6 py-3 text-center font-semibold text-gray-500 uppercase"
+							>{$t('Status')}</th
+						>
+						<th class="px-6 py-3 text-center font-semibold text-gray-500 uppercase"
+							>{$t('Action')}</th
+						>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
@@ -346,12 +360,12 @@
 								{#if curr.is_active}
 									<span
 										class="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700"
-										>Active</span
+										>{$t('Active')}</span
 									>
 								{:else}
 									<span
 										class="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-600"
-										>Inactive</span
+										>{$t('Inactive')}</span
 									>
 								{/if}
 							</td>
@@ -361,7 +375,7 @@
 										type="button"
 										onclick={() => openCurrencyEditModal(curr)}
 										class="text-gray-400 transition-colors hover:text-yellow-600"
-										title="แก้ไข"
+										title={$t('Edit')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -378,7 +392,7 @@
 										type="button"
 										onclick={() => openCurrencyDeleteModal(curr)}
 										class="text-gray-400 transition-colors hover:text-red-600"
-										title="ลบ"
+										title={$t('Delete')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -412,13 +426,13 @@
 		>
 			<div class="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
 				<h3 class="text-lg font-bold text-gray-800">
-					{linerFormMode === 'create' ? 'เพิ่มสายเดินเรือใหม่' : 'แก้ไขข้อมูลสายเดินเรือ'}
+					{linerFormMode === 'create' ? $t('Add New Liner') : $t('Edit Liner')}
 				</h3>
 				<button
 					type="button"
 					onclick={closeLinerFormModal}
 					class="text-gray-400 hover:text-gray-600 focus:outline-none"
-					aria-label="ปิด"
+					aria-label={$t('Close')}
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -449,19 +463,21 @@
 				<div class="space-y-5 p-6">
 					<div class="grid grid-cols-3 gap-4">
 						<div class="col-span-1">
-							<label for="code" class="mb-1 block text-sm font-semibold text-gray-700">Code</label>
+							<label for="code" class="mb-1 block text-sm font-semibold text-gray-700"
+								>{$t('Code')}</label
+							>
 							<input
 								type="text"
 								id="code"
 								name="code"
 								bind:value={linerFormData.code}
-								placeholder="e.g. MSK"
+								placeholder={$t('e.g. MSK')}
 								class="w-full rounded-md border-gray-300 font-mono uppercase shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 						<div class="col-span-2">
 							<label for="name" class="mb-1 block text-sm font-semibold text-gray-700"
-								>Carrier Name <span class="text-red-500">*</span></label
+								>{$t('Carrier Name *')}</label
 							>
 							<input
 								type="text"
@@ -469,7 +485,7 @@
 								name="name"
 								bind:value={linerFormData.name}
 								required
-								placeholder="ชื่อสายเรือ"
+								placeholder={$t('Liner Name')}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
@@ -477,12 +493,12 @@
 
 					<div class="border-t border-gray-100 pt-4">
 						<h4 class="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
-							Contact Information
+							{$t('Contact Information')}
 						</h4>
 						<div class="space-y-4">
 							<div>
 								<label for="contact_person" class="mb-1 block text-sm font-medium text-gray-700"
-									>Contact Person</label
+									>{$t('Contact Person')}</label
 								>
 								<input
 									type="text"
@@ -495,7 +511,7 @@
 							<div class="grid grid-cols-2 gap-4">
 								<div>
 									<label for="phone" class="mb-1 block text-sm font-medium text-gray-700"
-										>Phone</label
+										>{$t('Phone')}</label
 									>
 									<input
 										type="text"
@@ -507,7 +523,7 @@
 								</div>
 								<div>
 									<label for="email" class="mb-1 block text-sm font-medium text-gray-700"
-										>Email</label
+										>{$t('Email')}</label
 									>
 									<input
 										type="email"
@@ -522,7 +538,8 @@
 					</div>
 
 					<div class="border-t border-gray-100 pt-4">
-						<label for="status" class="mb-1 block text-sm font-semibold text-gray-700">Status</label
+						<label for="status" class="mb-1 block text-sm font-semibold text-gray-700"
+							>{$t('Status')}</label
 						>
 						<select
 							id="status"
@@ -530,8 +547,8 @@
 							bind:value={linerFormData.status}
 							class="w-full rounded-md border-gray-300 font-medium shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value="Active">Active (เปิดใช้งาน)</option>
-							<option value="Inactive">Inactive (ระงับการใช้งาน)</option>
+							<option value="Active">{$t('Active (Enabled)')}</option>
+							<option value="Inactive">{$t('Inactive (Disabled)')}</option>
 						</select>
 					</div>
 				</div>
@@ -543,14 +560,14 @@
 						type="button"
 						onclick={closeLinerFormModal}
 						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
-						>ยกเลิก</button
+						>{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
 						disabled={isLinerSaving}
 						class="flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white hover:bg-blue-700 focus:outline-none disabled:opacity-70"
 					>
-						{isLinerSaving ? 'Saving...' : 'บันทึกข้อมูล'}
+						{isLinerSaving ? $t('Saving...') : $t('Save Data')}
 					</button>
 				</div>
 			</form>
@@ -584,12 +601,11 @@
 						>
 					</div>
 					<div class="mt-1 text-left sm:mt-0">
-						<h3 class="text-lg leading-6 font-bold text-gray-900">ยืนยันการลบข้อมูล</h3>
+						<h3 class="text-lg leading-6 font-bold text-gray-900">{$t('Confirm Deletion')}</h3>
 						<div class="mt-2">
 							<p class="text-sm text-gray-500">
-								คุณแน่ใจหรือไม่ว่าต้องการลบสายเรือ <span class="font-bold text-gray-800"
-									>{linerDeleteName}</span
-								> ?
+								{$t('Are you sure you want to delete liner')}
+								<span class="font-bold text-gray-800">{linerDeleteName}</span> ?
 							</p>
 						</div>
 					</div>
@@ -600,7 +616,7 @@
 					type="button"
 					class="mt-3 inline-flex w-full justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
 					onclick={closeLinerDeleteModal}
-					disabled={isLinerDeleting}>ยกเลิก</button
+					disabled={isLinerDeleting}>{$t('Cancel')}</button
 				>
 				<form
 					method="POST"
@@ -620,7 +636,7 @@
 						class="inline-flex w-full justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50 sm:w-auto"
 						disabled={isLinerDeleting}
 					>
-						{isLinerDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+						{isLinerDeleting ? $t('Deleting...') : $t('Delete')}
 					</button>
 				</form>
 			</div>
@@ -634,7 +650,7 @@
 			class="animate-in fade-in zoom-in-95 w-full max-w-md rounded-xl bg-white p-6 shadow-xl duration-200"
 		>
 			<h3 class="mb-4 text-lg font-bold text-gray-900">
-				{currencyForm.isEdit ? 'แก้ไขสกุลเงิน' : 'เพิ่มสกุลเงินใหม่'}
+				{currencyForm.isEdit ? $t('Edit Currency') : $t('Add New Currency')}
 			</h3>
 			<form
 				method="POST"
@@ -652,7 +668,7 @@
 				<div class="space-y-4">
 					<div>
 						<label for="currency_code" class="block text-sm font-medium text-gray-700"
-							>Code (ISO) *</label
+							>{$t('Code (ISO) *')}</label
 						>
 						<input
 							type="text"
@@ -668,7 +684,8 @@
 						/>
 					</div>
 					<div>
-						<label for="currency_name" class="block text-sm font-medium text-gray-700">Name *</label
+						<label for="currency_name" class="block text-sm font-medium text-gray-700"
+							>{$t('Name *')}</label
 						>
 						<input
 							type="text"
@@ -682,7 +699,7 @@
 					<div class="grid grid-cols-2 gap-4">
 						<div>
 							<label for="currency_symbol" class="block text-sm font-medium text-gray-700"
-								>Symbol</label
+								>{$t('Symbol')}</label
 							>
 							<input
 								type="text"
@@ -694,7 +711,7 @@
 						</div>
 						<div>
 							<label for="exchange_rate" class="block text-sm font-medium text-gray-700"
-								>Rate (to THB)</label
+								>{$t('Rate (to THB)')}</label
 							>
 							<input
 								type="number"
@@ -715,7 +732,7 @@
 							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
 						<label for="currency_is_active" class="ml-2 block text-sm text-gray-900"
-							>เปิดใช้งาน (Active)</label
+							>{$t('Active (Status)')}</label
 						>
 					</div>
 				</div>
@@ -725,13 +742,13 @@
 						type="button"
 						onclick={closeCurrencyModal}
 						class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-						>ยกเลิก</button
+						>{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
 						disabled={isCurrencySaving}
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-70"
-						>บันทึก</button
+						>{$t('Save Data')}</button
 					>
 				</div>
 			</form>
@@ -765,12 +782,11 @@
 						>
 					</div>
 					<div class="mt-1 text-left sm:mt-0">
-						<h3 class="text-lg leading-6 font-bold text-gray-900">ยืนยันการลบสกุลเงิน</h3>
+						<h3 class="text-lg leading-6 font-bold text-gray-900">{$t('Confirm Deletion')}</h3>
 						<div class="mt-2">
 							<p class="text-sm text-gray-500">
-								คุณแน่ใจหรือไม่ว่าต้องการลบสกุลเงิน <span class="font-bold text-gray-800"
-									>{currencyDeleteCode}</span
-								>
+								{$t('Are you sure you want to delete currency')}
+								<span class="font-bold text-gray-800">{currencyDeleteCode}</span>
 								({currencyDeleteName}) ?
 							</p>
 						</div>
@@ -782,7 +798,7 @@
 					type="button"
 					class="mt-3 inline-flex w-full justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
 					onclick={closeCurrencyDeleteModal}
-					disabled={isCurrencyDeleting}>ยกเลิก</button
+					disabled={isCurrencyDeleting}>{$t('Cancel')}</button
 				>
 				<form
 					method="POST"
@@ -802,7 +818,7 @@
 						class="inline-flex w-full justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50 sm:w-auto"
 						disabled={isCurrencyDeleting}
 					>
-						{isCurrencyDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+						{isCurrencyDeleting ? $t('Deleting...') : $t('Delete')}
 					</button>
 				</form>
 			</div>

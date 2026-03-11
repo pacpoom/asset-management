@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: {
 		vendors: Array<{ id: number; name: string; company_name?: string | null }>;
@@ -35,12 +36,11 @@
 	let delivery_date = '';
 	let payment_term = '';
 
-	// รับค่า vendor_id จาก PR (ถ้ามี)
 	let vendor_id = data.fromPR?.vendor_id || '';
 
-	let remarks = data.fromPR ? `อ้างอิงใบขอซื้อเลขที่ (Ref PR): ${data.fromPR.pr_number}` : '';
+	let remarks = data.fromPR ? `Ref PR: ${data.fromPR.pr_number}` : '';
 
-	let defaultUnit = data.units.length > 0 ? data.units[0].name : 'ชิ้น';
+	let defaultUnit = data.units.length > 0 ? data.units[0].name : '';
 
 	$: productOptions = data.products.map((p) => ({
 		value: p.id,
@@ -93,6 +93,13 @@
 	let whtAmount = 0;
 	let totalAmount = 0;
 
+	$: formatCurrency = (val: number) => {
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2
+		}).format(val || 0);
+	};
+
 	function onProductChange(index: number, selection: any) {
 		if (selection) {
 			items[index].product_object = selection;
@@ -113,7 +120,6 @@
 	function calculateTotals() {
 		let tempGrossTotal = 0;
 		let tempTotalDiscount = 0;
-
 		items = items.map((item) => {
 			const qty = parseFloat(String(item.quantity || 0));
 			const price = parseFloat(String(item.unit_price || 0));
@@ -166,6 +172,10 @@
 	calculateTotals();
 </script>
 
+<svelte:head>
+	<title>{$t('Create Purchase Order (New PO)')}</title>
+</svelte:head>
+
 <div class="mx-auto mt-6 max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
 	<h1 class="mb-6 flex items-center gap-2 text-2xl font-bold text-gray-800">
 		<svg
@@ -182,7 +192,7 @@
 				d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 			/>
 		</svg>
-		สร้างใบสั่งซื้อใหม่ (New PO)
+		{$t('Create Purchase Order (New PO)')}
 	</h1>
 
 	<form method="POST" action="?/create" use:enhance class="space-y-6">
@@ -190,7 +200,7 @@
 			<div class="space-y-4">
 				<div>
 					<label for="po_number" class="block text-sm font-medium text-gray-700"
-						>เลขที่เอกสาร (PO No.)</label
+						>{$t('PO No.')}</label
 					>
 					<input
 						type="text"
@@ -203,7 +213,7 @@
 				</div>
 				<div>
 					<label for="vendor_id" class="block text-sm font-medium text-gray-700"
-						>ผู้ขาย (Vendor) <span class="text-red-500">*</span></label
+						>{$t('Vendor *')}</label
 					>
 					<select
 						id="vendor_id"
@@ -213,7 +223,7 @@
 						disabled={!!data.fromPR}
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
 					>
-						<option value="">-- เลือกผู้ขาย --</option>
+						<option value="">{$t('-- Select Vendor --')}</option>
 						{#each data.vendors as vendor}
 							<option value={vendor.id}
 								>{vendor.name} {vendor.company_name ? `(${vendor.company_name})` : ''}</option
@@ -227,7 +237,7 @@
 				</div>
 				<div>
 					<label for="contact_person" class="block text-sm font-medium text-gray-700"
-						>ผู้ติดต่อ (Contact Person)</label
+						>{$t('Contact Person')}</label
 					>
 					<input
 						type="text"
@@ -242,7 +252,7 @@
 			<div class="space-y-4">
 				<div>
 					<label for="date" class="block text-sm font-medium text-gray-700"
-						>วันที่สั่งซื้อ (Date) <span class="text-red-500">*</span></label
+						>{$t('Order Date *')}</label
 					>
 					<input
 						type="date"
@@ -255,7 +265,7 @@
 				</div>
 				<div>
 					<label for="delivery_date" class="block text-sm font-medium text-gray-700"
-						>วันที่กำหนดส่ง (Delivery Date)</label
+						>{$t('Delivery Date')}</label
 					>
 					<input
 						type="date"
@@ -267,14 +277,14 @@
 				</div>
 				<div>
 					<label for="payment_term" class="block text-sm font-medium text-gray-700"
-						>เงื่อนไขการชำระเงิน (Payment Term)</label
+						>{$t('Payment Term')}</label
 					>
 					<input
 						type="text"
 						id="payment_term"
 						name="payment_term"
 						bind:value={payment_term}
-						placeholder="เช่น 30 วัน, เงินสด"
+						placeholder={$t('e.g., 30 Days, Cash')}
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
 				</div>
@@ -288,25 +298,25 @@
 				<thead class="bg-gray-50">
 					<tr>
 						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
-							>สินค้า/บริการ</th
+							>{$t('Product/Service')}</th
 						>
 						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
-							>รายละเอียด</th
+							>{$t('Description')}</th
 						>
 						<th class="w-24 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>จำนวน</th
+							>{$t('Quantity')}</th
 						>
 						<th class="w-32 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
-							>หน่วย</th
+							>{$t('Unit')}</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>ราคา/หน่วย</th
+							>{$t('Price/Unit')}</th
 						>
 						<th class="w-28 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>ส่วนลด</th
+							>{$t('Discount')}</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>รวม</th
+							>{$t('Total')}</th
 						>
 						<th class="w-10 px-4 py-3"></th>
 					</tr>
@@ -320,7 +330,7 @@
 									value={item.product_object}
 									on:change={(e) => onProductChange(index, e.detail)}
 									on:clear={() => onProductChange(index, null)}
-									placeholder="-- ค้นหา/เลือก --"
+									placeholder={$t('-- Search/Select --')}
 									floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 									container={browser ? document.body : null}
 									--inputStyles="padding: 2px 0; font-size: 0.875rem;"
@@ -332,7 +342,7 @@
 								<input
 									type="text"
 									bind:value={item.description}
-									placeholder="รายละเอียดเพิ่มเติม"
+									placeholder={$t('Additional details')}
 									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</td>
@@ -395,10 +405,7 @@
 								/>
 							</td>
 							<td class="px-3 py-2 text-right font-medium text-gray-700">
-								{item.total_price.toLocaleString('en-US', {
-									minimumFractionDigits: 2,
-									maximumFractionDigits: 2
-								})}
+								{formatCurrency(item.total_price)}
 							</td>
 							<td class="px-3 py-2 text-center">
 								{#if items.length > 1}
@@ -406,7 +413,7 @@
 										type="button"
 										on:click={() => removeItem(index)}
 										class="text-red-600 hover:text-red-900"
-										aria-label="ลบรายการสินค้า"
+										aria-label={$t('Remove item')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -445,16 +452,14 @@
 							clip-rule="evenodd"
 						/>
 					</svg>
-					เพิ่มรายการสินค้า
+					{$t('Add Item')}
 				</button>
 			</div>
 		</div>
 
 		<div class="mt-8 grid grid-cols-1 gap-8 border-t pt-6 md:grid-cols-2">
 			<div>
-				<label for="remarks" class="block text-sm font-medium text-gray-700"
-					>หมายเหตุ (Remarks)</label
-				>
+				<label for="remarks" class="block text-sm font-medium text-gray-700">{$t('Remarks')}</label>
 				<textarea
 					id="remarks"
 					name="remarks"
@@ -465,15 +470,13 @@
 			</div>
 			<div class="space-y-3 rounded-lg bg-gray-50 p-4">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">รวมเป็นเงิน (Subtotal)</span>
-					<span class="font-medium"
-						>{subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
-					>
+					<span class="text-gray-600">{$t('Subtotal')}</span>
+					<span class="font-medium">{formatCurrency(subtotal)}</span>
 				</div>
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-gray-600">ส่วนลดรวม (Total Discount)</span>
+					<span class="text-sm text-gray-600">{$t('Total Discount')}</span>
 					<input
-						aria-label="ส่วนลดท้ายบิล"
+						aria-label={$t('Total Discount')}
 						type="number"
 						step="0.01"
 						bind:value={discountGlobal}
@@ -483,46 +486,42 @@
 				</div>
 
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-gray-600">ภาษีมูลค่าเพิ่ม (VAT)</span>
+					<span class="text-sm text-gray-600">{$t('VAT')}</span>
 					<div class="flex items-center gap-2">
 						<select
 							bind:value={vatRate}
 							on:change={calculateTotals}
 							class="w-32 cursor-pointer rounded-md border-gray-300 p-1 text-center text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value={0}>ไม่มี VAT (0%)</option>
-							<option value={7}>VAT 7%</option>
+							<option value={0}>{$t('No VAT (0%)')}</option>
+							<option value={7}>{$t('VAT 7%')}</option>
 						</select>
-						<span class="w-24 text-right font-medium"
-							>{vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
-						>
+						<span class="w-24 text-right font-medium">{formatCurrency(vatAmount)}</span>
 					</div>
 				</div>
 
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-gray-600">หัก ณ ที่จ่าย (WHT)</span>
+					<span class="text-sm text-gray-600">{$t('WHT')}</span>
 					<div class="flex items-center gap-2">
 						<select
 							bind:value={whtRate}
 							on:change={calculateTotals}
 							class="w-32 cursor-pointer rounded-md border-gray-300 p-1 text-center text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value={0}>ไม่หัก (0%)</option>
-							<option value={1}>1% (ขนส่ง)</option>
-							<option value={3}>3% (บริการ)</option>
-							<option value={5}>5% (ค่าเช่า)</option>
+							<option value={0}>{$t('No WHT (0%)')}</option>
+							<option value={1}>{$t('1% (Transport)')}</option>
+							<option value={3}>{$t('3% (Service)')}</option>
+							<option value={5}>{$t('5% (Rent)')}</option>
 						</select>
 						<span class="w-24 text-right font-medium text-red-600"
-							>-{whtAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
+							>-{formatCurrency(whtAmount)}</span
 						>
 					</div>
 				</div>
 
 				<div class="flex items-center justify-between border-t border-gray-300 pt-3">
-					<span class="text-lg font-bold text-gray-800">ยอดรวมสุทธิ (Total)</span>
-					<span class="text-xl font-bold text-blue-700"
-						>{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
-					>
+					<span class="text-lg font-bold text-gray-800">{$t('Grand Total')}</span>
+					<span class="text-xl font-bold text-blue-700">{formatCurrency(totalAmount)}</span>
 				</div>
 			</div>
 		</div>
@@ -545,12 +544,12 @@
 			<a
 				href="/purchase-orders"
 				class="rounded-md border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-				>ยกเลิก</a
+				>{$t('Cancel')}</a
 			>
 			<button
 				type="submit"
 				class="rounded-md border border-transparent bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-				>บันทึกใบสั่งซื้อ (Save)</button
+				>{$t('Save Purchase Order')}</button
 			>
 		</div>
 	</form>

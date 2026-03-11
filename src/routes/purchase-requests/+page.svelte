@@ -2,6 +2,8 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
+	import { t, locale } from '$lib/i18n';
+
 	export let data;
 
 	let searchInput = data.searchQuery;
@@ -17,12 +19,16 @@
 		}, 500);
 	}
 
-	const formatCurrency = (amount: number) =>
-		new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
-	const formatDate = (dateStr: string) =>
+	$: formatCurrency = (amount: number) =>
+		new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			style: 'currency',
+			currency: 'THB'
+		}).format(amount);
+
+	$: formatDate = (dateStr: string) =>
 		!dateStr
 			? '-'
-			: new Date(dateStr).toLocaleDateString('th-TH', {
+			: new Date(dateStr).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
 					year: 'numeric',
 					month: 'short',
 					day: 'numeric'
@@ -42,7 +48,7 @@
 				return 'bg-gray-100 text-gray-800';
 		}
 	};
-	// --- ส่วนจัดการ Modal ลบ ---
+
 	let showDeleteModal = false;
 	let deleteId: number | null = null;
 	let deletePrNumber = '';
@@ -62,13 +68,13 @@
 </script>
 
 <svelte:head>
-	<title>ใบขอซื้อ (Purchase Requests)</title>
+	<title>{$t('Purchase Requests')}</title>
 </svelte:head>
 
 <div class="mb-6 flex items-center justify-between">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">ใบขอซื้อ (Purchase Requests)</h1>
-		<p class="mt-1 text-sm text-gray-500">รายการขออนุมัติจัดซื้อสินค้าภายในองค์กร</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Purchase Requests')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Purchase Requests Subtitle')}</p>
 	</div>
 	<a
 		href="/purchase-requests/create"
@@ -84,7 +90,7 @@
 		>
 			<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 		</svg>
-		สร้างใบขอซื้อ
+		{$t('Create Purchase Request')}
 	</a>
 </div>
 
@@ -110,7 +116,7 @@
 			type="search"
 			bind:value={searchInput}
 			on:input={handleSearch}
-			placeholder="ค้นหาเลขที่เอกสาร, แผนก..."
+			placeholder={$t('Search PR Placeholder')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 	</div>
@@ -121,13 +127,13 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">เลขที่เอกสาร</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">วันที่</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">ผู้ขอ (Requester)</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">แผนก</th>
-					<th class="px-4 py-3 text-right font-semibold text-gray-600">ยอดรวม</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">สถานะ</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">จัดการ</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Requester')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Department')}</th>
+					<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Grand Total')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
@@ -148,7 +154,7 @@
 									pr.status
 								)}"
 							>
-								{pr.status}
+								{$t('Status_' + pr.status) || pr.status}
 							</span>
 						</td>
 						<td class="px-4 py-3 text-center">
@@ -156,7 +162,7 @@
 								<a
 									href="/purchase-requests/{pr.id}"
 									class="p-1 text-gray-400 transition-colors hover:text-blue-600"
-									title="ดูรายละเอียด"
+									title={$t('View Details')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -177,7 +183,7 @@
 									href="/purchase-requests/generate-pdf?id={pr.id}"
 									target="_blank"
 									class="p-1 text-gray-400 transition-colors hover:text-purple-600"
-									title="พิมพ์ PDF"
+									title={$t('Print PDF')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -197,7 +203,7 @@
 									<a
 										href="/purchase-requests/{pr.id}/edit"
 										class="p-1 text-gray-400 transition-colors hover:text-yellow-600"
-										title="แก้ไข"
+										title={$t('Edit')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -230,7 +236,7 @@
 										type="button"
 										on:click={() => openDeleteModal(pr)}
 										class="p-1 text-gray-400 transition-colors hover:text-red-600"
-										title="ลบ"
+										title={$t('Delete')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -266,7 +272,9 @@
 					</tr>
 				{:else}
 					<tr>
-						<td colspan="7" class="py-8 text-center text-gray-500">ไม่พบรายการใบขอซื้อ</td>
+						<td colspan="7" class="py-8 text-center text-gray-500"
+							>{$t('No purchase requests found')}</td
+						>
 					</tr>
 				{/each}
 			</tbody>
@@ -282,18 +290,19 @@
 			<a
 				href="?page={data.currentPage - 1}"
 				class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-				>Previous</a
+				>{$t('Previous')}</a
 			>
 			<a
 				href="?page={data.currentPage + 1}"
 				class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-				>Next</a
+				>{$t('Next')}</a
 			>
 		</div>
 		<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
 			<div>
 				<p class="text-sm text-gray-700">
-					แสดงหน้า <span class="font-medium">{data.currentPage}</span> จาก
+					{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
+					{$t('of')}
 					<span class="font-medium">{data.totalPages}</span>
 				</p>
 			</div>
@@ -306,7 +315,7 @@
 							? 'pointer-events-none opacity-50'
 							: ''}"
 					>
-						<span class="sr-only">Previous</span>
+						<span class="sr-only">{$t('Previous')}</span>
 						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
 							<path
 								fill-rule="evenodd"
@@ -322,7 +331,7 @@
 							? 'pointer-events-none opacity-50'
 							: ''}"
 					>
-						<span class="sr-only">Next</span>
+						<span class="sr-only">{$t('Next')}</span>
 						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
 							<path
 								fill-rule="evenodd"
@@ -344,10 +353,10 @@
 		<div
 			class="w-full max-w-lg transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all"
 		>
-			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">{$t('Confirm Delete')}</h3>
 			<p class="text-sm text-gray-500">
-				คุณแน่ใจหรือไม่ที่จะลบใบขอซื้อ <strong>{deletePrNumber}</strong>? <br />
-				การกระทำนี้ไม่สามารถเรียกคืนได้
+				{$t('Are you sure you want to delete PR:')} <strong>{deletePrNumber}</strong>? <br />
+				{$t('This action cannot be undone.')}
 			</p>
 			<div class="mt-6 flex justify-end gap-3">
 				<button
@@ -355,7 +364,7 @@
 					on:click={closeDeleteModal}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 				<form
 					method="POST"
@@ -396,9 +405,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path>
 							</svg>
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete')}
 						{/if}
 					</button>
 				</form>

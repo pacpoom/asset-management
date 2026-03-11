@@ -3,6 +3,7 @@
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
+	import { t, locale } from '$lib/i18n';
 
 	type Department = { id: string; name: string };
 	type FreightDocument = {
@@ -34,7 +35,6 @@
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let uploadSuccessMessage = $state<string | null>(null);
-
 	let documentToDelete = $state<FreightDocument | null>(null);
 	let documentToRename = $state<FreightDocument | null>(null);
 	let isDeleting = $state(false);
@@ -48,12 +48,10 @@
 	let searchQuery = $state('');
 	let dateFrom = $state<string | null>(null);
 	let dateTo = $state<string | null>(null);
-
 	const activeDepartment = $derived(() => {
 		if (activeDepartmentId === null) return null;
 		return data.departments.find((d: Department) => d.id === activeDepartmentId);
 	});
-
 	function openDepartment(deptId: string) {
 		activeDepartmentId = deptId;
 		searchQuery = '';
@@ -111,7 +109,6 @@
 
 		return filtered;
 	});
-
 	const handleSubmitUpload = () => {
 		isUploading = true;
 		uploadError = null;
@@ -131,19 +128,19 @@
 				});
 				description = '';
 				if (fileInputRef) fileInputRef.value = '';
-				uploadSuccessMessage = `อัปโหลด ${newDocs.length} เอกสาร สำเร็จ!`;
+
+				uploadSuccessMessage = `${$t('Uploaded')} ${newDocs.length} ${$t('documents successfully!')}`;
 				setTimeout(() => {
 					uploadSuccessMessage = null;
 				}, 3000);
 			} else if (result.type === 'failure') {
-				uploadError = result.data?.message ?? 'Upload error';
+				uploadError = (result.data?.message as string) ?? $t('Upload error');
 				await update();
 			} else {
 				await update();
 			}
 		};
 	};
-
 	const handleSubmitRename = () => {
 		isRenaming = true;
 		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
@@ -158,13 +155,12 @@
 				closeRenameModal();
 			} else if (result.type === 'failure') {
 				await update();
-				alert(result.data?.message ?? 'Rename failed');
+				alert((result.data?.message as string) ?? $t('Rename failed'));
 			} else {
 				await update();
 			}
 		};
 	};
-
 	const handleSubmitDelete = () => {
 		isDeleting = true;
 		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
@@ -179,7 +175,7 @@
 				closeDeleteModal();
 			} else if (result.type === 'failure') {
 				await update();
-				alert(result.data?.message ?? 'Delete failed');
+				alert((result.data?.message as string) ?? $t('Delete failed'));
 			} else {
 				await update();
 			}
@@ -188,11 +184,13 @@
 </script>
 
 <svelte:head>
-	<title>Freight Forwarder Documents</title>
+	<title>{$t('Documents Center (Freight Forwarder)')}</title>
 </svelte:head>
 
 <div class="container mx-auto px-4 py-8">
-	<h1 class="mb-6 text-3xl font-bold text-gray-800">Documents Center (Freight Forwarder)</h1>
+	<h1 class="mb-6 text-3xl font-bold text-gray-800">
+		{$t('Documents Center (Freight Forwarder)')}
+	</h1>
 
 	<form
 		method="POST"
@@ -201,11 +199,11 @@
 		enctype="multipart/form-data"
 		class="mb-8 rounded-lg border bg-white p-6 shadow-sm"
 	>
-		<h2 class="mb-4 text-xl font-semibold text-gray-700">อัปโหลดเอกสารใหม่</h2>
+		<h2 class="mb-4 text-xl font-semibold text-gray-700">{$t('Upload New Document')}</h2>
 
 		{#if uploadError}
 			<div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-700">
-				<strong>Error:</strong>
+				<strong>{$t('Error:')}</strong>
 				{uploadError}
 			</div>
 		{/if}
@@ -222,7 +220,7 @@
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div>
 				<label for="department_id" class="mb-2 block text-sm font-medium text-gray-700"
-					>เลือกแผนก*</label
+					>{$t('Select Department *')}</label
 				>
 				<select
 					id="department_id"
@@ -238,7 +236,7 @@
 			</div>
 			<div>
 				<label for="document" class="mb-2 block text-sm font-medium text-gray-700"
-					>เลือกไฟล์* (Multiple)</label
+					>{$t('Select File(s) * (Multiple)')}</label
 				>
 				<input
 					type="file"
@@ -253,14 +251,14 @@
 		</div>
 		<div class="mt-4">
 			<label for="description" class="mb-2 block text-sm font-medium text-gray-700"
-				>ชื่อเอกสาร / คำอธิบาย (Optional)</label
+				>{$t('Document Name / Description (Optional)')}</label
 			>
 			<input
 				type="text"
 				id="description"
 				name="description"
 				bind:value={description}
-				placeholder="ระบุชื่อเอกสาร (ถ้าไม่ระบุจะใช้ชื่อไฟล์)"
+				placeholder={$t('Enter document name (defaults to file name)')}
 				class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 			/>
 		</div>
@@ -290,9 +288,10 @@
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						></path></svg
 					>
-					กำลังอัปโหลด...
+					{$t('Uploading...')}
 				{:else}
-					<span class="material-symbols-outlined mr-2 text-[18px]">cloud_upload</span> อัปโหลดเอกสาร
+					<span class="material-symbols-outlined mr-2 text-[18px]">cloud_upload</span>
+					{$t('Upload Document')}
 				{/if}
 			</button>
 		</div>
@@ -310,20 +309,20 @@
 							type="button"
 							onclick={closeDepartment}
 							class="rounded-full bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200 hover:text-gray-900"
-							title="ย้อนกลับ"
+							title={$t('Back')}
 						>
 							<span class="material-symbols-outlined block h-5 w-5">arrow_back</span>
 						</button>
 						<div>
 							<h2 class="text-2xl font-bold text-gray-800">{activeDepartment().name}</h2>
-							<p class="text-sm text-gray-500">{docs.length} ไฟล์ในโฟลเดอร์นี้</p>
+							<p class="text-sm text-gray-500">{docs.length} {$t('files in this folder')}</p>
 						</div>
 					</div>
 
 					<div class="flex flex-wrap items-end gap-2">
 						<div>
 							<label for="date_from" class="mb-1 block text-xs font-medium text-gray-500"
-								>จากวันที่</label
+								>{$t('From Date')}</label
 							>
 							<input
 								type="date"
@@ -334,7 +333,7 @@
 						</div>
 						<div>
 							<label for="date_to" class="mb-1 block text-xs font-medium text-gray-500"
-								>ถึงวันที่</label
+								>{$t('To Date')}</label
 							>
 							<input
 								type="date"
@@ -345,7 +344,7 @@
 						</div>
 						<div class="w-full min-w-[200px] md:w-auto">
 							<label for="search_box" class="mb-1 block text-xs font-medium text-gray-500"
-								>ค้นหา</label
+								>{$t('Search')}</label
 							>
 							<div class="relative">
 								<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -355,7 +354,7 @@
 									type="search"
 									id="search_box"
 									bind:value={searchQuery}
-									placeholder="ค้นหาชื่อไฟล์..."
+									placeholder={$t('Search by file name...')}
 									class="block w-full rounded-md border-gray-300 py-1.5 pl-9 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
@@ -385,7 +384,11 @@
 											<div class="mt-1 flex items-center gap-2 text-xs text-gray-400">
 												<span>{doc.uploader_name}</span>
 												<span>•</span>
-												<span>{new Date(doc.created_at).toLocaleString('th-TH')}</span>
+												<span
+													>{new Date(doc.created_at).toLocaleString(
+														$locale === 'th' ? 'th-TH' : 'en-US'
+													)}</span
+												>
 											</div>
 										</div>
 									</div>
@@ -396,21 +399,21 @@
 											target="_blank"
 											download={doc.original_name}
 											class="rounded-md p-2 text-gray-400 transition hover:bg-white hover:text-blue-600 hover:shadow-sm"
-											title="Download"
+											title={$t('Download')}
 										>
 											<span class="material-symbols-outlined block h-5 w-5">download</span>
 										</a>
 										<button
 											onclick={() => openRenameModal(doc)}
 											class="rounded-md p-2 text-gray-400 transition hover:bg-white hover:text-yellow-600 hover:shadow-sm"
-											title="Rename"
+											title={$t('Rename')}
 										>
 											<span class="material-symbols-outlined block h-5 w-5">edit</span>
 										</button>
 										<button
 											onclick={() => openDeleteModal(doc)}
 											class="rounded-md p-2 text-gray-400 transition hover:bg-white hover:text-red-600 hover:shadow-sm"
-											title="Delete"
+											title={$t('Delete')}
 										>
 											<span class="material-symbols-outlined block h-5 w-5">delete</span>
 										</button>
@@ -425,14 +428,14 @@
 					>
 						<span class="material-symbols-outlined mb-2 text-4xl text-gray-300">folder_open</span>
 						<p class="text-gray-500">
-							{searchQuery ? 'ไม่พบเอกสารที่ตรงกับการค้นหา' : 'โฟลเดอร์นี้ว่างเปล่า'}
+							{searchQuery ? $t('No documents match your search') : $t('This folder is empty')}
 						</p>
 					</div>
 				{/if}
 			</div>
 		{:else}
 			<div>
-				<h2 class="mb-4 text-xl font-bold text-gray-800">แผนกทั้งหมด</h2>
+				<h2 class="mb-4 text-xl font-bold text-gray-800">{$t('All Departments')}</h2>
 				<div class="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
 					{#each data.departments as department (department.id)}
 						<button
@@ -452,7 +455,7 @@
 								>{department.name}</span
 							>
 							<span class="mt-1 text-xs text-gray-400"
-								>{groupedDocuments[department.id]?.length || 0} ไฟล์</span
+								>{groupedDocuments[department.id]?.length || 0} {$t('files')}</span
 							>
 						</button>
 					{/each}
@@ -463,12 +466,12 @@
 
 	{#if documentToRename}
 		<div
-			class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+			class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
 			role="dialog"
 			aria-modal="true"
 		>
 			<div class="animate-in fade-in zoom-in-95 w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-				<h3 class="text-lg font-bold text-gray-900">แก้ไขชื่อเอกสาร</h3>
+				<h3 class="text-lg font-bold text-gray-900">{$t('Edit Document Name')}</h3>
 				<form
 					method="POST"
 					action="?/renameDocument"
@@ -478,7 +481,7 @@
 					<input type="hidden" name="document_id" value={documentToRename.id} />
 					<div>
 						<label for="new_name" class="mb-1 block text-sm font-medium text-gray-700"
-							>ชื่อเอกสารใหม่</label
+							>{$t('New Document Name')}</label
 						>
 						<input
 							type="text"
@@ -491,7 +494,7 @@
 					</div>
 					<div>
 						<label for="new_description" class="mb-1 block text-sm font-medium text-gray-700"
-							>คำอธิบาย</label
+							>{$t('Description')}</label
 						>
 						<textarea
 							id="new_description"
@@ -507,13 +510,13 @@
 							onclick={closeRenameModal}
 							disabled={isRenaming}
 							class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-							>Cancel</button
+							>{$t('Cancel')}</button
 						>
 						<button
 							type="submit"
 							disabled={isRenaming}
 							class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-							>Save Changes</button
+							>{$t('Save Changes')}</button
 						>
 					</div>
 				</form>
@@ -523,7 +526,7 @@
 
 	{#if documentToDelete}
 		<div
-			class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+			class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
 			role="alertdialog"
 		>
 			<div class="animate-in fade-in zoom-in-95 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
@@ -532,11 +535,10 @@
 				>
 					<span class="material-symbols-outlined">delete</span>
 				</div>
-				<h3 class="text-center text-lg font-bold text-gray-900">ยืนยันการลบ</h3>
+				<h3 class="text-center text-lg font-bold text-gray-900">{$t('Confirm Deletion')}</h3>
 				<p class="mt-2 text-center text-sm text-gray-500">
-					คุณแน่ใจหรือไม่ที่จะลบเอกสาร <span class="font-bold text-gray-800"
-						>"{documentToDelete.title}"</span
-					>?
+					{$t('Are you sure you want to delete document')}
+					<span class="font-bold text-gray-800">"{documentToDelete.title}"</span>?
 				</p>
 				<form
 					method="POST"
@@ -550,13 +552,13 @@
 						onclick={closeDeleteModal}
 						disabled={isDeleting}
 						class="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-						>ยกเลิก</button
+						>{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
 						disabled={isDeleting}
 						class="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-						>ยืนยันลบ</button
+						>{$t('Confirm Delete')}</button
 					>
 				</form>
 			</div>

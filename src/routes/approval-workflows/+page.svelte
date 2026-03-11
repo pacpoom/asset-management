@@ -2,6 +2,7 @@
 	// @ts-nocheck
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
+	import { t, locale } from '$lib/i18n';
 
 	let { data } = $props();
 	let { workflows, departments } = $state(data);
@@ -11,34 +12,42 @@
 		return async ({ result }) => {
 			if (result.type === 'success' && result.data?.success) {
 				toast.success(result.data.message);
-				showCreateForm = false;
 				location.reload();
 			} else if (result.type === 'failure') {
-				toast.error(result.data?.message || 'An error occurred.');
+				toast.error(result.data?.message || $t('An error occurred.'));
 			}
 		};
 	}
+
+	const formatAmount = (val: any) => {
+		if (val === null || val === undefined || val === '') return $t('Any');
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US').format(Number(val));
+	};
 </script>
+
+<svelte:head>
+	<title>{$t('Approval Workflows')}</title>
+</svelte:head>
 
 <div class="min-h-screen bg-gray-50 p-6">
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-3xl font-bold text-gray-800">Approval Workflows</h1>
+		<h1 class="text-3xl font-bold text-gray-800">{$t('Approval Workflows')}</h1>
 		<button
 			onclick={() => (showCreateForm = !showCreateForm)}
 			class="rounded-lg bg-blue-600 px-5 py-2 text-white shadow transition duration-200 hover:bg-blue-700"
 		>
-			{showCreateForm ? 'Cancel' : 'Add New Workflow'}
+			{showCreateForm ? $t('Cancel') : $t('Add New Workflow')}
 		</button>
 	</div>
 
 	{#if showCreateForm}
 		<div class="mb-8 rounded-lg bg-white p-6 shadow-lg transition-all duration-300">
-			<h2 class="mb-4 text-2xl font-semibold text-gray-700">Create New Workflow</h2>
+			<h2 class="mb-4 text-2xl font-semibold text-gray-700">{$t('Create New Workflow')}</h2>
 			<form method="POST" action="?/createWorkflow" use:enhance={handleCreateResult}>
 				<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 					<div>
 						<label for="name" class="mb-1 block text-sm font-medium text-gray-600"
-							>Workflow Name</label
+							>{$t('Workflow Name')}</label
 						>
 						<input
 							type="text"
@@ -46,13 +55,13 @@
 							name="name"
 							required
 							class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
-							placeholder="e.g., PR แผนก IT > 50,000"
+							placeholder={$t('e.g., PR IT Dept > 50,000')}
 						/>
 					</div>
 
 					<div>
 						<label for="document_type" class="mb-1 block text-sm font-medium text-gray-600"
-							>Document Type</label
+							>{$t('Document Type')}</label
 						>
 						<select
 							id="document_type"
@@ -60,22 +69,22 @@
 							required
 							class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value="" disabled selected>Select type...</option>
-							<option value="PR">PR (Purchase Requisition)</option>
-							<option value="PO">PO (Purchase Order)</option>
+							<option value="" disabled selected>{$t('Select type...')}</option>
+							<option value="PR">{$t('PR (Purchase Requisition)')}</option>
+							<option value="PO">{$t('PO (Purchase Order)')}</option>
 						</select>
 					</div>
 
 					<div>
 						<label for="department_id" class="mb-1 block text-sm font-medium text-gray-600"
-							>For Department (Optional)</label
+							>{$t('For Department (Optional)')}</label
 						>
 						<select
 							id="department_id"
 							name="department_id"
 							class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value="">All Departments</option>
+							<option value="">{$t('All Departments')}</option>
 							{#each departments as dept}
 								<option value={dept.id}>{dept.name}</option>
 							{/each}
@@ -84,7 +93,7 @@
 
 					<div>
 						<label for="min_amount" class="mb-1 block text-sm font-medium text-gray-600"
-							>Min Amount (Optional)</label
+							>{$t('Min Amount (Optional)')}</label
 						>
 						<input
 							type="number"
@@ -92,13 +101,13 @@
 							name="min_amount"
 							step="0.01"
 							class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
-							placeholder="e.g., 50001"
+							placeholder={$t('e.g., 50001')}
 						/>
 					</div>
 
 					<div>
 						<label for="max_amount" class="mb-1 block text-sm font-medium text-gray-600"
-							>Max Amount (Optional)</label
+							>{$t('Max Amount (Optional)')}</label
 						>
 						<input
 							type="number"
@@ -106,7 +115,7 @@
 							name="max_amount"
 							step="0.01"
 							class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
-							placeholder="e.g., 50000"
+							placeholder={$t('e.g., 50000')}
 						/>
 					</div>
 				</div>
@@ -116,23 +125,32 @@
 						type="submit"
 						class="rounded-lg bg-green-600 px-6 py-2 text-white shadow transition duration-200 hover:bg-green-700"
 					>
-						Create Workflow
+						{$t('Create Workflow')}
 					</button>
 				</div>
 			</form>
 		</div>
 	{/if}
 
-	<div class="overflow-hidden rounded-lg bg-white shadow-lg">
-		<table class="w-full min-w-[700px]">
+	<div class="overflow-x-auto rounded-lg bg-white shadow-lg">
+		<table class="min-w-full">
 			<thead class="bg-gray-100">
 				<tr>
-					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">Name</th>
-					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">Doc Type</th>
-					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">Department</th>
-					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">Amount Range</th>
-					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">Status</th>
-					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">Actions</th>
+					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">{$t('Name')}</th>
+					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase"
+						>{$t('Doc Type')}</th
+					>
+					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase"
+						>{$t('Department')}</th
+					>
+					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase"
+						>{$t('Amount Range')}</th
+					>
+					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase">{$t('Status')}</th
+					>
+					<th class="p-4 text-left text-sm font-semibold text-gray-600 uppercase"
+						>{$t('Actions')}</th
+					>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200">
@@ -148,17 +166,17 @@
 							</span>
 						</td>
 						<td class="p-4 whitespace-nowrap text-gray-600">
-							{workflow.department_name || 'All Departments'}
+							{workflow.department_name || $t('All Departments')}
 						</td>
 						<td class="p-4 whitespace-nowrap text-gray-600">
-							{workflow.min_amount || 'Any'} - {workflow.max_amount || 'Any'}
+							{formatAmount(workflow.min_amount)} - {formatAmount(workflow.max_amount)}
 						</td>
 						<td class="p-4 whitespace-nowrap">
 							<span
 								class="rounded-full px-3 py-1 text-xs font-medium
 								{workflow.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}"
 							>
-								{workflow.is_active ? 'Active' : 'Inactive'}
+								{workflow.is_active ? $t('Active') : $t('Inactive')}
 							</span>
 						</td>
 						<td class="p-4 whitespace-nowrap">
@@ -166,14 +184,14 @@
 								href="/approval-workflows/{workflow.id}"
 								class="font-medium text-blue-600 hover:text-blue-800"
 							>
-								Manage Steps
+								{$t('Manage Steps')}
 							</a>
 						</td>
 					</tr>
 				{:else}
 					<tr>
 						<td colspan="6" class="p-6 text-center text-gray-500">
-							No workflows found. Click "Add New Workflow" to get started.
+							{$t('No workflows found. Click "Add New Workflow" to get started.')}
 						</td>
 					</tr>
 				{/each}

@@ -3,6 +3,7 @@
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
 	import { invalidateAll, goto } from '$app/navigation';
+	import { t, locale } from '$lib/i18n';
 
 	type VendorContract = PageData['contracts'][0];
 	type VendorContractDocument = VendorContract['documents'][0];
@@ -33,6 +34,7 @@
 	let uploadError = $state<string | null>(null);
 	let documentToDelete = $state<VendorContractDocument | null>(null);
 	let isDeletingDocument = $state(false);
+
 	let fileInputRef: HTMLInputElement | null = $state(null);
 	let isFileSelected = $state(false);
 
@@ -92,9 +94,9 @@
 	}
 
 	function formatDateTime(isoString: string | Date | null | undefined): string {
-		if (!isoString) return 'N/A';
+		if (!isoString) return '-';
 		try {
-			return new Date(isoString).toLocaleString('th-TH', {
+			return new Date(isoString).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
 				dateStyle: 'short',
 				timeStyle: 'short'
 			});
@@ -102,10 +104,11 @@
 			return 'Invalid Date';
 		}
 	}
+
 	function formatDate(isoString: string | Date | null | undefined): string {
 		if (!isoString) return '-';
 		try {
-			return new Date(isoString).toLocaleDateString('th-TH', {
+			return new Date(isoString).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
 				year: 'numeric',
 				month: 'short',
 				day: 'numeric'
@@ -114,6 +117,7 @@
 			return 'Invalid Date';
 		}
 	}
+
 	function getFileIcon(fileName: string): string {
 		const ext = fileName?.split('.').pop()?.toLowerCase() || '';
 		if (['pdf'].includes(ext)) return '📄';
@@ -122,6 +126,7 @@
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
 		return '📎';
 	}
+
 	function handleFileChange(event: Event) {
 		const input = event.target as HTMLInputElement;
 		isFileSelected = (input.files?.length ?? 0) > 0;
@@ -140,6 +145,7 @@
 		goto(url.toString(), { keepFocus: true });
 	}
 
+	// --- Reactive Effects ---
 	$effect.pre(() => {
 		if (form?.action === 'saveContract') {
 			if (form.success && form.savedContract) {
@@ -150,25 +156,40 @@
 					contracts = contracts.map((c) => (c.id === saved.id ? saved : c));
 				}
 				closeModal();
-				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
-
+				showGlobalMessage({
+					success: true,
+					text: (form.message as string) ?? 'Success',
+					type: 'success'
+				});
 				invalidateAll();
 			} else if (form.message) {
-				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
+				showGlobalMessage({
+					success: false,
+					text: (form.message as string) ?? 'Error',
+					type: 'error'
+				});
 			}
-			form.action = undefined;
+			(form as any).action = undefined;
 		}
 
 		if (form?.action === 'deleteContract') {
 			if (form.success && form.deletedId) {
 				contracts = contracts.filter((c) => c.id !== form.deletedId);
-				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
+				showGlobalMessage({
+					success: true,
+					text: (form.message as string) ?? 'Success',
+					type: 'success'
+				});
 				invalidateAll();
 			} else if (form.message) {
-				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
+				showGlobalMessage({
+					success: false,
+					text: (form.message as string) ?? 'Error',
+					type: 'error'
+				});
 			}
 			contractToDelete = null;
-			form.action = undefined;
+			(form as any).action = undefined;
 		}
 
 		if (
@@ -187,7 +208,7 @@
 			} else if (form.message) {
 				uploadError = form.message as string;
 			}
-			form.action = undefined;
+			(form as any).action = undefined;
 		}
 
 		if (form?.action === 'deleteDocument' && modalMode === 'edit') {
@@ -199,10 +220,14 @@
 				}
 				documentToDelete = null;
 			} else if (form.message) {
-				showGlobalMessage({ success: false, text: form.message as string, type: 'error' }); // Show globally if delete fails
+				showGlobalMessage({
+					success: false,
+					text: (form.message as string) ?? 'Error',
+					type: 'error'
+				});
 				documentToDelete = null;
 			}
-			form.action = undefined;
+			(form as any).action = undefined;
 		}
 	});
 
@@ -231,18 +256,19 @@
 		}
 		return rangeWithDots;
 	});
-	function getPageUrl(pageNum: number) {
+
+	function getPageUrl(pageNum: number | string) {
 		const params = new URLSearchParams();
 		params.set('page', pageNum.toString());
 		if (data.searchQuery) params.set('search', data.searchQuery);
 		if (data.filters.status) params.set('status', data.filters.status);
 		if (data.filters.vendor) params.set('vendor', data.filters.vendor);
-		return `/vendor-contracts?${params.toString()}`; // Adjust path
+		return `/vendor-contracts?${params.toString()}`;
 	}
 </script>
 
 <svelte:head>
-	<title>Vendor Contract Management</title>
+	<title>{$t('Vendor Contract Management')}</title>
 </svelte:head>
 
 {#if globalMessage}
@@ -257,11 +283,10 @@
 	</div>
 {/if}
 
-<!-- Main Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">Vendor Contract Management</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการสัญญาสำหรับซัพพลายเออร์ / ผู้จัดจำหน่าย</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Vendor Contract Management')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Manage vendor contracts')}</p>
 	</div>
 	<button
 		onclick={() => openModal('add')}
@@ -276,7 +301,7 @@
 			class="h-4 w-4"
 			><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 		>
-		เพิ่มสัญญา Vendor ใหม่
+		{$t('Add New Vendor Contract')}
 	</button>
 </div>
 
@@ -290,7 +315,7 @@
 			id="search"
 			bind:value={currentSearch}
 			onchange={applyFilters}
-			placeholder="ค้นหาชื่อ, เลขที่, Vendor..."
+			placeholder={$t('Search Contract Placeholder')}
 			class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -315,8 +340,10 @@
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุกสถานะ --</option>
-			{#each contractStatuses as status}<option value={status}>{status}</option>{/each}
+			<option value="">{$t('-- All Statuses --')}</option>
+			{#each contractStatuses as status}<option value={status}
+					>{$t('Status_' + status) || status}</option
+				>{/each}
 		</select>
 	</div>
 	<div>
@@ -327,7 +354,7 @@
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">-- ทุก Vendor --</option>
+			<option value="">{$t('-- All Vendors --')}</option>
 			{#each data.vendors as vendor (vendor.id)}
 				<option value={String(vendor.id)}>{vendor.name}</option>
 			{/each}
@@ -339,14 +366,14 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Title</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Vendor</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Type</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Start Date</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">End Date</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Docs</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Actions</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Title')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Vendor')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Status')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Start Date')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('End Date')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Docs')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -354,9 +381,9 @@
 				<tr>
 					<td colspan="8" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery || data.filters.status || data.filters.vendor}
-							ไม่พบสัญญา Vendor ตามเงื่อนไขที่กำหนด
+							{$t('No vendor contracts found matching criteria')}
 						{:else}
-							ไม่พบข้อมูลสัญญา Vendor
+							{$t('No vendor contract data found')}
 						{/if}
 					</td>
 				</tr>
@@ -373,8 +400,8 @@
 								>
 							{/if}
 						</td>
-						<td class="px-4 py-3 text-gray-600">{contract.vendor_name ?? 'N/A'}</td>
-						<td class="px-4 py-3 text-gray-600">{contract.type_name ?? 'N/A'}</td>
+						<td class="px-4 py-3 text-gray-600">{contract.vendor_name ?? '-'}</td>
+						<td class="px-4 py-3 text-gray-600">{contract.type_name ?? '-'}</td>
 						<td class="px-4 py-3">
 							<span
 								class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
@@ -386,7 +413,7 @@
 											? 'bg-gray-100 text-gray-800'
 											: 'bg-yellow-100 text-yellow-800'}"
 							>
-								{contract.status}
+								{$t('Status_' + contract.status) || contract.status}
 							</span>
 						</td>
 						<td class="px-4 py-3 whitespace-nowrap text-gray-600"
@@ -403,7 +430,7 @@
 								<button
 									onclick={() => openModal('edit', contract)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-									aria-label="Edit contract"
+									aria-label={$t('Edit')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -419,7 +446,7 @@
 								<button
 									onclick={() => (contractToDelete = contract)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
-									aria-label="Delete contract"
+									aria-label={$t('Delete')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -445,7 +472,8 @@
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
 		<div>
 			<p class="text-sm text-gray-700">
-				Page <span class="font-medium">{data.currentPage}</span> of
+				{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
+				{$t('of')}
 				<span class="font-medium">{data.totalPages}</span>
 			</p>
 		</div>
@@ -457,7 +485,7 @@
 					? 'pointer-events-none opacity-50'
 					: ''}"
 				aria-disabled={data.currentPage === 1}
-				><span class="sr-only">Previous</span><svg
+				><span class="sr-only">{$t('Previous')}</span><svg
 					class="h-5 w-5"
 					viewBox="0 0 20 20"
 					fill="currentColor"
@@ -489,7 +517,7 @@
 					? 'pointer-events-none opacity-50'
 					: ''}"
 				aria-disabled={data.currentPage === data.totalPages}
-				><span class="sr-only">Next</span><svg
+				><span class="sr-only">{$t('Next')}</span><svg
 					class="h-5 w-5"
 					viewBox="0 0 20 20"
 					fill="currentColor"
@@ -515,7 +543,7 @@
 		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? 'เพิ่มสัญญา Vendor ใหม่' : 'แก้ไขสัญญา Vendor'}
+					{modalMode === 'add' ? $t('Add New Vendor Contract') : $t('Edit Contract')}
 				</h2>
 			</div>
 			<form
@@ -541,7 +569,8 @@
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label for="title" class="mb-1 block text-sm font-medium">Title *</label><input
+								<label for="title" class="mb-1 block text-sm font-medium">{$t('Title')} *</label
+								><input
 									type="text"
 									name="title"
 									id="title"
@@ -552,7 +581,7 @@
 							</div>
 							<div>
 								<label for="contract_number" class="mb-1 block text-sm font-medium"
-									>Contract Number</label
+									>{$t('Contract Number')}</label
 								><input
 									type="text"
 									name="contract_number"
@@ -565,7 +594,8 @@
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label for="vendor_id" class="mb-1 block text-sm font-medium">Vendor *</label
+								<label for="vendor_id" class="mb-1 block text-sm font-medium"
+									>{$t('Vendor')} *</label
 								><select
 									name="vendor_id"
 									id="vendor_id"
@@ -573,7 +603,7 @@
 									bind:value={selectedContract.vendor_id}
 									class="w-full rounded-md border-gray-300 text-sm"
 								>
-									<option value="" disabled>-- Select Vendor --</option>
+									<option value="" disabled>{$t('-- Select Vendor --')}</option>
 									{#each data.vendors as vendor (vendor.id)}<option value={vendor.id}
 											>{vendor.name}</option
 										>{/each}
@@ -581,14 +611,14 @@
 							</div>
 							<div>
 								<label for="contract_type_id" class="mb-1 block text-sm font-medium"
-									>Contract Type</label
+									>{$t('Contract Type')}</label
 								><select
 									name="contract_type_id"
 									id="contract_type_id"
 									bind:value={selectedContract.contract_type_id}
 									class="w-full rounded-md border-gray-300 text-sm"
 								>
-									<option value="">-- None --</option>
+									<option value="">{$t('-- None --')}</option>
 									{#each data.contractTypes as type (type.id)}<option value={type.id}
 											>{type.name}</option
 										>{/each}
@@ -598,19 +628,21 @@
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label for="status" class="mb-1 block text-sm font-medium">Status *</label><select
+								<label for="status" class="mb-1 block text-sm font-medium">{$t('Status')} *</label
+								><select
 									name="status"
 									id="status"
 									required
 									bind:value={selectedContract.status}
 									class="w-full rounded-md border-gray-300 text-sm"
-									>{#each contractStatuses as status}<option value={status}>{status}</option
+									>{#each contractStatuses as status}<option value={status}
+											>{$t('Status_' + status) || status}</option
 										>{/each}</select
 								>
 							</div>
 							<div>
 								<label for="contract_value" class="mb-1 block text-sm font-medium"
-									>Contract Value (Baht)</label
+									>{$t('Contract Value (Baht)')}</label
 								><input
 									type="number"
 									step="0.01"
@@ -624,7 +656,8 @@
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label for="start_date" class="mb-1 block text-sm font-medium">Start Date</label
+								<label for="start_date" class="mb-1 block text-sm font-medium"
+									>{$t('Start Date')}</label
 								><input
 									type="date"
 									name="start_date"
@@ -634,7 +667,8 @@
 								/>
 							</div>
 							<div>
-								<label for="end_date" class="mb-1 block text-sm font-medium">End Date</label><input
+								<label for="end_date" class="mb-1 block text-sm font-medium">{$t('End Date')}</label
+								><input
 									type="date"
 									name="end_date"
 									id="end_date"
@@ -647,14 +681,14 @@
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
 								<label for="owner_user_id" class="mb-1 block text-sm font-medium"
-									>Owner (Internal)</label
+									>{$t('Owner (Internal)')}</label
 								><select
 									name="owner_user_id"
 									id="owner_user_id"
 									bind:value={selectedContract.owner_user_id}
 									class="w-full rounded-md border-gray-300 text-sm"
 								>
-									<option value="">-- None --</option>
+									<option value="">{$t('-- None --')}</option>
 									{#each data.users as user (user.id)}<option value={user.id}
 											>{user.full_name}</option
 										>{/each}
@@ -662,7 +696,7 @@
 							</div>
 							<div>
 								<label for="renewal_notice_days" class="mb-1 block text-sm font-medium"
-									>Renewal Notice (Days)</label
+									>{$t('Renewal Notice (Days)')}</label
 								><input
 									type="number"
 									name="renewal_notice_days"
@@ -675,11 +709,12 @@
 
 						<div>
 							<label for="contractFiles" class="mb-1 block text-sm font-medium">
-								Upload Document(s)
+								{$t('Upload Document(s)')}
 								{#if modalMode === 'add'}
 									<span class="text-red-500">*</span>
 								{:else}
-									<span class="text-xs text-gray-500">(Optional: Add new version/file)</span>
+									<span class="text-xs text-gray-500">{$t('(Optional: Add new version/file)')}</span
+									>
 								{/if}
 							</label>
 							<input
@@ -696,17 +731,17 @@
 
 						{#if form?.message && !form.success && form.action === 'saveContract'}
 							<div class="rounded-md bg-red-50 p-3 text-sm text-red-600">
-								<p><strong>Error:</strong> {form.message}</p>
+								<p><strong>{$t('Error:')}</strong> {form.message}</p>
 							</div>
 						{/if}
 					</div>
 
 					<div class="max-h-96 space-y-3 overflow-y-auto border-l lg:col-span-1 lg:pl-6">
 						<h3 class="text-md sticky top-0 bg-white pb-2 font-semibold text-gray-700">
-							Uploaded Documents ({documentsForSelectedContract.length})
+							{$t('Uploaded Documents')} ({documentsForSelectedContract.length})
 						</h3>
 						{#if documentsForSelectedContract.length === 0}
-							<p class="text-sm text-gray-500 italic">No documents uploaded yet.</p>
+							<p class="text-sm text-gray-500 italic">{$t('No documents uploaded yet.')}</p>
 						{:else}
 							{#each documentsForSelectedContract as doc (doc.id)}
 								<div
@@ -731,7 +766,7 @@
 										type="button"
 										onclick={() => (documentToDelete = doc)}
 										class="ml-2 flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
-										title="Delete this document"
+										title={$t('Delete')}
 										disabled={isDeletingDocument}
 									>
 										<svg
@@ -750,10 +785,6 @@
 								</div>
 							{/each}
 						{/if}
-
-						{#if modalMode === 'edit'}
-							<!-- Can add a separate form here action="?/uploadDocument" if needed -->
-						{/if}
 					</div>
 				</div>
 
@@ -763,7 +794,7 @@
 					<button
 						type="button"
 						onclick={closeModal}
-						class="rounded-md border bg-white px-4 py-2 text-sm">Cancel</button
+						class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
@@ -771,9 +802,9 @@
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white disabled:bg-blue-400"
 					>
 						{#if isSavingContract}
-							Saving...
+							{$t('Saving...')}
 						{:else}
-							Save Contract
+							{$t('Save Contract')}
 						{/if}
 					</button>
 				</div>
@@ -788,23 +819,24 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">ยืนยันการลบสัญญา</h3>
+			<h3 class="text-lg font-bold">{$t('Confirm Delete Contract')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบสัญญา "<strong>{contractToDelete.title}</strong>"?
-				เอกสารแนบทั้งหมดจะถูกลบไปด้วย ไม่สามารถย้อนกลับได้
+				{$t('Are you sure you want to delete contract')} "<strong>{contractToDelete.title}</strong
+				>"?
+				<br />{$t('All attachments will be deleted. This cannot be undone.')}
 			</p>
 			{#if form?.message && !form.success && form.action === 'deleteContract'}
-				<p class="mt-2 text-sm text-red-600"><strong>Error:</strong> {form.message}</p>
+				<p class="mt-2 text-sm text-red-600"><strong>{$t('Error:')}</strong> {form.message}</p>
 			{/if}
 			<form method="POST" action="?/deleteContract" use:enhance class="mt-6 flex justify-end gap-3">
 				<input type="hidden" name="id" value={contractToDelete.id} />
 				<button
 					type="button"
 					onclick={() => (contractToDelete = null)}
-					class="rounded-md border bg-white px-4 py-2 text-sm">Cancel</button
+					class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Cancel')}</button
 				>
 				<button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm text-white"
-					>Delete</button
+					>{$t('Delete')}</button
 				>
 			</form>
 		</div>
@@ -817,12 +849,14 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">ยืนยันการลบเอกสาร</h3>
+			<h3 class="text-lg font-bold">{$t('Delete document?')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบเอกสาร "<strong>{documentToDelete.file_original_name}</strong>" (v{documentToDelete.version})?
+				{$t('Are you sure you want to delete contract')} "<strong
+					>{documentToDelete.file_original_name}</strong
+				>" (v{documentToDelete.version})?
 			</p>
 			{#if form?.message && !form.success && form.action === 'deleteDocument'}
-				<p class="mt-2 text-sm text-red-600"><strong>Error:</strong> {form.message}</p>
+				<p class="mt-2 text-sm text-red-600"><strong>{$t('Error:')}</strong> {form.message}</p>
 			{/if}
 			<form
 				method="POST"
@@ -841,7 +875,7 @@
 					type="button"
 					onclick={() => (documentToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm"
-					disabled={isDeletingDocument}>Cancel</button
+					disabled={isDeletingDocument}>{$t('Cancel')}</button
 				>
 				<button
 					type="submit"
@@ -849,9 +883,9 @@
 					disabled={isDeletingDocument}
 				>
 					{#if isDeletingDocument}
-						Deleting...
+						{$t('Deleting...')}
 					{:else}
-						Delete
+						{$t('Delete')}
 					{/if}
 				</button>
 			</form>

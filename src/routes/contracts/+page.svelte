@@ -5,6 +5,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	// --- Types ---
 	type Customer = { id: number; name: string };
@@ -92,7 +93,6 @@
 		owner_user_id: null,
 		documents: []
 	});
-
 	let currentContract = $state<Contract>(createEmptyContract());
 	let fileInput = $state<HTMLInputElement | null>(null);
 
@@ -139,8 +139,6 @@
 				: '',
 			end_date: contract.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : ''
 		};
-
-		// ตั้งค่าเริ่มต้นให้กับ Select components [FIXED implicit any]
 		selectedCustomerObj = customerOptions.find((opt: any) => opt.value === contract.customer_id);
 		selectedContractTypeObj = contractTypeOptions.find(
 			(opt: any) => opt.value === contract.contract_type_id
@@ -154,6 +152,19 @@
 
 	function closeModal() {
 		modalElement?.close();
+	}
+
+	function formatDate(isoString: string | Date | null | undefined): string {
+		if (!isoString) return '-';
+		try {
+			return new Date(isoString).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
+				year: 'numeric',
+				month: 'short',
+				day: 'numeric'
+			});
+		} catch (e) {
+			return '-';
+		}
 	}
 
 	const Icon = {
@@ -171,28 +182,29 @@
 	});
 </script>
 
-<svelte:head><title>ระบบจัดการสัญญา</title></svelte:head>
+<svelte:head><title>{$t('Contract Management')}</title></svelte:head>
 
 <div class="min-h-screen bg-gray-50 p-6 font-sans">
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-3xl font-bold text-gray-800">ระบบจัดการสัญญา (Contract Management)</h1>
+		<h1 class="text-3xl font-bold text-gray-800">{$t('Contract Management')}</h1>
 		<button
 			onclick={openAddModal}
 			class="flex transform items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-md transition duration-300 hover:bg-blue-700"
-			aria-label="เพิ่มสัญญาใหม่"
+			aria-label={$t('Add New Contract')}
 		>
-			{@html Icon.plus}<span>เพิ่มสัญญาใหม่</span>
+			{@html Icon.plus}<span>{$t('Add New Contract')}</span>
 		</button>
 	</div>
 
 	<div class="mb-6 grid grid-cols-1 gap-4 rounded-lg bg-white p-4 shadow md:grid-cols-3">
 		<div class="relative">
-			<label for="search" class="mb-1 block text-sm font-medium text-gray-700">ค้นหา</label>
+			<label for="search" class="mb-1 block text-sm font-medium text-gray-700">{$t('Search')}</label
+			>
 			<input
 				type="text"
 				id="search"
 				bind:value={filterSearch}
-				placeholder="ค้นหาชื่อ, เลขที่, หรือลูกค้า..."
+				placeholder={$t('Search title, number, or customer...')}
 				class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 focus:ring-blue-500"
 			/>
 			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pt-6 pl-3">
@@ -200,26 +212,31 @@
 			</div>
 		</div>
 		<div>
-			<label for="filterStatus" class="mb-1 block text-sm font-medium text-gray-700">สถานะ</label>
+			<label for="filterStatus" class="mb-1 block text-sm font-medium text-gray-700"
+				>{$t('Status')}</label
+			>
 			<select
 				id="filterStatus"
 				bind:value={filterStatus}
 				class="w-full rounded-lg border border-gray-300 p-2 shadow-sm focus:ring-blue-500"
 			>
-				<option value="">-- ทุกสถานะ --</option><option value="Draft">Draft</option><option
-					value="Active">Active</option
-				><option value="Expired">Expired</option><option value="Terminated">Terminated</option>
+				<option value="">{$t('-- All Statuses --')}</option>
+				<option value="Draft">{$t('Status_Draft') || 'Draft'}</option>
+				<option value="Active">{$t('Status_Active') || 'Active'}</option>
+				<option value="Expired">{$t('Status_Expired') || 'Expired'}</option>
+				<option value="Terminated">{$t('Status_Terminated') || 'Terminated'}</option>
 			</select>
 		</div>
 		<div>
-			<label for="filterCustomer" class="mb-1 block text-sm font-medium text-gray-700">ลูกค้า</label
+			<label for="filterCustomer" class="mb-1 block text-sm font-medium text-gray-700"
+				>{$t('Customer')}</label
 			>
 			<select
 				id="filterCustomer"
 				bind:value={filterCustomer}
 				class="w-full rounded-lg border border-gray-300 p-2 shadow-sm focus:ring-blue-500"
 			>
-				<option value="">-- ทุกลูกค้า --</option>
+				<option value="">{$t('-- All Customers --')}</option>
 				{#each customers as customer (customer.id)}<option value={customer.id}
 						>{customer.name}</option
 					>{/each}
@@ -231,12 +248,14 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-100">
 				<tr>
-					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">ชื่อสัญญา</th>
-					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">ลูกค้า</th>
-					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">สถานะ</th>
-					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">วันเริ่มต้น</th>
-					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">วันสิ้นสุด</th>
-					<th class="px-6 py-3 text-center font-bold text-gray-600 uppercase">จัดการ</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase"
+						>{$t('Contract Title')}</th
+					>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('Customer')}</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('Status')}</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('Start Date')}</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('End Date')}</th>
+					<th class="px-6 py-3 text-center font-bold text-gray-600 uppercase">{$t('Actions')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
@@ -252,30 +271,23 @@
 								class="inline-flex rounded-full px-3 py-1 text-xs leading-5 font-semibold {contract.status ===
 								'Draft'
 									? 'bg-yellow-100 text-yellow-800'
-									: 'bg-green-100 text-green-800'}">{contract.status}</span
+									: 'bg-green-100 text-green-800'}"
+								>{$t('Status_' + contract.status) || contract.status}</span
 							></td
 						>
-						<td class="px-6 py-4 text-nowrap"
-							>{contract.start_date
-								? new Date(contract.start_date).toLocaleDateString('th-TH')
-								: '-'}</td
-						>
-						<td class="px-6 py-4 text-nowrap"
-							>{contract.end_date
-								? new Date(contract.end_date).toLocaleDateString('th-TH')
-								: '-'}</td
-						>
+						<td class="px-6 py-4 text-nowrap">{formatDate(contract.start_date)}</td>
+						<td class="px-6 py-4 text-nowrap">{formatDate(contract.end_date)}</td>
 						<td class="px-6 py-4 text-center">
 							<div class="flex items-center justify-center gap-2">
 								<button
 									onclick={() => openEditModal(contract)}
 									class="text-blue-600 hover:text-blue-900"
-									aria-label="แก้ไขสัญญา">{@html Icon.edit}</button
+									aria-label={$t('Edit Contract')}>{@html Icon.edit}</button
 								>
 								<button
 									onclick={() => (contractToDelete = contract)}
 									class="text-red-600 hover:text-red-900"
-									aria-label="ลบสัญญา"
+									aria-label={$t('Delete')}
 								>
 									{@html Icon.delete}
 								</button>
@@ -283,7 +295,9 @@
 						</td>
 					</tr>
 				{:else}<tr
-						><td colspan="6" class="py-12 text-center text-gray-500">ไม่พบข้อมูลสัญญา...</td></tr
+						><td colspan="6" class="py-12 text-center text-gray-500"
+							>{$t('No contract data found...')}</td
+						></tr
 					>{/each}
 			</tbody>
 		</table>
@@ -315,13 +329,13 @@
 		class="p-6"
 	>
 		<h2 class="mb-6 text-2xl font-bold text-gray-800">
-			{isEditing ? 'แก้ไขสัญญา' : 'เพิ่มสัญญาใหม่'}
+			{isEditing ? $t('Edit Contract') : $t('Add New Contract')}
 		</h2>
 		{#if formError}<div
 				class="mb-4 rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-red-700"
 				transition:slide
 			>
-				<strong>Error:</strong>
+				<strong>{$t('Error:')}</strong>
 				{formError}
 			</div>{/if}
 		{#if isEditing}<input type="hidden" name="id" value={currentContract.id} />{/if}
@@ -330,7 +344,9 @@
 			<div class="space-y-4 lg:col-span-2">
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="title" class="text-sm font-medium text-gray-700">ชื่อสัญญา *</label><input
+						<label for="title" class="text-sm font-medium text-gray-700"
+							>{$t('Contract Title *')}</label
+						><input
 							type="text"
 							id="title"
 							name="title"
@@ -341,7 +357,7 @@
 					</div>
 					<div>
 						<label for="contract_number" class="text-sm font-medium text-gray-700"
-							>เลขที่สัญญา</label
+							>{$t('Contract Number')}</label
 						><input
 							type="text"
 							id="contract_number"
@@ -354,20 +370,19 @@
 
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="customer_id" class="text-sm font-medium text-gray-700">ลูกค้า *</label>
+						<span class="mb-1 block text-sm font-medium text-gray-700">{$t('Customer *')}</span>
 						<input type="hidden" name="customer_id" value={currentContract.customer_id} />
 						<Select
 							items={customerOptions}
 							value={selectedCustomerObj}
 							on:change={handleCustomerChange}
 							on:clear={() => handleCustomerChange(null)}
-							placeholder="-- ค้นหา/เลือกลูกค้า --"
+							placeholder={$t('-- Search/Select Customer --')}
 							container={browser ? document.body : null}
 						/>
 					</div>
 					<div>
-						<label for="contract_type_id" class="text-sm font-medium text-gray-700"
-							>ประเภทสัญญา *</label
+						<span class="mb-1 block text-sm font-medium text-gray-700">{$t('Contract Type *')}</span
 						>
 						<input type="hidden" name="contract_type_id" value={currentContract.contract_type_id} />
 						<Select
@@ -375,7 +390,7 @@
 							value={selectedContractTypeObj}
 							on:change={handleContractTypeChange}
 							on:clear={() => handleContractTypeChange(null)}
-							placeholder="-- ค้นหา/เลือกประเภท --"
+							placeholder={$t('-- Search/Select Type --')}
 							container={browser ? document.body : null}
 						/>
 					</div>
@@ -383,20 +398,23 @@
 
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="status" class="text-sm font-medium text-gray-700">สถานะ *</label><select
+						<label for="status" class="text-sm font-medium text-gray-700">{$t('Status')} *</label
+						><select
 							id="status"
 							name="status"
 							bind:value={currentContract.status}
 							required
 							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
-							><option value="Draft">Draft</option><option value="Active">Active</option><option
-								value="Expired">Expired</option
-							><option value="Terminated">Terminated</option></select
 						>
+							<option value="Draft">{$t('Status_Draft') || 'Draft'}</option>
+							<option value="Active">{$t('Status_Active') || 'Active'}</option>
+							<option value="Expired">{$t('Status_Expired') || 'Expired'}</option>
+							<option value="Terminated">{$t('Status_Terminated') || 'Terminated'}</option>
+						</select>
 					</div>
 					<div>
 						<label for="contract_value" class="text-sm font-medium text-gray-700"
-							>มูลค่าสัญญา (บาท)</label
+							>{$t('Contract Value (Baht)')}</label
 						><input
 							type="number"
 							step="0.01"
@@ -410,7 +428,8 @@
 
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					<div>
-						<label for="start_date" class="text-sm font-medium text-gray-700">วันเริ่มต้น</label
+						<label for="start_date" class="text-sm font-medium text-gray-700"
+							>{$t('Start Date')}</label
 						><input
 							type="date"
 							id="start_date"
@@ -420,7 +439,8 @@
 						/>
 					</div>
 					<div>
-						<label for="end_date" class="text-sm font-medium text-gray-700">วันสิ้นสุด</label><input
+						<label for="end_date" class="text-sm font-medium text-gray-700">{$t('End Date')}</label
+						><input
 							type="date"
 							id="end_date"
 							name="end_date"
@@ -431,14 +451,14 @@
 				</div>
 
 				<div>
-					<label for="owner_user_id" class="text-sm font-medium text-gray-700">ผู้รับผิดชอบ</label>
+					<span class="mb-1 block text-sm font-medium text-gray-700">{$t('Owner (Internal)')}</span>
 					<input type="hidden" name="owner_user_id" value={currentContract.owner_user_id} />
 					<Select
 						items={userOptions}
 						value={selectedUserObj}
 						on:change={handleUserChange}
 						on:clear={() => handleUserChange(null)}
-						placeholder="-- ค้นหา/เลือกพนักงาน --"
+						placeholder={$t('-- Search/Select Employee --')}
 						container={browser ? document.body : null}
 						--inputStyles="padding: 2px 0; font-size: 0.875rem;"
 						--list="border-radius: 6px; font-size: 0.875rem;"
@@ -448,7 +468,8 @@
 
 				<div class="pt-2">
 					<label for="contractFiles" class="text-sm font-medium text-gray-700"
-						>ไฟล์เอกสารสัญญา {#if !isEditing}<span class="text-red-500">*</span>{/if}</label
+						>{$t('Contract Documents')}
+						{#if !isEditing}<span class="text-red-500">*</span>{/if}</label
 					><input
 						type="file"
 						id="contractFiles"
@@ -462,7 +483,7 @@
 
 			<div class="max-h-96 overflow-y-auto rounded-lg border bg-gray-50 p-4 lg:col-span-1">
 				<h3 class="mb-3 text-lg font-semibold text-gray-700">
-					เอกสารแนบ ({currentContract.documents.length})
+					{$t('Attachments')} ({currentContract.documents.length})
 				</h3>
 				{#if currentContract.documents.length > 0}
 					<ul class="space-y-3">
@@ -472,9 +493,9 @@
 								<div class="mr-2 truncate">
 									<div class="truncate font-medium text-gray-800">{doc.name}</div>
 									<div class="text-xs text-gray-500">
-										เวอร์ชัน: {doc.version} | {new Date(doc.uploaded_at).toLocaleDateString(
-											'th-TH'
-										)}
+										{$t('Version:')}
+										{doc.version} |
+										{formatDate(doc.uploaded_at)}
 									</div>
 								</div>
 								<a
@@ -482,11 +503,11 @@
 									target="_blank"
 									download={doc.name}
 									class="rounded-full p-1 text-green-600 transition hover:bg-green-50 hover:text-green-800"
-									aria-label="ดาวน์โหลดไฟล์">{@html Icon.download}</a
+									aria-label={$t('Download file')}>{@html Icon.download}</a
 								>
 							</li>{/each}
 					</ul>
-				{:else}<p class="text-sm text-gray-500 italic">ยังไม่มีเอกสารอัปโหลด</p>{/if}
+				{:else}<p class="text-sm text-gray-500 italic">{$t('No documents uploaded yet.')}</p>{/if}
 			</div>
 		</div>
 
@@ -495,7 +516,7 @@
 				type="button"
 				onclick={closeModal}
 				class="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 transition hover:bg-gray-300"
-				>ยกเลิก</button
+				>{$t('Cancel')}</button
 			>
 			<button
 				type="submit"
@@ -505,8 +526,8 @@
 				{#if isLoading}<div
 						class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
 					></div>
-					<span>กำลังบันทึก...</span>{:else}{@html Icon.plus}<span
-						>{isEditing ? 'บันทึกการเปลี่ยนแปลง' : 'สร้างสัญญา'}</span
+					<span>{$t('Saving...')}</span>{:else}{@html Icon.plus}<span
+						>{isEditing ? $t('Save Changes') : $t('Create Contract')}</span
 					>{/if}
 			</button>
 		</div>
@@ -520,11 +541,14 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl transition-all">
-			<h3 class="text-lg font-bold text-gray-900">ยืนยันการลบสัญญา</h3>
+			<h3 class="text-lg font-bold text-gray-900">{$t('Confirm Delete Contract')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบสัญญา "<strong>{contractToDelete.title}</strong>"?<br />
+				{$t('Are you sure you want to delete contract')} "<strong>{contractToDelete.title}</strong
+				>"?<br />
 				<span class="text-xs text-red-500"
-					>การดำเนินการนี้จะลบข้อมูลสัญญาและเอกสารแนบทั้งหมด ไม่สามารถย้อนกลับได้</span
+					>{$t(
+						'This action will delete all contract data and attachments. This cannot be undone.'
+					)}</span
 				>
 			</p>
 			<form
@@ -550,14 +574,14 @@
 					class="rounded border px-4 py-2 text-sm font-medium hover:bg-gray-50"
 					disabled={isDeleting}
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 				<button
 					type="submit"
 					class="rounded bg-red-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-red-700 disabled:bg-red-300"
 					disabled={isDeleting}
 				>
-					{#if isDeleting}กำลังลบ...{:else}ลบข้อมูล{/if}
+					{#if isDeleting}{$t('Deleting...')}{:else}{$t('Delete Data')}{/if}
 				</button>
 			</form>
 		</div>

@@ -95,7 +95,7 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Partner/Contact')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Description')}</th>
 				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Amount')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Manage')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">

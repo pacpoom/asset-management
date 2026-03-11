@@ -3,8 +3,8 @@
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
+	import { t, locale } from '$lib/i18n';
 
-	// --- Types ---
 	type Department = PageData['departments'][0];
 	type DepartmentDocument = {
 		id: number;
@@ -18,7 +18,6 @@
 	};
 	type GroupedDocuments = { [key: string]: DepartmentDocument[] };
 
-	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	const initialGrouped: GroupedDocuments = {};
@@ -30,31 +29,38 @@
 	let selectedDepartmentId = $state<number | undefined>(data.departments?.[0]?.id);
 	let description = $state('');
 	let fileInputRef: HTMLInputElement | null = $state(null);
+
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let uploadSuccessMessage = $state<string | null>(null);
+
 	let documentToDelete = $state<DepartmentDocument | null>(null);
 	let documentToRename = $state<DepartmentDocument | null>(null);
 	let isDeleting = $state(false);
 	let isRenaming = $state(false);
+
 	let renameForm: { new_name: string; new_description: string | null } = $state({
 		new_name: '',
 		new_description: null
 	});
 
-	// State สำหรับจัดการ "โฟลเดอร์"
 	let activeDepartmentId = $state<number | null>(null);
 	let searchQuery = $state('');
 	let dateFrom = $state<string | null>(null);
 	let dateTo = $state<string | null>(null);
 
-	// DERIVED STATE สำหรับหา "แผนกที่กำลังเปิด"
 	const activeDepartment = $derived(() => {
 		if (activeDepartmentId === null) return null;
 		return data.departments.find((d: Department) => d.id === activeDepartmentId);
 	});
 
-	// Functions สำหรับจัดการ UI
+	const formatDateTime = (isoStr: string) => {
+		return new Date(isoStr).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		});
+	};
+
 	function openDepartment(deptId: number) {
 		activeDepartmentId = deptId;
 		searchQuery = '';
@@ -82,25 +88,22 @@
 	const filteredGroupedDocuments = $derived(() => {
 		const lowerQuery = searchQuery.toLowerCase().trim();
 
-		// 1. Parse วันที่แค่ครั้งเดียว (เพื่อประสิทธิภาพ)
 		let fromDate: Date | null = null;
 		if (dateFrom) {
-			fromDate = new Date(dateFrom); // จะได้วันที่ เช่น 28 ต.ค. @ 00:00:00
+			fromDate = new Date(dateFrom);
 		}
 
 		let toDate: Date | null = null;
 		if (dateTo) {
 			toDate = new Date(dateTo);
-			toDate.setHours(23, 59, 59, 999); //  ตั้งค่าเวลา 23.59 น."
+			toDate.setHours(23, 59, 59, 999);
 		}
 
 		const filtered: GroupedDocuments = {};
 
-		// วนลูปทุกแผนก
 		Object.keys(groupedDocuments).forEach((deptIdKey) => {
 			filtered[deptIdKey] = groupedDocuments[deptIdKey].filter((doc) => {
 				if (lowerQuery) {
-					// ถ้ามีคำค้นหา
 					const nameMatch = doc.file_name.toLowerCase().includes(lowerQuery);
 					const descMatch = doc.description
 						? doc.description.toLowerCase().includes(lowerQuery)
@@ -111,16 +114,9 @@
 				}
 
 				const docDate = new Date(doc.uploaded_at);
+				if (fromDate && docDate < fromDate) return false;
+				if (toDate && docDate > toDate) return false;
 
-				if (fromDate && docDate < fromDate) {
-					return false;
-				}
-
-				if (toDate && docDate > toDate) {
-					return false;
-				}
-
-				// --- ถ้าผ่านทุกเงื่อนไข ---
 				return true;
 			});
 		});
@@ -132,9 +128,11 @@
 	const handleSubmitUpload = () => {
 		isUploading = true;
 		uploadError = null;
-		uploadSuccessMessage = null; // ✅ 1. ล้างข้อความเก่า
+		uploadSuccessMessage = null;
+
 		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
 			isUploading = false;
+
 			if (
 				result.type === 'success' &&
 				result.data?.action === 'uploadDocument' &&
@@ -151,15 +149,13 @@
 				description = '';
 				if (fileInputRef) fileInputRef.value = '';
 
-				// ✅ 2. ตั้งข้อความใหม่ และตั้งเวลาลบ
 				const count = newDocs.length;
-				uploadSuccessMessage = `อัปโหลด ${count} เอกสาร สำเร็จ!`;
-
+				uploadSuccessMessage = `${$t('Uploaded')} ${count} ${$t('documents successfully!')}`;
 				setTimeout(() => {
 					uploadSuccessMessage = null;
-				}, 3000); // (ข้อความจะหายไปใน 3 วินาที)
+				}, 3000);
 			} else if (result.type === 'failure' && result.data?.action === 'uploadDocument') {
-				uploadError = result.data.message ?? 'Unknown upload error';
+				uploadError = (result.data.message as string) ?? $t('Unknown upload error');
 				await update();
 			}
 		};
@@ -169,6 +165,7 @@
 		isRenaming = true;
 		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
 			isRenaming = false;
+
 			if (
 				result.type === 'success' &&
 				result.data?.action === 'renameDocument' &&
@@ -185,14 +182,16 @@
 				closeRenameModal();
 			} else if (result.type === 'failure') {
 				await update();
-				alert(result.data?.message ?? 'Rename failed');
+				alert((result.data?.message as string) ?? $t('Rename failed'));
 			}
 		};
 	};
+
 	const handleSubmitDelete = () => {
 		isDeleting = true;
 		return async ({ result, update }: { result: ActionResult; update: () => Promise<void> }) => {
 			isDeleting = false;
+
 			if (
 				result.type === 'success' &&
 				result.data?.action === 'deleteDocument' &&
@@ -207,7 +206,7 @@
 				closeDeleteModal();
 			} else if (result.type === 'failure') {
 				await update();
-				alert(result.data?.message ?? 'Delete failed');
+				alert((result.data?.message as string) ?? $t('Delete failed'));
 				closeDeleteModal();
 			}
 		};
@@ -215,11 +214,11 @@
 </script>
 
 <svelte:head>
-	<title>Department Documents</title>
+	<title>{$t('Department Documents')}</title>
 </svelte:head>
 
 <div class="container mx-auto px-4 py-8">
-	<h1 class="mb-6 text-3xl font-bold">จัดการเอกสารตามแผนก</h1>
+	<h1 class="mb-6 text-3xl font-bold">{$t('Manage Department Documents')}</h1>
 
 	<form
 		method="POST"
@@ -228,11 +227,11 @@
 		enctype="multipart/form-data"
 		class="mb-8 rounded-lg border bg-white p-6 shadow"
 	>
-		<h2 class="mb-4 text-xl font-semibold">อัปโหลดเอกสารใหม่</h2>
+		<h2 class="mb-4 text-xl font-semibold">{$t('Upload New Document')}</h2>
 
 		{#if form?.action === 'uploadDocument' && form?.success === false}
 			<div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-700">
-				<strong>Error:</strong>
+				<strong>{$t('Error:')}</strong>
 				{form.message}
 			</div>
 		{/if}
@@ -247,7 +246,7 @@
 		{/if}
 		<div class="mb-4">
 			<label for="department_id" class="mb-2 block text-sm font-medium text-gray-700"
-				>เลือกแผนก*</label
+				>{$t('Select Department *')}</label
 			>
 			<select
 				id="department_id"
@@ -263,7 +262,7 @@
 		</div>
 		<div class="mb-4">
 			<label for="description" class="mb-2 block text-sm font-medium text-gray-700"
-				>คำอธิบาย (ถ้ามี)</label
+				>{$t('Description (Optional)')}</label
 			>
 			<textarea
 				id="description"
@@ -275,7 +274,7 @@
 		</div>
 		<div class="mb-6">
 			<label for="document" class="mb-2 block text-sm font-medium text-gray-700"
-				>เลือกไฟล์เอกสาร* (เลือกได้หลายไฟล์)</label
+				>{$t('Select Document(s) * (Multiple allowed)')}</label
 			>
 			<input
 				type="file"
@@ -311,10 +310,10 @@
 							fill="currentColor"
 						/>
 					</svg>
-					กำลังอัปโหลด...
+					{$t('Uploading...')}
 				</span>
 			{:else}
-				อัปโหลดเอกสาร
+				{$t('Upload Document')}
 			{/if}
 		</button>
 	</form>
@@ -331,7 +330,7 @@
 								type="button"
 								onclick={closeDepartment}
 								class="rounded-full p-2 text-gray-600 hover:bg-gray-100"
-								title="ย้อนกลับ"
+								title={$t('Back')}
 							>
 								<svg
 									class="h-5 w-5"
@@ -353,7 +352,7 @@
 						<div class="flex flex-wrap items-end gap-2">
 							<div>
 								<label for="date_from" class="mb-1 block text-xs font-medium text-gray-600"
-									>ค้นหาตั้งแต่วันที่</label
+									>{$t('Search from date')}</label
 								>
 								<input
 									type="date"
@@ -364,7 +363,7 @@
 							</div>
 							<div>
 								<label for="date_to" class="mb-1 block text-xs font-medium text-gray-600"
-									>ถึงวันที่</label
+									>{$t('To date')}</label
 								>
 								<input
 									type="date"
@@ -375,19 +374,18 @@
 							</div>
 							<div class="w-full max-w-xs">
 								<label for="search_box" class="mb-1 block text-xs font-medium text-gray-600"
-									>ค้นหาตามชื่อไฟล์</label
+									>{$t('Search by file name')}</label
 								>
 								<input
 									type="search"
 									id="search_box"
 									bind:value={searchQuery}
-									placeholder="ค้นหาในโฟลเดอร์นี้..."
+									placeholder={$t('Search in this folder...')}
 									class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
 						</div>
 					</div>
-					{#if docs.length > 0}{:else}{/if}
 				</div>
 
 				{#if docs.length > 0}
@@ -403,7 +401,10 @@
 										<p class="text-sm text-gray-600">{doc.description}</p>
 									{/if}
 									<p class="text-xs text-gray-500">
-										Uploaded by {doc.uploader_name} on {new Date(doc.uploaded_at).toLocaleString()}
+										{$t('Uploaded by')}
+										{doc.uploader_name}
+										{$t('on')}
+										{formatDateTime(doc.uploaded_at)}
 									</p>
 								</div>
 								<div class="flex flex-shrink-0 gap-2">
@@ -412,7 +413,7 @@
 										target="_blank"
 										download={doc.file_name}
 										class="rounded-md p-1.5 text-blue-600 hover:bg-blue-100"
-										title="Download"
+										title={$t('Download')}
 									>
 										<svg
 											class="h-5 w-5"
@@ -429,7 +430,7 @@
 									<button
 										onclick={() => openRenameModal(doc)}
 										class="rounded-md p-1.5 text-yellow-600 hover:bg-yellow-100"
-										title="Rename"
+										title={$t('Rename')}
 									>
 										<svg
 											class="h-5 w-5"
@@ -448,7 +449,7 @@
 									<button
 										onclick={() => openDeleteModal(doc)}
 										class="rounded-md p-1.5 text-red-600 hover:bg-red-100"
-										title="Delete"
+										title={$t('Delete')}
 									>
 										<svg
 											class="h-5 w-5"
@@ -469,16 +470,16 @@
 				{:else}
 					<div class="rounded-lg border bg-white p-12 text-center text-gray-500 shadow-sm">
 						{#if searchQuery}
-							ไม่พบเอกสารที่ตรงกับการค้นหา
+							{$t('No documents match your search')}
 						{:else}
-							โฟลเดอร์นี้ว่าง
+							{$t('This folder is empty')}
 						{/if}
 					</div>
 				{/if}
 			</div>
 		{:else}
 			<div>
-				<h2 class="mb-4 text-2xl font-semibold">แผนกทั้งหมด</h2>
+				<h2 class="mb-4 text-2xl font-semibold">{$t('All Departments')}</h2>
 				<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
 					{#each data.departments as department (department.id)}
 						<button
@@ -509,7 +510,7 @@
 			aria-modal="true"
 		>
 			<div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-				<h3 class="text-lg font-bold">แก้ไขรายละเอียดเอกสาร</h3>
+				<h3 class="text-lg font-bold">{$t('Edit Document Details')}</h3>
 				<form
 					method="POST"
 					action="?/renameDocument"
@@ -519,7 +520,7 @@
 					<input type="hidden" name="document_id" value={documentToRename.id} />
 					<div>
 						<label for="new_name" class="mb-2 block text-sm font-medium text-gray-900"
-							>ชื่อไฟล์ใหม่*</label
+							>{$t('New File Name *')}</label
 						>
 						<input
 							type="text"
@@ -532,7 +533,7 @@
 					</div>
 					<div>
 						<label for="new_description" class="mb-2 block text-sm font-medium text-gray-900"
-							>คำอธิบายใหม่ (ถ้ามี)</label
+							>{$t('New Description (Optional)')}</label
 						>
 						<textarea
 							id="new_description"
@@ -552,7 +553,7 @@
 							disabled={isRenaming}
 							class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 						>
-							Cancel
+							{$t('Cancel')}
 						</button>
 						<button
 							type="submit"
@@ -560,9 +561,9 @@
 							class="rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:bg-blue-400"
 						>
 							{#if isRenaming}
-								Saving...
+								{$t('Saving...')}
 							{:else}
-								Save Changes
+								{$t('Save Changes')}
 							{/if}
 						</button>
 					</div>
@@ -577,10 +578,10 @@
 			role="alertdialog"
 		>
 			<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-				<h3 class="text-lg font-bold">ยืนยันการลบเอกสาร</h3>
+				<h3 class="text-lg font-bold">{$t('Confirm Delete Document')}</h3>
 				<p class="mt-2 text-sm text-gray-600">
-					คุณแน่ใจหรือไม่ที่จะลบเอกสาร "{documentToDelete.file_name}"?
-					การดำเนินการนี้ไม่สามารถย้อนกลับได้
+					{$t('Are you sure you want to delete document')} "{documentToDelete.file_name}"?
+					{$t('This action cannot be undone.')}
 				</p>
 				<form
 					method="POST"
@@ -595,7 +596,7 @@
 						disabled={isDeleting}
 						class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 					>
-						ยกเลิก
+						{$t('Cancel')}
 					</button>
 					<button
 						type="submit"
@@ -603,9 +604,9 @@
 						class="rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none disabled:bg-red-400"
 					>
 						{#if isDeleting}
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete')}
 						{/if}
 					</button>
 				</form>

@@ -4,13 +4,14 @@
 	import { slide, fade } from 'svelte/transition';
 	import { invalidateAll, goto } from '$app/navigation';
 	import { compressImage } from '$lib/utils/image-compressor';
+	import { t, locale } from '$lib/i18n';
 
 	// --- Types ---
 	type Product = PageData['products'][0];
 	type ProductCategory = PageData['categories'][0];
 	type Unit = PageData['units'][0];
 	type Vendor = PageData['vendors'][0];
-	type Customer = PageData['customers'][0]; // Added
+	type Customer = PageData['customers'][0];
 	type ChartOfAccount = PageData['accounts'][0];
 
 	// --- Props & State ---
@@ -180,7 +181,7 @@
 
 	function formatCurrency(value: number | null | undefined, defaultValue: string = '-') {
 		if (value === null || value === undefined) return defaultValue;
-		return new Intl.NumberFormat('th-TH', {
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
 			style: 'decimal',
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 4
@@ -188,7 +189,7 @@
 	}
 	function formatQuantity(value: number | null | undefined, defaultValue: string = '-') {
 		if (value === null || value === undefined) return defaultValue;
-		return new Intl.NumberFormat('th-TH', {
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
 			style: 'decimal',
 			minimumFractionDigits: 0,
 			maximumFractionDigits: 4
@@ -263,7 +264,7 @@
 </script>
 
 <svelte:head>
-	<title>Products</title>
+	<title>{$t('Products')}</title>
 </svelte:head>
 
 {#if globalMessage}
@@ -280,8 +281,8 @@
 
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">Products</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการรายการสินค้าและบริการ</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Products')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Manage products and services')}</p>
 	</div>
 	<div class="flex items-center gap-2">
 		<form method="POST" action="/products/export">
@@ -303,7 +304,7 @@
 						points="7 10 12 15 17 10"
 					/><line x1="12" y1="15" x2="12" y2="3" /></svg
 				>
-				ส่งออกเป็น CSV
+				{$t('Export to CSV')}
 			</button>
 		</form>
 		<button
@@ -319,7 +320,7 @@
 				class="h-4 w-4"
 				><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 			>
-			เพิ่มสินค้าใหม่
+			{$t('Add New Product')}
 		</button>
 	</div>
 </div>
@@ -332,7 +333,7 @@
 			name="search"
 			bind:value={searchQuery}
 			oninput={handleSearchInput}
-			placeholder="ค้นหา SKU, ชื่อสินค้า, หมวดหมู่, ผู้ขาย, ลูกค้า..."
+			placeholder={$t('Search Product Placeholder')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -355,24 +356,26 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Image</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">SKU</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Name</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Type</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Category</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">Qty on Hand</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Unit</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">Cost</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">Price</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">Active</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">Actions</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Image')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('SKU')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Name')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Category')}</th>
+				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Qty on Hand')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Unit')}</th>
+				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Cost')}</th>
+				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Price')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Active')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if filteredProducts.length === 0}
 				<tr>
 					<td colspan="11" class="py-12 text-center text-gray-500">
-						{#if data.searchQuery}ไม่พบสินค้าที่ค้นหา: "{data.searchQuery}"{:else}ไม่พบข้อมูลสินค้า{/if}
+						{#if data.searchQuery}{$t('No products found for:')} "{data.searchQuery}"{:else}{$t(
+								'No product data found'
+							)}{/if}
 					</td>
 				</tr>
 			{:else}
@@ -444,7 +447,7 @@
 								<button
 									onclick={() => openModal('edit', product)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-									aria-label="Edit product"
+									aria-label={$t('Edit Product')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -460,7 +463,7 @@
 								<button
 									onclick={() => (productToDelete = product)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
-									aria-label="Delete product"
+									aria-label={$t('Delete')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -486,8 +489,10 @@
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
 		<div>
 			<p class="text-sm text-gray-700">
-				Page <span class="font-medium">{data.currentPage}</span> of
+				{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
+				{$t('of')}
 				<span class="font-medium">{data.totalPages}</span>
+				{$t('pages')}
 			</p>
 		</div>
 		<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
@@ -498,7 +503,7 @@
 					? 'pointer-events-none opacity-50'
 					: ''}"
 				aria-disabled={data.currentPage === 1}
-				><span class="sr-only">Previous</span><svg
+				><span class="sr-only">{$t('Previous')}</span><svg
 					class="h-5 w-5"
 					viewBox="0 0 20 20"
 					fill="currentColor"
@@ -530,7 +535,7 @@
 					? 'pointer-events-none opacity-50'
 					: ''}"
 				aria-disabled={data.currentPage === data.totalPages}
-				><span class="sr-only">Next</span><svg
+				><span class="sr-only">{$t('Next')}</span><svg
 					class="h-5 w-5"
 					viewBox="0 0 20 20"
 					fill="currentColor"
@@ -556,7 +561,7 @@
 		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? 'เพิ่มสินค้า/บริการใหม่' : 'แก้ไขสินค้า/บริการ'}
+					{modalMode === 'add' ? $t('Add New Product/Service') : $t('Edit Product/Service')}
 				</h2>
 			</div>
 
@@ -592,21 +597,22 @@
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label for="sku" class="mb-1 block text-sm font-medium">SKU</label>
+								<label for="sku" class="mb-1 block text-sm font-medium">{$t('SKU')}</label>
 								<input
 									type="text"
 									name="sku"
 									id="sku"
-									value={modalMode === 'add' ? '(Auto-generated)' : selectedProduct.sku}
+									value={modalMode === 'add' ? $t('(Auto-generated)') : selectedProduct.sku}
 									class="w-full rounded-md border-gray-300 bg-gray-100 text-sm"
 									readonly
 								/>
 								{#if modalMode === 'add'}
-									<p class="mt-1 text-xs text-gray-500">ระบบจะสร้าง SKU ให้โดยอัตโนมัติ</p>
+									<p class="mt-1 text-xs text-gray-500">{$t('System will auto-generate SKU')}</p>
 								{/if}
 							</div>
 							<div>
-								<label for="name" class="mb-1 block text-sm font-medium">Name *</label><input
+								<label for="name" class="mb-1 block text-sm font-medium">{$t('Name *')}</label
+								><input
 									type="text"
 									name="name"
 									id="name"
@@ -618,7 +624,8 @@
 						</div>
 
 						<div>
-							<label for="description" class="mb-1 block text-sm font-medium">Description</label
+							<label for="description" class="mb-1 block text-sm font-medium"
+								>{$t('Description')}</label
 							><textarea
 								name="description"
 								id="description"
@@ -631,7 +638,7 @@
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
 								<label for="product_type" class="mb-1 block text-sm font-medium"
-									>Product Type *</label
+									>{$t('Product Type *')}</label
 								>
 								<select
 									name="product_type"
@@ -640,20 +647,22 @@
 									bind:value={selectedProduct.product_type}
 									class="w-full rounded-md border-gray-300 text-sm"
 								>
-									<option value="Stock">Stock (สินค้าคงคลัง)</option>
-									<option value="NonStock">Non-Stock (สินค้าไม่นับสต็อก)</option>
-									<option value="Service">Service (บริการ)</option>
+									<option value="Stock">{$t('Stock (Inventory)')}</option>
+									<option value="NonStock">{$t('Non-Stock')}</option>
+									<option value="Service">{$t('Service')}</option>
 								</select>
 							</div>
 							<div>
-								<label for="category_id" class="mb-1 block text-sm font-medium">Category</label>
+								<label for="category_id" class="mb-1 block text-sm font-medium"
+									>{$t('Category')}</label
+								>
 								<select
 									name="category_id"
 									id="category_id"
 									bind:value={selectedProduct.category_id}
 									class="w-full rounded-md border-gray-300 text-sm"
 								>
-									<option value={null}>-- None --</option>
+									<option value={null}>{$t('-- None --')}</option>
 									{#each data.categories as category (category.id)}
 										<option value={category.id}>{category.name}</option>
 									{/each}
@@ -662,11 +671,12 @@
 						</div>
 
 						<fieldset class="rounded-md border p-4">
-							<legend class="px-1 text-sm font-medium">Units</legend>
+							<legend class="px-1 text-sm font-medium">{$t('Units')}</legend>
 							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 								<div>
 									<label for="unit_id" class="mb-1 block text-xs font-medium"
-										>Base Unit * <span class="text-gray-500">(Required)</span></label
+										>{$t('Base Unit *')}
+										<span class="text-gray-500">{$t('(Required)')}</span></label
 									>
 									<select
 										name="unit_id"
@@ -675,7 +685,7 @@
 										bind:value={selectedProduct.unit_id}
 										class="w-full rounded-md border-gray-300 text-sm"
 									>
-										<option value={undefined} disabled>Select Unit</option>
+										<option value={undefined} disabled>{$t('Select Unit')}</option>
 										{#each data.units as unit (unit.id)}
 											<option value={unit.id}>{unit.name} ({unit.symbol})</option>
 										{/each}
@@ -683,7 +693,7 @@
 								</div>
 								<div>
 									<label for="purchase_unit_id" class="mb-1 block text-xs font-medium"
-										>Purchase Unit</label
+										>{$t('Purchase Unit')}</label
 									>
 									<select
 										name="purchase_unit_id"
@@ -691,7 +701,7 @@
 										bind:value={selectedProduct.purchase_unit_id}
 										class="w-full rounded-md border-gray-300 text-sm"
 									>
-										<option value={null}>-- Same as Base --</option>
+										<option value={null}>{$t('-- Same as Base --')}</option>
 										{#each data.units as unit (unit.id)}
 											<option value={unit.id}>{unit.name} ({unit.symbol})</option>
 										{/each}
@@ -699,7 +709,7 @@
 								</div>
 								<div>
 									<label for="sales_unit_id" class="mb-1 block text-xs font-medium"
-										>Sales Unit</label
+										>{$t('Sales Unit')}</label
 									>
 									<select
 										name="sales_unit_id"
@@ -707,7 +717,7 @@
 										bind:value={selectedProduct.sales_unit_id}
 										class="w-full rounded-md border-gray-300 text-sm"
 									>
-										<option value={null}>-- Same as Base --</option>
+										<option value={null}>{$t('-- Same as Base --')}</option>
 										{#each data.units as unit (unit.id)}
 											<option value={unit.id}>{unit.name} ({unit.symbol})</option>
 										{/each}
@@ -715,14 +725,14 @@
 								</div>
 							</div>
 							<p class="mt-2 text-xs text-gray-500">
-								Define unit conversions if Purchase/Sales units differ from Base Unit.
+								{$t('Define unit conversions if Purchase/Sales units differ from Base Unit.')}
 							</p>
 						</fieldset>
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
 								<label for="purchase_cost" class="mb-1 block text-sm font-medium"
-									>Purchase Cost</label
+									>{$t('Purchase Cost')}</label
 								>
 								<input
 									type="number"
@@ -736,7 +746,7 @@
 							</div>
 							<div>
 								<label for="selling_price" class="mb-1 block text-sm font-medium"
-									>Selling Price</label
+									>{$t('Selling Price')}</label
 								>
 								<input
 									type="number"
@@ -754,7 +764,7 @@
 							<div transition:slide class="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
 								<div>
 									<label for="quantity_on_hand" class="mb-1 block text-sm font-medium"
-										>Quantity on Hand</label
+										>{$t('Quantity on Hand')}</label
 									>
 									<input
 										type="number"
@@ -764,11 +774,11 @@
 										bind:value={selectedProduct.quantity_on_hand}
 										class="w-full rounded-md border-gray-300 text-sm"
 									/>
-									<p class="mt-1 text-xs text-gray-500">In Base Unit.</p>
+									<p class="mt-1 text-xs text-gray-500">{$t('In Base Unit.')}</p>
 								</div>
 								<div>
 									<label for="reorder_level" class="mb-1 block text-sm font-medium"
-										>Reorder Level</label
+										>{$t('Reorder Level')}</label
 									>
 									<input
 										type="number"
@@ -776,10 +786,10 @@
 										name="reorder_level"
 										id="reorder_level"
 										bind:value={selectedProduct.reorder_level}
-										placeholder="Optional"
+										placeholder={$t('Optional')}
 										class="w-full rounded-md border-gray-300 text-sm"
 									/>
-									<p class="mt-1 text-xs text-gray-500">In Base Unit.</p>
+									<p class="mt-1 text-xs text-gray-500">{$t('In Base Unit.')}</p>
 								</div>
 							</div>
 						{/if}
@@ -787,7 +797,7 @@
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div class="relative">
 								<label for="preferred_vendor_id" class="mb-1 block text-sm font-medium"
-									>Preferred Vendor</label
+									>{$t('Preferred Vendor')}</label
 								>
 								<input
 									type="hidden"
@@ -796,7 +806,7 @@
 								/>
 								<input
 									type="text"
-									placeholder="-- พิมพ์ค้นหา หรือเลือก Vendor --"
+									placeholder={$t('-- Search or select Vendor --')}
 									bind:value={vendorSearchText}
 									onfocus={() => (isVendorDropdownOpen = true)}
 									onblur={() => setTimeout(() => (isVendorDropdownOpen = false), 200)}
@@ -820,7 +830,7 @@
 													isVendorDropdownOpen = false;
 												}}
 											>
-												-- None --
+												{$t('-- None --')}
 											</button>
 										</li>
 										{#each filteredVendors as vendor (vendor.id)}
@@ -844,7 +854,7 @@
 
 							<div class="relative">
 								<label for="preferred_customer_id" class="mb-1 block text-sm font-medium"
-									>Preferred Customer</label
+									>{$t('Preferred Customer')}</label
 								>
 								<input
 									type="hidden"
@@ -853,7 +863,7 @@
 								/>
 								<input
 									type="text"
-									placeholder="-- พิมพ์ค้นหา หรือเลือก Customer --"
+									placeholder={$t('-- Search or select Customer --')}
 									bind:value={customerSearchText}
 									onfocus={() => (isCustomerDropdownOpen = true)}
 									onblur={() => setTimeout(() => (isCustomerDropdownOpen = false), 200)}
@@ -877,7 +887,7 @@
 													isCustomerDropdownOpen = false;
 												}}
 											>
-												-- None --
+												{$t('-- None --')}
 											</button>
 										</li>
 										{#each filteredCustomers as customer (customer.id)}
@@ -901,11 +911,11 @@
 						</div>
 
 						<fieldset class="rounded-md border p-4">
-							<legend class="px-1 text-sm font-medium">Accounting Links</legend>
+							<legend class="px-1 text-sm font-medium">{$t('Accounting Links')}</legend>
 							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 								<div>
 									<label for="asset_account_id" class="mb-1 block text-xs font-medium"
-										>Asset Account <span class="text-gray-500">(Stock)</span></label
+										>{$t('Asset Account')} <span class="text-gray-500">{$t('(Stock)')}</span></label
 									>
 									<select
 										name="asset_account_id"
@@ -913,7 +923,7 @@
 										bind:value={selectedProduct.asset_account_id}
 										class="w-full rounded-md border-gray-300 text-sm"
 									>
-										<option value={null}>-- None --</option>
+										<option value={null}>{$t('-- None --')}</option>
 										{#each data.accounts as acc (acc.id)}
 											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
 										{/each}
@@ -921,7 +931,8 @@
 								</div>
 								<div>
 									<label for="income_account_id" class="mb-1 block text-xs font-medium"
-										>Income Account <span class="text-gray-500">(Sales)</span></label
+										>{$t('Income Account')}
+										<span class="text-gray-500">{$t('(Sales)')}</span></label
 									>
 									<select
 										name="income_account_id"
@@ -929,7 +940,7 @@
 										bind:value={selectedProduct.income_account_id}
 										class="w-full rounded-md border-gray-300 text-sm"
 									>
-										<option value={null}>-- None --</option>
+										<option value={null}>{$t('-- None --')}</option>
 										{#each data.accounts as acc (acc.id)}
 											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
 										{/each}
@@ -937,7 +948,8 @@
 								</div>
 								<div>
 									<label for="expense_account_id" class="mb-1 block text-xs font-medium"
-										>Expense/COGS Acct <span class="text-gray-500">(Purchase/Cost)</span></label
+										>{$t('Expense/COGS Acct')}
+										<span class="text-gray-500">{$t('(Purchase/Cost)')}</span></label
 									>
 									<select
 										name="expense_account_id"
@@ -945,7 +957,7 @@
 										bind:value={selectedProduct.expense_account_id}
 										class="w-full rounded-md border-gray-300 text-sm"
 									>
-										<option value={null}>-- None --</option>
+										<option value={null}>{$t('-- None --')}</option>
 										{#each data.accounts as acc (acc.id)}
 											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
 										{/each}
@@ -963,13 +975,15 @@
 								class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
 							<label for="is_active_modal" class="ml-2 block text-sm text-gray-900"
-								>Active (can be sold/purchased)</label
+								>{$t('Active (can be sold/purchased)')}</label
 							>
 						</div>
 					</div>
 
 					<div class="space-y-2 lg:col-span-1">
-						<label for="image" class="block text-sm font-medium text-gray-700">Product Image</label>
+						<label for="image" class="block text-sm font-medium text-gray-700"
+							>{$t('Product Image')}</label
+						>
 						<div
 							class="flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border bg-gray-50"
 						>
@@ -1004,30 +1018,33 @@
 							class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 						/>
 						{#if isCompressing}
-							<p class="text-xs text-blue-600">Compressing image...</p>
+							<p class="text-xs text-blue-600">{$t('Compressing image...')}</p>
 						{/if}
 						{#if compressionError}
-							<p class="text-xs text-red-600">{compressionError}</p>
+							<p class="text-xs text-red-600">{$t(compressionError)}</p>
 						{/if}
 						{#if compressedImageFile && !isCompressing}
-							<p class="text-xs text-green-600">Image ready to upload.</p>
+							<p class="text-xs text-green-600">{$t('Image ready to upload.')}</p>
 						{/if}
 
 						{#if modalMode === 'edit' && selectedProduct.image_url && !removeImageFlag}
 							<button
 								type="button"
 								onclick={flagToRemoveImage}
-								class="mt-2 text-xs text-red-600 hover:underline">Remove current image</button
+								class="mt-2 text-xs text-red-600 hover:underline"
+								>{$t('Remove current image')}</button
 							>
 						{/if}
 						{#if removeImageFlag}
-							<p class="mt-1 text-xs text-orange-600">Current image will be removed upon saving.</p>
+							<p class="mt-1 text-xs text-orange-600">
+								{$t('Current image will be removed upon saving.')}
+							</p>
 						{/if}
 					</div>
 
 					{#if form?.message && !form.success && form.action === 'saveProduct'}
 						<div class="rounded-md bg-red-50 p-3 text-sm text-red-600 lg:col-span-3">
-							<p><strong>Error:</strong> {form.message}</p>
+							<p><strong>{$t('Error:')}</strong> {form.message}</p>
 						</div>
 					{/if}
 				</div>
@@ -1037,7 +1054,7 @@
 						type="button"
 						onclick={closeModal}
 						class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-						>Cancel</button
+						>{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
@@ -1045,11 +1062,11 @@
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
 					>
 						{#if isSaving}
-							Saving...
+							{$t('Saving...')}
 						{:else if isCompressing}
-							Compressing...
+							{$t('Compressing...')}
 						{:else}
-							Save Product
+							{$t('Save Product')}
 						{/if}
 					</button>
 				</div>
@@ -1120,55 +1137,55 @@
 					</div>
 					<div class="grid grid-cols-2 gap-x-4 gap-y-3 md:col-span-2">
 						<div>
-							<strong class="block text-gray-500">Type:</strong>
+							<strong class="block text-gray-500">{$t('Type')}:</strong>
 							{productToView.product_type}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Category:</strong>
+							<strong class="block text-gray-500">{$t('Category')}:</strong>
 							{productToView.category_name ?? '-'}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Base Unit:</strong>
+							<strong class="block text-gray-500">{$t('Base Unit *')}:</strong>
 							{productToView.unit_symbol ?? '-'}
 						</div>
 						{#if productToView.product_type === 'Stock'}
 							<div>
-								<strong class="block text-gray-500">Qty on Hand:</strong>
+								<strong class="block text-gray-500">{$t('Qty on Hand')}:</strong>
 								{formatQuantity(productToView.quantity_on_hand, '0')}
 							</div>
 							<div>
-								<strong class="block text-gray-500">Reorder Level:</strong>
+								<strong class="block text-gray-500">{$t('Reorder Level')}:</strong>
 								{formatQuantity(productToView.reorder_level)}
 							</div>
 						{/if}
 						<div>
-							<strong class="block text-gray-500">Purchase Unit:</strong>
+							<strong class="block text-gray-500">{$t('Purchase Unit')}:</strong>
 							{productToView.purchase_unit_symbol ?? productToView.unit_symbol ?? '-'}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Sales Unit:</strong>
+							<strong class="block text-gray-500">{$t('Sales Unit')}:</strong>
 							{productToView.sales_unit_symbol ?? productToView.unit_symbol ?? '-'}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Purchase Cost:</strong>
+							<strong class="block text-gray-500">{$t('Purchase Cost')}:</strong>
 							{formatCurrency(productToView.purchase_cost)}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Selling Price:</strong>
+							<strong class="block text-gray-500">{$t('Selling Price')}:</strong>
 							{formatCurrency(productToView.selling_price)}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Preferred Vendor:</strong>
+							<strong class="block text-gray-500">{$t('Preferred Vendor')}:</strong>
 							{productToView.vendor_name ?? '-'}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Preferred Customer:</strong>
+							<strong class="block text-gray-500">{$t('Preferred Customer')}:</strong>
 							{productToView.customer_name ?? '-'}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Status:</strong>
+							<strong class="block text-gray-500">{$t('Status:')}</strong>
 							<span class={productToView.is_active ? 'text-green-700' : 'text-red-600'}
-								>{productToView.is_active ? 'Active' : 'Inactive'}</span
+								>{productToView.is_active ? $t('Active') : $t('Inactive')}</span
 							>
 						</div>
 					</div>
@@ -1176,28 +1193,28 @@
 
 				{#if productToView.description}
 					<div>
-						<strong class="mb-1 block text-gray-500">Description:</strong>
+						<strong class="mb-1 block text-gray-500">{$t('Description')}:</strong>
 						<p class="whitespace-pre-wrap text-gray-700">{productToView.description}</p>
 					</div>
 				{/if}
 
 				<div class="border-t pt-4">
-					<h4 class="mb-2 font-medium text-gray-700">Accounting Links</h4>
+					<h4 class="mb-2 font-medium text-gray-700">{$t('Accounting Links')}</h4>
 					<div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
 						<div>
-							<strong class="block text-gray-500">Asset Acct:</strong>
+							<strong class="block text-gray-500">{$t('Asset Account')}:</strong>
 							{productToView.asset_account_code
 								? `${productToView.asset_account_code} - ${productToView.asset_account_name}`
 								: '-'}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Income Acct:</strong>
+							<strong class="block text-gray-500">{$t('Income Account')}:</strong>
 							{productToView.income_account_code
 								? `${productToView.income_account_code} - ${productToView.income_account_name}`
 								: '-'}
 						</div>
 						<div>
-							<strong class="block text-gray-500">Expense/COGS Acct:</strong>
+							<strong class="block text-gray-500">{$t('Expense/COGS Acct')}:</strong>
 							{productToView.expense_account_code
 								? `${productToView.expense_account_code} - ${productToView.expense_account_name}`
 								: '-'}
@@ -1211,7 +1228,7 @@
 					type="button"
 					onclick={closeDetailModal}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-					>Close</button
+					>{$t('Close')}</button
 				>
 				<button
 					type="button"
@@ -1220,7 +1237,7 @@
 						openModal('edit', productToView);
 					}}
 					class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-					>Edit Product</button
+					>{$t('Edit Product')}</button
 				>
 			</div>
 		</div>
@@ -1233,14 +1250,14 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">ยืนยันการลบ</h3>
+			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				คุณแน่ใจหรือไม่ที่จะลบสินค้า: <br />
+				{$t('Are you sure you want to delete product:')} <br />
 				<strong class="font-mono text-xs">{productToDelete.sku} - {productToDelete.name}</strong>?
-				<br />การดำเนินการนี้ไม่สามารถย้อนกลับได้
+				<br />{$t('This action cannot be undone.')}
 			</p>
 			{#if form?.message && !form.success && form.action === 'deleteProduct'}
-				<p class="mt-2 text-sm text-red-600"><strong>Error:</strong> {form.message}</p>
+				<p class="mt-2 text-sm text-red-600"><strong>{$t('Error:')}</strong> {form.message}</p>
 			{/if}
 			<form method="POST" action="?/deleteProduct" use:enhance class="mt-6 flex justify-end gap-3">
 				<input type="hidden" name="id" value={productToDelete.id} />
@@ -1248,12 +1265,12 @@
 					type="button"
 					onclick={() => (productToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-					>Cancel</button
+					>{$t('Cancel')}</button
 				>
 				<button
 					type="submit"
 					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
-					>Delete</button
+					>{$t('Delete')}</button
 				>
 			</form>
 		</div>

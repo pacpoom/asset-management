@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data;
 	let job = data.job;
@@ -43,9 +44,7 @@
 	}));
 	let allVendorContracts = data.vendorContracts || [];
 
-	// ดึงค่าเดิมของ Vendor มาโชว์
 	let selectedVendor = vendorOptions.find((v: any) => v.value == job.vendor_id) || null;
-
 	let initialVendorContract = allVendorContracts.find((c: any) => c.id == job.vendor_contract_id);
 	let selectedVendorContract = initialVendorContract
 		? {
@@ -76,7 +75,9 @@
 		{ value: 'AF', label: 'AF (Air Freight)' },
 		{ value: 'SP', label: 'SP (Special Project)' }
 	];
+
 	let selectedJobType = jobTypeOptions.find((o) => o.value === job.job_type) || null;
+
 	let linerOptions = data.liners.map((l: any) => ({
 		value: l.name,
 		label: l.code ? `${l.name} (${l.code})` : l.name
@@ -117,19 +118,22 @@
 		: null;
 
 	let invoiceFilterText = '';
-
 	function handleInvoiceChange(e: CustomEvent) {
 		const detail = e.detail;
 	}
 </script>
+
+<svelte:head>
+	<title>{$t('Edit Job Order')} - {job.job_number}</title>
+</svelte:head>
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
 	<div class="mx-auto mb-6 flex max-w-4xl items-center justify-between">
 		<div class="flex items-center gap-4">
 			<a
 				href="/freight-forwarder/job-orders"
-				title="ย้อนกลับ"
-				aria-label="Back to Job Orders"
+				title={$t('Back')}
+				aria-label={$t('Back')}
 				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
 			>
 				<svg
@@ -148,14 +152,14 @@
 			</a>
 			<div>
 				<div class="flex items-center gap-2">
-					<h1 class="text-xl font-bold text-gray-800">Edit Job Order</h1>
+					<h1 class="text-xl font-bold text-gray-800">{$t('Edit Job Order')}</h1>
 					<span
 						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
 					>
 						{previewJobNumber}
 					</span>
 				</div>
-				<p class="text-xs text-gray-500">แก้ไขข้อมูลงาน</p>
+				<p class="text-xs text-gray-500">{$t('Edit Job Details')}</p>
 			</div>
 		</div>
 	</div>
@@ -174,43 +178,43 @@
 				return async ({ update, result, action }) => {
 					await update();
 					isSaving = false;
-
 					if (result.type === 'success' && action.search === '?/update') {
 						goto('/freight-forwarder/job-orders');
 					}
 				};
 			}}
 		>
+			<input type="hidden" name="id" value={job.id} />
 			<div class="divide-y divide-gray-100">
 				<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-2">
 					<div class="space-y-5">
 						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
-							Partner Information
+							{$t('Partner Information')}
 						</h2>
 
 						<div>
 							<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-								ประเภท (Type) <span class="text-red-500">*</span>
+								{$t('Type')} <span class="text-red-500">*</span>
 							</div>
 							<select
 								name="partner_type"
 								bind:value={partnerType}
 								class="w-full rounded-md border border-gray-300 bg-white p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 							>
-								<option value="customer">ลูกค้า (Customer)</option>
-								<option value="vendor">ผู้จำหน่าย (Vendor)</option>
+								<option value="customer">{$t('Customer')}</option>
+								<option value="vendor">{$t('Vendor')}</option>
 							</select>
 						</div>
 
 						{#if partnerType === 'customer'}
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Customer <span class="text-red-500">*</span>
+									{$t('Customer')} <span class="text-red-500">*</span>
 								</div>
 								<Select
 									items={customerOptions}
 									bind:value={selectedCustomer}
-									placeholder="ค้นหาลูกค้า..."
+									placeholder={$t('Search customer...')}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
 								/>
@@ -236,7 +240,7 @@
 								<Select
 									items={filteredContracts}
 									bind:value={selectedContract}
-									placeholder={selectedCustomer ? 'เลือกสัญญา (Optional)' : '-'}
+									placeholder={selectedCustomer ? $t('Select contract (Optional)') : '-'}
 									disabled={!selectedCustomer}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
@@ -248,12 +252,12 @@
 						{#if partnerType === 'vendor'}
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Vendor <span class="text-red-500">*</span>
+									{$t('Vendor')} <span class="text-red-500">*</span>
 								</div>
 								<Select
 									items={vendorOptions}
 									bind:value={selectedVendor}
-									placeholder="ค้นหาผู้จำหน่าย..."
+									placeholder={$t('Search vendor...')}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
 								/>
@@ -275,12 +279,14 @@
 							{/if}
 
 							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">Vendor Contract</div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									{$t('Vendor Contract')}
+								</div>
 								<Select
 									items={filteredVendorContracts}
 									bind:value={selectedVendorContract}
 									on:change={handleVendorContractChange}
-									placeholder={selectedVendor ? 'เลือกสัญญา (Optional)' : '-'}
+									placeholder={selectedVendor ? $t('Select contract (Optional)') : '-'}
 									disabled={!selectedVendor}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
@@ -295,11 +301,13 @@
 					</div>
 
 					<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50/50 p-5">
-						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Job Details</h2>
+						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
+							{$t('Job Details')}
+						</h2>
 						<div class="grid grid-cols-2 gap-4">
 							<div>
 								<label for="job_date" class="mb-1 block text-sm font-semibold text-gray-700"
-									>Job Date</label
+									>{$t('Job Date')}</label
 								>
 								<input
 									id="job_date"
@@ -311,7 +319,7 @@
 							</div>
 							<div>
 								<label for="expire_date" class="mb-1 block text-sm font-semibold text-gray-700"
-									>Expire Date</label
+									>{$t('Expire Date')}</label
 								>
 								<input
 									id="expire_date"
@@ -327,7 +335,7 @@
 
 						<div>
 							<label for="job_status" class="mb-1 block text-sm font-semibold text-gray-700"
-								>Status</label
+								>{$t('Status')}</label
 							>
 							<select
 								id="job_status"
@@ -335,22 +343,22 @@
 								value={job.job_status}
 								class="w-full rounded-md border-gray-300 font-bold shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 							>
-								<option value="Pending">Pending</option>
-								<option value="In Progress">In Progress</option>
-								<option value="Completed">Completed</option>
-								<option value="Cancelled">Cancelled</option>
+								<option value="Pending">{$t('Status_Pending') || 'Pending'}</option>
+								<option value="In Progress">{$t('Status_In Progress') || 'In Progress'}</option>
+								<option value="Completed">{$t('Status_Completed') || 'Completed'}</option>
+								<option value="Cancelled">{$t('Status_Cancelled') || 'Cancelled'}</option>
 							</select>
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Job Code <span class="text-red-500">*</span>
+									{$t('Job Code')} <span class="text-red-500">*</span>
 								</div>
 								<Select
 									items={jobTypeOptions}
 									bind:value={selectedJobType}
-									placeholder="เลือก..."
+									placeholder={$t('Select...')}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
 									clearable={false}
@@ -365,7 +373,7 @@
 
 							<div>
 								<label for="service_type" class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Service Type <span class="text-red-500">*</span>
+									{$t('Service Type')} <span class="text-red-500">*</span>
 								</label>
 								<select
 									id="service_type"
@@ -383,7 +391,7 @@
 
 						<div>
 							<label for="remarks" class="mb-1 block text-sm font-semibold text-gray-700"
-								>Remark</label
+								>{$t('Remark')}</label
 							>
 							<textarea
 								id="remarks"
@@ -398,12 +406,12 @@
 
 				<div class="p-8">
 					<h2 class="mb-4 border-b pb-1 text-xs font-bold tracking-wider text-gray-400 uppercase">
-						Shipment Information
+						{$t('Shipment Information')}
 					</h2>
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 						<div>
 							<label for="bl_number" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>B/L Number <span class="text-red-500">*</span></label
+								>{$t('B/L Number')} <span class="text-red-500">*</span></label
 							>
 							<input
 								id="bl_number"
@@ -416,12 +424,12 @@
 						</div>
 						<div>
 							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								Liner / Carrier
+								{$t('Liner / Carrier')}
 							</div>
 							<Select
 								items={linerOptions}
 								bind:value={selectedLiner}
-								placeholder="ค้นหาหรือเลือกสายเรือ..."
+								placeholder={$t('Search or select liner...')}
 								container={browser ? document.body : null}
 								class="svelte-select-custom"
 							/>
@@ -433,7 +441,7 @@
 						</div>
 						<div>
 							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>Port / Location</label
+								>{$t('Port / Location')}</label
 							>
 							<input
 								id="location"
@@ -445,21 +453,21 @@
 						</div>
 						<div>
 							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								Customer Invoice
+								{$t('Customer Invoice')}
 							</label>
 							<input
 								type="text"
 								id="invoice_no"
 								name="invoice_no"
 								bind:value={job.invoice_no}
-								placeholder="เช่น INV-001, INV-002"
+								placeholder={$t('e.g., INV-001, INV-002')}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 
 						<div class="col-span-1 mt-4 border-t border-gray-100 pt-6 md:col-span-2">
 							<label for="attachments" class="mb-3 block text-sm font-bold text-gray-700">
-								เอกสารแนบ (Attachments)
+								{$t('Attachments')}
 							</label>
 
 							{#if data.existingAttachments && data.existingAttachments.length > 0}
@@ -483,7 +491,7 @@
 												value={file.id}
 												class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50 hover:text-red-700"
 											>
-												ลบ
+												{$t('Delete')}
 											</button>
 										</li>
 									{/each}
@@ -501,7 +509,9 @@
 									class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-200"
 								/>
 								<p class="mt-2 text-xs text-gray-500">
-									* สามารถอัปโหลดไฟล์เพิ่มเติมได้ (เช่น B/L, Commercial Invoice)
+									{$t(
+										'* Multiple files can be selected (e.g., B/L, Commercial Invoice, Packing List)'
+									)}
 								</p>
 							</div>
 						</div>
@@ -509,7 +519,7 @@
 				</div>
 
 				<div class="flex items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6">
-					<div class="text-sm font-bold text-gray-600">Initial Amount:</div>
+					<div class="text-sm font-bold text-gray-600">{$t('Initial Amount:')}</div>
 
 					<div
 						class="flex rounded-md border border-gray-300 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
@@ -543,14 +553,14 @@
 						href="/freight-forwarder/job-orders"
 						class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700"
 					>
-						Cancel
+						{$t('Cancel')}
 					</a>
 					<button
 						type="submit"
 						disabled={isSaving}
 						class="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-bold text-white shadow transition-all hover:bg-green-700 disabled:opacity-70"
 					>
-						{isSaving ? 'Saving...' : 'Save Changes'}
+						{isSaving ? $t('Saving...') : $t('Save Changes')}
 					</button>
 				</div>
 			</div>

@@ -1,29 +1,32 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
-	// ตัวแปร State
+
 	let pr = data.pr;
 	let items = data.items;
 	let companyData = data.company;
 
-	// Modal Logic
 	let showDeleteModal = false;
 	let isDeleting = false;
 
-	// Reactive update
 	$: pr = data.pr;
 	$: items = data.items;
 	$: companyData = data.company;
-	// --- Helper Functions ---
-	const formatCurrency = (amount: number | null | undefined) => {
+
+	$: formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
-		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			style: 'currency',
+			currency: 'THB'
+		}).format(amount);
 	};
-	const formatDate = (dateStr: string | null | undefined) => {
+
+	$: formatDate = (dateStr: string | null | undefined) => {
 		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleDateString('th-TH', {
+		return new Date(dateStr).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
@@ -42,7 +45,7 @@
 </script>
 
 <svelte:head>
-	<title>ใบขอซื้อ {pr.pr_number}</title>
+	<title>{$t('Purchase Request')} {pr.pr_number}</title>
 </svelte:head>
 
 <div
@@ -52,7 +55,7 @@
 		<a
 			href="/purchase-requests"
 			class="mr-3 text-gray-500 hover:text-gray-800"
-			title="กลับหน้ารายการ"
+			title={$t('Back to list')}
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -68,11 +71,12 @@
 			>
 		</a>
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">ใบขอซื้อ #{pr.pr_number}</h1>
+			<h1 class="text-2xl font-bold text-gray-800">
+				{$t('Purchase Request Details #')}{pr.pr_number}
+			</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				Requester: <span class="font-medium text-gray-700">{pr.requester_name}</span> | Date: {formatDate(
-					pr.request_date
-				)}
+				{$t('Requester')}: <span class="font-medium text-gray-700">{pr.requester_name}</span> |
+				{$t('Date')}: {formatDate(pr.request_date)}
 			</p>
 		</div>
 	</div>
@@ -83,7 +87,7 @@
 				pr.status
 			)}"
 		>
-			{pr.status}
+			{$t('Status_' + pr.status) || pr.status}
 		</span>
 
 		<a
@@ -103,7 +107,7 @@
 					clip-rule="evenodd"
 				/>
 			</svg>
-			พิมพ์ PDF
+			{$t('Print PDF')}
 		</a>
 
 		{#if pr.status === 'PENDING'}
@@ -124,7 +128,7 @@
 							clip-rule="evenodd"
 						/></svg
 					>
-					APPROVE
+					{$t('APPROVE')}
 				</button>
 			</form>
 
@@ -145,7 +149,7 @@
 							clip-rule="evenodd"
 						/></svg
 					>
-					REJECT
+					{$t('REJECT')}
 				</button>
 			</form>
 
@@ -153,7 +157,7 @@
 				href="/purchase-requests/{pr.id}/edit"
 				class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
 			>
-				Edit
+				{$t('Edit')}
 			</a>
 		{/if}
 
@@ -162,7 +166,7 @@
 				href="/purchase-orders/create?from_pr_id={pr.id}"
 				class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
 			>
-				สร้างใบสั่งซื้อ (PO)
+				{$t('Create Purchase Order (PO)')}
 			</a>
 		{/if}
 
@@ -172,7 +176,7 @@
 				on:click={() => (showDeleteModal = true)}
 				class="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 focus:outline-none"
 			>
-				Delete
+				{$t('Delete')}
 			</button>
 		{/if}
 	</div>
@@ -207,21 +211,20 @@
 					</p>
 				</div>
 			{:else}
-				<p class="text-sm text-red-500">ไม่พบข้อมูลบริษัท</p>
+				<p class="text-sm text-red-500">{$t('Company data not found')}</p>
 			{/if}
 		</div>
 
 		<div class="text-left md:text-right">
-			<h1 class="text-2xl font-bold text-gray-800 uppercase">ใบขอซื้อ</h1>
-			<p class="text-sm text-gray-500">Purchase Request</p>
+			<h1 class="text-2xl font-bold text-gray-800 uppercase">{$t('Purchase Request')}</h1>
 
 			<div class="mt-4 space-y-1">
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">เลขที่ / No.:</span>
+					<span class="font-semibold text-gray-600">{$t('Document No.')}:</span>
 					<span class="font-medium text-gray-800">#{pr.pr_number}</span>
 				</div>
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">วันที่ / Date:</span>
+					<span class="font-semibold text-gray-600">{$t('Date')}:</span>
 					<span class="font-medium text-gray-800">{formatDate(pr.request_date)}</span>
 				</div>
 			</div>
@@ -230,10 +233,10 @@
 
 	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 		<div>
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้ขอซื้อ (Requester)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Requester')}</h3>
 			<p class="font-semibold text-gray-800">{pr.requester_name}</p>
 			{#if pr.department}
-				<p class="text-sm text-gray-600">แผนก: {pr.department}</p>
+				<p class="text-sm text-gray-600">{$t('Department:')} {pr.department}</p>
 			{/if}
 			{#if pr.requester_email}
 				<p class="text-sm text-gray-600">Email: {pr.requester_email}</p>
@@ -241,7 +244,7 @@
 		</div>
 
 		<div>
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้ขาย / แนะนำ (Vendor)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Vendor (Suggested)')}</h3>
 			<p class="font-semibold text-gray-800">{pr.vendor_name || '-'}</p>
 			{#if pr.vendor_company}
 				<p class="text-sm text-gray-600">{pr.vendor_company}</p>
@@ -252,9 +255,7 @@
 		</div>
 
 		<div>
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">
-				รายละเอียดเพิ่มเติม (Description)
-			</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Description')}</h3>
 			<p
 				class="min-h-[60px] rounded-md border border-gray-100 bg-gray-50 p-2 text-sm whitespace-pre-wrap text-gray-700"
 			>
@@ -266,17 +267,19 @@
 
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
-		รายการสินค้าที่ขอซื้อ ({items.length})
+		{$t('Requested Items')} ({items.length})
 	</h3>
 	<div class="overflow-x-auto">
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-4 py-3 text-left font-medium text-gray-500">รายการสินค้า (Item)</th>
-					<th class="w-[100px] px-4 py-3 text-right font-medium text-gray-500">จำนวน</th>
-					<th class="w-[100px] px-4 py-3 text-center font-medium text-gray-500">หน่วย</th>
-					<th class="w-32 px-4 py-3 text-right font-medium text-gray-500">ราคาประเมิน/หน่วย</th>
-					<th class="w-32 px-4 py-3 text-right font-medium text-gray-500">รวมเป็นเงิน</th>
+					<th class="px-4 py-3 text-left font-medium text-gray-500">{$t('Product/Description')}</th>
+					<th class="w-[100px] px-4 py-3 text-right font-medium text-gray-500">{$t('Qty')}</th>
+					<th class="w-[100px] px-4 py-3 text-center font-medium text-gray-500">{$t('Unit')}</th>
+					<th class="w-32 px-4 py-3 text-right font-medium text-gray-500"
+						>{$t('Estimated Price/Unit')}</th
+					>
+					<th class="w-32 px-4 py-3 text-right font-medium text-gray-500">{$t('Total')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
@@ -296,7 +299,7 @@
 			<tfoot class="bg-gray-50">
 				<tr>
 					<td colspan="4" class="px-4 py-3 text-right font-bold text-gray-700"
-						>ยอดรวมประมาณการ (Total Estimate)</td
+						>{$t('Total Estimate')}</td
 					>
 					<td class="px-4 py-3 text-right text-lg font-bold text-blue-700"
 						>{formatCurrency(pr.total_amount)}</td
@@ -314,18 +317,18 @@
 		<div
 			class="w-full max-w-lg transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all"
 		>
-			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">{$t('Confirm Delete')}</h3>
 			<p class="text-sm text-gray-500">
-				คุณแน่ใจหรือไม่ที่จะลบใบขอซื้อ <strong>{pr.pr_number}</strong>?
+				{$t('Are you sure you want to delete purchase request')} <strong>{pr.pr_number}</strong>?
 				<br />
-				การกระทำนี้ไม่สามารถเรียกคืนได้
+				{$t('This action cannot be undone.')}
 			</p>
 			<div class="mt-6 flex justify-end gap-3">
 				<button
 					type="button"
 					on:click={() => (showDeleteModal = false)}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
-					>ยกเลิก</button
+					>{$t('Cancel')}</button
 				>
 				<form
 					method="POST"
@@ -363,9 +366,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path></svg
 							>
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete')}
 						{/if}
 					</button>
 				</form>

@@ -2,11 +2,10 @@
 	import { enhance } from '$app/forms';
 	import { tick } from 'svelte';
 	import type { PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
-	// รับข้อมูลจาก Server
 	export let data: PageData;
 
-	// ตัวแปร State
 	let po = data.po;
 	let items = data.items;
 	let companyData = data.company;
@@ -15,24 +14,24 @@
 	let updateStatusForm: HTMLFormElement;
 	let statusToUpdate = '';
 
-	// ตัวแปรสำหรับ Modal ลบ
 	let showDeleteModal = false;
 	let isDeleting = false;
 
-	// Reactive update
 	$: po = data.po;
 	$: items = data.items;
 	$: companyData = data.company;
 
-	// --- Helper Functions ---
-	const formatCurrency = (amount: number | null | undefined) => {
+	$: formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
-		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			style: 'currency',
+			currency: 'THB'
+		}).format(amount);
 	};
 
-	const formatDate = (dateStr: string | null | undefined) => {
+	$: formatDate = (dateStr: string | null | undefined) => {
 		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleDateString('th-TH', {
+		return new Date(dateStr).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
@@ -63,7 +62,7 @@
 </script>
 
 <svelte:head>
-	<title>ใบสั่งซื้อ {po.po_number}</title>
+	<title>{$t('Purchase Order')} {po.po_number}</title>
 </svelte:head>
 
 <form
@@ -85,7 +84,11 @@
 	class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center"
 >
 	<div class="flex items-center">
-		<a href="/purchase-orders" class="mr-3 text-gray-500 hover:text-gray-800" title="Back to list">
+		<a
+			href="/purchase-orders"
+			class="mr-3 text-gray-500 hover:text-gray-800"
+			title={$t('Back to list')}
+		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				width="24"
@@ -100,11 +103,12 @@
 			>
 		</a>
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">ใบสั่งซื้อ #{po.po_number}</h1>
+			<h1 class="text-2xl font-bold text-gray-800">
+				{$t('Purchase Order Details #')}{po.po_number}
+			</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				Vendor: <span class="font-medium text-gray-700">{po.vendor_name}</span> | Created: {formatDate(
-					po.created_at
-				)}
+				{$t('Vendor')}: <span class="font-medium text-gray-700">{po.vendor_name}</span> |
+				{$t('Created')}: {formatDate(po.created_at)}
 			</p>
 		</div>
 	</div>
@@ -115,7 +119,7 @@
 				po.status
 			)}"
 		>
-			{po.status}
+			{$t('Status_' + po.status) || po.status}
 		</span>
 
 		{#if po.status !== 'DRAFT'}
@@ -124,15 +128,15 @@
 				target="_blank"
 				class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
 			>
-				<span>พิมพ์ PDF</span>
+				<span>{$t('Print PDF')}</span>
 			</a>
 		{:else}
 			<button
 				disabled
 				class="inline-flex cursor-not-allowed items-center justify-center rounded-lg bg-gray-300 px-3 py-1.5 text-sm font-semibold text-white opacity-50"
-				title="ต้องเปลี่ยนสถานะจาก Draft ก่อนพิมพ์"
+				title={$t('Must change status from Draft before printing')}
 			>
-				<span>พิมพ์ PDF</span>
+				<span>{$t('Print PDF')}</span>
 			</button>
 		{/if}
 
@@ -140,7 +144,7 @@
 			href="/purchase-orders/{po.id}/edit"
 			class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
 		>
-			Edit
+			{$t('Edit')}
 		</a>
 
 		<button
@@ -148,7 +152,7 @@
 			on:click={() => (showDeleteModal = true)}
 			class="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 focus:outline-none"
 		>
-			Delete
+			{$t('Delete')}
 		</button>
 
 		<div class="relative">
@@ -158,10 +162,12 @@
 				disabled={isSaving}
 				class="cursor-pointer rounded-lg border-none bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 			>
-				<option value="" disabled selected>Change Status</option>
+				<option value="" disabled selected>{$t('Change Status')}</option>
 				{#each data.availableStatuses as status}
 					{#if status !== po.status}
-						<option value={status} class="bg-white text-gray-800">{status}</option>
+						<option value={status} class="bg-white text-gray-800"
+							>{$t('Status_' + status) || status}</option
+						>
 					{/if}
 				{/each}
 			</select>
@@ -199,25 +205,24 @@
 					</p>
 				</div>
 			{:else}
-				<p class="text-sm text-red-500">ไม่พบข้อมูลบริษัท (กรุณาตั้งค่าที่เมนู Company)</p>
+				<p class="text-sm text-red-500">{$t('No company data found')}</p>
 			{/if}
 		</div>
 
 		<div class="text-left md:text-right">
-			<h1 class="text-2xl font-bold text-gray-800 uppercase">ใบสั่งซื้อ</h1>
-			<p class="text-sm text-gray-500">Purchase Order</p>
+			<h1 class="text-2xl font-bold text-gray-800 uppercase">{$t('Purchase Order')}</h1>
 
 			<div class="mt-4 space-y-1">
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">เลขที่ / No.:</span>
+					<span class="font-semibold text-gray-600">{$t('Document No.')}:</span>
 					<span class="font-medium text-gray-800">#{po.po_number}</span>
 				</div>
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">วันที่ / Date:</span>
+					<span class="font-semibold text-gray-600">{$t('Date')}:</span>
 					<span class="font-medium text-gray-800">{formatDate(po.po_date)}</span>
 				</div>
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">ผู้ติดต่อ / Contact:</span>
+					<span class="font-semibold text-gray-600">{$t('Contact')}:</span>
 					<span class="font-medium text-gray-800">{po.contact_person || '-'}</span>
 				</div>
 			</div>
@@ -226,7 +231,7 @@
 
 	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 		<div class="md:col-span-2">
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้ขาย (Vendor)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Vendor')}</h3>
 			<p class="font-semibold text-gray-800">{po.vendor_name}</p>
 			<p class="text-sm whitespace-pre-wrap text-gray-600">{po.vendor_address || '-'}</p>
 			<p class="mt-1 text-sm">
@@ -235,27 +240,27 @@
 			</p>
 			{#if po.vendor_phone || po.vendor_email}
 				<p class="mt-1 text-sm text-gray-600">
-					{po.vendor_phone ? `Tel: ${po.vendor_phone}` : ''}
+					{po.vendor_phone ? `Tel: ${po.vendor_phone} ` : ''}
 					{po.vendor_email ? `Email: ${po.vendor_email}` : ''}
 				</p>
 			{/if}
 		</div>
 
 		<div class="md:col-span-1">
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('More Info')}</h3>
 			<p class="mt-1 text-xs text-gray-600">
-				<span class="font-semibold">ผู้ทำรายการ / Prepared By:</span>
+				<span class="font-semibold">{$t('Prepared By')}:</span>
 				{po.created_by_name || '-'}
 			</p>
 			<div class="mt-2">
 				<span class="text-xs font-semibold tracking-wider text-gray-600 uppercase"
-					>เงื่อนไขการชำระเงิน</span
+					>{$t('Payment Term')}</span
 				>
 				<p class="text-sm font-medium text-gray-800">{po.payment_term || '-'}</p>
 			</div>
 			<div class="mt-2">
 				<span class="text-xs font-semibold tracking-wider text-red-600 uppercase"
-					>กำหนดส่งของ (Delivery Date)</span
+					>{$t('Delivery Date')}</span
 				>
 				<p class="font-bold text-red-600">{formatDate(po.delivery_date)}</p>
 			</div>
@@ -265,18 +270,18 @@
 
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
-		รายการสินค้า/บริการ ({items.length})
+		{$t('Products/Services')} ({items.length})
 	</h3>
 	<div class="overflow-x-auto">
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-3 py-2 text-left font-medium text-gray-500">Product/Description</th>
-					<th class="w-[70px] px-3 py-2 text-right font-medium text-gray-500">Qty</th>
-					<th class="w-[100px] px-3 py-2 text-center font-medium text-gray-500">Unit</th>
-					<th class="px-3 py-2 text-right font-medium text-gray-500">Price/Unit</th>
-					<th class="px-3 py-2 text-right font-medium text-gray-500">Discount</th>
-					<th class="px-3 py-2 text-right font-medium text-gray-500">Total</th>
+					<th class="px-3 py-2 text-left font-medium text-gray-500">{$t('Product/Description')}</th>
+					<th class="w-[70px] px-3 py-2 text-right font-medium text-gray-500">{$t('Qty')}</th>
+					<th class="w-[100px] px-3 py-2 text-center font-medium text-gray-500">{$t('Unit')}</th>
+					<th class="px-3 py-2 text-right font-medium text-gray-500">{$t('Price/Unit')}</th>
+					<th class="px-3 py-2 text-right font-medium text-gray-500">{$t('Discount')}</th>
+					<th class="px-3 py-2 text-right font-medium text-gray-500">{$t('Total')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
@@ -305,17 +310,17 @@
 </div>
 
 <div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
-	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">Financial Summary</h2>
+	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">{$t('Financial Summary')}</h2>
 	<div class="w-full space-y-2 text-sm">
 		<div class="flex items-center justify-between">
-			<span class="font-medium text-gray-600">Subtotal:</span><span
+			<span class="font-medium text-gray-600">{$t('Subtotal')}:</span><span
 				class="font-medium text-gray-800">{formatCurrency(po.subtotal)}</span
 			>
 		</div>
 
 		{#if parseFloat(po.discount) > 0}
 			<div class="flex items-center justify-between">
-				<span class="font-medium text-gray-600">Discount:</span><span
+				<span class="font-medium text-gray-600">{$t('Discount')}:</span><span
 					class="font-medium text-red-600">- {formatCurrency(po.discount)}</span
 				>
 			</div>
@@ -323,7 +328,7 @@
 
 		{#if parseFloat(po.discount) > 0}
 			<div class="flex items-center justify-between border-t pt-1">
-				<span class="font-medium text-gray-600">Total After Discount:</span><span
+				<span class="font-medium text-gray-600">{$t('Total After Discount')}:</span><span
 					class="font-medium text-gray-800"
 					>{formatCurrency(po.subtotal - Number(po.discount || 0))}</span
 				>
@@ -344,7 +349,7 @@
 		{/if}
 
 		<div class="flex items-center justify-between border-t-2 pt-2">
-			<span class="text-base font-bold text-gray-900">Grand Total:</span><span
+			<span class="text-base font-bold text-gray-900">{$t('Grand Total')}:</span><span
 				class="text-xl font-bold text-blue-700">{formatCurrency(po.total_amount)}</span
 			>
 		</div>
@@ -353,8 +358,8 @@
 
 <div class="mb-6 grid grid-cols-1 gap-6">
 	<div class="rounded-lg border bg-white p-4 shadow-sm">
-		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">Notes / Remarks</h3>
-		<p class="text-sm whitespace-pre-wrap text-gray-600">{po.remarks || 'No notes.'}</p>
+		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">{$t('Notes / Remarks')}</h3>
+		<p class="text-sm whitespace-pre-wrap text-gray-600">{po.remarks || $t('No notes.')}</p>
 	</div>
 </div>
 
@@ -365,10 +370,11 @@
 		<div
 			class="w-full max-w-lg transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all"
 		>
-			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg leading-6 font-medium text-gray-900">{$t('Confirm Delete')}</h3>
 			<p class="text-sm text-gray-500">
-				คุณแน่ใจหรือไม่ที่จะลบใบสั่งซื้อ <strong>{po.po_number}</strong>? <br />
-				การกระทำนี้ไม่สามารถเรียกคืนได้
+				{$t('Are you sure you want to delete purchase order')} <strong>{po.po_number}</strong>?
+				<br />
+				{$t('This action cannot be undone.')}
 			</p>
 			<div class="mt-6 flex justify-end gap-3">
 				<button
@@ -376,7 +382,7 @@
 					on:click={() => (showDeleteModal = false)}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 				<form
 					method="POST"
@@ -416,9 +422,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path>
 							</svg>
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete')}
 						{/if}
 					</button>
 				</form>

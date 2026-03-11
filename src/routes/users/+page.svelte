@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	// ✅ 1. FIX: Import ActionResult from @sveltejs/kit
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
-	import { invalidateAll } from '$app/navigation'; // For refreshing data
+	import { invalidateAll } from '$app/navigation';
+	import { t } from '$lib/i18n';
 
 	// --- Types ---
 	type User = PageData['users'][0];
@@ -25,7 +25,7 @@
 	let totalPages = $derived(Math.ceil(totalItems / itemsPerPage));
 	let startItem = $derived(totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1);
 	let endItem = $derived(Math.min(currentPage * itemsPerPage, totalItems));
-	
+
 	let paginatedUsers = $derived(
 		data.users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 	);
@@ -52,11 +52,11 @@
 	// --- Department Modal State ---
 	let isDepartmentModalOpen = $state(false);
 	let departmentModalMode = $state<'add' | 'edit' | null>(null);
-	// ✅ 2. FIX: Initialize state correctly for Partial<T>
 	let selectedDepartment = $state<Partial<Department>>({
 		id: undefined,
 		name: ''
 	} as Partial<Department>);
+
 	let departmentToDelete = $state<Department | null>(null);
 	let isSavingDepartment = $state(false);
 	let departmentFormMessage = $state<{ text: string; type: 'error' } | null>(null);
@@ -64,16 +64,15 @@
 	// --- Position Modal State ---
 	let isPositionModalOpen = $state(false);
 	let positionModalMode = $state<'add' | 'edit' | null>(null);
-	// ✅ 2. FIX: Initialize state correctly for Partial<T>
 	let selectedPosition = $state<Partial<Position>>({
 		id: undefined,
 		name: ''
 	} as Partial<Position>);
+
 	let positionToDelete = $state<Position | null>(null);
 	let isSavingPosition = $state(false);
 	let positionFormMessage = $state<{ text: string; type: 'error' } | null>(null);
 
-	// Global Message State
 	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(
 		null
 	);
@@ -86,27 +85,25 @@
 		modalMode = mode;
 		globalMessage = null;
 		if (mode === 'edit' && user) {
-			// Ensure IDs are numbers/undefined
 			selectedUser = {
 				...user,
-				password: '', // Don't pre-fill password
+				password: '',
 				role_id: user.role_id ?? undefined,
 				department_id: user.department_id ?? undefined,
 				position_id: user.position_id ?? undefined
 			};
 		} else {
-			// ✅ 3. FIX: Correct default object structure for Partial<User>
 			selectedUser = {
-				id: undefined, // Explicitly undefined for 'add'
-				role_id: data.roles?.[0]?.id, // Default role
+				id: undefined,
+				role_id: data.roles?.[0]?.id,
 				department_id: undefined,
 				position_id: undefined,
 				emp_id: '',
 				full_name: '',
 				username: '',
 				email: '',
-				password: '' // Initialize password field
-			} as Partial<User> & { password?: string }; // <--- เพิ่มตรงนี้
+				password: ''
+			} as Partial<User> & { password?: string };
 		}
 	}
 	function closeUserModal() {
@@ -181,10 +178,9 @@
 			if (result.type === 'success' && result.data?.success) {
 				closeUserModal();
 				showGlobalMessage({ success: true, text: result.data.message as string, type: 'success' });
-				invalidateAll(); // Refresh all data
+				invalidateAll();
 			} else if (result.type === 'failure') {
-				// Form prop updates automatically for errors
-				await update({ reset: false }); // Prevent form reset
+				await update({ reset: false });
 			}
 		};
 	};
@@ -197,7 +193,7 @@
 			result: ActionResult;
 			update: (options?: { reset: boolean }) => Promise<void>;
 		}) => {
-			userToDelete = null; // Close confirmation modal
+			userToDelete = null;
 			if (result.type === 'success') {
 				// Redirects handled by SvelteKit
 			} else if (result.type === 'failure') {
@@ -245,7 +241,7 @@
 			result: ActionResult;
 			update: (options?: { reset: boolean }) => Promise<void>;
 		}) => {
-			departmentToDelete = null; // Close confirmation
+			departmentToDelete = null;
 			if (result.type === 'success' && result.data?.success) {
 				showGlobalMessage({ success: true, text: result.data.message as string, type: 'success' });
 				invalidateAll();
@@ -294,7 +290,7 @@
 			result: ActionResult;
 			update: (options?: { reset: boolean }) => Promise<void>;
 		}) => {
-			positionToDelete = null; // Close confirmation
+			positionToDelete = null;
 			if (result.type === 'success' && result.data?.success) {
 				showGlobalMessage({ success: true, text: result.data.message as string, type: 'success' });
 				invalidateAll();
@@ -311,25 +307,13 @@
 
 	// --- Reactive Effects ---
 	$effect.pre(() => {
-		// Clear specific form errors when modals close
 		if (!isDepartmentModalOpen) departmentFormMessage = null;
 		if (!isPositionModalOpen) positionFormMessage = null;
-
-		// Handle generic form prop changes for User modal specifically
-		if (form && !form.success && (form.action === 'addUser' || form.action === 'editUser')) {
-			// Error message should display within the user modal via the 'form' prop directly
-		}
-
-		// ✅ 4. FIX: ลบบรรทัดนี้ออก - Cannot assign to constant 'form'
-		// Reset form prop after handling (IMPORTANT to prevent re-triggering)
-		// if (form) {
-		//    (form as ActionData) = undefined;
-		// }
 	});
 </script>
 
 <svelte:head>
-	<title>Users Management</title>
+	<title>{$t('Users Management')}</title>
 </svelte:head>
 
 {#if globalMessage}
@@ -344,24 +328,23 @@
 	</div>
 {/if}
 
-<!-- Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">Users Management</h1>
-		<p class="mt-1 text-sm text-gray-500">จัดการผู้ใช้งานในระบบ</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Users Management')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Manage system users')}</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<button
 			onclick={openDepartmentManager}
-			class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
+			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
 		>
-			Manage Departments
+			{$t('Manage Departments')}
 		</button>
 		<button
 			onclick={openPositionManager}
-			class="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
+			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
 		>
-			Manage Positions
+			{$t('Manage Positions')}
 		</button>
 		<button
 			onclick={() => openUserModal('add')}
@@ -376,78 +359,94 @@
 				class="h-4 w-4"
 				><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 			>
-			Add New User
+			{$t('Add New User')}
 		</button>
 	</div>
 </div>
 
-<!-- Main Table Container -->
 <div class="flex flex-col gap-4">
-	<div class="w-full overflow-hidden rounded-lg border border-gray-500 bg-white shadow-sm">
+	<div class="w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 		<div class="overflow-x-auto">
-			<table class="min-w-full divide-y divide-gray-500 text-sm">
+			<table class="min-w-full divide-y divide-gray-200 text-sm">
 				<thead class="bg-gray-50">
 					<tr>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Full Name</th>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Emp ID</th>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Email</th>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Username</th>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Department</th>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Position</th>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Role</th>
-						<th class="px-6 py-4 text-left font-semibold text-gray-600 tracking-wider">Actions</th>
+						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+							>{$t('Full Name')}</th
+						>
+						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+							>{$t('Emp ID')}</th
+						>
+						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+							>{$t('Email')}</th
+						>
+						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+							>{$t('Username')}</th
+						>
+						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+							>{$t('Department')}</th
+						>
+						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+							>{$t('Position')}</th
+						>
+						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+							>{$t('Role')}</th
+						>
+						<th class="px-4 py-3 text-center font-semibold tracking-wider text-gray-600"
+							>{$t('Actions')}</th
+						>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
 					{#if paginatedUsers.length === 0}
 						<tr>
-							<td colspan="8" class="py-12 text-center text-gray-500"> No users found. </td>
+							<td colspan="8" class="py-12 text-center text-gray-500"> {$t('No users found.')} </td>
 						</tr>
 					{:else}
 						{#each paginatedUsers as user (user.id)}
-							<tr class="hover:bg-gray-50 transition-colors">
-								<td class="px-6 py-4 font-medium whitespace-nowrap text-gray-900">{user.full_name}</td>
-								<td class="px-6 py-4 font-mono text-xs whitespace-nowrap text-gray-700">
+							<tr class="transition-colors hover:bg-gray-50">
+								<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900"
+									>{user.full_name}</td
+								>
+								<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-700">
 									{user.emp_id ?? '-'}
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-gray-600">{user.email}</td>
-								<td class="px-6 py-4 font-mono text-xs whitespace-nowrap text-gray-700">
+								<td class="px-4 py-3 whitespace-nowrap text-gray-600">{user.email}</td>
+								<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-700">
 									{user.username}
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-gray-600">
+								<td class="px-4 py-3 whitespace-nowrap text-gray-600">
 									{user.department_name ?? '-'}
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-gray-600">
+								<td class="px-4 py-3 whitespace-nowrap text-gray-600">
 									{user.position_name ?? '-'}
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap">
+								<td class="px-4 py-3 whitespace-nowrap">
 									<span
-										class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border {user.role ===
+										class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium {user.role ===
 										'admin'
-											? 'bg-purple-50 text-purple-700 border-purple-200'
-											: 'bg-gray-50 text-gray-700 border-gray-200'}"
+											? 'border-purple-200 bg-purple-50 text-purple-700'
+											: 'border-gray-200 bg-gray-50 text-gray-700'}"
 									>
 										{user.role}
 									</span>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="flex items-center gap-3">
+								<td class="px-4 py-3 text-center whitespace-nowrap">
+									<div class="flex items-center justify-center gap-3">
 										<button
 											onclick={() => openUserModal('edit', user)}
-											class="text-gray-400 hover:text-blue-600 transition-colors"
-											title="Edit user"
+											class="text-gray-400 transition-colors hover:text-blue-600"
+											title={$t('Edit user')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
-												width="24"
-												height="24"
+												width="20"
+												height="20"
 												viewBox="0 0 24 24"
 												fill="none"
 												stroke="currentColor"
 												stroke-width="2"
 												stroke-linecap="round"
 												stroke-linejoin="round"
-												class="h-5 w-5"
 												><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path
 													d="m15 5 4 4"
 												/></svg
@@ -455,23 +454,22 @@
 										</button>
 										<button
 											onclick={() => (userToDelete = user)}
-											class="text-gray-400 hover:text-red-600 transition-colors"
-											title="Delete user"
+											class="text-gray-400 transition-colors hover:text-red-600"
+											title={$t('Delete user')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
-												width="24"
-												height="24"
+												width="20"
+												height="20"
 												viewBox="0 0 24 24"
 												fill="none"
 												stroke="currentColor"
 												stroke-width="2"
 												stroke-linecap="round"
 												stroke-linejoin="round"
-												class="h-5 w-5"
-												><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path
-													d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-												/></svg
+												><path d="M3 6h18" /><path
+													d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"
+												/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg
 											>
 										</button>
 									</div>
@@ -484,23 +482,24 @@
 		</div>
 	</div>
 
-	<!-- Pagination Controls -->
-	<div class="flex flex-col items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row">
+	<div
+		class="flex flex-col items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row"
+	>
 		<div class="text-sm text-gray-600">
-			Showing <span class="font-semibold text-gray-900">{startItem}</span> to <span
-				class="font-semibold text-gray-900">{endItem}</span
-			>
-			of <span class="font-semibold text-gray-900">{totalItems}</span> entries
+			{$t('Showing')} <span class="font-semibold text-gray-900">{startItem}</span>
+			{$t('to')} <span class="font-semibold text-gray-900">{endItem}</span>
+			{$t('of')} <span class="font-semibold text-gray-900">{totalItems}</span>
+			{$t('entries')}
 		</div>
 
 		<div class="flex items-center gap-4">
 			<div class="flex items-center gap-2">
-				<label for="itemsPerPage" class="text-sm text-gray-600">Rows per page:</label>
+				<label for="itemsPerPage" class="text-sm text-gray-600">{$t('Rows per page:')}</label>
 				<select
 					id="itemsPerPage"
 					bind:value={itemsPerPage}
-					onchange={() => currentPage = 1}
-					class="rounded-md border-gray-300 py-1 pl-2 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
+					onchange={() => (currentPage = 1)}
+					class="rounded-md border-gray-300 py-1 pr-8 pl-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 				>
 					{#each pageSizeOptions as size}
 						<option value={size}>{size}</option>
@@ -514,11 +513,13 @@
 					disabled={currentPage === 1}
 					class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
 				>
-					Previous
+					{$t('Previous')}
 				</button>
-				
+
 				<div class="flex items-center px-2">
-					<span class="text-sm text-gray-600">Page {currentPage} of {totalPages || 1}</span>
+					<span class="text-sm text-gray-600"
+						>{$t('Page')} {currentPage} {$t('of')} {totalPages || 1}</span
+					>
 				</div>
 
 				<button
@@ -526,7 +527,7 @@
 					disabled={currentPage === totalPages || totalPages === 0}
 					class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
 				>
-					Next
+					{$t('Next')}
 				</button>
 			</div>
 		</div>
@@ -553,7 +554,7 @@
 		<div class="relative w-full max-w-lg transform rounded-xl bg-white shadow-2xl transition-all">
 			<div class="border-b border-gray-200 px-6 py-4">
 				<h2 id="modal-title" class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? 'Add New User' : 'Edit User'}
+					{modalMode === 'add' ? $t('Add New User') : $t('Edit User')}
 				</h2>
 			</div>
 
@@ -571,7 +572,7 @@
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 						<div>
 							<label for="full_name" class="mb-1 block text-sm font-medium text-gray-700"
-								>Full Name</label
+								>{$t('Full Name')}</label
 							>
 							<input
 								type="text"
@@ -584,7 +585,7 @@
 						</div>
 						<div>
 							<label for="emp_id" class="mb-1 block text-sm font-medium text-gray-700"
-								>Employee ID</label
+								>{$t('Emp ID')}</label
 							>
 							<input
 								type="text"
@@ -599,7 +600,7 @@
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 						<div>
 							<label for="username" class="mb-1 block text-sm font-medium text-gray-700"
-								>Username</label
+								>{$t('Username')}</label
 							>
 							<input
 								type="text"
@@ -612,7 +613,9 @@
 						</div>
 
 						<div>
-							<label for="email" class="mb-1 block text-sm font-medium text-gray-700">Email</label>
+							<label for="email" class="mb-1 block text-sm font-medium text-gray-700"
+								>{$t('Email')}</label
+							>
 							<input
 								type="email"
 								name="email"
@@ -626,7 +629,7 @@
 
 					<div>
 						<label for="password" class="mb-1 block text-sm font-medium text-gray-700"
-							>Password</label
+							>{$t('Password')}</label
 						>
 						<input
 							type="password"
@@ -637,13 +640,15 @@
 							class="w-full rounded-md border-gray-300 shadow-sm"
 						/>
 						{#if modalMode === 'edit'}
-							<p class="mt-1 text-xs text-gray-500">Leave blank to keep the current password.</p>
+							<p class="mt-1 text-xs text-gray-500">
+								{$t('Leave blank to keep the current password.')}
+							</p>
 						{/if}
 					</div>
 
 					<div>
 						<label for="profile_image" class="mb-1 block text-sm font-medium text-gray-700"
-							>Profile Image</label
+							>{$t('Profile Image')}</label
 						>
 						<input
 							type="file"
@@ -657,7 +662,7 @@
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 						<div>
 							<label for="department_id" class="mb-1 block text-sm font-medium text-gray-700"
-								>Department</label
+								>{$t('Department')}</label
 							>
 							<select
 								name="department_id"
@@ -674,7 +679,7 @@
 
 						<div>
 							<label for="position_id" class="mb-1 block text-sm font-medium text-gray-700"
-								>Position</label
+								>{$t('Position')}</label
 							>
 							<select
 								name="position_id"
@@ -691,7 +696,9 @@
 					</div>
 
 					<div>
-						<label for="role_id" class="mb-1 block text-sm font-medium text-gray-700">Role</label>
+						<label for="role_id" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Role')}</label
+						>
 						<select
 							name="role_id"
 							id="role_id"
@@ -718,7 +725,7 @@
 						onclick={closeUserModal}
 						class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
 					>
-						Cancel
+						{$t('Cancel')}
 					</button>
 					<button
 						type="submit"
@@ -726,9 +733,9 @@
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
 					>
 						{#if isSavingUser}
-							Saving...
+							{$t('Saving...')}
 						{:else}
-							Save User
+							{$t('Save User')}
 						{/if}
 					</button>
 				</div>
@@ -743,10 +750,10 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold text-gray-900">Confirm Deletion</h3>
+			<h3 class="text-lg font-bold text-gray-900">{$t('Confirm Deletion')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				Are you sure you want to delete user "<strong>{userToDelete.full_name}</strong>"? This
-				action cannot be undone.
+				{$t('Are you sure you want to delete user')} "<strong>{userToDelete.full_name}</strong>"?
+				{$t('This action cannot be undone.')}
 			</p>
 			<form
 				method="POST"
@@ -759,12 +766,12 @@
 					type="button"
 					onclick={() => (userToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-					>Cancel</button
+					>{$t('Cancel')}</button
 				>
 				<button
 					type="submit"
 					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
-					>Delete</button
+					>{$t('Delete')}</button
 				>
 			</form>
 		</div>
@@ -781,7 +788,7 @@
 			class="relative flex max-h-[80vh] w-full max-w-xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
 		>
 			<div class="flex flex-shrink-0 items-center justify-between border-b p-4">
-				<h2 class="text-lg font-bold">Manage Departments</h2>
+				<h2 class="text-lg font-bold">{$t('Manage Departments')}</h2>
 				<button onclick={closeDepartmentManager} class="text-gray-400 hover:text-gray-600"
 					>&times;</button
 				>
@@ -799,7 +806,7 @@
 							<input type="hidden" name="id" value={selectedDepartment?.id} />
 						{/if}
 						<div>
-							<label for="dept_name" class="block text-sm font-medium">Name *</label>
+							<label for="dept_name" class="block text-sm font-medium">{$t('Name *')}</label>
 							<input
 								type="text"
 								id="dept_name"
@@ -816,7 +823,7 @@
 							<button
 								type="button"
 								onclick={closeDepartmentForm}
-								class="rounded-md border bg-white px-3 py-1 text-sm">Cancel</button
+								class="rounded-md border bg-white px-3 py-1 text-sm">{$t('Cancel')}</button
 							>
 							<button
 								type="submit"
@@ -824,9 +831,9 @@
 								class="rounded-md bg-blue-600 px-3 py-1 text-sm text-white disabled:bg-blue-400"
 							>
 								{#if isSavingDepartment}
-									Saving...
+									{$t('Saving...')}
 								{:else}
-									Save
+									{$t('Save')}
 								{/if}
 							</button>
 						</div>
@@ -837,7 +844,7 @@
 					<button
 						onclick={() => openDepartmentForm('add')}
 						class="rounded-md bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
-						>Add Department</button
+						>{$t('Add Department')}</button
 					>
 				</div>
 			{/if}
@@ -851,17 +858,17 @@
 								<button
 									onclick={() => openDepartmentForm('edit', dept)}
 									class="rounded-md px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-									>Edit</button
+									>{$t('Edit')}</button
 								>
 								<button
 									onclick={() => (departmentToDelete = dept)}
 									class="rounded-md px-2.5 py-1 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
-									>Delete</button
+									>{$t('Delete')}</button
 								>
 							</div>
 						</li>
 					{:else}
-						<li class="text-center text-gray-500 py-4">No departments found.</li>
+						<li class="text-center text-gray-500 py-4">{$t('No departments found.')}</li>
 					{/each}
 				</ul>
 			</div>
@@ -870,7 +877,7 @@
 				<button
 					type="button"
 					onclick={closeDepartmentManager}
-					class="rounded-md border bg-white px-4 py-2 text-sm">Close</button
+					class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Close')}</button
 				>
 			</div>
 		</div>
@@ -887,7 +894,7 @@
 			class="relative flex max-h-[80vh] w-full max-w-xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
 		>
 			<div class="flex flex-shrink-0 items-center justify-between border-b p-4">
-				<h2 class="text-lg font-bold">Manage Positions</h2>
+				<h2 class="text-lg font-bold">{$t('Manage Positions')}</h2>
 				<button onclick={closePositionManager} class="text-gray-400 hover:text-gray-600"
 					>&times;</button
 				>
@@ -905,7 +912,7 @@
 							<input type="hidden" name="id" value={selectedPosition?.id} />
 						{/if}
 						<div>
-							<label for="pos_name" class="block text-sm font-medium">Name *</label>
+							<label for="pos_name" class="block text-sm font-medium">{$t('Name *')}</label>
 							<input
 								type="text"
 								id="pos_name"
@@ -922,7 +929,7 @@
 							<button
 								type="button"
 								onclick={closePositionForm}
-								class="rounded-md border bg-white px-3 py-1 text-sm">Cancel</button
+								class="rounded-md border bg-white px-3 py-1 text-sm">{$t('Cancel')}</button
 							>
 							<button
 								type="submit"
@@ -930,9 +937,9 @@
 								class="rounded-md bg-blue-600 px-3 py-1 text-sm text-white disabled:bg-blue-400"
 							>
 								{#if isSavingPosition}
-									Saving...
+									{$t('Saving...')}
 								{:else}
-									Save
+									{$t('Save')}
 								{/if}
 							</button>
 						</div>
@@ -943,7 +950,7 @@
 					<button
 						onclick={() => openPositionForm('add')}
 						class="rounded-md bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
-						>Add Position</button
+						>{$t('Add Position')}</button
 					>
 				</div>
 			{/if}
@@ -957,17 +964,17 @@
 								<button
 									onclick={() => openPositionForm('edit', pos)}
 									class="rounded-md px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-									>Edit</button
+									>{$t('Edit')}</button
 								>
 								<button
 									onclick={() => (positionToDelete = pos)}
 									class="rounded-md px-2.5 py-1 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
-									>Delete</button
+									>{$t('Delete')}</button
 								>
 							</div>
 						</li>
 					{:else}
-						<li class="text-center text-gray-500 py-4">No positions found.</li>
+						<li class="text-center text-gray-500 py-4">{$t('No positions found.')}</li>
 					{/each}
 				</ul>
 			</div>
@@ -976,7 +983,7 @@
 				<button
 					type="button"
 					onclick={closePositionManager}
-					class="rounded-md border bg-white px-4 py-2 text-sm">Close</button
+					class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Close')}</button
 				>
 			</div>
 		</div>
@@ -989,9 +996,11 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">Confirm Deletion</h3>
+			<h3 class="text-lg font-bold">{$t('Confirm Deletion')}</h3>
 			<p class="mt-2 text-sm">
-				Delete department "<strong>{departmentToDelete.name}</strong>"? This cannot be undone.
+				{$t('Delete department')} "<strong>{departmentToDelete.name}</strong>"? {$t(
+					'This action cannot be undone.'
+				)}
 			</p>
 			<form
 				method="POST"
@@ -1003,10 +1012,10 @@
 				<button
 					type="button"
 					onclick={() => (departmentToDelete = null)}
-					class="rounded-md border bg-white px-4 py-2 text-sm">Cancel</button
+					class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Cancel')}</button
 				>
 				<button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm text-white"
-					>Delete</button
+					>{$t('Delete')}</button
 				>
 			</form>
 		</div>
@@ -1019,9 +1028,11 @@
 		role="alertdialog"
 	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-			<h3 class="text-lg font-bold">Confirm Deletion</h3>
+			<h3 class="text-lg font-bold">{$t('Confirm Deletion')}</h3>
 			<p class="mt-2 text-sm">
-				Delete position "<strong>{positionToDelete.name}</strong>"? This cannot be undone.
+				{$t('Delete position')} "<strong>{positionToDelete.name}</strong>"? {$t(
+					'This action cannot be undone.'
+				)}
 			</p>
 			<form
 				method="POST"
@@ -1033,10 +1044,10 @@
 				<button
 					type="button"
 					onclick={() => (positionToDelete = null)}
-					class="rounded-md border bg-white px-4 py-2 text-sm">Cancel</button
+					class="rounded-md border bg-white px-4 py-2 text-sm">{$t('Cancel')}</button
 				>
 				<button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm text-white"
-					>Delete</button
+					>{$t('Delete')}</button
 				>
 			</form>
 		</div>

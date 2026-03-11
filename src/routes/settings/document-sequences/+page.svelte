@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
+	import { t } from '$lib/i18n';
 
 	export let data: PageData;
 	export let form: ActionData;
@@ -61,19 +62,28 @@
 		itemToDelete = null;
 	}
 
-	function getDocTypeName(type: string) {
+	function getDocTypeKey(type: string) {
 		switch (type) {
 			case 'QT':
-				return 'ใบเสนอราคา';
+				return 'Quotation';
 			case 'BN':
-				return 'ใบวางบิล';
+				return 'Billing Note';
 			case 'INV':
-				return 'ใบแจ้งหนี้';
+				return 'Invoice';
 			case 'RE':
-				return 'ใบเสร็จรับเงิน';
+				return 'Receipt';
 			case 'JOB':
-				return 'ใบสั่งงานขนส่ง';
-
+				return 'Transport Job Order';
+			case 'AP':
+				return 'Accounts Payable';
+			case 'GR':
+				return 'Goods Receipt';
+			case 'PO':
+				return 'Purchase Order';
+			case 'PR':
+				return 'Purchase Request';
+			case 'PV':
+				return 'Payment Voucher';
 			default:
 				return type;
 		}
@@ -102,15 +112,15 @@
 </script>
 
 <svelte:head>
-	<title>ตั้งค่าเลขที่เอกสาร</title>
+	<title>{$t('Document Sequences Settings')}</title>
 </svelte:head>
 
 <div class="mx-auto max-w-7xl">
 	<div class="mb-6 flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">จัดการเลขที่เอกสาร (Document Sequences)</h1>
+			<h1 class="text-2xl font-bold text-gray-800">{$t('Document Sequences Management')}</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				ตั้งค่ารูปแบบคำนำหน้าและเลขลำดับ (Running Number) ปัจจุบัน
+				{$t('Set prefix format and current running number')}
 			</p>
 		</div>
 		<button
@@ -118,7 +128,7 @@
 			on:click={openCreateModal}
 			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
 		>
-			+ เพิ่มลำดับใหม่
+			{$t('Add New Sequence')}
 		</button>
 	</div>
 
@@ -127,22 +137,26 @@
 			<table class="min-w-full divide-y divide-gray-200 text-sm">
 				<thead class="bg-gray-50">
 					<tr>
-						<th class="px-4 py-3 text-left font-semibold text-gray-600">ประเภทเอกสาร</th>
-						<th class="px-4 py-3 text-center font-semibold text-gray-600">ปี / เดือน</th>
-						<th class="px-4 py-3 text-center font-semibold text-gray-600">คำนำหน้า (Prefix)</th>
-						<th class="px-4 py-3 text-center font-semibold text-gray-600">จำนวนหลัก</th>
-						<th class="px-4 py-3 text-center font-semibold text-blue-600">เลขที่ถูกใช้ล่าสุด</th>
-						<th class="px-4 py-3 text-center font-semibold text-gray-600">ตัวอย่างเอกสารถัดไป</th>
-						<th class="px-4 py-3 text-center font-semibold text-gray-600">จัดการ</th>
+						<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document Type')}</th>
+						<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Year / Month')}</th>
+						<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Prefix')}</th>
+						<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Padding Length')}</th
+						>
+						<th class="px-4 py-3 text-center font-semibold text-blue-600"
+							>{$t('Last Used Number')}</th
+						>
+						<th class="px-4 py-3 text-center font-semibold text-gray-600"
+							>{$t('Next Document Example')}</th
+						>
+						<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
 					{#if sequences.length === 0}
 						<tr>
-							<td colspan="7" class="py-8 text-center text-gray-500"
-								>ยังไม่มีข้อมูลการตั้งค่าเลขลำดับ
-								(ระบบจะสร้างให้อัตโนมัติเมื่อมีการสร้างเอกสารใบแรกของเดือน)</td
-							>
+							<td colspan="7" class="py-8 text-center text-gray-500">
+								{$t('No sequence settings found')}
+							</td>
 						</tr>
 					{:else}
 						{#each sequences as seq}
@@ -158,7 +172,7 @@
 											seq.document_type
 										)}"
 									>
-										{getDocTypeName(seq.document_type)} ({seq.document_type})
+										{$t(getDocTypeKey(seq.document_type))} ({seq.document_type})
 									</span>
 								</td>
 								<td class="px-4 py-3 text-center font-medium text-gray-700">
@@ -167,7 +181,7 @@
 								<td class="px-4 py-3 text-center">
 									<span class="rounded bg-gray-50 px-2 py-1 font-mono text-gray-600">
 										{#if seq.document_type === 'JOB'}
-											[รหัสงาน]
+											{$t('[Job Code]')}
 										{:else}
 											{seq.prefix}
 										{/if}
@@ -179,7 +193,7 @@
 								>
 								<td class="px-4 py-3 text-center font-mono text-gray-500">
 									{#if seq.document_type === 'JOB'}
-										[รหัสงาน]{currentYY}{currentMM}{nextNumStr}
+										{$t('[Job Code]')}{currentYY}{currentMM}{nextNumStr}
 									{:else}
 										{seq.prefix}{new Date().getFullYear()}{currentMM}-{nextNumStr}
 									{/if}
@@ -190,7 +204,7 @@
 											type="button"
 											on:click={() => openEditModal(seq)}
 											class="text-gray-400 transition-colors hover:text-yellow-600"
-											title="แก้ไข"
+											title={$t('Edit')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -206,7 +220,7 @@
 											type="button"
 											on:click={() => openDeleteModal(seq)}
 											class="text-gray-400 transition-colors hover:text-red-600"
-											title="ลบ"
+											title={$t('Delete')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -240,7 +254,7 @@
 		>
 			<div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-6 py-4">
 				<h3 class="text-lg font-bold text-gray-900">
-					{modalMode === 'create' ? 'เพิ่มการตั้งค่าเลขลำดับ' : 'แก้ไขเลขลำดับ'}
+					{modalMode === 'create' ? $t('Add Document Sequence') : $t('Edit Document Sequence')}
 				</h3>
 				<button
 					type="button"
@@ -272,7 +286,7 @@
 
 					<div>
 						<label for="document_type" class="mb-1 block text-sm font-medium text-gray-700"
-							>ประเภทเอกสาร</label
+							>{$t('Document Type')}</label
 						>
 						<select
 							id="document_type"
@@ -282,22 +296,29 @@
 							class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							disabled={modalMode === 'edit'}
 						>
-							<option value="QT">ใบเสนอราคา (QT)</option>
-							<option value="BN">ใบวางบิล (BN)</option>
-							<option value="INV">ใบแจ้งหนี้ (INV)</option>
-							<option value="RE">ใบเสร็จรับเงิน (RE)</option>
-							<option value="JOB">ใบสั่งงานขนส่ง (JOB)</option>
+							<option value="QT">{$t('Quotation (QT)')}</option>
+							<option value="BN">{$t('Billing Note (BN)')}</option>
+							<option value="INV">{$t('Invoice (INV)')}</option>
+							<option value="RE">{$t('Receipt (RE)')}</option>
+							<option value="JOB">{$t('Transport Job Order (JOB)')}</option>
+							<option value="AP">{$t('Accounts Payable (AP)')}</option>
+							<option value="GR">{$t('Goods Receipt (GR)')}</option>
+							<option value="PO">{$t('Purchase Order (PO)')}</option>
+							<option value="PR">{$t('Purchase Request (PR)')}</option>
+							<option value="PV">{$t('Payment Voucher (PV)')}</option>
 						</select>
 						{#if modalMode === 'edit'}
 							<input type="hidden" name="document_type" value={formData.document_type} />
-							<p class="mt-1 text-xs text-gray-500">ไม่สามารถเปลี่ยนประเภทเอกสารได้เมื่อแก้ไข</p>
+							<p class="mt-1 text-xs text-gray-500">
+								{$t('Cannot change document type during edit')}
+							</p>
 						{/if}
 					</div>
 
 					<div class="grid grid-cols-2 gap-4">
 						<div>
 							<label for="year" class="mb-1 block text-sm font-medium text-gray-700"
-								>ปี (ค.ศ.)</label
+								>{$t('Year (YYYY)')}</label
 							>
 							<input
 								id="year"
@@ -316,7 +337,7 @@
 						</div>
 						<div>
 							<label for="month" class="mb-1 block text-sm font-medium text-gray-700"
-								>เดือน (1-12)</label
+								>{$t('Month (1-12)')}</label
 							>
 							<input
 								id="month"
@@ -339,13 +360,13 @@
 
 					<div>
 						<label for="prefix" class="mb-1 block text-sm font-medium text-gray-700"
-							>คำนำหน้า (Prefix)</label
+							>{$t('Prefix')}</label
 						>
 						{#if formData.document_type === 'JOB'}
 							<input
 								id="prefix"
 								type="text"
-								value="[เปลี่ยนตามรหัส SI, SE ฯลฯ อัตโนมัติ]"
+								value={$t('[Auto-changes based on SI, SE, etc.]')}
 								disabled
 								class="w-full rounded-md border-gray-300 bg-gray-100 font-mono text-gray-500 shadow-sm"
 							/>
@@ -358,7 +379,7 @@
 								bind:value={formData.prefix}
 								required
 								class="w-full rounded-md border-gray-300 font-mono shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								placeholder="เช่น INV-"
+								placeholder={$t('e.g., INV-')}
 							/>
 						{/if}
 					</div>
@@ -366,7 +387,7 @@
 					<div class="grid grid-cols-2 gap-4">
 						<div>
 							<label for="last_number" class="mb-1 block text-sm font-medium text-blue-700"
-								>เลขที่ถูกใช้ล่าสุด <span class="text-red-500">*</span></label
+								>{$t('Last Used Number')} <span class="text-red-500">*</span></label
 							>
 							<input
 								id="last_number"
@@ -377,11 +398,11 @@
 								required
 								class="w-full rounded-md border-blue-300 bg-blue-50 font-bold text-blue-700 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
-							<p class="mt-1 text-[10px] text-gray-500">ตั้งเป็น 0 เพื่อให้เริ่มที่ 1</p>
+							<p class="mt-1 text-[10px] text-gray-500">{$t('Set to 0 to start at 1')}</p>
 						</div>
 						<div>
 							<label for="padding_length" class="mb-1 block text-sm font-medium text-gray-700"
-								>จำนวนหลัก (Padding)</label
+								>{$t('Padding Length')}</label
 							>
 							<input
 								id="padding_length"
@@ -397,12 +418,12 @@
 					</div>
 
 					<div class="rounded border border-gray-200 bg-gray-50 p-3 text-center text-sm">
-						ตัวอย่างเอกสารใบถัดไป: <br />
+						{$t('Next Document Example:')} <br />
 						<strong class="font-mono text-lg text-gray-800">
 							{#if formData.document_type === 'JOB'}
 								{@const curYY = String(new Date().getFullYear()).slice(-2)}
 								{@const curMM = String(new Date().getMonth() + 1).padStart(2, '0')}
-								[รหัสงาน]{curYY}{curMM}{String(Number(formData.last_number) + 1).padStart(
+								{$t('[Job Code]')}{curYY}{curMM}{String(Number(formData.last_number) + 1).padStart(
 									Number(formData.padding_length),
 									'0'
 								)}
@@ -420,14 +441,14 @@
 						type="button"
 						on:click={closeModal}
 						class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-						>ยกเลิก</button
+						>{$t('Cancel')}</button
 					>
 					<button
 						type="submit"
 						disabled={isSaving}
 						class="rounded-md bg-blue-600 px-6 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
 					>
-						{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+						{isSaving ? $t('Saving...') : $t('Save Data')}
 					</button>
 				</div>
 			</form>
@@ -435,7 +456,6 @@
 	</div>
 {/if}
 
-<!-- Modal ลบ -->
 {#if isDeleteModalOpen}
 	<div
 		class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-gray-900 p-4 transition-opacity"
@@ -443,14 +463,17 @@
 		<div
 			class="w-full transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all sm:max-w-lg"
 		>
-			<h3 class="mb-2 text-lg font-medium text-gray-900">ยืนยันการลบ</h3>
+			<h3 class="mb-2 text-lg font-medium text-gray-900">{$t('Confirm Deletion')}</h3>
 			<p class="text-sm text-gray-500">
-				คุณต้องการลบการตั้งค่าลำดับของ <strong class="text-gray-800"
-					>{getDocTypeName(itemToDelete?.document_type)} (เดือน {itemToDelete?.month}/{itemToDelete?.year})</strong
-				>
-				ใช่หรือไม่? <br />
+				{$t('Are you sure you want to delete the sequence setting for')}
+				<strong class="text-gray-800"
+					>{$t(getDocTypeKey(itemToDelete?.document_type))} ({$t('Month')}
+					{itemToDelete?.month}/{itemToDelete?.year})</strong
+				>? <br />
 				<span class="text-xs text-red-500"
-					>*การลบไม่มีผลกับเอกสารที่ออกไปแล้ว แต่อาจทำให้การออกเอกสารใหม่ในเดือนนี้เริ่มนับ 1 ใหม่</span
+					>{$t(
+						'*Deletion does not affect issued documents, but new documents this month might restart from 1.'
+					)}</span
 				>
 			</p>
 			<div class="mt-6 flex justify-end gap-3">
@@ -458,7 +481,7 @@
 					type="button"
 					on:click={closeDeleteModal}
 					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-					>ยกเลิก</button
+					>{$t('Cancel')}</button
 				>
 				<form
 					method="POST"
@@ -478,7 +501,7 @@
 						disabled={isDeleting}
 						class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
 					>
-						{isDeleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+						{isDeleting ? $t('Deleting...') : $t('Delete')}
 					</button>
 				</form>
 			</div>

@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data;
 
@@ -11,6 +12,7 @@
 		label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
 		address: c.address
 	}));
+
 	$: allContracts = data.contracts || [];
 	$: filteredContracts = selectedCustomer
 		? allContracts
@@ -24,7 +26,6 @@
 	}));
 
 	let selectedLiner: any = null;
-
 	let jobAmount: number | string = '';
 
 	let isSaving = false;
@@ -39,6 +40,7 @@
 		{ value: 'AF', label: 'AF (Air Freight)' },
 		{ value: 'SP', label: 'SP (Special Project)' }
 	];
+
 	let selectedJobType: any = jobTypeOptions[0];
 	$: padding = data?.paddingLength ?? 4;
 	$: nextSeqNum = data?.nextSequence ?? 1;
@@ -47,6 +49,7 @@
 		data?.currencies && data.currencies.length > 0
 			? data.currencies
 			: [{ code: 'THB' }, { code: 'USD' }, { code: 'CNY' }];
+
 	let selectedCurrency = 'THB';
 	$: parsedDate = jobDate ? new Date(jobDate) : new Date();
 	$: yy = String(parsedDate.getFullYear()).slice(-2);
@@ -99,12 +102,11 @@
 
 	function saveManageOption() {
 		if (!manageLabel) {
-			showToast('กรุณาระบุ Label เพื่อดำเนินการต่อ', 'error');
+			showToast($t('Please specify a label to proceed.'), 'error');
 			return;
 		}
 
 		const valueToSave = manageValue || manageLabel;
-
 		if (manageModalType === 'jobCode') {
 			if (editingIndex !== null) {
 				jobTypeOptions[editingIndex] = { value: valueToSave, label: manageLabel };
@@ -120,7 +122,9 @@
 		}
 
 		const successMsg =
-			editingIndex !== null ? 'อัปเดตข้อมูลเรียบร้อยแล้ว' : 'เพิ่มลงในระบบเรียบร้อยแล้ว';
+			editingIndex !== null
+				? $t('Data updated successfully.')
+				: $t('Added to system successfully.');
 		resetManageForm();
 		showToast(successMsg, 'success');
 	}
@@ -144,7 +148,6 @@
 
 	function executeDeleteOption() {
 		if (deleteTargetIndex === null) return;
-
 		if (manageModalType === 'jobCode') {
 			jobTypeOptions = jobTypeOptions.filter((_, i) => i !== deleteTargetIndex);
 		} else if (manageModalType === 'serviceType') {
@@ -153,7 +156,7 @@
 
 		showDeleteConfirm = false;
 		deleteTargetIndex = null;
-		showToast('ลบตัวเลือกเรียบร้อยแล้ว', 'success');
+		showToast($t('Option deleted successfully.'), 'success');
 	}
 
 	let partnerType = 'customer';
@@ -163,7 +166,6 @@
 		label: v.company_name ? `${v.company_name} (${v.name})` : v.name,
 		address: v.address
 	}));
-
 	let allVendorContracts = data.vendorContracts || [];
 	let selectedVendor: any = null;
 	let selectedVendorContract: any = null;
@@ -226,8 +228,8 @@
 		<div class="flex items-center gap-4">
 			<a
 				href="/freight-forwarder/job-orders"
-				title="ย้อนกลับ"
-				aria-label="Back to Job Orders"
+				title={$t('Back')}
+				aria-label={$t('Back')}
 				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
 			>
 				<svg
@@ -246,18 +248,18 @@
 			</a>
 			<div>
 				<div class="flex items-center gap-2">
-					<h1 class="text-xl font-bold text-gray-800">New Job Order</h1>
+					<h1 class="text-xl font-bold text-gray-800">{$t('Create New Job')}</h1>
 					<span
 						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
 					>
 						{previewJobNumber}
 					</span>
 				</div>
-				<p class="text-xs text-gray-500">สร้างใบงานใหม่ (Create New Job)</p>
+				<p class="text-xs text-gray-500">{$t('Create New Job')}</p>
 			</div>
 		</div>
-		<div class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">
-			STATUS: PENDING
+		<div class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 uppercase">
+			{$t('Status')}: {$t('Pending')}
 		</div>
 	</div>
 
@@ -283,32 +285,32 @@
 				<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-2">
 					<div class="space-y-5">
 						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
-							Partner Information
+							{$t('Partner Information')}
 						</h2>
 
 						<div>
 							<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-								ประเภท (Type) <span class="text-red-500">*</span>
+								{$t('Type')} <span class="text-red-500">*</span>
 							</div>
 							<select
 								name="partner_type"
 								bind:value={partnerType}
 								class="w-full rounded-md border border-gray-300 bg-white p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 							>
-								<option value="customer">ลูกค้า (Customer)</option>
-								<option value="vendor">ผู้จำหน่าย (Vendor)</option>
+								<option value="customer">{$t('Customer')}</option>
+								<option value="vendor">{$t('Vendor')}</option>
 							</select>
 						</div>
 
 						{#if partnerType === 'customer'}
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Customer <span class="text-red-500">*</span>
+									{$t('Customer')} <span class="text-red-500">*</span>
 								</div>
 								<Select
 									items={customerOptions}
 									bind:value={selectedCustomer}
-									placeholder="ค้นหาลูกค้า..."
+									placeholder={$t('Search customer...')}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
 								/>
@@ -334,7 +336,7 @@
 								<Select
 									items={filteredContracts}
 									bind:value={selectedContract}
-									placeholder={selectedCustomer ? 'เลือกสัญญา (Optional)' : '-'}
+									placeholder={selectedCustomer ? $t('Select contract (Optional)') : '-'}
 									disabled={!selectedCustomer}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
@@ -346,12 +348,12 @@
 						{#if partnerType === 'vendor'}
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Vendor <span class="text-red-500">*</span>
+									{$t('Vendor')} <span class="text-red-500">*</span>
 								</div>
 								<Select
 									items={vendorOptions}
 									bind:value={selectedVendor}
-									placeholder="ค้นหาผู้จำหน่าย..."
+									placeholder={$t('Search vendor...')}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
 								/>
@@ -373,11 +375,13 @@
 							{/if}
 
 							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">Vendor Contract</div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									{$t('Vendor Contract')}
+								</div>
 								<Select
 									items={filteredVendorContracts}
 									bind:value={selectedVendorContract}
-									placeholder={selectedVendor ? 'เลือกสัญญา (Optional)' : '-'}
+									placeholder={selectedVendor ? $t('Select contract (Optional)') : '-'}
 									disabled={!selectedVendor}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
@@ -392,12 +396,14 @@
 					</div>
 
 					<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50/50 p-5">
-						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Job Details</h2>
+						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
+							{$t('Job Details')}
+						</h2>
 
 						<div class="grid grid-cols-2 gap-4">
 							<div>
 								<label for="job_date" class="mb-1 block text-sm font-semibold text-gray-700"
-									>Job Date</label
+									>{$t('Job Date')}</label
 								>
 								<input
 									id="job_date"
@@ -409,7 +415,7 @@
 							</div>
 							<div>
 								<label for="expire_date" class="mb-1 block text-sm font-semibold text-gray-700"
-									>Expire Date</label
+									>{$t('Expire Date')}</label
 								>
 								<input
 									id="expire_date"
@@ -423,14 +429,14 @@
 						<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Job Code <span class="text-red-500">*</span>
+									{$t('Job Code')} <span class="text-red-500">*</span>
 								</div>
 								<div class="flex items-start gap-2">
 									<div class="min-w-0 flex-grow">
 										<Select
 											items={jobTypeOptions}
 											bind:value={selectedJobType}
-											placeholder="เลือก..."
+											placeholder={$t('Select...')}
 											container={browser ? document.body : null}
 											class="svelte-select-custom"
 											clearable={false}
@@ -446,7 +452,7 @@
 										type="button"
 										on:click={() => openManageModal('jobCode')}
 										class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
-										title="จัดการตัวเลือก Job Code"
+										title={$t('Manage Job Code options')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -468,7 +474,7 @@
 
 							<div>
 								<label for="service_type" class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Service Type <span class="text-red-500">*</span>
+									{$t('Service Type')} <span class="text-red-500">*</span>
 								</label>
 								<div class="flex items-start gap-2">
 									<select
@@ -485,7 +491,7 @@
 										type="button"
 										on:click={() => openManageModal('serviceType')}
 										class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
-										title="จัดการตัวเลือก Service Type"
+										title={$t('Manage Service Type options')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -508,14 +514,14 @@
 
 						<div>
 							<label for="remarks" class="mb-1 block text-sm font-semibold text-gray-700"
-								>Remark</label
+								>{$t('Remark')}</label
 							>
 							<textarea
 								id="remarks"
 								name="remarks"
 								rows="2"
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-								placeholder="ระบุหมายเหตุ..."
+								placeholder={$t('Enter remark...')}
 							></textarea>
 						</div>
 					</div>
@@ -523,12 +529,12 @@
 
 				<div class="p-8">
 					<h2 class="mb-4 border-b pb-1 text-xs font-bold tracking-wider text-gray-400 uppercase">
-						Shipment Information
+						{$t('Shipment Information')}
 					</h2>
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 						<div>
 							<label for="bl_number" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>B/L Number <span class="text-red-500">*</span></label
+								>{$t('B/L Number')} <span class="text-red-500">*</span></label
 							>
 							<input
 								id="bl_number"
@@ -541,12 +547,12 @@
 						</div>
 						<div>
 							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								Liner / Carrier
+								{$t('Liner / Carrier')}
 							</div>
 							<Select
 								items={linerOptions}
 								bind:value={selectedLiner}
-								placeholder="ค้นหาหรือเลือกสายเรือ..."
+								placeholder={$t('Search or select liner...')}
 								container={browser ? document.body : null}
 								class="svelte-select-custom"
 							/>
@@ -554,32 +560,32 @@
 						</div>
 						<div>
 							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>Port / Location</label
+								>{$t('Port / Location')}</label
 							>
 							<input
 								id="location"
 								type="text"
 								name="location"
-								placeholder="Port of Loading / Discharge"
+								placeholder={$t('Port of Loading / Discharge')}
 								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 						<div>
 							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								Customer Invoice
+								{$t('Customer Invoice')}
 							</label>
 							<input
 								type="text"
 								id="invoice_no"
 								name="invoice_no"
-								placeholder="เช่น INV-001, INV-002"
+								placeholder={$t('e.g., INV-001, INV-002')}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 
 						<div class="col-span-1 mt-4 md:col-span-2">
 							<label for="attachments" class="mb-1 block text-sm font-semibold text-gray-700">
-								เอกสารแนบ (Attachments)
+								{$t('Attachments')}
 							</label>
 							<div
 								class="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 transition-colors hover:bg-gray-100"
@@ -592,8 +598,9 @@
 									class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-200"
 								/>
 								<p class="mt-2 text-xs text-gray-500">
-									* สามารถเลือกอัปโหลดได้หลายไฟล์พร้อมกัน (เช่น B/L, Commercial Invoice, Packing
-									List)
+									{$t(
+										'* Multiple files can be selected (e.g., B/L, Commercial Invoice, Packing List)'
+									)}
 								</p>
 							</div>
 						</div>
@@ -604,7 +611,9 @@
 					class="flex flex-col items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6 md:flex-row"
 				>
 					<div class="flex items-center gap-3">
-						<label for="amount" class="text-sm font-semibold text-gray-700">Initial Amount:</label>
+						<label for="amount" class="text-sm font-semibold text-gray-700"
+							>{$t('Initial Amount:')}</label
+						>
 
 						<div
 							class="flex rounded-md border border-gray-300 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
@@ -643,7 +652,7 @@
 						href="/freight-forwarder/job-orders"
 						class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700"
 					>
-						Cancel
+						{$t('Cancel')}
 					</a>
 					<button
 						type="submit"
@@ -669,9 +678,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path></svg
 							>
-							Saving...
+							{$t('Saving...')}
 						{:else}
-							Create Job
+							{$t('Create Job')}
 						{/if}
 					</button>
 				</div>
@@ -685,13 +694,14 @@
 		<div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
 			<div class="flex items-center justify-between border-b px-5 py-4">
 				<h3 class="font-bold text-gray-800">
-					จัดการตัวเลือก {manageModalType === 'jobCode' ? 'Job Code' : 'Service Type'}
+					{$t('Manage options')}
+					{manageModalType === 'jobCode' ? 'Job Code' : 'Service Type'}
 				</h3>
 				<button
 					on:click={closeManageModal}
 					class="text-gray-400 hover:text-gray-600 focus:outline-none"
-					aria-label="ปิดหน้าต่าง"
-					title="ปิดหน้าต่าง"
+					aria-label={$t('Close')}
+					title={$t('Close')}
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -713,12 +723,12 @@
 			<div class="p-5">
 				<div class="mb-6 rounded-lg border bg-gray-50 p-4">
 					<h4 class="mb-3 text-sm font-semibold text-gray-600">
-						{editingIndex !== null ? 'แก้ไขตัวเลือก' : 'เพิ่มตัวเลือกใหม่'}
+						{editingIndex !== null ? $t('Edit option') : $t('Add new option')}
 					</h4>
 					<div class="mb-3 grid grid-cols-2 gap-3">
 						<div>
 							<label for="manage_value" class="mb-1 block text-xs font-medium text-gray-500"
-								>Value (เช่น SI)</label
+								>{$t('Value (e.g., SI)')}</label
 							>
 							<input
 								id="manage_value"
@@ -730,7 +740,7 @@
 						</div>
 						<div>
 							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500"
-								>Label (เช่น Sea Import)</label
+								>{$t('Label (e.g., Sea Import)')}</label
 							>
 							<input
 								id="manage_label"
@@ -747,20 +757,20 @@
 							on:click={saveManageOption}
 							class="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
 						>
-							{editingIndex !== null ? 'บันทึกการแก้ไข' : 'เพิ่มลงในระบบ'}
+							{editingIndex !== null ? $t('Save changes') : $t('Add to system')}
 						</button>
 						{#if editingIndex !== null}
 							<button
 								on:click={resetManageForm}
 								class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
 							>
-								ยกเลิก
+								{$t('Cancel')}
 							</button>
 						{/if}
 					</div>
 				</div>
 
-				<h4 class="mb-2 text-sm font-semibold text-gray-700">รายการตัวเลือกปัจจุบัน</h4>
+				<h4 class="mb-2 text-sm font-semibold text-gray-700">{$t('Current options')}</h4>
 				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
 					<ul class="divide-y divide-gray-100">
 						{#each manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions as option, index}
@@ -773,8 +783,8 @@
 									<button
 										on:click={() => editManageOption(index)}
 										class="text-gray-400 hover:text-blue-600 focus:outline-none"
-										aria-label="แก้ไขตัวเลือก"
-										title="แก้ไข"
+										aria-label={$t('Edit option')}
+										title={$t('Edit')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -794,8 +804,8 @@
 									<button
 										on:click={() => confirmDeleteOption(index)}
 										class="text-gray-400 hover:text-red-600 focus:outline-none"
-										aria-label="ลบตัวเลือก"
-										title="ลบ"
+										aria-label={$t('Delete option')}
+										title={$t('Delete')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -816,7 +826,7 @@
 							</li>
 						{/each}
 						{#if (manageModalType === 'jobCode' && jobTypeOptions.length === 0) || (manageModalType === 'serviceType' && serviceTypeOptions.length === 0)}
-							<li class="p-4 text-center text-sm text-gray-500">ยังไม่มีข้อมูลในระบบ</li>
+							<li class="p-4 text-center text-sm text-gray-500">{$t('No data in the system')}</li>
 						{/if}
 					</ul>
 				</div>
@@ -826,7 +836,7 @@
 					on:click={closeManageModal}
 					class="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300"
 				>
-					ปิดหน้าต่าง
+					{$t('Close')}
 				</button>
 			</div>
 		</div>
@@ -856,10 +866,13 @@
 					</svg>
 				</div>
 			</div>
-			<h3 class="mb-2 text-center text-lg font-bold text-gray-900">ยืนยันการลบตัวเลือก</h3>
+			<h3 class="mb-2 text-center text-lg font-bold text-gray-900">
+				{$t('Confirm Option Deletion')}
+			</h3>
 			<p class="mb-6 text-center text-sm text-gray-500">
-				คุณต้องการลบตัวเลือกนี้ใช่หรือไม่? <br />
-				<span class="font-semibold text-red-600">การกระทำนี้ไม่สามารถย้อนกลับได้</span>
+				{$t('Are you sure you want to delete this option?')}
+				<br />
+				<span class="font-semibold text-red-600">{$t('This action cannot be undone')}</span>
 			</p>
 
 			<div class="flex justify-center gap-3">
@@ -867,13 +880,13 @@
 					on:click={cancelDeleteOption}
 					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 				<button
 					on:click={executeDeleteOption}
 					class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
 				>
-					ลบข้อมูล
+					{$t('Delete data')}
 				</button>
 			</div>
 		</div>

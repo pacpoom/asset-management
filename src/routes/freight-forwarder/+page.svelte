@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { t, locale } from '$lib/i18n';
+
 	export let data;
 	$: stats = data.stats;
 	$: recentJobs = data.recentJobs || [];
@@ -33,12 +35,21 @@
 		const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 		return diffDays;
 	}
+
+	function formatDate(dateStr: string) {
+		if (!dateStr) return '-';
+		return new Date(dateStr).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US');
+	}
 </script>
+
+<svelte:head>
+	<title>{$t('Dashboard (Freight Forwarder)')}</title>
+</svelte:head>
 
 <div class="min-h-screen bg-gray-50 p-6">
 	<div class="mb-8">
-		<h1 class="text-2xl font-bold text-gray-900">Dashboard (Freight Forwarder)</h1>
-		<p class="mt-1 text-sm text-gray-500">ภาพรวมระบบจัดการงานขนส่งประจำวัน</p>
+		<h1 class="text-2xl font-bold text-gray-900">{$t('Dashboard (Freight Forwarder)')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Daily Freight Management Overview')}</p>
 	</div>
 
 	<div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -52,7 +63,7 @@
 					<span class="material-symbols-outlined h-6 w-6">work</span>
 				</div>
 				<div>
-					<p class="text-sm font-medium text-gray-500">Total Job Orders</p>
+					<p class="text-sm font-medium text-gray-500">{$t('Total Job Orders')}</p>
 					<p class="text-2xl font-bold text-gray-900">{stats.total_jobs}</p>
 				</div>
 			</div>
@@ -68,7 +79,7 @@
 					<span class="material-symbols-outlined h-6 w-6">pending_actions</span>
 				</div>
 				<div>
-					<p class="text-sm font-medium text-gray-500">Pending</p>
+					<p class="text-sm font-medium text-gray-500">{$t('Pending')}</p>
 					<p class="text-2xl font-bold text-gray-900">{stats.pending_jobs || 0}</p>
 				</div>
 			</div>
@@ -84,7 +95,7 @@
 					<span class="material-symbols-outlined h-6 w-6">local_shipping</span>
 				</div>
 				<div>
-					<p class="text-sm font-medium text-gray-500">In Progress</p>
+					<p class="text-sm font-medium text-gray-500">{$t('In Progress')}</p>
 					<p class="text-2xl font-bold text-gray-900">{stats.in_progress_jobs || 0}</p>
 				</div>
 			</div>
@@ -100,7 +111,7 @@
 					<span class="material-symbols-outlined h-6 w-6">check_circle</span>
 				</div>
 				<div>
-					<p class="text-sm font-medium text-gray-500">Completed</p>
+					<p class="text-sm font-medium text-gray-500">{$t('Completed')}</p>
 					<p class="text-2xl font-bold text-gray-900">{stats.completed_jobs || 0}</p>
 				</div>
 			</div>
@@ -110,10 +121,10 @@
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<div class="flex flex-col rounded-xl border border-gray-200 bg-white shadow-sm lg:col-span-2">
 			<div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-				<h2 class="text-base font-bold text-gray-800">งานล่าสุด (Recent Job Orders)</h2>
+				<h2 class="text-base font-bold text-gray-800">{$t('Recent Job Orders')}</h2>
 				<a
 					href="/freight-forwarder/job-orders"
-					class="text-sm font-semibold text-blue-600 hover:text-blue-800">ดูทั้งหมด &rarr;</a
+					class="text-sm font-semibold text-blue-600 hover:text-blue-800">{$t('View All')} &rarr;</a
 				>
 			</div>
 			<div class="flex-1 overflow-x-auto">
@@ -121,16 +132,16 @@
 					<thead class="bg-gray-50">
 						<tr>
 							<th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase"
-								>Job No.</th
+								>{$t('Job No.')}</th
 							>
 							<th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase"
-								>Customer</th
+								>{$t('Customer')}</th
 							>
 							<th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase"
-								>Status</th
+								>{$t('Status')}</th
 							>
 							<th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase"
-								>Date</th
+								>{$t('Date')}</th
 							>
 						</tr>
 					</thead>
@@ -150,7 +161,7 @@
 								</td>
 								<td class="px-6 py-4">
 									<div class="font-medium text-gray-800">
-										{job.company_name || job.customer_name || 'ไม่ระบุ'}
+										{job.company_name || job.customer_name || $t('Unknown')}
 									</div>
 								</td>
 								<td class="px-6 py-4 text-center">
@@ -159,17 +170,19 @@
 											job.job_status
 										)}"
 									>
-										{job.job_status}
+										{$t('Status_' + job.job_status) || job.job_status}
 									</span>
 								</td>
 								<td class="px-6 py-4 text-right text-xs text-gray-500">
-									{new Date(job.job_date).toLocaleDateString('th-TH')}
+									{formatDate(job.job_date)}
 								</td>
 							</tr>
 						{/each}
 						{#if recentJobs.length === 0}
 							<tr>
-								<td colspan="4" class="py-10 text-center text-gray-400">ยังไม่มีข้อมูลงานล่าสุด</td>
+								<td colspan="4" class="py-10 text-center text-gray-400"
+									>{$t('No recent job orders')}</td
+								>
 							</tr>
 						{/if}
 					</tbody>
@@ -190,7 +203,7 @@
 						{/if}
 						<span class="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
 					</span>
-					<h2 class="text-base font-bold text-gray-800">การแจ้งเตือน (Alerts)</h2>
+					<h2 class="text-base font-bold text-gray-800">{$t('Alerts')}</h2>
 				</div>
 				{#if alerts.length > 0}
 					<span class="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-600"
@@ -217,12 +230,18 @@
 										{formatJobNumber(alert.job_type, alert.job_date, alert.id)}
 									</a>
 									<span class="text-[10px] font-bold text-red-600">
-										เหลือ {getDaysLeft(alert.expire_date)} วัน
+										{$t('Expires in')}
+										{getDaysLeft(alert.expire_date)}
+										{$t('days')}
 									</span>
 								</div>
 								<p class="mt-1 text-xs text-gray-600">
-									ใบงานสถานะ <span class="font-bold">{alert.job_status}</span>
-									กำลังจะหมดอายุในวันที่ {new Date(alert.expire_date).toLocaleDateString('th-TH')}
+									{$t('Job with status')}
+									<span class="font-bold"
+										>{$t('Status_' + alert.job_status) || alert.job_status}</span
+									>
+									{$t('is expiring on')}
+									{formatDate(alert.expire_date)}
 								</p>
 							</div>
 						</div>
@@ -233,9 +252,9 @@
 							<div class="mb-3 rounded-full bg-green-50 p-3 text-green-500">
 								<span class="material-symbols-outlined h-8 w-8">notifications_active</span>
 							</div>
-							<h3 class="text-sm font-bold text-gray-900">ยอดเยี่ยม!</h3>
+							<h3 class="text-sm font-bold text-gray-900">{$t('Excellent!')}</h3>
 							<p class="mt-1 text-xs text-gray-500">
-								ไม่มีรายการแจ้งเตือนด่วนในขณะนี้<br />ระบบทำงานได้อย่างราบรื่น
+								{$t('No urgent alerts right now.')}<br />{$t('System is running smoothly.')}
 							</p>
 						</div>
 					{/if}
@@ -243,7 +262,7 @@
 			</div>
 
 			<div class="rounded-b-xl border-t border-gray-100 bg-gray-50 px-6 py-3 text-center">
-				<p class="text-[10px] text-gray-400">อัปเดตข้อมูลแบบ Real-time ตามระบบฐานข้อมูล</p>
+				<p class="text-[10px] text-gray-400">{$t('Real-time data updated from the database.')}</p>
 			</div>
 		</div>
 	</div>

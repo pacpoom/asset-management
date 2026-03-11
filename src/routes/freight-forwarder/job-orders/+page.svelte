@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { t, locale } from '$lib/i18n';
+
 	export let data;
 	$: jobs = data.job_orders || [];
 
@@ -46,11 +48,15 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{$t('Job Orders')}</title>
+</svelte:head>
+
 <div class="min-h-screen bg-gray-50 p-6">
 	<div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">Job Orders</h1>
-			<p class="text-sm text-gray-500">จัดการรายการงานขนส่ง (Freight Forwarder)</p>
+			<h1 class="text-2xl font-bold text-gray-800">{$t('Job Orders')}</h1>
+			<p class="text-sm text-gray-500">{$t('Manage freight forwarder job orders')}</p>
 		</div>
 		<a
 			href="/freight-forwarder/job-orders/create"
@@ -66,7 +72,7 @@
 					d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
 				/>
 			</svg>
-			เปิด Job ใหม่
+			{$t('Create New Job')}
 		</a>
 	</div>
 
@@ -76,25 +82,25 @@
 				<thead class="bg-gray-50 text-gray-700">
 					<tr>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>Job No. / Date</th
+							>{$t('Job No. / Date')}</th
 						>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>Type / Service</th
+							>{$t('Type / Service')}</th
 						>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>Customer</th
+							>{$t('Customer')}</th
 						>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>Shipment Info</th
+							>{$t('Shipment Info')}</th
 						>
 						<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
-							>Status</th
+							>{$t('Status')}</th
 						>
 						<th class="px-6 py-3 text-right text-xs font-semibold tracking-wider uppercase"
-							>Amount</th
+							>{$t('Amount')}</th
 						>
 						<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
-							>Action</th
+							>{$t('Action')}</th
 						>
 					</tr>
 				</thead>
@@ -109,7 +115,7 @@
 									{job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)}
 								</a>
 								<div class="text-xs text-gray-500">
-									{new Date(job.job_date).toLocaleDateString('th-TH')}
+									{new Date(job.job_date).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US')}
 								</div>
 							</td>
 
@@ -130,7 +136,7 @@
 
 							<td class="px-6 py-4">
 								<div class="font-medium text-gray-900">
-									{job.company_name || job.customer_name || 'ไม่ระบุ'}
+									{job.company_name || job.customer_name || $t('Unknown')}
 								</div>
 								{#if job.company_name && job.customer_name}
 									<div
@@ -156,13 +162,15 @@
 										job.job_status
 									)}"
 								>
-									{job.job_status}
+									{$t('Status_' + job.job_status) || job.job_status}
 								</span>
 							</td>
 
 							<td class="px-6 py-4 text-right">
 								<div class="font-mono font-bold text-gray-800">
-									{Number(job.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+									{Number(job.amount || 0).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
+										minimumFractionDigits: 2
+									})}
 								</div>
 								<div class="text-[10px] text-gray-500">{job.currency}</div>
 							</td>
@@ -172,7 +180,7 @@
 									<a
 										href="/freight-forwarder/job-orders/{job.id}"
 										class="text-gray-400 transition-colors hover:text-blue-600"
-										title="ดูรายละเอียด"
+										title={$t('View Details')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -194,7 +202,7 @@
 										target="_blank"
 										rel="noopener noreferrer"
 										class="text-gray-400 transition-colors hover:text-green-600"
-										title="พิมพ์ PDF"
+										title={$t('Print PDF')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -213,7 +221,7 @@
 									<a
 										href="/freight-forwarder/job-orders/{job.id}/edit"
 										class="text-gray-400 transition-colors hover:text-yellow-600"
-										title="แก้ไข"
+										title={$t('Edit')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -231,7 +239,7 @@
 										type="button"
 										onclick={() => confirmDelete(job)}
 										class="text-gray-400 transition-colors hover:text-red-600"
-										title="ลบ"
+										title={$t('Delete')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -252,7 +260,9 @@
 					{/each}
 					{#if jobs.length === 0}
 						<tr>
-							<td colspan="7" class="py-12 text-center text-gray-400">ไม่พบรายการ Job Order</td>
+							<td colspan="7" class="py-12 text-center text-gray-400"
+								>{$t('No job orders found')}</td
+							>
 						</tr>
 					{/if}
 				</tbody>
@@ -288,15 +298,13 @@
 						</svg>
 					</div>
 					<div class="mt-1 text-left sm:mt-0">
-						<h3 class="text-lg leading-6 font-bold text-gray-900">ยืนยันการลบข้อมูล</h3>
+						<h3 class="text-lg leading-6 font-bold text-gray-900">{$t('Confirm Deletion')}</h3>
 						<div class="mt-2">
 							<p class="text-sm text-gray-500">
-								คุณแน่ใจหรือไม่ว่าต้องการลบใบงาน <span class="font-bold text-gray-800"
-									>{jobToDeleteName}</span
-								>
-								?
-								<br />การกระทำนี้
-								<span class="font-semibold text-red-600">ไม่สามารถย้อนกลับได้</span>
+								{$t('Are you sure you want to delete job order')}
+								<span class="font-bold text-gray-800">{jobToDeleteName}</span>?
+								<br />{$t('This action')}
+								<span class="font-semibold text-red-600">{$t('cannot be undone')}</span>.
 							</p>
 						</div>
 					</div>
@@ -310,7 +318,7 @@
 					onclick={closeModal}
 					disabled={isDeleting}
 				>
-					ยกเลิก
+					{$t('Cancel')}
 				</button>
 
 				<form
@@ -350,9 +358,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path></svg
 							>
-							กำลังลบ...
+							{$t('Deleting...')}
 						{:else}
-							ยืนยันการลบ
+							{$t('Confirm Delete')}
 						{/if}
 					</button>
 				</form>

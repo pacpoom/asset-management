@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Select from 'svelte-select'; // นำเข้า Select Component
-	import { browser } from '$app/environment'; // ใช้สำหรับ container ของ Select
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data: {
 		po: any;
@@ -13,32 +14,28 @@
 
 	const { po, vendors } = data;
 
-	// แปลงวันที่สำหรับ input type="date"
 	let date = po.po_date ? new Date(po.po_date).toISOString().split('T')[0] : '';
 	let delivery_date = po.delivery_date
 		? new Date(po.delivery_date).toISOString().split('T')[0]
 		: '';
 
-	// ตัวแปร Form Header
 	let po_number = po.po_number;
 	let vendor_id = po.vendor_id;
 	let contact_person = po.contact_person;
 	let payment_term = po.payment_term;
 	let remarks = po.remarks;
 
-	// 1. เตรียม Options สำหรับ svelte-select จากรายการสินค้าทั้งหมด
+	let defaultUnit = data.units.length > 0 ? data.units[0].name : '';
+
 	$: productOptions = data.products.map((p) => ({
 		value: p.id,
-		label: `${p.sku} : ${p.name}`, // รูปแบบที่โชว์ใน Dropdown
-		...p // เก็บข้อมูลอื่นๆ เช่น ราคา หน่วย ไว้ใช้ตอนเลือก
+		label: `${p.sku} : ${p.name}`,
+		...p
 	}));
 
-	// 2. Map รายการสินค้าเดิม (items) ให้เข้ากับโครงสร้างของ svelte-select
 	let items = data.items.map((i: any) => {
-		// ค้นหาสินค้าใน Master Data เพื่อสร้าง Object สำหรับ Select (เพื่อให้ Dropdown โชว์ค่าเริ่มต้นถูกต้อง)
 		const foundProduct = data.products.find((p) => p.name === i.product_name);
 
-		// ถ้าเจอสินค้า ให้ใช้ format ของ svelte-select ถ้าไม่เจอ (เช่น เป็นสินค้าที่พิมเอง หรือถูกลบ) ให้สร้าง Object หลอกๆ ขึ้นมา
 		const productObj = foundProduct
 			? {
 					value: foundProduct.id,
@@ -50,18 +47,17 @@
 				: null;
 
 		return {
-			product_object: productObj, // ตัวแปรสำหรับ bind กับ <Select>
+			product_object: productObj,
 			product_name: i.product_name,
 			description: i.description || '',
 			quantity: parseFloat(String(i.quantity || 1)),
-			unit: i.unit,
+			unit: i.unit || defaultUnit,
 			unit_price: parseFloat(String(i.unit_price || 0)),
 			discount: parseFloat(String(i.discount || 0)),
 			total_price: parseFloat(String(i.total_price || 0))
 		};
 	});
 
-	// ถ้าไม่มีรายการเลย ให้เริ่มด้วยแถวว่าง 1 แถว
 	if (items.length === 0) {
 		items = [
 			{
@@ -69,7 +65,7 @@
 				product_object: null,
 				description: '',
 				quantity: 1,
-				unit: 'ชิ้น',
+				unit: defaultUnit,
 				unit_price: 0,
 				discount: 0,
 				total_price: 0
@@ -77,7 +73,6 @@
 		];
 	}
 
-	// ตัวแปรคำนวณเงิน
 	let subtotal = 0;
 	let discountGlobal = parseFloat(String(po.discount || 0));
 	let vatRate = parseFloat(String(po.vat_rate || 7));
@@ -86,21 +81,23 @@
 	let whtAmount = 0;
 	let totalAmount = 0;
 
-	// ฟังก์ชันเมื่อเลือกสินค้าจาก Dropdown
+	$: formatCurrency = (val: number) => {
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2
+		}).format(val || 0);
+	};
+
 	function onProductChange(index: number, selection: any) {
 		if (selection) {
 			items[index].product_object = selection;
 			items[index].product_name = selection.name || selection.label;
-
-			// ถ้าเป็นการเปลี่ยนสินค้าใหม่ ดึงราคาล่าสุดมาใส่ (หรือจะใช้ราคาเดิมก็ได้ แต่ปกติเปลี่ยนของ = ราคาเปลี่ยน)
 			items[index].unit_price = Number(selection.purchase_cost) || 0;
 
-			// Auto-fill หน่วย
 			if (selection.unit_name) {
 				items[index].unit = selection.unit_name;
 			}
 		} else {
-			// กรณีเคลียร์ค่า
 			items[index].product_object = null;
 			items[index].product_name = '';
 			items[index].unit_price = 0;
@@ -108,7 +105,6 @@
 		calculateTotals();
 	}
 
-	// ฟังก์ชันคำนวณเงินรวม
 	function calculateTotals() {
 		let tempGrossTotal = 0;
 		let tempTotalDiscount = 0;
@@ -146,7 +142,7 @@
 				product_object: null,
 				description: '',
 				quantity: 1,
-				unit: 'ชิ้น', // หรือค่า defaultUnit จาก data ถ้ามี
+				unit: defaultUnit,
 				unit_price: 0,
 				discount: 0,
 				total_price: 0
@@ -162,11 +158,14 @@
 		}
 	}
 
-	// คำนวณครั้งแรกตอนโหลดหน้า
 	calculateTotals();
 </script>
 
-<div class="mx-auto mt-6 max-w-5xl rounded-lg border border-gray-200 bg-white p-6 shadow-lg">
+<svelte:head>
+	<title>{$t('Edit Purchase Order (Edit PO)')}</title>
+</svelte:head>
+
+<div class="mx-auto mt-6 max-w-7xl rounded-lg border border-gray-200 bg-white p-6 shadow-lg">
 	<h1 class="mb-6 flex items-center gap-2 text-2xl font-bold text-gray-800">
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
@@ -182,7 +181,7 @@
 				d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
 			/>
 		</svg>
-		แก้ไขใบสั่งซื้อ (Edit PO)
+		{$t('Edit Purchase Order (Edit PO)')}
 	</h1>
 
 	<form method="POST" action="?/update" use:enhance class="space-y-6">
@@ -190,7 +189,7 @@
 			<div class="space-y-4">
 				<div>
 					<label for="po_number" class="block text-sm font-medium text-gray-700"
-						>เลขที่เอกสาร (PO No.)</label
+						>{$t('PO No.')}</label
 					>
 					<input
 						type="text"
@@ -203,7 +202,7 @@
 				</div>
 				<div>
 					<label for="vendor_id" class="block text-sm font-medium text-gray-700"
-						>ผู้ขาย (Vendor) <span class="text-red-500">*</span></label
+						>{$t('Vendor *')}</label
 					>
 					<select
 						id="vendor_id"
@@ -212,7 +211,7 @@
 						required
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					>
-						<option value="">-- เลือกผู้ขาย --</option>
+						<option value="">{$t('-- Select Vendor --')}</option>
 						{#each vendors as vendor}
 							<option value={vendor.id}
 								>{vendor.name} {vendor.company_name ? `(${vendor.company_name})` : ''}</option
@@ -222,7 +221,7 @@
 				</div>
 				<div>
 					<label for="contact_person" class="block text-sm font-medium text-gray-700"
-						>ผู้ติดต่อ (Contact Person)</label
+						>{$t('Contact Person')}</label
 					>
 					<input
 						type="text"
@@ -237,7 +236,7 @@
 			<div class="space-y-4">
 				<div>
 					<label for="date" class="block text-sm font-medium text-gray-700"
-						>วันที่สั่งซื้อ (Date) <span class="text-red-500">*</span></label
+						>{$t('Order Date *')}</label
 					>
 					<input
 						type="date"
@@ -250,7 +249,7 @@
 				</div>
 				<div>
 					<label for="delivery_date" class="block text-sm font-medium text-gray-700"
-						>วันที่กำหนดส่ง (Delivery Date)</label
+						>{$t('Delivery Date')}</label
 					>
 					<input
 						type="date"
@@ -262,14 +261,14 @@
 				</div>
 				<div>
 					<label for="payment_term" class="block text-sm font-medium text-gray-700"
-						>เงื่อนไขการชำระเงิน (Payment Term)</label
+						>{$t('Payment Term')}</label
 					>
 					<input
 						type="text"
 						id="payment_term"
 						name="payment_term"
 						bind:value={payment_term}
-						placeholder="เช่น 30 วัน, เงินสด"
+						placeholder={$t('e.g., 30 Days, Cash')}
 						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
 				</div>
@@ -283,22 +282,25 @@
 				<thead class="bg-gray-50">
 					<tr>
 						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
-							>สินค้า/บริการ</th
+							>{$t('Product/Service')}</th
+						>
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+							>{$t('Description')}</th
+						>
+						<th class="w-24 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
+							>{$t('Quantity')}</th
 						>
 						<th class="w-32 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
-							>รายละเอียด</th
-						>
-						<th class="w-32 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
-							>จำนวน</th
-						>
-						<th class="w-32 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
-							>หน่วย</th
+							>{$t('Unit')}</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>ราคา/หน่วย</th
+							>{$t('Price/Unit')}</th
+						>
+						<th class="w-28 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
+							>{$t('Discount')}</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>รวม</th
+							>{$t('Total')}</th
 						>
 						<th class="w-10 px-4 py-3"></th>
 					</tr>
@@ -312,7 +314,7 @@
 									value={item.product_object}
 									on:change={(e) => onProductChange(index, e.detail)}
 									on:clear={() => onProductChange(index, null)}
-									placeholder="-- ค้นหา/เลือก --"
+									placeholder={$t('-- Search/Select --')}
 									floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 									container={browser ? document.body : null}
 									--inputStyles="padding: 2px 0; font-size: 0.875rem;"
@@ -325,7 +327,7 @@
 								<input
 									type="text"
 									bind:value={item.description}
-									placeholder="รายละเอียดเพิ่มเติม"
+									placeholder={$t('Additional details')}
 									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</td>
@@ -381,12 +383,18 @@
 									required
 								/>
 							</td>
+							<td class="px-3 py-2">
+								<input
+									type="number"
+									step="0.01"
+									bind:value={item.discount}
+									on:input={calculateTotals}
+									class="w-full rounded-md border-gray-300 text-right text-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</td>
 
 							<td class="px-3 py-2 text-right font-medium text-gray-700">
-								{item.total_price.toLocaleString('en-US', {
-									minimumFractionDigits: 2,
-									maximumFractionDigits: 2
-								})}
+								{formatCurrency(item.total_price)}
 							</td>
 
 							<td class="px-3 py-2 text-center">
@@ -395,7 +403,7 @@
 										type="button"
 										on:click={() => removeItem(index)}
 										class="text-red-500 hover:text-red-700"
-										aria-label="ลบรายการ"
+										aria-label={$t('Remove item')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -435,16 +443,14 @@
 							clip-rule="evenodd"
 						/>
 					</svg>
-					เพิ่มรายการสินค้า
+					{$t('Add Item')}
 				</button>
 			</div>
 		</div>
 
 		<div class="mt-8 grid grid-cols-1 gap-8 border-t pt-6 md:grid-cols-2">
 			<div>
-				<label for="remarks" class="block text-sm font-medium text-gray-700"
-					>หมายเหตุ (Remarks)</label
-				>
+				<label for="remarks" class="block text-sm font-medium text-gray-700">{$t('Remarks')}</label>
 				<textarea
 					id="remarks"
 					name="remarks"
@@ -455,15 +461,13 @@
 			</div>
 			<div class="space-y-3 rounded-lg bg-gray-50 p-4">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">รวมเป็นเงิน (Subtotal)</span>
-					<span class="font-medium"
-						>{subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
-					>
+					<span class="text-gray-600">{$t('Subtotal')}</span>
+					<span class="font-medium">{formatCurrency(subtotal)}</span>
 				</div>
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-gray-600">ส่วนลดท้ายบิล (Discount)</span>
+					<span class="text-sm text-gray-600">{$t('Total Discount')}</span>
 					<input
-						aria-label="ส่วนลดท้ายบิล"
+						aria-label={$t('Total Discount')}
 						type="number"
 						step="0.01"
 						bind:value={discountGlobal}
@@ -473,46 +477,42 @@
 				</div>
 
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-gray-600">ภาษีมูลค่าเพิ่ม (VAT)</span>
+					<span class="text-sm text-gray-600">{$t('VAT')}</span>
 					<div class="flex items-center gap-2">
 						<select
 							bind:value={vatRate}
 							on:change={calculateTotals}
 							class="w-32 cursor-pointer rounded-md border-gray-300 p-1 text-center text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value={0}>ไม่มี VAT (0%)</option>
-							<option value={7}>VAT 7%</option>
+							<option value={0}>{$t('No VAT (0%)')}</option>
+							<option value={7}>{$t('VAT 7%')}</option>
 						</select>
-						<span class="w-24 text-right font-medium"
-							>{vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
-						>
+						<span class="w-24 text-right font-medium">{formatCurrency(vatAmount)}</span>
 					</div>
 				</div>
 
 				<div class="flex items-center justify-between">
-					<span class="text-sm text-gray-600">หัก ณ ที่จ่าย (WHT)</span>
+					<span class="text-sm text-gray-600">{$t('WHT')}</span>
 					<div class="flex items-center gap-2">
 						<select
 							bind:value={whtRate}
 							on:change={calculateTotals}
 							class="w-32 cursor-pointer rounded-md border-gray-300 p-1 text-center text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value={0}>ไม่หัก (0%)</option>
-							<option value={1}>1% (ขนส่ง)</option>
-							<option value={3}>3% (บริการ)</option>
-							<option value={5}>5% (ค่าเช่า)</option>
+							<option value={0}>{$t('No WHT (0%)')}</option>
+							<option value={1}>{$t('1% (Transport)')}</option>
+							<option value={3}>{$t('3% (Service)')}</option>
+							<option value={5}>{$t('5% (Rent)')}</option>
 						</select>
 						<span class="w-24 text-right font-medium text-red-600"
-							>-{whtAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
+							>-{formatCurrency(whtAmount)}</span
 						>
 					</div>
 				</div>
 
 				<div class="flex items-center justify-between border-t border-gray-300 pt-3">
-					<span class="text-lg font-bold text-gray-800">ยอดรวมสุทธิ (Total)</span>
-					<span class="text-xl font-bold text-blue-700"
-						>{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
-					>
+					<span class="text-lg font-bold text-gray-800">{$t('Grand Total')}</span>
+					<span class="text-xl font-bold text-blue-700">{formatCurrency(totalAmount)}</span>
 				</div>
 			</div>
 		</div>
@@ -530,12 +530,12 @@
 			<a
 				href="/purchase-orders/{po.id}"
 				class="rounded-md border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-				>ยกเลิก</a
+				>{$t('Cancel')}</a
 			>
 			<button
 				type="submit"
 				class="rounded-md border border-transparent bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-				>บันทึกการแก้ไข (Update)</button
+				>{$t('Update Purchase Order (Update PO)')}</button
 			>
 		</div>
 	</form>

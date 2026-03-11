@@ -2,23 +2,21 @@
 	import { enhance } from '$app/forms';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	let { data } = $props();
-	const { products, units, departments, vendors } = data; // รับ vendors
+	const { products, units, departments, vendors } = data;
 
 	let today = $state(new Date().toISOString().split('T')[0]);
 
-	// ตัวแปร Department
 	let department = $state('');
 	let departmentObject = $state(null);
 
-	// [เพิ่ม] ตัวแปร Vendor
 	let vendorId = $state<number | null>(null);
 	let vendorObject = $state(null);
 
 	let description = $state('');
 
-	// Options
 	let productOptions = $derived(
 		products.map((p: any) => ({
 			value: p.id,
@@ -34,7 +32,6 @@
 		}))
 	);
 
-	// [เพิ่ม] Options สำหรับ Vendor
 	let vendorOptions = $derived(
 		vendors.map((v: any) => ({
 			value: v.id,
@@ -43,7 +40,7 @@
 		}))
 	);
 
-	let defaultUnit = units.length > 0 ? units[0].name : 'ชิ้น';
+	let defaultUnit = units.length > 0 ? units[0].name : '';
 
 	let items = $state([
 		{
@@ -59,6 +56,13 @@
 
 	let totalAmount = $state(0);
 
+	const formatCurrency = (val: number) => {
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2
+		}).format(val || 0);
+	};
+
 	function onDepartmentChange(selection: any) {
 		if (selection) {
 			departmentObject = selection;
@@ -69,7 +73,6 @@
 		}
 	}
 
-	// [เพิ่ม] ฟังก์ชันเลือก Vendor
 	function onVendorChange(selection: any) {
 		if (selection) {
 			vendorObject = selection;
@@ -118,7 +121,6 @@
 			items[index].product_object = selection;
 			items[index].product_name = selection.name || selection.label;
 			items[index].expected_price = Number(selection.price) || 0;
-
 			if (selection.unit_name) {
 				items[index].unit = selection.unit_name;
 			}
@@ -130,6 +132,10 @@
 		calculateTotals();
 	}
 </script>
+
+<svelte:head>
+	<title>{$t('Create Purchase Request (New PR)')}</title>
+</svelte:head>
 
 <div class="mx-auto mt-6 max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
 	<h1 class="mb-6 flex items-center gap-2 text-2xl font-bold text-gray-800">
@@ -147,7 +153,7 @@
 				d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
 			/>
 		</svg>
-		สร้างใบขอซื้อ (New PR)
+		{$t('Create Purchase Request (New PR)')}
 	</h1>
 
 	<form method="POST" action="?/create" use:enhance class="space-y-6">
@@ -155,7 +161,7 @@
 			<div class="space-y-4">
 				<div>
 					<label for="pr_number" class="block text-sm font-medium text-gray-700"
-						>เลขที่เอกสาร (PR No.)</label
+						>{$t('Document No. (PR No.)')}</label
 					>
 					<input
 						type="text"
@@ -168,7 +174,7 @@
 				</div>
 				<div>
 					<label for="requester" class="block text-sm font-medium text-gray-700"
-						>ผู้ขอซื้อ (Requester)</label
+						>{$t('Requester')}</label
 					>
 					<input
 						type="text"
@@ -181,15 +187,15 @@
 
 				<div>
 					<label for="department" class="block text-sm font-medium text-gray-700"
-						>แผนก (Department)</label
+						>{$t('Department')}</label
 					>
 					<div class="mt-1">
 						<Select
 							items={departmentOptions}
 							value={departmentObject}
-							on:change={(e) => onDepartmentChange(e.detail)}
+							on:change={(e: any) => onDepartmentChange(e.detail)}
 							on:clear={() => onDepartmentChange(null)}
-							placeholder="-- เลือกแผนก --"
+							placeholder={$t('-- Select Department --')}
 							floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 							container={browser ? document.body : null}
 							--inputStyles="padding: 6px 0; font-size: 0.875rem;"
@@ -206,7 +212,7 @@
 			<div class="space-y-4">
 				<div>
 					<label for="request_date" class="block text-sm font-medium text-gray-700"
-						>วันที่ขอซื้อ (Date) <span class="text-red-500">*</span></label
+						>{$t('Request Date')} <span class="text-red-500">*</span></label
 					>
 					<input
 						type="date"
@@ -220,15 +226,15 @@
 
 				<div>
 					<label for="vendor_id" class="block text-sm font-medium text-gray-700"
-						>ผู้ขาย / ผู้จัดจำหน่าย (Vendor) (ถ้ามี)</label
+						>{$t('Vendor (if any)')}</label
 					>
 					<div class="mt-1">
 						<Select
 							items={vendorOptions}
 							value={vendorObject}
-							on:change={(e) => onVendorChange(e.detail)}
+							on:change={(e: any) => onVendorChange(e.detail)}
 							on:clear={() => onVendorChange(null)}
-							placeholder="-- เลือกผู้ขาย (ถ้าทราบ) --"
+							placeholder={$t('-- Select Vendor (if known) --')}
 							floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 							container={browser ? document.body : null}
 							--inputStyles="padding: 6px 0; font-size: 0.875rem;"
@@ -243,7 +249,7 @@
 
 				<div>
 					<label for="description" class="block text-sm font-medium text-gray-700"
-						>หมายเหตุ / รายละเอียดเพิ่มเติม (Remarks)</label
+						>{$t('Remarks / Additional Details')}</label
 					>
 					<textarea
 						id="description"
@@ -263,22 +269,22 @@
 				<thead class="bg-gray-50">
 					<tr>
 						<th class="w-80 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
-							>สินค้า/บริการ</th
+							>{$t('Product/Service')}</th
 						>
 						<th class="w-64 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
-							>รายละเอียด</th
+							>{$t('Description')}</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>จำนวน</th
+							>{$t('Quantity')}</th
 						>
 						<th class="w-32 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
-							>หน่วย</th
+							>{$t('Unit')}</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>ราคา/หน่วย</th
+							>{$t('Price/Unit')}</th
 						>
 						<th class="w-32 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"
-							>รวม</th
+							>{$t('Total')}</th
 						>
 						<th class="w-10 px-4 py-3"></th>
 					</tr>
@@ -290,9 +296,9 @@
 								<Select
 									items={productOptions}
 									value={item.product_object}
-									on:change={(e) => onProductChange(index, e.detail)}
+									on:change={(e: any) => onProductChange(index, e.detail)}
 									on:clear={() => onProductChange(index, null)}
-									placeholder="-- ค้นหา/เลือก --"
+									placeholder={$t('-- Search/Select --')}
 									floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 									container={browser ? document.body : null}
 									--inputStyles="padding: 2px 0; font-size: 0.875rem;"
@@ -308,7 +314,7 @@
 								<input
 									type="text"
 									bind:value={item.description}
-									placeholder="รายละเอียดเพิ่มเติม"
+									placeholder={$t('Additional details')}
 									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</td>
@@ -353,7 +359,7 @@
 							</td>
 							<td class="px-3 py-2">
 								<input
-									aria-label="ราคาประเมิน"
+									aria-label={$t('Estimated Price/Unit')}
 									type="number"
 									step="0.01"
 									bind:value={item.expected_price}
@@ -362,10 +368,7 @@
 								/>
 							</td>
 							<td class="px-3 py-2 text-right font-medium text-gray-700">
-								{item.total_price.toLocaleString('en-US', {
-									minimumFractionDigits: 2,
-									maximumFractionDigits: 2
-								})}
+								{formatCurrency(item.total_price)}
 							</td>
 							<td class="px-3 py-2 text-center">
 								{#if items.length > 1}
@@ -373,7 +376,7 @@
 										type="button"
 										onclick={() => removeItem(index)}
 										class="text-red-600 hover:text-red-900"
-										aria-label="ลบรายการ"
+										aria-label={$t('Remove item')}
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -412,7 +415,7 @@
 							clip-rule="evenodd"
 						/>
 					</svg>
-					เพิ่มรายการสินค้า
+					{$t('Add Item')}
 				</button>
 			</div>
 		</div>
@@ -420,12 +423,12 @@
 		<div class="mt-8 flex justify-end border-t pt-6">
 			<div class="w-full space-y-3 rounded-lg bg-gray-50 p-4 md:w-1/3">
 				<div class="flex items-center justify-between border-gray-300 pt-1">
-					<span class="text-lg font-bold text-gray-800">ยอดรวมประมาณการ (Total Est.)</span>
-					<span class="text-xl font-bold text-blue-700"
-						>{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span
-					>
+					<span class="text-lg font-bold text-gray-800">{$t('Estimated Total (Total Est.)')}</span>
+					<span class="text-xl font-bold text-blue-700">{formatCurrency(totalAmount)}</span>
 				</div>
-				<p class="mt-1 text-right text-xs text-gray-500">* ราคานี้เป็นเพียงราคาประเมินเบื้องต้น</p>
+				<p class="mt-1 text-right text-xs text-gray-500">
+					{$t('* This price is only a preliminary estimate')}
+				</p>
 			</div>
 		</div>
 
@@ -436,12 +439,12 @@
 			<a
 				href="/purchase-requests"
 				class="rounded-md border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-				>ยกเลิก</a
+				>{$t('Cancel')}</a
 			>
 			<button
 				type="submit"
 				class="rounded-md border border-transparent bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-				>สร้างใบขอซื้อ (Create PR)</button
+				>{$t('Create Purchase Request (Create PR)')}</button
 			>
 		</div>
 	</form>

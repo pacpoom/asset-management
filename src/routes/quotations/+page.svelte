@@ -157,7 +157,7 @@
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Customer')}</th>
 					<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Total Amount')}</th>
 					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
-					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Manage')}</th>
+					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">

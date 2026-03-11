@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { tick } from 'svelte';
 	import type { ActionData, PageData } from './$types';
+	import { t, locale } from '$lib/i18n';
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -21,48 +22,17 @@
 		companyData = data.company;
 	});
 
-	function getDocTypeName(type: string) {
-		switch (type) {
-			case 'PR':
-				return 'ใบเสนอซื้อ (PR)';
-			case 'PO':
-				return 'ใบสั่งซื้อ (PO)';
-			case 'GR':
-				return 'ใบรับของ (GR)';
-			case 'AP':
-				return 'บันทึกตั้งหนี้ (AP)';
-			case 'PV':
-				return 'ใบสำคัญจ่าย (PV)';
-			default:
-				return type;
-		}
-	}
-
-	function getDocTypeEnName(type: string) {
-		switch (type) {
-			case 'PR':
-				return 'PURCHASE REQUISITION';
-			case 'PO':
-				return 'PURCHASE ORDER';
-			case 'GR':
-				return 'GOODS RECEIPT';
-			case 'AP':
-				return 'AP INVOICE';
-			case 'PV':
-				return 'PAYMENT VOUCHER';
-			default:
-				return 'PURCHASE DOCUMENT';
-		}
-	}
-
 	const formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
-		return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+			style: 'currency',
+			currency: 'THB'
+		}).format(amount);
 	};
 
 	const formatDate = (dateStr: string | null | undefined) => {
 		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleDateString('th-TH', {
+		return new Date(dateStr).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
@@ -103,7 +73,7 @@
 </script>
 
 <svelte:head>
-	<title>{getDocTypeName(document.document_type)} {document.document_number}</title>
+	<title>{$t('DocType_' + document.document_type)} #{document.document_number}</title>
 </svelte:head>
 
 <form
@@ -128,7 +98,7 @@
 		<a
 			href="/purchase-documents"
 			class="mr-3 text-gray-500 hover:text-gray-800"
-			title="กลับหน้ารายการ"
+			title={$t('Back to list')}
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -145,11 +115,11 @@
 		</a>
 		<div>
 			<h1 class="text-2xl font-bold text-gray-800">
-				{getDocTypeName(document.document_type)} #{document.document_number}
+				{$t('DocType_' + document.document_type)} #{document.document_number}
 			</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				Vendor: <span class="font-medium text-gray-700">{document.vendor_name}</span> | Ref: {document.reference_doc ||
-					'-'}
+				{$t('Vendor')}: <span class="font-medium text-gray-700">{document.vendor_name}</span> |
+				{$t('Reference')}: {document.reference_doc || '-'}
 			</p>
 		</div>
 	</div>
@@ -160,37 +130,36 @@
 				document.status
 			)}"
 		>
-			{document.status}
+			{$t('Status_' + document.status) || document.status}
 		</span>
 
-		<!-- ส่วนปุ่ม Auto-Generate Documents -->
 		{#if document.document_type === 'PR'}
 			<a
 				href="/purchase-documents/new?source_id={document.id}&target_type=PO"
 				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
 			>
-				แปลงเป็น PO
+				{$t('Create Purchase Order (PO)')}
 			</a>
 		{:else if document.document_type === 'PO'}
 			<a
 				href="/purchase-documents/new?source_id={document.id}&target_type=GR"
 				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
 			>
-				สร้างใบรับของ (GR)
+				{$t('Create Goods Receipt (GR)')}
 			</a>
 		{:else if document.document_type === 'GR'}
 			<a
 				href="/purchase-documents/new?source_id={document.id}&target_type=AP"
 				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
 			>
-				ตั้งหนี้ (AP)
+				{$t('Create AP Invoice (AP)')}
 			</a>
 		{:else if document.document_type === 'AP'}
 			<a
 				href="/purchase-documents/new?source_id={document.id}&target_type=PV"
 				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"
 			>
-				ทำจ่าย (PV)
+				{$t('Create Payment Voucher (PV)')}
 			</a>
 		{/if}
 
@@ -199,14 +168,14 @@
 			target="_blank"
 			class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
 		>
-			<span>พิมพ์ PDF</span>
+			<span>{$t('Print PDF')}</span>
 		</a>
 
 		<a
 			href="/purchase-documents/{document.id}/edit"
 			class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-50"
 		>
-			Edit
+			{$t('Edit')}
 		</a>
 
 		<div class="relative">
@@ -216,10 +185,12 @@
 				disabled={isSaving}
 				class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
 			>
-				<option value="" disabled selected>Change Status</option>
+				<option value="" disabled selected>{$t('Change Status')}</option>
 				{#each data.availableStatuses as status}
 					{#if status !== document.status}
-						<option value={status} class="bg-white text-gray-800">{status}</option>
+						<option value={status} class="bg-white text-gray-800"
+							>{$t('Status_' + status) || status}</option
+						>
 					{/if}
 				{/each}
 			</select>
@@ -250,43 +221,40 @@
 						{companyData.postal_code || ''}
 					</p>
 					<p>{companyData.country || ''}</p>
-					<!-- {#if companyData.phone}<p class="mt-1"><span class="font-semibold">Tel:</span> {companyData.phone}</p>{/if}
-					{#if companyData.email}<p><span class="font-semibold">Email:</span> {companyData.email}</p>{/if} -->
 					<p class="mt-1">
 						<span class="font-semibold text-gray-700">Tax ID:</span>
 						{companyData.tax_id || '-'}
 					</p>
 				</div>
 			{:else}
-				<p class="text-sm text-red-500">ไม่พบข้อมูลบริษัท</p>
+				<p class="text-sm text-red-500">{$t('Company data not found')}</p>
 			{/if}
 		</div>
 
 		<div class="text-left md:text-right">
 			<h1 class="text-2xl font-bold text-gray-800 uppercase">
-				{getDocTypeName(document.document_type)}
+				{$t('DocType_' + document.document_type)}
 			</h1>
-			<p class="text-sm font-bold text-gray-500">{getDocTypeEnName(document.document_type)}</p>
 
 			<div class="mt-4 space-y-1">
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">เลขที่ / No.:</span>
+					<span class="font-semibold text-gray-600">{$t('Document No.')}:</span>
 					<span class="font-medium text-gray-800">#{document.document_number}</span>
 				</div>
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">วันที่ / Date:</span>
+					<span class="font-semibold text-gray-600">{$t('Date')}:</span>
 					<span class="font-medium text-gray-800">{formatDate(document.document_date)}</span>
 				</div>
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">เครดิต / Term:</span>
-					<span class="font-medium text-gray-800"
-						>{document.credit_term && document.credit_term > 0
-							? `${document.credit_term} วัน (Days)`
-							: 'เงินสด (Cash)'}</span
-					>
+					<span class="font-semibold text-gray-600">{$t('Credit Term')}:</span>
+					<span class="font-medium text-gray-800">
+						{document.credit_term && document.credit_term > 0
+							? `${document.credit_term} ${$t('Days')}`
+							: $t('Cash')}
+					</span>
 				</div>
 				<div class="text-sm">
-					<span class="font-semibold text-gray-600">อ้างอิง / Ref:</span>
+					<span class="font-semibold text-gray-600">{$t('Reference')}:</span>
 					<span class="font-medium text-gray-800">{document.reference_doc || '-'}</span>
 				</div>
 			</div>
@@ -295,7 +263,7 @@
 
 	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 		<div class="md:col-span-2">
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้จำหน่าย (Vendor)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Vendor')}</h3>
 			<p class="font-semibold text-gray-800">{document.vendor_name}</p>
 			<p class="text-sm whitespace-pre-wrap text-gray-600">{document.vendor_address || '-'}</p>
 			<p class="mt-1 text-sm">
@@ -305,15 +273,15 @@
 		</div>
 
 		<div class="md:col-span-1">
-			<h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('More Info')}</h3>
 			<p class="mt-1 text-xs text-gray-600">
-				<span class="font-semibold">ผู้จัดทำ / Prepared By:</span>
+				<span class="font-semibold">{$t('Prepared By')}:</span>
 				{document.created_by_name}
 			</p>
 			{#if document.due_date}
 				<div class="mt-2">
 					<span class="text-xs font-semibold tracking-wider text-red-600 uppercase"
-						>วันครบกำหนดชำระ (Due Date)</span
+						>{$t('Due Date')}</span
 					>
 					<p class="font-bold text-red-700">{formatDate(document.due_date)}</p>
 				</div>
@@ -324,18 +292,20 @@
 
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">
-		รายการสั่งซื้อ/บริการ ({items.length})
+		{$t('Purchase Items')} ({items.length})
 	</h3>
 	<div class="overflow-x-auto">
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-4 py-4 text-left font-semibold text-gray-600">Product/Description</th>
-					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">Qty</th>
-					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">Unit</th>
-					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">Cost/Unit</th>
+					<th class="px-4 py-4 text-left font-semibold text-gray-600"
+						>{$t('Product/Description')}</th
+					>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Qty')}</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
+					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Cost/Unit')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
-					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">Total</th>
+					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">{$t('Total')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
@@ -354,7 +324,7 @@
 							<div class="font-medium text-gray-900">{formatCurrency(item.line_total)}</div>
 							{#if parseFloat(item.wht_rate || '0') > 0}
 								<div class="mt-0.5 text-[10px] text-red-500">
-									(หัก -{formatCurrency((item.line_total * parseFloat(item.wht_rate)) / 100)})
+									(-{formatCurrency((item.line_total * parseFloat(item.wht_rate)) / 100)})
 								</div>
 							{/if}
 						</td>
@@ -366,22 +336,22 @@
 </div>
 
 <div class="mb-6 rounded-lg border bg-white p-4 shadow-sm">
-	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">Financial Summary</h2>
+	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">{$t('Financial Summary')}</h2>
 	<div class="mt-3 w-full space-y-2 text-sm">
 		<div class="flex items-center justify-between">
-			<span class="font-medium text-gray-600">Subtotal:</span>
+			<span class="font-medium text-gray-600">{$t('Subtotal')}:</span>
 			<span class="font-medium text-gray-800">{formatCurrency(document.subtotal)}</span>
 		</div>
 
 		{#if parseFloat(document.discount_amount) > 0}
 			<div class="flex items-center justify-between">
-				<span class="font-medium text-gray-600">Discount:</span>
+				<span class="font-medium text-gray-600">{$t('Discount')}:</span>
 				<span class="font-medium text-red-600">- {formatCurrency(document.discount_amount)}</span>
 			</div>
 		{/if}
 
 		<div class="flex items-center justify-between border-t pt-2">
-			<span class="font-medium text-gray-600">Total After Discount:</span>
+			<span class="font-medium text-gray-600">{$t('Total After Discount')}:</span>
 			<span class="font-medium text-gray-800">{formatCurrency(document.total_after_discount)}</span>
 		</div>
 
@@ -398,7 +368,9 @@
 			]}
 			<div class="flex items-center justify-between">
 				<span class="font-medium text-gray-600">
-					WHT ({activeWhtRates.length > 0 ? activeWhtRates.join('%, ') + '%' : 'Total'}):
+					{$t('Total WHT')} ({activeWhtRates.length > 0
+						? activeWhtRates.join('%, ') + '%'
+						: 'Total'}):
 				</span>
 				<span class="font-medium text-red-600"
 					>- {formatCurrency(document.withholding_tax_amount || document.wht_amount)}</span
@@ -407,7 +379,7 @@
 		{/if}
 
 		<div class="mt-2 flex items-center justify-between border-t-2 pt-2">
-			<span class="text-base font-bold text-gray-900">Grand Total (ต้องชำระ):</span>
+			<span class="text-base font-bold text-gray-900">{$t('Grand Total')}:</span>
 			<span class="text-xl font-bold text-indigo-700">{formatCurrency(document.total_amount)}</span>
 		</div>
 	</div>
@@ -415,17 +387,17 @@
 
 <div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 	<div class="h-full rounded-lg border bg-white p-4 shadow-sm">
-		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">Notes (หมายเหตุ)</h3>
-		<p class="text-sm whitespace-pre-wrap text-gray-600">{document.notes || 'No notes.'}</p>
+		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">{$t('Notes')}</h3>
+		<p class="text-sm whitespace-pre-wrap text-gray-600">{document.notes || $t('No notes.')}</p>
 	</div>
 
 	<div class="h-full rounded-lg border bg-white p-4 shadow-sm">
 		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">
-			Attachments ({attachments.length})
+			{$t('Attachments')} ({attachments.length})
 		</h3>
 		<div class="space-y-2">
 			{#if attachments.length === 0}
-				<p class="text-sm text-gray-500">No attachments found.</p>
+				<p class="text-sm text-gray-500">{$t('No attachments found.')}</p>
 			{:else}
 				{#each attachments as attachment (attachment.id)}
 					<div class="flex items-center justify-between rounded-md bg-gray-100 p-2 text-sm">
