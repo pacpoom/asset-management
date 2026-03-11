@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ params }) => {
             SELECT sd.*, 
                    c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id,
                    u.full_name as created_by_name,
-                   jo.job_type as jo_job_type, jo.bl_number as jo_bl_number
+                   jo.job_type as jo_job_type, jo.bl_number as jo_bl_number , jo.job_number as job_number
             FROM sales_documents sd
             LEFT JOIN customers c ON sd.customer_id = c.id
             LEFT JOIN users u ON sd.created_by_user_id = u.id

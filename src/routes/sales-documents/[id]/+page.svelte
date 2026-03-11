@@ -255,8 +255,7 @@
 					<div class="text-sm">
 						<span class="font-semibold text-gray-600">{$t('Job Order')}:</span>
 						<span class="font-medium text-gray-800">
-							{document.jo_job_type}
-							{#if document.jo_bl_number && document.jo_bl_number !== '-'}| BL: {document.jo_bl_number}{/if}
+							{document.job_number}
 						</span>
 					</div>
 				{/if}
@@ -311,6 +310,7 @@
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Qty')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Unit Price')}</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">{$t('VAT')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
 					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">{$t('Total')}</th>
 				</tr>
@@ -324,6 +324,9 @@
 						<td class="px-4 py-4 text-center text-gray-700">{item.quantity}</td>
 						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>
 						<td class="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
+						<td class="px-4 py-4 text-center font-bold text-blue-600">
+							{item.is_vat ? '7%' : '-'}
+						</td>
 						<td class="px-4 py-4 text-center font-bold text-red-600">
 							{parseFloat(item.wht_rate || '0') > 0 ? `${parseFloat(item.wht_rate)}%` : '-'}
 						</td>
