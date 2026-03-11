@@ -18,9 +18,10 @@
 		vendor: v
 	}));
 
+	// 🌟 แก้ไขให้แสดงเฉพาะชื่อสินค้า
 	$: productOptions = localProducts.map((p: any) => ({
 		value: p.id,
-		label: `${p.sku} - ${p.name}`,
+		label: p.name,
 		product: p
 	}));
 
@@ -454,14 +455,14 @@
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
 							<th class="w-40 px-4 py-2 text-left font-medium">{$t('Product/Service Code')}</th>
-							<th class="px-4 py-2 text-left font-bold">{$t('Description')}</th>
-							<th class="w-24 px-3 py-2 text-right">{$t('Quantity')}</th>
-							<th class="w-24 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-28 px-3 py-2 text-right">{$t('Unit Cost')}</th>
-							<th class="w-24 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
-							<th class="w-24 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
-							<th class="w-32 px-3 py-2 text-right">{$t('Total')}</th>
-							<th class="w-10 px-3 py-2"></th>
+							<th class="px-3 py-2 text-left font-bold">{$t('Description')}</th>
+							<th class="w-28 px-3 py-2 text-right">{$t('Quantity')}</th>
+							<th class="w-32 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-36 px-3 py-2 text-right">{$t('Unit Cost')}</th>
+							<th class="w-32 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
+							<th class="w-28 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
+							<th class="w-30 px-3 py-2 text-right">{$t('Total')}</th>
+							<th class="w-2 px-3 py-2"></th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">

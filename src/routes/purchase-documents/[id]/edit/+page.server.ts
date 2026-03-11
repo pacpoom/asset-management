@@ -63,7 +63,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			url: `/uploads/purchase_documents/${f.file_system_name}`
 		}));
 
-		const [vendors] = await pool.query('SELECT id, name FROM vendors ORDER BY name ASC');
+		// 🌟 ดึงข้อมูล Vendor โดยใช้ logic เดียวกับหน้า New
+		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
+		
 		const [products] = await pool.query(
 			'SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
@@ -83,7 +85,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
 			deliveryAddresses: JSON.parse(JSON.stringify(deliveryAddresses)),
-			jobOrders: JSON.parse(JSON.stringify(jobOrders)) // 🌟 ส่ง Job Orders ไปยังฝั่ง Client
+			jobOrders: JSON.parse(JSON.stringify(jobOrders))
 		};
 	} catch (err: any) {
 		console.error('Load edit error:', err);
@@ -99,7 +101,6 @@ export const actions: Actions = {
 		const vendor_id = formData.get('vendor_id');
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
 		
-		// 🌟 รับค่า job_id จากฟอร์ม
 		const job_id = formData.get('job_id')?.toString() || null;
 		
 		const document_date = formData.get('document_date')?.toString();
@@ -125,7 +126,6 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 🌟 เพิ่ม job_id ลงในการอัปเดต
 			await connection.execute(
 				`UPDATE purchase_documents SET 
                  document_date = ?, credit_term = ?, due_date = ?, vendor_id = ?, delivery_address_id = ?, job_id = ?, reference_doc = ?, notes = ?,
@@ -164,11 +164,13 @@ export const actions: Actions = {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
 					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
+					// 🌟 เพิ่มการดึงค่า is_vat จากหน้าบ้านเพื่อมาบันทึก
+					const isVat = item.is_vat === false ? 0 : 1; 
 
 					await connection.execute(
 						`INSERT INTO purchase_document_items 
-                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, is_vat) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							documentId,
 							item.product_id || null,
@@ -179,7 +181,8 @@ export const actions: Actions = {
 							lineTotal,
 							lineWhtRate,
 							lineWhtAmount,
-							index
+							index,
+							isVat
 						]
 					);
 				}
@@ -234,6 +237,81 @@ export const actions: Actions = {
 			return fail(404, { message: 'File not found' });
 		} catch (err: any) {
 			return fail(500, { message: err.message });
+		}
+	},
+
+	// 🌟 Action สำหรับจัดการที่อยู่จัดส่ง (ยกมาจากหน้า New)
+	createAddress: async ({ request }) => {
+		const formData = await request.formData();
+		const name = formData.get('name')?.toString()?.trim();
+		const address_line = formData.get('address_line')?.toString()?.trim();
+		const contact_name = formData.get('contact_name')?.toString()?.trim();
+		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
+
+		if (!name || !address_line) {
+			return fail(400, { message: 'กรุณากรอกชื่อสถานที่และรายละเอียดที่อยู่' });
+		}
+
+		try {
+			const [result] = await pool.execute<any>(
+				`INSERT INTO delivery_addresses (name, address_line, contact_name, contact_phone, is_active) VALUES (?, ?, ?, ?, 1)`,
+				[name, address_line, contact_name || null, contact_phone || null]
+			);
+			
+			const [newAddress] = await pool.query<any[]>(
+				'SELECT * FROM delivery_addresses WHERE id = ?',
+				[result.insertId]
+			);
+			
+			return { success: true, address: newAddress[0] };
+		} catch (err: any) {
+			console.error('Create address error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการสร้างที่อยู่: ' + err.message });
+		}
+	},
+
+	updateAddress: async ({ request }) => {
+		const formData = await request.formData();
+		const id = formData.get('id');
+		const name = formData.get('name')?.toString()?.trim();
+		const address_line = formData.get('address_line')?.toString()?.trim();
+		const contact_name = formData.get('contact_name')?.toString()?.trim();
+		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
+
+		if (!id || !name || !address_line) {
+			return fail(400, { message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+		}
+
+		try {
+			await pool.execute(
+				`UPDATE delivery_addresses SET name = ?, address_line = ?, contact_name = ?, contact_phone = ? WHERE id = ?`,
+				[name, address_line, contact_name || null, contact_phone || null, id]
+			);
+			
+			const [updatedAddress] = await pool.query<any[]>(
+				'SELECT * FROM delivery_addresses WHERE id = ?',
+				[id]
+			);
+			
+			return { success: true, address: updatedAddress[0] };
+		} catch (err: any) {
+			console.error('Update address error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการแก้ไขที่อยู่: ' + err.message });
+		}
+	},
+
+	deleteAddress: async ({ request }) => {
+		const formData = await request.formData();
+		const id = formData.get('id');
+
+		if (!id) return fail(400, { message: 'ไม่พบรหัสที่อยู่จัดส่ง' });
+
+		try {
+			await pool.execute(`UPDATE delivery_addresses SET is_active = 0 WHERE id = ?`, [id]);
+			return { success: true, deletedId: Number(id) };
+		} catch (err: any) {
+			console.error('Delete address error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบที่อยู่: ' + err.message });
 		}
 	}
 };

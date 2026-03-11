@@ -13,13 +13,23 @@
 		vendors,
 		products,
 		units,
-		deliveryAddresses,
-		jobOrders // 🌟 รับข้อมูล Job Orders
+		jobOrders 
 	} = data);
 
-	$: productOptions = products.map((p: any) => ({
+	// 🌟 ดึงข้อมูล Address มาไว้ใน local state เพื่ออัปเดตแบบเรียลไทม์ได้
+	let localAddresses = data.deliveryAddresses || [];
+	let localProducts = data.products || [];
+
+	$: vendorOptions = vendors.map((v: any) => ({
+		value: v.id,
+		label: v.name,
+		vendor: v
+	}));
+
+	// 🌟 แก้ไขให้แสดงเฉพาะชื่อสินค้า
+	$: productOptions = localProducts.map((p: any) => ({
 		value: p.id,
-		label: `${p.sku} - ${p.name}`,
+		label: p.name,
 		product: p
 	}));
 
@@ -32,6 +42,7 @@
 		unit_price: number;
 		line_total: number;
 		wht_rate: number;
+		is_vat: boolean; // 🌟 เพิ่ม is_vat ใน Interface
 	}
 
 	let documentDate = '';
@@ -40,16 +51,16 @@
 	let items: DocumentItem[] = [];
 	let discountAmount = 0;
 	let vatRate = 7;
-	let selectedVendorId = data.document?.vendor_id ? String(data.document.vendor_id) : '';
-	let selectedDeliveryAddressId = data.document?.delivery_address_id
-		? String(data.document.delivery_address_id)
-		: '';
 
-	// 🌟 ตัวแปรเก็บค่า Job Order
+	// 🌟 ใช้ Select เหมือนหน้า New สำหรับ Vendor
+	let selectedVendorObj: any = null;
+	let selectedVendorId: string | number = '';
+
+	let selectedDeliveryAddressId: string | number = '';
+
 	let selectedJobObj: any = null;
 	let selectedJobId: string | number = '';
 
-	// 🌟 กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือกอยู่
 	$: availableJobOrders = (jobOrders || []).filter((j: any) => 
 		selectedVendorId ? j.vendor_id == selectedVendorId : false
 	);
@@ -60,24 +71,30 @@
 		job: j
 	}));
 
-	$: formatCurrency = (val: number) => {
-		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
+	$: currentLoc = $locale === 'th' ? 'th-TH' : 'en-US';
+	// 🌟 ปรับให้ใช้ formatNumber เหมือนหน้า New
+	$: formatNumber = (amount: number) =>
+		new Intl.NumberFormat(currentLoc, {
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
-		}).format(val || 0);
-	};
+		}).format(amount || 0);
 
-	$: if (document) {
+	// ไฮเดรตข้อมูลหัวเอกสาร (ใช้ initializedDocId ป้องกัน Reactivity Loop)
+	let initializedDocId: number | null = null;
+	$: if (document && document.id !== initializedDocId) {
+		initializedDocId = document.id;
 		documentDate = new Date(document.document_date).toISOString().split('T')[0];
 		dueDate = document.due_date ? new Date(document.due_date).toISOString().split('T')[0] : '';
 		creditTerm = document.credit_term !== null ? Number(document.credit_term) : 0;
 		discountAmount = parseFloat(document.discount_amount || '0');
 		vatRate = parseFloat(document.vat_rate || '7');
-	}
+		
+		selectedVendorId = document.vendor_id;
+		selectedVendorObj = vendorOptions.find((v: any) => v.value == selectedVendorId) || null;
 
-	// 🌟 Initialize Job Order ตอนโหลดหน้าครั้งแรก
-	$: if (document && jobOrders && selectedVendorId) {
-		if (document.job_id && selectedJobId === '') {
+		selectedDeliveryAddressId = document.delivery_address_id || '';
+
+		if (document.job_id) {
 			selectedJobId = document.job_id;
 			const foundJob = jobOrders.find((j: any) => j.id == document.job_id);
 			if (foundJob) {
@@ -87,16 +104,22 @@
 					job: foundJob
 				};
 			}
+		} else {
+			selectedJobId = '';
+			selectedJobObj = null;
 		}
 	}
 
-	$: if (existingItems && items.length === 0) {
+	// ไฮเดรตข้อมูลรายการสินค้า (ใช้ initializedItemsDocId ป้องกัน Reactivity Loop)
+	let initializedItemsDocId: number | null = null;
+	$: if (existingItems && document && document.id !== initializedItemsDocId) {
+		initializedItemsDocId = document.id;
 		items = existingItems.map((item: any) => {
 			const foundProduct = products.find((p: any) => p.id == item.product_id);
 			const productObj = foundProduct
 				? {
 						value: foundProduct.id,
-						label: `${foundProduct.sku} - ${foundProduct.name}`,
+						label: foundProduct.name, // 🌟 แก้ไขให้แสดงเฉพาะชื่อสินค้าสำหรับข้อมูลเก่า
 						product: foundProduct
 					}
 				: null;
@@ -109,14 +132,22 @@
 				unit_id: item.unit_id ? Number(item.unit_id) : null,
 				unit_price: parseFloat(item.unit_price || '0'),
 				line_total: parseFloat(item.line_total || '0'),
-				wht_rate: parseFloat(item.wht_rate || '0')
+				wht_rate: parseFloat(item.wht_rate || '0'),
+				is_vat: item.is_vat !== undefined ? !!item.is_vat : true // 🌟 ดึงค่า is_vat (default: true)
 			};
 		});
 	}
 
+	// 🌟 ตรรกะคำนวณแบบเดียวกับหน้า New เป๊ะๆ
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
+	
+	$: subtotalVatable = items.reduce((sum, item) => sum + (item.is_vat ? (item.line_total || 0) : 0), 0);
+	
+	$: vatableRatio = subtotal > 0 ? (subtotalVatable / subtotal) : 0;
+	$: vatableAfterDiscount = Math.max(0, subtotalVatable - (discountAmount * vatableRatio));
+	
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
-	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
+	$: vatAmount = (vatableAfterDiscount * vatRate) / 100;
 	$: whtAmount = items.reduce(
 		(sum, item) => sum + (item.line_total || 0) * (item.wht_rate / 100),
 		0
@@ -135,7 +166,8 @@
 				unit_id: null,
 				unit_price: 0,
 				line_total: 0,
-				wht_rate: 0
+				wht_rate: 0,
+				is_vat: true // 🌟 Default ให้คิด VAT
 			}
 		];
 	}
@@ -157,12 +189,14 @@
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
+			items[index].is_vat = true; // 🌟
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
 			items[index].wht_rate = 0;
+			items[index].is_vat = true;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -176,13 +210,69 @@
 		}
 	}
 
-	// 🌟 เคลียร์ค่า Job Order ทิ้งเมื่อมีการเปลี่ยน Vendor
-	function handleVendorChange() {
+	function onVendorChange(selected: any) {
+		selectedVendorObj = selected;
+		selectedVendorId = selected ? selected.value : '';
 		selectedJobObj = null;
 		selectedJobId = '';
 	}
 
+	function onJobChange(selected: any) {
+		selectedJobObj = selected;
+		selectedJobId = selected ? selected.value : '';
+	}
+
 	let isSaving = false;
+
+	// 🌟 Address Management Modal State (เหมือนหน้า New)
+	let showAddressModal = false;
+	let addressModalMode: 'list' | 'form' = 'list';
+	let isSavingAddress = false;
+	let isDeletingAddressId: number | null = null;
+
+	let addressFormData = {
+		id: null as number | null,
+		name: '',
+		address_line: '',
+		contact_name: '',
+		contact_phone: ''
+	};
+	let toastMessage = '';
+
+	function showToast(msg: string) {
+		toastMessage = msg;
+		setTimeout(() => (toastMessage = ''), 3000);
+	}
+
+	function openAddressModal() {
+		showAddressModal = true;
+		addressModalMode = 'list';
+	}
+
+	function closeAddressModal() {
+		showAddressModal = false;
+		addressModalMode = 'list';
+		resetAddressForm();
+	}
+
+	function resetAddressForm() {
+		addressFormData = { id: null, name: '', address_line: '', contact_name: '', contact_phone: '' };
+	}
+
+	function startAddAddress() {
+		resetAddressForm();
+		addressModalMode = 'form';
+	}
+
+	function startEditAddress(address: any) {
+		addressFormData = { ...address };
+		addressModalMode = 'form';
+	}
+
+	function selectAddress(id: number) {
+		selectedDeliveryAddressId = id;
+		closeAddressModal();
+	}
 </script>
 
 <svelte:head>
@@ -232,17 +322,19 @@
 				<label for="vendor_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Vendor')} <span class="text-red-500">*</span></label
 				>
-				<select
+				<Select
 					id="vendor_id"
-					name="vendor_id"
-					bind:value={selectedVendorId}
-					on:change={handleVendorChange}
-					required
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-				>
-					<option value="">{$t('Select Vendor')}</option>
-					{#each vendors as vendor}<option value={String(vendor.id)}>{vendor.name}</option>{/each}
-				</select>
+					items={vendorOptions}
+					value={selectedVendorObj}
+					on:change={(e) => onVendorChange(e.detail)}
+					on:clear={() => onVendorChange(null)}
+					placeholder={$t('Type to search vendor...')}
+					container={browser ? document.body : null}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0e7ff;"
+				/>
+				<input type="hidden" name="vendor_id" value={selectedVendorId} required />
 			</div>
 
 			<div class="relative z-[50] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
@@ -271,11 +363,11 @@
 						on:change={calculateDueDate}
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
 					>
-						<option value={0}>0 {$t('Days')} ({$t('Cash')})</option>
-						<option value={30}>30 {$t('Days')}</option>
-						<option value={45}>45 {$t('Days')}</option>
-						<option value={60}>60 {$t('Days')}</option>
-						<option value={90}>90 {$t('Days')}</option>
+						<option value={0}>{$t('0 Days (Cash)')}</option>
+						<option value={30}>{$t('30 Days')}</option>
+						<option value={45}>{$t('45 Days')}</option>
+						<option value={60}>{$t('60 Days')}</option>
+						<option value={90}>{$t('90 Days')}</option>
 					</select>
 				</div>
 				<div>
@@ -293,9 +385,18 @@
 			</div>
 
 			<div class="relative z-[40] md:col-span-1">
-				<label for="delivery_address_id" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Delivery Address')}</label
-				>
+				<div class="mb-1 flex items-center justify-between">
+					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700"
+						>{$t('Delivery Address')}</label
+					>
+					<button
+						type="button"
+						on:click={openAddressModal}
+						class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 focus:outline-none"
+					>
+						{$t('+ Manage Addresses')}
+					</button>
+				</div>
 				<select
 					id="delivery_address_id"
 					name="delivery_address_id"
@@ -303,7 +404,7 @@
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
 				>
 					<option value="">{$t('Not specified')}</option>
-					{#each deliveryAddresses as address}
+					{#each localAddresses as address}
 						<option value={address.id}
 							>{address.name} {address.contact_name ? `(${address.contact_name})` : ''}</option
 						>
@@ -311,7 +412,6 @@
 				</select>
 			</div>
 
-			<!-- 🌟 เพิ่ม Dropdown เลือก Job Order -->
 			<div class="relative z-[35] md:col-span-1">
 				<label for="job_id" class="mb-1 block text-sm font-medium text-gray-700">
 					{$t('Job Order (Optional)')}
@@ -320,8 +420,8 @@
 					id="job_id"
 					items={jobOrderOptions}
 					value={selectedJobObj}
-					on:change={(e) => { selectedJobObj = e.detail; selectedJobId = e.detail ? e.detail.value : ''; }}
-					on:clear={() => { selectedJobObj = null; selectedJobId = ''; }}
+					on:change={(e) => onJobChange(e.detail)}
+					on:clear={() => onJobChange(null)}
 					placeholder={selectedVendorId ? $t('Select Job Order...') : $t('Please select a vendor first')}
 					disabled={!selectedVendorId}
 					container={browser ? document.body : null}
@@ -334,7 +434,7 @@
 
 			<div class="relative z-[30] md:col-span-1">
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Supplier Reference')}</label
+					>{$t('Supplier Reference Doc')}</label
 				>
 				<input
 					type="text"
@@ -342,36 +442,49 @@
 					name="reference_doc"
 					value={document?.reference_doc || ''}
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
+					placeholder={$t('e.g. QT-Supplier-2026...')}
 				/>
 			</div>
 		</div>
 
 		<div class="mb-6">
-			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Purchase Items')}</h3>
+			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Purchase/Service Items')}</h3>
 			<div class="relative z-10 overflow-x-visible rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-40 px-4 py-3 text-left font-medium">{$t('Product/Service')}</th>
-							<th class="px-4 py-3 text-left font-bold">{$t('Description')}</th>
-							<th class="w-24 px-3 py-3 text-right">{$t('Quantity')}</th>
-							<th class="w-24 px-3 py-3 text-center">{$t('Unit')}</th>
-							<th class="w-28 px-3 py-3 text-right">{$t('Cost/Unit')}</th>
-							<th class="w-24 px-3 py-3 text-center text-red-600">WHT</th>
-							<th class="w-32 px-3 py-3 text-right">{$t('Total')}</th>
-							<th class="w-10 px-3 py-3"></th>
+							<!-- <th class="w-40 px-4 py-2 text-left font-medium">{$t('Product/Service Code')}</th>
+							<th class="px-4 py-2 text-left font-bold">{$t('Description')}</th>
+							<th class="w-24 px-3 py-2 text-right">{$t('Quantity')}</th>
+							<th class="w-24 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-28 px-3 py-2 text-right">{$t('Unit Cost')}</th>
+							<th class="w-24 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
+							<th class="w-24 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
+							<th class="w-32 px-3 py-2 text-right">{$t('Total')}</th>
+							<th class="w-10 px-3 py-2"></th> -->
+
+							<th class="w-40 px-4 py-2 text-left font-medium">{$t('Product/Service Code')}</th>
+							<th class="px-4 py-2 text-left font-bold">{$t('Description')}</th>
+							<th class="w-28 px-3 py-2 text-right">{$t('Quantity')}</th>
+							<th class="w-32 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-36 px-3 py-2 text-right">{$t('Unit Cost')}</th>
+							<th class="w-32 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
+							<th class="w-28 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
+							<th class="w-30 px-3 py-2 text-right">{$t('Total')}</th>
+							<th class="w-2 px-3 py-2"></th>
+
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="w-40 px-3 py-2" style="min-width: 200px; max-width: 250px;">
+								<td class="w-40 px-2 py-2" style="min-width: 200px; max-width: 250px;">
 									<Select
 										items={productOptions}
 										value={item.product_object}
 										on:change={(e) => onProductChange(index, e.detail)}
 										on:clear={() => onProductChange(index, null)}
-										placeholder={$t('-- Search/Select --')}
+										placeholder={$t('Search...')}
 										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
 										container={browser ? document.body : null}
 										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
@@ -380,16 +493,16 @@
 										--valueStyles="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 									/>
 								</td>
-								<td class="px-3 py-2">
+								<td class="px-2 py-2">
 									<input
 										type="text"
 										bind:value={item.description}
+										title={item.description}
 										class="w-full overflow-hidden rounded-md border-gray-300 text-sm text-ellipsis whitespace-nowrap"
 										required
-										title={item.description}
 									/>
 								</td>
-								<td class="px-3 py-2">
+								<td class="px-2 py-2">
 									<input
 										type="number"
 										bind:value={item.quantity}
@@ -399,17 +512,16 @@
 										required
 									/>
 								</td>
-								<td class="px-3 py-2">
+								<td class="px-2 py-2">
 									<select
 										bind:value={item.unit_id}
-										class="w-full rounded-md border-gray-300 py-1.5 pl-2 text-sm focus:border-indigo-500"
+										class="w-full rounded-md border-gray-300 py-1.5 text-center text-sm"
 									>
-										<option value={null}>-</option>{#each units as u}<option value={u.id}
-												>{u.symbol}</option
-											>{/each}
+										<option value={null}>-</option>
+										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
-								<td class="px-3 py-2">
+								<td class="px-2 py-2">
 									<input
 										type="number"
 										step="0.01"
@@ -419,7 +531,16 @@
 										required
 									/>
 								</td>
-								<td class="px-3 py-2">
+								<td class="px-2 py-2">
+									<select
+										bind:value={item.is_vat}
+										class="w-full rounded-md border-blue-200 bg-blue-50 py-1.5 text-center text-sm font-bold text-blue-700"
+									>
+										<option value={true}>VAT 7%</option>
+										<option value={false}>Non-VAT</option>
+									</select>
+								</td>
+								<td class="px-2 py-2">
 									<select
 										bind:value={item.wht_rate}
 										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700"
@@ -429,16 +550,15 @@
 										><option value={3}>3%</option><option value={5}>5%</option>
 									</select>
 								</td>
-								<td class="px-3 py-2 text-right">
-									<div class="font-bold text-gray-900">{formatCurrency(item.line_total)}</div>
+								<td class="px-2 py-2 text-right font-bold text-gray-900">
+									{formatNumber(item.line_total)}
 								</td>
-								<td class="px-3 py-2 text-center">
+								<td class="px-2 py-2 text-center">
 									{#if items.length > 1}
 										<button
 											type="button"
 											on:click={() => removeItem(index)}
-											class="text-red-500 hover:text-red-700"
-											title={$t('Delete')}>❌</button
+											class="text-red-500 hover:text-red-700">❌</button
 										>
 									{/if}
 								</td>
@@ -451,15 +571,16 @@
 				type="button"
 				on:click={addItem}
 				class="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-				>{$t('Add Item')}</button
 			>
+				{$t('Add Item')}
+			</button>
 		</div>
 
 		<div class="mb-6 flex flex-col gap-6 md:flex-row">
 			<div class="w-full space-y-4 md:w-2/3">
 				<div>
 					<label for="notes" class="mb-1 block text-sm font-medium text-gray-700"
-						>{$t('Notes')}</label
+						>{$t('Internal Notes')}</label
 					>
 					<textarea
 						id="notes"
@@ -519,11 +640,11 @@
 			>
 				<div class="flex justify-between text-sm">
 					<span class="text-gray-600">{$t('Subtotal')}</span><span class="font-medium"
-						>{formatCurrency(subtotal)}</span
+						>{formatNumber(subtotal)}</span
 					>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">{$t('Discount')}</span><input
+					<span class="text-gray-600">{$t('Discount Received')}</span><input
 						type="number"
 						name="discount_amount"
 						bind:value={discountAmount}
@@ -533,36 +654,28 @@
 				</div>
 				<div class="flex justify-between border-t border-gray-200 pt-2 text-sm">
 					<span class="text-gray-600">{$t('After Discount')}</span><span class="font-medium"
-						>{formatCurrency(totalAfterDiscount)}</span
+						>{formatNumber(totalAfterDiscount)}</span
 					>
 				</div>
 				<div class="mt-2 flex items-center justify-between text-sm">
-					<span class="text-gray-600"
-						>VAT <select
-							name="vat_rate"
-							bind:value={vatRate}
-							class="ml-2 w-20 rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm shadow-sm focus:border-indigo-500"
-							><option value={0}>0%</option><option value={7}>7%</option></select
-						></span
-					>
-					<span class="font-medium text-green-600">+{formatCurrency(vatAmount)}</span>
+					<span class="text-gray-600">
+						{$t('Purchase VAT')} <span class="ml-1 text-xs text-gray-500">(Auto 7%)</span>
+					</span>
+					<span class="font-medium text-green-600">+{formatNumber(vatAmount)}</span>
+					<input type="hidden" name="vat_rate" value={vatRate} />
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 				<div
 					class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600"
 				>
-					<span class="font-medium">{$t('Total WHT')}</span><span class="font-bold"
-						>-{formatCurrency(whtAmount)}</span
+					<span class="font-medium">{$t('WHT (Deducted from vendor)')}</span><span class="font-bold"
+						>-{formatNumber(whtAmount)}</span
 					>
-					<input type="hidden" name="wht_amount" value={whtAmount} /><input
-						type="hidden"
-						name="wht_rate"
-						value={0}
-					/>
+					<input type="hidden" name="wht_amount" value={whtAmount} />
 				</div>
 				<div class="flex justify-between pt-2 text-lg font-black text-gray-900">
-					<span>{$t('Grand Total')}</span><span class="text-indigo-700"
-						>{formatCurrency(grandTotal)}</span
+					<span>{$t('Grand Total to Pay')}</span><span class="text-indigo-700"
+						>{formatNumber(grandTotal)}</span
 					>
 				</div>
 			</div>
@@ -589,6 +702,261 @@
 		</div>
 	</form>
 </div>
+
+<!-- 🌟 Address Modal เหมือนหน้า New -->
+{#if showAddressModal}
+	<div
+		class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity"
+	>
+		<div class="fixed inset-0" on:click={closeAddressModal} role="presentation"></div>
+		<div
+			class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col overflow-hidden rounded-xl bg-white shadow-2xl transition-all"
+		>
+			<div class="flex flex-shrink-0 items-center justify-between border-b bg-gray-50 px-6 py-4">
+				<h2 class="text-lg font-bold text-gray-900">
+					{addressModalMode === 'list'
+						? $t('Select or Manage Delivery Address')
+						: addressFormData.id
+							? $t('Edit Delivery Address')
+							: $t('Add New Delivery Address')}
+				</h2>
+				<button
+					type="button"
+					on:click={closeAddressModal}
+					class="text-xl font-bold text-gray-400 hover:text-gray-600">&times;</button
+				>
+			</div>
+
+			<div class="flex-1 overflow-y-auto p-6">
+				{#if addressModalMode === 'list'}
+					<div class="mb-4 flex justify-end">
+						<button
+							type="button"
+							on:click={startAddAddress}
+							class="rounded-md bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-100"
+							>{$t('+ Add New Address')}</button
+						>
+					</div>
+
+					{#if localAddresses.length === 0}
+						<div class="rounded-lg border border-dashed py-8 text-center text-gray-500">
+							{$t('No delivery address found')}
+						</div>
+					{:else}
+						<div class="space-y-3">
+							{#each localAddresses as addr}
+								<div
+									class="flex items-start justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
+								>
+									<div class="flex-1 pr-4">
+										<h4 class="font-bold text-gray-900">{addr.name}</h4>
+										<p class="mt-1 text-sm whitespace-pre-wrap text-gray-600">
+											{addr.address_line}
+										</p>
+										<div class="mt-2 text-xs text-gray-500">
+											{#if addr.contact_name}
+												<span class="mr-3"
+													>{$t('Contact:')}
+													<span class="font-semibold">{addr.contact_name}</span></span
+												>
+											{/if}
+											{#if addr.contact_phone}
+												<span
+													>{$t('Tel:')}
+													<span class="font-semibold">{addr.contact_phone}</span></span
+												>
+											{/if}
+										</div>
+									</div>
+									<div class="flex shrink-0 flex-col gap-2 border-l pl-4">
+										<button
+											type="button"
+											on:click={() => selectAddress(addr.id)}
+											class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+											>{$t('Select')}</button
+										>
+										<button
+											type="button"
+											on:click={() => startEditAddress(addr)}
+											class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+											>{$t('Edit')}</button
+										>
+
+										<form
+											method="POST"
+											action="?/deleteAddress"
+											use:enhance={() => {
+												isDeletingAddressId = addr.id;
+												return async ({ result, update }) => {
+													isDeletingAddressId = null;
+													if (result.type === 'success') {
+														const actionData = result.data as Record<string, any>;
+														if (actionData && actionData.deletedId) {
+															localAddresses = localAddresses.filter(
+																(a: any) => a.id !== actionData.deletedId
+															);
+															if (selectedDeliveryAddressId == actionData.deletedId) {
+																selectedDeliveryAddressId = '';
+															}
+															showToast($t('Address deleted successfully'));
+														}
+													}
+													await update({ reset: false });
+												};
+											}}
+										>
+											<input type="hidden" name="id" value={addr.id} />
+											<button
+												type="submit"
+												disabled={isDeletingAddressId === addr.id}
+												class="w-full rounded border border-red-200 px-3 py-1.5 text-center text-xs font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
+											>
+												{isDeletingAddressId === addr.id ? '...' : $t('Delete')}
+											</button>
+										</form>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{:else}
+					<form
+						method="POST"
+						action={addressFormData.id ? '?/updateAddress' : '?/createAddress'}
+						use:enhance={() => {
+							isSavingAddress = true;
+							return async ({ result, update }) => {
+								isSavingAddress = false;
+								if (result.type === 'success') {
+									const actionData = result.data as Record<string, any>;
+									if (actionData && actionData.address) {
+										const savedAddress = actionData.address as any;
+										if (addressFormData.id) {
+											const idx = localAddresses.findIndex((a: any) => a.id === savedAddress.id);
+											if (idx !== -1) localAddresses[idx] = savedAddress;
+											showToast($t('Address updated successfully'));
+										} else {
+											localAddresses = [...localAddresses, savedAddress];
+											selectedDeliveryAddressId = savedAddress.id;
+											showToast($t('Address added successfully'));
+										}
+										addressModalMode = 'list';
+									}
+								} else if (result.type === 'failure') {
+									const actionData = result.data as Record<string, any>;
+									alert(actionData?.message || $t('Error'));
+								}
+								await update({ reset: false });
+							};
+						}}
+					>
+						{#if addressFormData.id}
+							<input type="hidden" name="id" value={addressFormData.id} />
+						{/if}
+
+						<div class="space-y-4">
+							<div>
+								<label for="addr_name" class="block text-sm font-medium text-gray-700"
+									>{$t('Location Name')} <span class="text-red-500">*</span></label
+								>
+								<input
+									type="text"
+									name="name"
+									id="addr_name"
+									bind:value={addressFormData.name}
+									placeholder={$t('e.g. HQ, Warehouse A')}
+									required
+									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+								/>
+							</div>
+							<div>
+								<label for="addr_line" class="block text-sm font-medium text-gray-700"
+									>{$t('Address Details')} <span class="text-red-500">*</span></label
+								>
+								<textarea
+									name="address_line"
+									id="addr_line"
+									rows="3"
+									bind:value={addressFormData.address_line}
+									placeholder={$t('Address Format Placeholder')}
+									required
+									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+								></textarea>
+							</div>
+							<div class="grid grid-cols-2 gap-4">
+								<div>
+									<label for="contact_name" class="block text-sm font-medium text-gray-700"
+										>{$t('Receiver Contact Name')}</label
+									>
+									<input
+										type="text"
+										name="contact_name"
+										id="contact_name"
+										bind:value={addressFormData.contact_name}
+										class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+									/>
+								</div>
+								<div>
+									<label for="contact_phone" class="block text-sm font-medium text-gray-700"
+										>{$t('Phone Number')}</label
+									>
+									<input
+										type="text"
+										name="contact_phone"
+										id="contact_phone"
+										bind:value={addressFormData.contact_phone}
+										class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+									/>
+								</div>
+							</div>
+						</div>
+
+						<div class="mt-6 flex justify-end gap-3 border-t pt-4">
+							<button
+								type="button"
+								on:click={() => (addressModalMode = 'list')}
+								class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
+								>{$t('Back')}</button
+							>
+							<button
+								type="submit"
+								disabled={isSavingAddress}
+								class="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+							>
+								{isSavingAddress
+									? $t('Saving...')
+									: addressFormData.id
+										? $t('Save Changes')
+										: $t('Add Address')}
+							</button>
+						</div>
+					</form>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if toastMessage}
+	<div
+		class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[200] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-xl"
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			class="h-5 w-5"
+			fill="none"
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+			stroke-width="2"
+			><path
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+			/></svg
+		>
+		{toastMessage}
+	</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {

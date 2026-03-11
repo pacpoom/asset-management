@@ -57,7 +57,7 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📎';
+		return '📁';
 	}
 
 	async function updateStatus(e: Event) {
@@ -119,6 +119,7 @@
 			</h1>
 			<p class="mt-1 text-sm text-gray-500">
 				{$t('Vendor')}: <span class="font-medium text-gray-700">{document.vendor_name}</span> |
+				{$t('Job Order')}: <span class="font-medium text-gray-700">{document.job_number || '-'}</span> |
 				{$t('Reference')}: {document.reference_doc || '-'}
 			</p>
 		</div>
@@ -252,6 +253,10 @@
 							? `${document.credit_term} ${$t('Days')}`
 							: $t('Cash')}
 					</span>
+				</div>
+				<div class="text-sm">
+					<span class="font-semibold text-gray-600">{$t('Job Order')}:</span>
+					<span class="font-medium text-indigo-700">{document.job_number || '-'}</span>
 				</div>
 				<div class="text-sm">
 					<span class="font-semibold text-gray-600">{$t('Reference')}:</span>
