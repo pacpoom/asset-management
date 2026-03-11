@@ -434,7 +434,7 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-40 px-4 py-2 text-left font-medium">
+							<th class="w-32 px-4 py-2 text-left font-medium">
 								<div class="flex items-center gap-2">
 									{$t('Product/Service')}
 									<button
@@ -457,12 +457,12 @@
 									</button>
 								</div>
 							</th>
-							<th class="px-4 py-2 text-left font-bold">{$t('Description')}</th>
-							<th class="w-24 px-3 py-2 text-right">{$t('Quantity')}</th>
-							<th class="w-24 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-28 px-3 py-2 text-right">{$t('Unit Price')}</th>
-							<th class="w-24 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
-							<th class="w-24 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
+							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
+							<th class="w-28 px-3 py-2 text-right">{$t('Quantity')}</th>
+							<th class="w-32 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-32 px-3 py-2 text-right">{$t('Unit Price')}</th>
+							<th class="w-32 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
+							<th class="w-28 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
 							<th class="w-32 px-3 py-2 text-right">{$t('Total')}</th>
 							<th class="w-10 px-3 py-2"></th>
 						</tr>

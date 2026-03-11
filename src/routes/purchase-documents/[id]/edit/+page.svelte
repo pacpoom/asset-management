@@ -13,7 +13,8 @@
 		vendors,
 		products,
 		units,
-		deliveryAddresses
+		deliveryAddresses,
+		jobOrders // 🌟 รับข้อมูล Job Orders
 	} = data);
 
 	$: productOptions = products.map((p: any) => ({
@@ -44,6 +45,21 @@
 		? String(data.document.delivery_address_id)
 		: '';
 
+	// 🌟 ตัวแปรเก็บค่า Job Order
+	let selectedJobObj: any = null;
+	let selectedJobId: string | number = '';
+
+	// 🌟 กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือกอยู่
+	$: availableJobOrders = (jobOrders || []).filter((j: any) => 
+		selectedVendorId ? j.vendor_id == selectedVendorId : false
+	);
+
+	$: jobOrderOptions = availableJobOrders.map((j: any) => ({
+		value: j.id,
+		label: j.job_number,
+		job: j
+	}));
+
 	$: formatCurrency = (val: number) => {
 		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
 			minimumFractionDigits: 2,
@@ -57,6 +73,21 @@
 		creditTerm = document.credit_term !== null ? Number(document.credit_term) : 0;
 		discountAmount = parseFloat(document.discount_amount || '0');
 		vatRate = parseFloat(document.vat_rate || '7');
+	}
+
+	// 🌟 Initialize Job Order ตอนโหลดหน้าครั้งแรก
+	$: if (document && jobOrders && selectedVendorId) {
+		if (document.job_id && selectedJobId === '') {
+			selectedJobId = document.job_id;
+			const foundJob = jobOrders.find((j: any) => j.id == document.job_id);
+			if (foundJob) {
+				selectedJobObj = {
+					value: foundJob.id,
+					label: foundJob.job_number,
+					job: foundJob
+				};
+			}
+		}
 	}
 
 	$: if (existingItems && items.length === 0) {
@@ -145,6 +176,12 @@
 		}
 	}
 
+	// 🌟 เคลียร์ค่า Job Order ทิ้งเมื่อมีการเปลี่ยน Vendor
+	function handleVendorChange() {
+		selectedJobObj = null;
+		selectedJobId = '';
+	}
+
 	let isSaving = false;
 </script>
 
@@ -191,7 +228,7 @@
 				/>
 			</div>
 
-			<div>
+			<div class="relative z-[60]">
 				<label for="vendor_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Vendor')} <span class="text-red-500">*</span></label
 				>
@@ -199,6 +236,7 @@
 					id="vendor_id"
 					name="vendor_id"
 					bind:value={selectedVendorId}
+					on:change={handleVendorChange}
 					required
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
 				>
@@ -207,7 +245,7 @@
 				</select>
 			</div>
 
-			<div class="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+			<div class="relative z-[50] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
@@ -254,7 +292,7 @@
 				</div>
 			</div>
 
-			<div class="md:col-span-1">
+			<div class="relative z-[40] md:col-span-1">
 				<label for="delivery_address_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Delivery Address')}</label
 				>
@@ -273,7 +311,28 @@
 				</select>
 			</div>
 
-			<div class="md:col-span-1">
+			<!-- 🌟 เพิ่ม Dropdown เลือก Job Order -->
+			<div class="relative z-[35] md:col-span-1">
+				<label for="job_id" class="mb-1 block text-sm font-medium text-gray-700">
+					{$t('Job Order (Optional)')}
+				</label>
+				<Select
+					id="job_id"
+					items={jobOrderOptions}
+					value={selectedJobObj}
+					on:change={(e) => { selectedJobObj = e.detail; selectedJobId = e.detail ? e.detail.value : ''; }}
+					on:clear={() => { selectedJobObj = null; selectedJobId = ''; }}
+					placeholder={selectedVendorId ? $t('Select Job Order...') : $t('Please select a vendor first')}
+					disabled={!selectedVendorId}
+					container={browser ? document.body : null}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0e7ff;"
+				/>
+				<input type="hidden" name="job_id" value={selectedJobId} />
+			</div>
+
+			<div class="relative z-[30] md:col-span-1">
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Supplier Reference')}</label
 				>
@@ -289,7 +348,7 @@
 
 		<div class="mb-6">
 			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Purchase Items')}</h3>
-			<div class="overflow-x-auto rounded-lg border">
+			<div class="relative z-10 overflow-x-visible rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
@@ -545,5 +604,8 @@
 		border-color: #d1d5db;
 		z-index: 9999 !important;
 		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+	:global(.selectContainer) {
+		overflow: visible !important;
 	}
 </style>
