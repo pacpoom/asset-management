@@ -203,11 +203,12 @@ export const actions: Actions = {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
 					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
+					const isVat = item.is_vat === false ? 0 : 1;
 
 					await connection.execute(
 						`INSERT INTO purchase_document_items 
-                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, is_vat) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							documentId,
 							item.product_id || null,
@@ -218,7 +219,8 @@ export const actions: Actions = {
 							lineTotal,
 							lineWhtRate,
 							lineWhtAmount,
-							index
+							index,
+							isVat
 						]
 					);
 				}

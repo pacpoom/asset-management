@@ -55,6 +55,7 @@ interface ItemData {
 	unit_price: number;
 	line_total: number;
 	wht_rate?: number;
+	is_vat?: number | boolean; // 🌟 เพิ่ม is_vat
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -264,6 +265,7 @@ function getInvoiceHtml(
         </table>
     `;
 
+	// 🌟 เพิ่มคอลัมน์ VAT เข้าไปในตารางรายการ
 	const itemTableHead = `
     <thead>
         <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
@@ -271,21 +273,23 @@ function getInvoiceHtml(
             <th class="p-2 text-left">รายการ (Description)</th>
             <th class="p-2 text-right w-16">จำนวน</th>
             <th class="p-2 text-right w-24">ต้นทุน/หน่วย</th>
+            <th class="p-2 text-center w-16" style="color: #2563eb;">VAT</th>
             <th class="p-2 text-center w-16" style="color: #ef4444;">WHT</th>
             <th class="p-2 text-right w-28">จำนวนเงิน</th>
         </tr>
     </thead>
 `;
 
+	// 🌟 ปรับ colspan ด้านล่างซ้ายให้เป็น 5 (เนื่องจากมีคอลัมน์ VAT เพิ่มเข้ามา) และปรับ colgroup
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
-                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
                 <col style="width: 120px;"> <col style="width: 120px;">
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+                    <td colspan="5" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
                         <div>
                             <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
                             <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${docData.notes || '-'}</div>
@@ -372,6 +376,7 @@ function getInvoiceHtml(
 			let startIndex = 0;
 			for (let i = 0; i < index; i++) startIndex += itemPages[i].length;
 
+			// 🌟 แสดงค่า 7% หรือ - ตามสถานะ is_vat
 			const rowsHtml = pageItems
 				.map(
 					(item, i) => `
@@ -380,6 +385,9 @@ function getInvoiceHtml(
         <td class="p-2">${item.description}</td>
         <td class="p-2 text-right">${formatNumber(item.quantity)}</td>
         <td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
+        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500;">
+            ${item.is_vat ? '7%' : '-'}
+        </td>
         <td class="p-2 text-center" style="color: #ef4444; font-weight: 500;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
         </td>
@@ -469,10 +477,10 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Purchase Document not found' }, { status: 404 });
 		const docData = rows[0];
 
-		// 2. ดึงรายการสินค้า
+		// 2. ดึงรายการสินค้า 🌟 เพิ่ม is_vat เข้าไปในคำสั่ง
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
-            SELECT description, quantity, unit_price, line_total, wht_rate 
+            SELECT description, quantity, unit_price, line_total, wht_rate, is_vat
             FROM purchase_document_items 
             WHERE document_id = ? 
             ORDER BY item_order ASC
