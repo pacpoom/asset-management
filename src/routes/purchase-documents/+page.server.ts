@@ -15,12 +15,15 @@ export const load: PageServerLoad = async ({ url }) => {
 		const params: (string | number)[] = [];
 
 		if (searchQuery) {
+			// 🌟 ค้นหาจากเลขที่เอกสาร, ชื่อ vendor, company_name และ job_number
 			whereClause += ` AND (
                 pd.document_number LIKE ? OR
-                v.name LIKE ?
+                v.name LIKE ? OR
+				v.company_name LIKE ? OR
+				j.job_number LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		if (filterStatus) {
@@ -37,6 +40,7 @@ export const load: PageServerLoad = async ({ url }) => {
             SELECT COUNT(pd.id) as total
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
+			LEFT JOIN job_orders j ON pd.job_id = j.id
             ${whereClause}`;
 		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
@@ -45,11 +49,13 @@ export const load: PageServerLoad = async ({ url }) => {
 		const fetchSql = `
             SELECT
                 pd.id, pd.document_type, pd.document_number, pd.document_date, pd.due_date, pd.total_amount, pd.status,
-                v.name as vendor_name,
+                COALESCE(v.company_name, v.name) as vendor_name,
+				j.job_number,
                 u.full_name as created_by_name
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
+			LEFT JOIN job_orders j ON pd.job_id = j.id
             ${whereClause}
             ORDER BY pd.document_date DESC, pd.id DESC
             LIMIT ? OFFSET ?

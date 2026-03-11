@@ -45,6 +45,7 @@
 	let allVendorContracts = data.vendorContracts || [];
 
 	let selectedVendor = vendorOptions.find((v: any) => v.value == job.vendor_id) || null;
+
 	let initialVendorContract = allVendorContracts.find((c: any) => c.id == job.vendor_contract_id);
 	let selectedVendorContract = initialVendorContract
 		? {
@@ -82,6 +83,7 @@
 		value: l.name,
 		label: l.code ? `${l.name} (${l.code})` : l.name
 	}));
+
 	let selectedLiner = linerOptions.find((l: any) => l.value === job.liner_name) || null;
 	let isSaving = false;
 
@@ -118,6 +120,7 @@
 		: null;
 
 	let invoiceFilterText = '';
+
 	function handleInvoiceChange(e: CustomEvent) {
 		const detail = e.detail;
 	}
@@ -165,7 +168,7 @@
 	</div>
 
 	<div
-		class="mx-auto max-w-4xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+		class="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
 	>
 		<div class="h-1.5 w-full bg-orange-500"></div>
 

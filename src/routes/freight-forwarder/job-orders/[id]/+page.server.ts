@@ -6,7 +6,7 @@ export const load = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// 1. ดึงข้อมูล Job Order (ใช้ u.full_name ตามแบบ Invoices)
+		// 1. ดึงข้อมูล Job Order และทำการ Join Vendor เข้ามาเพิ่มเติม
 		const [jobs] = await pool.query<any[]>(
 			`
 			SELECT j.*, 
@@ -15,10 +15,17 @@ export const load = async ({ params }) => {
 			       c.address as customer_address, 
 			       c.tax_id as customer_tax_id,
 			       con.contract_number,
+                   v.name as vendor_name,
+                   v.company_name as vendor_company_name,
+                   v.address as vendor_address,
+                   v.tax_id as vendor_tax_id,
+                   vc.contract_number as vendor_contract_number,
 			       u.full_name as created_by_name
 			FROM job_orders j
 			LEFT JOIN customers c ON j.customer_id = c.id
 			LEFT JOIN contracts con ON j.contract_id = con.id
+            LEFT JOIN vendors v ON j.vendor_id = v.id
+            LEFT JOIN vendor_contracts vc ON j.vendor_contract_id = vc.id
 			LEFT JOIN users u ON j.created_by = u.id
 			WHERE j.id = ?
 		`,

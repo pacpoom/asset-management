@@ -116,14 +116,11 @@ export const actions = {
 		const job_type = formData.get('job_type')?.toString() || 'SI';
 		const job_date = formData.get('job_date')?.toString() || new Date().toISOString().split('T')[0];
 
-		const partner_type = formData.get('partner_type')?.toString() || 'customer';
-
 		const data = {
-			customer_id: partner_type === 'customer' ? formData.get('customer_id') || null : null,
-			contract_id: partner_type === 'customer' ? formData.get('contract_id') || null : null,
-			vendor_id: partner_type === 'vendor' ? formData.get('vendor_id') || null : null,
-			vendor_contract_id:
-				partner_type === 'vendor' ? formData.get('vendor_contract_id') || null : null,
+			customer_id: formData.get('customer_id') || null,
+			contract_id: formData.get('contract_id') || null,
+			vendor_id: formData.get('vendor_id') || null,
+			vendor_contract_id: formData.get('vendor_contract_id') || null,
 			job_type: job_type,
 			service_type: formData.get('service_type'),
 			location: formData.get('location'),

@@ -263,6 +263,7 @@
 	</div>
 
 	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+<<<<<<< HEAD
 		<div class="md:col-span-2">
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Customer')}</h3>
 			<p class="font-semibold text-gray-800">
@@ -283,10 +284,63 @@
 				<p class="mt-1 text-sm">
 					<span class="font-semibold text-gray-700">{$t('Contract Ref.:')}</span>
 					{job.contract_number}
+=======
+		<div class="md:col-span-2 space-y-6">
+			<!-- Customer Details -->
+			<div>
+				<h3 class="text-sm font-semibold text-blue-600 uppercase">ลูกค้า (Customer)</h3>
+				<p class="font-semibold text-gray-800 mt-1">
+					{job.company_name || job.customer_name || 'ไม่ระบุ'}
+>>>>>>> 48f47e895989330f1e8fa1be04b7d4af20fd2a23
 				</p>
+
+				{#if job.company_name && job.customer_name}
+					<p class="mt-1 text-sm text-gray-600">Contact: {job.customer_name}</p>
+				{/if}
+
+				<p class="mt-1 text-sm whitespace-pre-wrap text-gray-600">{job.customer_address || '-'}</p>
+				<p class="mt-1 text-sm">
+					<span class="font-semibold text-gray-700">Tax ID:</span>
+					{job.customer_tax_id || '-'}
+				</p>
+
+				{#if job.contract_number}
+					<p class="mt-1 text-sm">
+						<span class="font-semibold text-gray-700">อ้างอิงสัญญา:</span>
+						{job.contract_number}
+					</p>
+				{/if}
+			</div>
+
+			<!-- Vendor Details (ถ้ามี) -->
+			{#if job.vendor_id}
+				<div class="border-t border-gray-100 pt-4">
+					<h3 class="text-sm font-semibold text-gray-500 uppercase">ผู้จำหน่าย (Vendor)</h3>
+					<p class="font-semibold text-gray-800 mt-1">
+						{job.vendor_company_name || job.vendor_name || 'ไม่ระบุ'}
+					</p>
+
+					{#if job.vendor_company_name && job.vendor_name}
+						<p class="mt-1 text-sm text-gray-600">Contact: {job.vendor_name}</p>
+					{/if}
+
+					<p class="mt-1 text-sm whitespace-pre-wrap text-gray-600">{job.vendor_address || '-'}</p>
+					<p class="mt-1 text-sm">
+						<span class="font-semibold text-gray-700">Tax ID:</span>
+						{job.vendor_tax_id || '-'}
+					</p>
+
+					{#if job.vendor_contract_number}
+						<p class="mt-1 text-sm">
+							<span class="font-semibold text-gray-700">อ้างอิงสัญญา:</span>
+							{job.vendor_contract_number}
+						</p>
+					{/if}
+				</div>
 			{/if}
 		</div>
 
+<<<<<<< HEAD
 		<div class="md:col-span-1">
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('More Info')}</h3>
 			<p class="mt-1 text-xs text-gray-600">
@@ -295,6 +349,16 @@
 			</p>
 			<div class="mt-2 text-xs text-gray-600">
 				<span class="font-semibold">{$t('Created At:')}</span>
+=======
+		<div class="md:col-span-1 rounded-lg bg-gray-50 p-4 border border-gray-100 h-fit">
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">ข้อมูลเพิ่มเติม (More Info)</h3>
+			<p class="mt-2 text-xs text-gray-600">
+				<span class="font-semibold block mb-0.5">ผู้เตรียม / Prepared By:</span>
+				{job.created_by_name || 'System Admin'}
+			</p>
+			<div class="mt-3 text-xs text-gray-600">
+				<span class="font-semibold block mb-0.5">สร้างเมื่อ / Created At:</span>
+>>>>>>> 48f47e895989330f1e8fa1be04b7d4af20fd2a23
 				<p>{formatDate(job.created_at)}</p>
 			</div>
 		</div>

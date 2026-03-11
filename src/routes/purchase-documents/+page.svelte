@@ -175,6 +175,8 @@
 				<tr>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
+					<!-- 🌟 เพิ่มคอลัมน์ Job Order -->
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Job Order')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Vendor')}</th>
 					<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Total Amount')}</th>
@@ -185,7 +187,8 @@
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#if documents.length === 0}
 					<tr>
-						<td colspan="7" class="py-8 text-center text-gray-500"
+						<!-- 🌟 ปรับ colspan จาก 7 เป็น 8 -->
+						<td colspan="8" class="py-8 text-center text-gray-500"
 							>{$t('No purchase documents found')}</td
 						>
 					</tr>
@@ -203,6 +206,16 @@
 							</td>
 							<td class="px-4 py-3 font-medium text-indigo-600">
 								<a href="/purchase-documents/{doc.id}">{doc.document_number || '(Draft)'}</a>
+							</td>
+							<!-- 🌟 แสดงเลข Job Order -->
+							<td class="px-4 py-3 text-gray-600">
+								{#if doc.job_number}
+									<span class="inline-flex items-center rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-gray-500/10 ring-inset">
+										{doc.job_number}
+									</span>
+								{:else}
+									<span class="text-gray-400">-</span>
+								{/if}
 							</td>
 							<td class="px-4 py-3 whitespace-nowrap text-gray-600"
 								>{formatDate(doc.document_date)}</td

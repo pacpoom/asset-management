@@ -84,7 +84,9 @@ export const load: PageServerLoad = async ({ url }) => {
 			}
 		}
 
-		const [vendors] = await pool.query('SELECT id, name FROM vendors ORDER BY name ASC');
+		// 🌟 แก้ไข: ดึง company_name มาใช้แสดงแทน name (ถ้าไม่มี company_name ให้ใช้ name ปกติ)
+		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
+		
 		const [products] = await pool.query(
 			'SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
@@ -97,6 +99,9 @@ export const load: PageServerLoad = async ({ url }) => {
 		// โหลดรายการสถานที่จัดส่ง (เฉพาะที่ยังใช้งานอยู่)
 		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
 
+		// 🌟 เพิ่ม vendor_id เข้าไปในคำสั่ง SELECT เพื่อให้ Filter ทำงานได้ถูกต้อง
+		const [jobOrders] = await pool.query('SELECT id, job_number, vendor_id FROM job_orders ORDER BY id DESC');
+
 		return {
 			vendors: JSON.parse(JSON.stringify(vendors)),
 			products: JSON.parse(JSON.stringify(products)),
@@ -104,6 +109,7 @@ export const load: PageServerLoad = async ({ url }) => {
 			categories: JSON.parse(JSON.stringify(categories)),
 			accounts: JSON.parse(JSON.stringify(accounts)),
 			deliveryAddresses: JSON.parse(JSON.stringify(deliveryAddresses)),
+			jobOrders: JSON.parse(JSON.stringify(jobOrders)), // ส่งข้อมูล Jobs ไปที่หน้า Svelte
 			prefillData: prefillData ? JSON.parse(JSON.stringify(prefillData)) : null 
 		};
 	} catch (error: any) {
@@ -115,6 +121,7 @@ export const load: PageServerLoad = async ({ url }) => {
 			categories: [],
 			accounts: [],
 			deliveryAddresses: [],
+			jobOrders: [],
 			prefillData: null
 		};
 	}
@@ -135,6 +142,9 @@ export const actions: Actions = {
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
+		
+		// 🌟 รับค่า job_id จากฟอร์ม
+		const job_id = formData.get('job_id')?.toString() || null;
 
 		const subtotal = parseFloat(formData.get('subtotal')?.toString() || '0');
 		const discount_amount = parseFloat(formData.get('discount_amount')?.toString() || '0');
@@ -154,13 +164,14 @@ export const actions: Actions = {
 
 			const document_number = await generateDocumentNumber(document_type, document_date, connection);
 
+			// 🌟 เพิ่ม job_id ลงในคำสั่ง INSERT
 			const [result] = await connection.execute<any>(
 				`INSERT INTO purchase_documents 
                 (document_type, document_number, document_date, credit_term, due_date, vendor_id, delivery_address_id, reference_doc, notes, 
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, wht_amount, total_amount,
-                 status, created_by_user_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`,
+                 status, created_by_user_id, job_id) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?)`,
 				[
 					document_type,
 					document_number,
@@ -180,7 +191,8 @@ export const actions: Actions = {
 					wht_amount,
 					wht_amount,
 					total_amount,
-					locals.user?.id || null
+					locals.user?.id || null,
+					job_id
 				]
 			);
 			const documentId = result.insertId;
@@ -191,11 +203,12 @@ export const actions: Actions = {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
 					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
+					const isVat = item.is_vat === false ? 0 : 1;
 
 					await connection.execute(
 						`INSERT INTO purchase_document_items 
-                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, is_vat) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							documentId,
 							item.product_id || null,
@@ -206,7 +219,8 @@ export const actions: Actions = {
 							lineTotal,
 							lineWhtRate,
 							lineWhtAmount,
-							index
+							index,
+							isVat
 						]
 					);
 				}

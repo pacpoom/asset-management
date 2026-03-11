@@ -5,6 +5,17 @@
 	export let data;
 	$: jobs = data.job_orders || [];
 
+	let searchQuery = '';
+	$: filteredJobs = jobs.filter((job: any) => {
+		if (!searchQuery) return true;
+		const query = searchQuery.toLowerCase();
+		const jobNum = (
+			job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)
+		).toLowerCase();
+		const customer = (job.company_name || job.customer_name || '').toLowerCase();
+		return jobNum.includes(query) || customer.includes(query);
+	});
+
 	let showDeleteModal = false;
 	let jobToDeleteId: number | null = null;
 	let jobToDeleteName: string = '';
@@ -58,22 +69,44 @@
 			<h1 class="text-2xl font-bold text-gray-800">{$t('Job Orders')}</h1>
 			<p class="text-sm text-gray-500">{$t('Manage freight forwarder job orders')}</p>
 		</div>
-		<a
-			href="/freight-forwarder/job-orders/create"
-			class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-blue-700"
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				viewBox="0 0 20 20"
-				fill="currentColor"
-				class="h-5 w-5"
-			>
-				<path
-					d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
+
+		<div class="flex items-center gap-3">
+			<div class="relative w-full sm:w-64">
+				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+					<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+						/>
+					</svg>
+				</div>
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="{$t('Search')}..."
+					class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-9 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 				/>
-			</svg>
-			{$t('Create New Job')}
-		</a>
+			</div>
+
+			<a
+				href="/freight-forwarder/job-orders/create"
+				class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold whitespace-nowrap text-white shadow transition-colors hover:bg-blue-700"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="h-5 w-5"
+				>
+					<path
+						d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
+					/>
+				</svg>
+				{$t('Create New Job')}
+			</a>
+		</div>
 	</div>
 
 	<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -105,7 +138,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
-					{#each jobs as job}
+					{#each filteredJobs as job}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4">
 								<a
@@ -258,7 +291,7 @@
 							</td>
 						</tr>
 					{/each}
-					{#if jobs.length === 0}
+					{#if filteredJobs.length === 0}
 						<tr>
 							<td colspan="7" class="py-12 text-center text-gray-400"
 								>{$t('No job orders found')}</td
