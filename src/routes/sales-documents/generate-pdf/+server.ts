@@ -34,7 +34,6 @@ interface DocumentData extends RowDataPacket {
 	customer_tax_id: string | null;
 	created_by_name: string;
 
-	// ข้อมูลที่ Join มาจาก job_orders
 	jo_job_type: string | null;
 	jo_bl_number: string | null;
 
@@ -55,6 +54,7 @@ interface ItemData {
 	unit_price: number;
 	line_total: number;
 	wht_rate?: number;
+	is_vat?: number | boolean; // 🌟 เพิ่ม is_vat
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -140,16 +140,11 @@ function bahttext(input: number | string): string {
 
 function getDocumentTitle(type: string): { th: string; en: string } {
 	switch (type) {
-		case 'QT':
-			return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
-		case 'BN':
-			return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
-		case 'INV':
-			return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
-		case 'RE':
-			return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
-		default:
-			return { th: 'เอกสาร', en: 'DOCUMENT' };
+		case 'QT': return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
+		case 'BN': return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
+		case 'INV': return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
+		case 'RE': return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
+		default: return { th: 'เอกสาร', en: 'DOCUMENT' };
 	}
 }
 
@@ -178,13 +173,9 @@ function getInvoiceHtml(
 	});
 
 	const ratesArray = Array.from(activeRates);
-	const whtRateText =
-		ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
+	const whtRateText = ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
 
-	const whtAmt =
-		calculatedWhtAmt > 0
-			? calculatedWhtAmt
-			: Number(docData.wht_amount || docData.withholding_tax_amount || 0);
+	const whtAmt = calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
 	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
 	const netAmountText = bahttext(netAmount);
@@ -215,18 +206,15 @@ function getInvoiceHtml(
 		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
 		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
 
-	// คำนวณการแสดงผลเครดิตเทอม
 	const creditTermDisplay =
 		docData.credit_term && docData.credit_term > 0
 			? `${docData.credit_term} วัน (Days)`
 			: 'เงินสด (Cash)';
 
-	// สร้างสตริงแสดง Job Order
 	let jobOrderDisplay = '';
 	if (docData.job_order_id) {
-		const blPart =
-			docData.jo_bl_number && docData.jo_bl_number !== '-' ? ` | BL: ${docData.jo_bl_number}` : '';
-		jobOrderDisplay = `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span> ${docData.jo_job_type || ''}${blPart}</p>`;
+		const blPart = docData.job_number
+		jobOrderDisplay = `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span>${blPart}</p>`;
 	}
 
 	const headerContent = `
@@ -259,7 +247,7 @@ function getInvoiceHtml(
                     <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">ลูกค้า (Customer)</h3>
                     <p style="font-weight: bold; margin: 0 0 4px 0;">${docData.customer_name}</p>
                     <div style="font-size: 8pt; line-height: 1.4;">
-                        <p style="margin:0;">${docData.customer_address || '-'}</p>
+                        <p style="margin:0; white-space: pre-wrap;">${docData.customer_address || '-'}</p>
                     </div>
                     <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${docData.customer_tax_id || '-'}</p>
                 </td>
@@ -271,6 +259,7 @@ function getInvoiceHtml(
         </table>
     `;
 
+	// 🌟 เพิ่มคอลัมน์ VAT ในตาราง PDF
 	const itemTableHead = `
     <thead>
         <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
@@ -278,21 +267,23 @@ function getInvoiceHtml(
             <th class="p-2 text-left">รายการ (Description)</th>
             <th class="p-2 text-right w-16">จำนวน</th>
             <th class="p-2 text-right w-24">ราคา/หน่วย</th>
+            <th class="p-2 text-center w-16" style="color: #2563eb;">VAT</th>
             <th class="p-2 text-center w-16" style="color: #ef4444;">WHT</th>
             <th class="p-2 text-right w-28">จำนวนเงิน</th>
         </tr>
     </thead>
 `;
 
+	// 🌟 ขยับ colspan จาก 4 เป็น 5
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
-                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
                 <col style="width: 112px;"> <col style="width: 128px;">
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="4" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+                    <td colspan="5" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
                         <div>
                             <span style="font-weight: bold; text-decoration: underline;">หมายเหตุ (Notes):</span>
                             <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${docData.notes || '-'}</div>
@@ -379,6 +370,7 @@ function getInvoiceHtml(
 			let startIndex = 0;
 			for (let i = 0; i < index; i++) startIndex += itemPages[i].length;
 
+			// 🌟 แสดง VAT ใน row
 			const rowsHtml = pageItems
 				.map(
 					(item, i) => `
@@ -387,6 +379,9 @@ function getInvoiceHtml(
         <td class="p-2">${item.description}</td>
         <td class="p-2 text-right">${formatNumber(item.quantity)}</td>
         <td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
+        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500;">
+            ${item.is_vat ? '7%' : '-'}
+        </td>
         <td class="p-2 text-center" style="color: #ef4444; font-weight: 500;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
         </td>
@@ -456,13 +451,12 @@ export const GET = async ({ url }) => {
 	try {
 		connection = await db.getConnection();
 
-		// 1. ดึงข้อมูลหัวเอกสาร (JOIN job_orders เพื่อนำมาแสดง)
 		const [rows] = await connection.execute<DocumentData[]>(
 			`
             SELECT sd.*, 
                    c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, 
                    u.full_name as created_by_name,
-                   jo.job_type as jo_job_type, jo.bl_number as jo_bl_number
+                   jo.job_type as jo_job_type, jo.bl_number as jo_bl_number , jo.job_number as job_number
             FROM sales_documents sd
             LEFT JOIN customers c ON sd.customer_id = c.id
             LEFT JOIN users u ON sd.created_by_user_id = u.id
@@ -475,10 +469,10 @@ export const GET = async ({ url }) => {
 		if (rows.length === 0) return json({ message: 'Document not found' }, { status: 404 });
 		const docData = rows[0];
 
-		// 2. ดึงรายการสินค้า
+		// 🌟 ดึงฟิลด์ is_vat จากตาราง
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
-            SELECT description, quantity, unit_price, line_total, wht_rate 
+            SELECT description, quantity, unit_price, line_total, wht_rate, is_vat
             FROM sales_document_items 
             WHERE document_id = ? 
             ORDER BY item_order ASC
@@ -486,16 +480,13 @@ export const GET = async ({ url }) => {
 			[id]
 		);
 
-		// 3. ดึงข้อมูลบริษัท
 		const [company] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
 		const companyData = company[0] || null;
 
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		// 4. สร้าง HTML จากข้อมูลทั้งหมด
 		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64);
 
-		// 5. สั่ง Puppeteer สร้างไฟล์ PDF
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
 			headless: true
@@ -505,7 +496,6 @@ export const GET = async ({ url }) => {
 		const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
 		await browser.close();
 
-		// 6. ส่งไฟล์ PDF กลับไปที่เบราว์เซอร์
 		const pdfBlob = new Blob([pdfBuffer as any], { type: 'application/pdf' });
 		return new Response(pdfBlob, {
 			status: 200,

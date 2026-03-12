@@ -38,6 +38,8 @@ interface DocumentData extends RowDataPacket {
 	delivery_contact_name: string | null;
 	delivery_contact_phone: string | null;
 
+	job_number: string | null;
+
 	subtotal: number;
 	discount_amount: number;
 	total_after_discount: number;
@@ -55,7 +57,7 @@ interface ItemData {
 	unit_price: number;
 	line_total: number;
 	wht_rate?: number;
-	is_vat?: number | boolean; // 🌟 เพิ่ม is_vat
+	is_vat?: number | boolean;
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -233,6 +235,7 @@ function getInvoiceHtml(
                         <p style="margin:0;"><span style="font-weight: 600;">วันที่ / Date:</span> ${formatDateOnly(docData.document_date)}</p>
                         <p style="margin:0;"><span style="font-weight: 600;">เครดิต / Term:</span> ${creditTermDisplay}</p>
                         ${docData.due_date ? `<p style="margin:0; color: #b91c1c;"><span style="font-weight: 600;">ครบกำหนด / Due:</span> ${formatDateOnly(docData.due_date)}</p>` : ''}
+                        ${docData.job_number ? `<p style="margin:0; color: #4f46e5;"><span style="font-weight: 600;">Job Order:</span> ${docData.job_number}</p>` : ''}
                         ${docData.reference_doc ? `<p style="margin:0;"><span style="font-weight: 600;">อ้างอิง / Ref:</span> ${docData.reference_doc}</p>` : ''}
                         <p style="margin:0;"><span style="font-weight: 600;">ผู้จัดทำ / Prepared By:</span> ${docData.created_by_name}</p>
                     </div>
@@ -464,11 +467,13 @@ export const GET = async ({ url }) => {
                    v.name as vendor_name, v.address as vendor_address, v.tax_id as vendor_tax_id, 
                    u.full_name as created_by_name,
                    da.name as delivery_location_name, da.address_line as delivery_address_line,
-                   da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone
+                   da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone,
+                   j.job_number
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
             LEFT JOIN delivery_addresses da ON pd.delivery_address_id = da.id
+            LEFT JOIN job_orders j ON pd.job_id = j.id
             WHERE pd.id = ?
         `,
 			[id]

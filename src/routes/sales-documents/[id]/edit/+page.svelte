@@ -24,6 +24,7 @@
 		unit_price: number;
 		line_total: number;
 		wht_rate: number;
+		is_vat: boolean;
 	}
 
 	let documentDate = '';
@@ -74,14 +75,23 @@
 				unit_id: item.unit_id ? Number(item.unit_id) : null,
 				unit_price: parseFloat(item.unit_price || '0'),
 				line_total: parseFloat(item.line_total || '0'),
-				wht_rate: parseFloat(item.wht_rate || '0')
+				wht_rate: parseFloat(item.wht_rate || '0'),
+				is_vat: item.is_vat !== undefined ? !!item.is_vat : true
 			};
 		});
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
+	
+	// 🌟 คำนวณยอดที่คิด VAT (เฉพาะรายการที่เลือก VAT 7%)
+	$: subtotalVatable = items.reduce((sum, item) => sum + (item.is_vat ? (item.line_total || 0) : 0), 0);
+	
+	// 🌟 คำนวณสัดส่วนส่วนลดสำหรับยอดที่คิด VAT
+	$: vatableRatio = subtotal > 0 ? (subtotalVatable / subtotal) : 0;
+	$: vatableAfterDiscount = Math.max(0, subtotalVatable - (discountAmount * vatableRatio));
+	
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
-	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
+	$: vatAmount = (vatableAfterDiscount * vatRate) / 100;
 
 	$: whtAmount = items.reduce((sum, item) => {
 		const itemWht = (item.line_total || 0) * (item.wht_rate / 100);
@@ -102,7 +112,8 @@
 				unit_id: null,
 				unit_price: 0,
 				line_total: 0,
-				wht_rate: 0
+				wht_rate: 0,
+				is_vat: true
 			}
 		];
 	}
@@ -124,19 +135,20 @@
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
+			items[index].is_vat = true;
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
 			items[index].wht_rate = 0;
+			items[index].is_vat = true;
 		}
 
 		updateLineTotal(index);
 		items = items;
 	}
 
-	// คำนวณวันครบกำหนดชำระเงินเมื่อวันที่หรือเครดิตเทอมเปลี่ยน
 	function calculateDueDate() {
 		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
 			const d = new Date(documentDate);
@@ -313,7 +325,8 @@
 							<th class="w-24 px-3 py-3 text-right">{$t('Quantity')}</th>
 							<th class="w-24 px-3 py-3 text-center">{$t('Unit')}</th>
 							<th class="w-28 px-3 py-3 text-right">{$t('Unit Price')}</th>
-							<th class="w-24 px-3 py-3 text-center text-red-600">WHT</th>
+							<th class="w-24 px-3 py-3 text-center text-blue-600">{$t('VAT')}</th>
+							<th class="w-24 px-3 py-3 text-center text-red-600">{$t('WHT')}</th>
 							<th class="w-32 px-3 py-3 text-right">{$t('Total')}</th>
 							<th class="w-10 px-3 py-3"></th>
 						</tr>
@@ -373,6 +386,15 @@
 										class="w-full rounded-md border-gray-300 text-right text-sm"
 										required
 									/>
+								</td>
+								<td class="px-3 py-2">
+									<select
+										bind:value={item.is_vat}
+										class="w-full rounded-md border-blue-200 bg-blue-50 py-1.5 text-center text-sm font-bold text-blue-700"
+									>
+										<option value={true}>VAT 7%</option>
+										<option value={false}>Non-VAT</option>
+									</select>
 								</td>
 								<td class="px-3 py-2">
 									<select

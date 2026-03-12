@@ -45,7 +45,8 @@
 			unit_id: null,
 			unit_price: 0,
 			line_total: 0,
-			wht_rate: 0
+			wht_rate: 0,
+			is_vat: true
 		}
 	];
 
@@ -80,7 +81,8 @@
 						unit_id: item.unit_id,
 						unit_price: parseFloat(item.unit_price || 0),
 						line_total: parseFloat(item.line_total || 0),
-						wht_rate: parseFloat(item.wht_rate || 0)
+						wht_rate: parseFloat(item.wht_rate || 0),
+						is_vat: item.is_vat !== undefined ? !!item.is_vat : true
 					};
 				});
 			}
@@ -103,8 +105,17 @@
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
+	
+	// 🌟 คำนวณยอดที่คิด VAT (เฉพาะรายการที่เลือก VAT 7%)
+	$: subtotalVatable = items.reduce((sum, item) => sum + (item.is_vat ? (item.line_total || 0) : 0), 0);
+	
+	// 🌟 คำนวณสัดส่วนส่วนลดสำหรับยอดที่คิด VAT เพื่อให้ VAT ลดลงตามสัดส่วนส่วนลดรวม
+	$: vatableRatio = subtotal > 0 ? (subtotalVatable / subtotal) : 0;
+	$: vatableAfterDiscount = Math.max(0, subtotalVatable - (discountAmount * vatableRatio));
+	
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
-	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
+	$: vatAmount = (vatableAfterDiscount * vatRate) / 100;
+	
 	$: whtAmount = items.reduce(
 		(sum, item) => sum + (item.line_total || 0) * (item.wht_rate / 100),
 		0
@@ -123,7 +134,8 @@
 				unit_id: null,
 				unit_price: 0,
 				line_total: 0,
-				wht_rate: 0
+				wht_rate: 0,
+				is_vat: true
 			}
 		];
 	}
@@ -145,12 +157,14 @@
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
+			items[index].is_vat = true;
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
 			items[index].wht_rate = 0;
+			items[index].is_vat = true;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -420,7 +434,7 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-40 px-4 py-2 text-left font-medium">
+							<th class="w-32 px-4 py-2 text-left font-medium">
 								<div class="flex items-center gap-2">
 									{$t('Product/Service')}
 									<button
@@ -443,11 +457,12 @@
 									</button>
 								</div>
 							</th>
-							<th class="px-4 py-2 text-left font-bold">{$t('Description')}</th>
-							<th class="w-24 px-3 py-2 text-right">{$t('Quantity')}</th>
-							<th class="w-24 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-28 px-3 py-2 text-right">{$t('Unit Price')}</th>
-							<th class="w-24 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
+							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
+							<th class="w-28 px-3 py-2 text-right">{$t('Quantity')}</th>
+							<th class="w-32 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-32 px-3 py-2 text-right">{$t('Unit Price')}</th>
+							<th class="w-32 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
+							<th class="w-28 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
 							<th class="w-32 px-3 py-2 text-right">{$t('Total')}</th>
 							<th class="w-10 px-3 py-2"></th>
 						</tr>
@@ -510,6 +525,15 @@
 								</td>
 								<td class="px-2 py-2">
 									<select
+										bind:value={item.is_vat}
+										class="w-full rounded-md border-blue-200 bg-blue-50 py-1.5 text-center text-sm font-bold text-blue-700"
+									>
+										<option value={true}>VAT 7%</option>
+										<option value={false}>Non-VAT</option>
+									</select>
+								</td>
+								<td class="px-2 py-2">
+									<select
 										bind:value={item.wht_rate}
 										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700"
 									>
@@ -564,16 +588,11 @@
 					>
 				</div>
 				<div class="mt-2 flex items-center justify-between text-sm">
-					<span class="text-gray-600"
-						>VAT
-						<select
-							name="vat_rate"
-							bind:value={vatRate}
-							class="ml-2 w-20 rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							><option value={0}>0%</option><option value={7}>7%</option></select
-						>
+					<span class="text-gray-600">
+						{$t('Sales VAT')} <span class="ml-1 text-xs text-gray-500">(Auto 7%)</span>
 					</span>
 					<span class="font-medium text-green-600">+{formatNumber(vatAmount)}</span>
+					<input type="hidden" name="vat_rate" value={vatRate} />
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 				<div class="flex justify-between border-b pb-2 text-sm text-red-600">
