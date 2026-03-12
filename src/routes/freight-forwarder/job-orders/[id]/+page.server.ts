@@ -6,19 +6,13 @@ export const load = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// 1. ดึงข้อมูล Job Order และทำการ Join Vendor เข้ามาเพิ่มเติม
+		// 1. ดึงข้อมูล Job Order
 		const [jobs] = await pool.query<any[]>(
 			`
 			SELECT j.*, 
-			       c.name as customer_name, 
-			       c.company_name, 
-			       c.address as customer_address, 
-			       c.tax_id as customer_tax_id,
+			       c.name as customer_name, c.company_name, c.address as customer_address, c.tax_id as customer_tax_id,
 			       con.contract_number,
-                   v.name as vendor_name,
-                   v.company_name as vendor_company_name,
-                   v.address as vendor_address,
-                   v.tax_id as vendor_tax_id,
+                   v.name as vendor_name, v.company_name as vendor_company_name, v.address as vendor_address, v.tax_id as vendor_tax_id,
                    vc.contract_number as vendor_contract_number,
 			       u.full_name as created_by_name
 			FROM job_orders j
@@ -35,30 +29,49 @@ export const load = async ({ params }) => {
 		if (jobs.length === 0) throw redirect(302, '/freight-forwarder/job-orders');
 		const job = jobs[0];
 
-		// 2. ดึงข้อมูลบริษัท (ใช้ตาราง company เหมือน Invoices)
+		// 2. ดึงข้อมูลบริษัทและไฟล์แนบ
 		const [companyRows] = await pool.query<any[]>('SELECT * FROM company LIMIT 1');
-
-		// 3. ดึงข้อมูลไฟล์แนบ (Attachments)
 		const [attachments] = await pool.query<any[]>(
 			'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
 			[id]
 		);
-
-		// 4. แปลงข้อมูลไฟล์แนบให้มี url ไว้สำหรับดาวน์โหลด (เปลี่ยนโฟลเดอร์เป็น job_orders)
 		const attachmentsWithUrl = attachments.map((f: any) => ({
 			...f,
 			url: `/uploads/job_orders/${f.file_system_name}`
 		}));
 
+		// 3. ดึงข้อมูล Job Expenses (ค่าใช้จ่ายของ Job นี้)
+		const [expenses] = await pool.query<any[]>(
+			`
+			SELECT e.*, i.item_name, c.category_name 
+			FROM job_expenses e
+			JOIN expense_items i ON e.expense_item_id = i.id
+			JOIN expense_categories c ON i.expense_category_id = c.id
+			WHERE e.job_order_id = ?
+			ORDER BY e.created_at DESC
+		`,
+			[id]
+		);
+
+		// 4. ดึงข้อมูล Master Data สำหรับฟอร์มเพิ่มค่าใช้จ่าย (แก้ไขจุดที่ Dropdown ไม่ขึ้น)
+		const [expenseCategories] = await pool.query<any[]>(
+			'SELECT id, category_name FROM expense_categories WHERE is_active = 1 ORDER BY category_name ASC'
+		);
+		const [expenseItems] = await pool.query<any[]>(
+			'SELECT id, expense_category_id, item_name FROM expense_items WHERE is_active = 1 ORDER BY item_name ASC'
+		);
+
 		return {
 			job: JSON.parse(JSON.stringify(job)),
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
+			expenses: JSON.parse(JSON.stringify(expenses)),
+			expenseCategories: JSON.parse(JSON.stringify(expenseCategories)),
+			expenseItems: JSON.parse(JSON.stringify(expenseItems)),
 			availableStatuses: ['Pending', 'In Progress', 'Completed', 'Cancelled']
 		};
 	} catch (err: any) {
 		console.error('Error loading job order:', err);
-		// ถ้าระบบโยน redirect มาแล้ว ให้โยนต่อไปเลย
 		if (err.status === 302) throw err;
 		throw error(500, err.message);
 	}
@@ -81,6 +94,62 @@ export const actions = {
 		} catch (err: any) {
 			console.error('Update status error:', err);
 			return fail(500, { message: err.message });
+		}
+	},
+
+	// เพิ่มค่าใช้จ่ายใหม่
+	addExpense: async ({ request, params, locals }) => {
+		const job_order_id = parseInt(params.id);
+		const formData = await request.formData();
+		
+		const expense_item_id = formData.get('expense_item_id');
+		const ref_document = formData.get('ref_document')?.toString().trim() || null;
+		const amount = parseFloat(formData.get('amount')?.toString() || '0');
+		const tax_type = formData.get('tax_type')?.toString() || 'None';
+		const remarks = formData.get('remarks')?.toString().trim() || null;
+		const created_by = locals.user?.id || null;
+
+		if (!expense_item_id || isNaN(amount) || amount <= 0) {
+			return fail(400, { message: 'กรุณาระบุรายการค่าใช้จ่ายและจำนวนเงินให้ถูกต้อง' });
+		}
+
+		// คำนวณ Total Amount ตาม Tax Type
+		let total_amount = amount;
+		if (tax_type === 'VAT 7%') {
+			total_amount = amount * 1.07;
+		} else if (tax_type === 'WHT 3%') {
+			total_amount = amount * 0.97;
+		} else if (tax_type === 'WHT 1%') {
+			total_amount = amount * 0.99;
+		}
+
+		try {
+			await pool.execute(
+				`INSERT INTO job_expenses 
+				(job_order_id, expense_item_id, ref_document, amount, tax_type, total_amount, remarks, created_by) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				[job_order_id, expense_item_id, ref_document, amount, tax_type, total_amount, remarks, created_by]
+			);
+			return { success: true, action: 'addExpense' };
+		} catch (err: any) {
+			console.error('Add expense error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการบันทึกค่าใช้จ่าย' });
+		}
+	},
+
+	// ลบค่าใช้จ่าย
+	deleteExpense: async ({ request }) => {
+		const formData = await request.formData();
+		const expense_id = formData.get('expense_id');
+
+		if (!expense_id) return fail(400, { message: 'ไม่พบรหัสค่าใช้จ่าย' });
+
+		try {
+			await pool.execute('DELETE FROM job_expenses WHERE id = ?', [expense_id]);
+			return { success: true, action: 'deleteExpense' };
+		} catch (err: any) {
+			console.error('Delete expense error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบค่าใช้จ่าย' });
 		}
 	}
 };
