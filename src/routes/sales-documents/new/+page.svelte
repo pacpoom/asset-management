@@ -18,7 +18,7 @@
 
 	$: productOptions = localProducts.map((p: any) => ({
 		value: p.id,
-		label: `${p.sku} - ${p.name}`,
+		label: p.name, // 🌟 แสดงแค่ชื่อสินค้า
 		product: p
 	}));
 

@@ -38,13 +38,45 @@
 	let fileInputRef: HTMLInputElement | null = $state(null);
 	let isFileSelected = $state(false);
 
+	// --- Custom Searchable Select State ---
+	let vendorSearch = $state('');
+	let showVendorDropdown = $state(false);
+	let ownerSearch = $state('');
+	let showOwnerDropdown = $state(false);
+
+	let filteredVendors = $derived(
+		data.vendors.filter((v) => v.name.toLowerCase().includes(vendorSearch.toLowerCase()))
+	);
+
+	let filteredUsers = $derived(
+		data.users.filter((u) => u.full_name.toLowerCase().includes(ownerSearch.toLowerCase()))
+	);
+
 	const contractStatuses = ['Draft', 'Active', 'Expired', 'Terminated'];
+
+	// --- Click Outside Action ---
+	function clickOutside(node: HTMLElement, callback: () => void) {
+		const handleClick = (event: MouseEvent) => {
+			if (node && !node.contains(event.target as Node) && !event.defaultPrevented) {
+				callback();
+			}
+		};
+		document.addEventListener('mousedown', handleClick, true);
+		return {
+			destroy() {
+				document.removeEventListener('mousedown', handleClick, true);
+			}
+		};
+	}
 
 	function openModal(mode: 'add' | 'edit', contract: VendorContract | null = null) {
 		modalMode = mode;
 		globalMessage = null;
 		uploadError = null;
 		documentsForSelectedContract = [];
+		showVendorDropdown = false;
+		showOwnerDropdown = false;
+
 		if (fileInputRef) {
 			fileInputRef.value = '';
 			isFileSelected = false;
@@ -57,6 +89,10 @@
 			selectedContract.contract_type_id = selectedContract.contract_type_id ?? ('' as any);
 			selectedContract.owner_user_id = selectedContract.owner_user_id ?? ('' as any);
 			selectedContract.end_date = selectedContract.end_date ?? '';
+
+			// Initial search text for dropdowns
+			vendorSearch = contract.vendor_name || data.vendors.find((v) => v.id === contract.vendor_id)?.name || '';
+			ownerSearch = contract.owner_name || data.users.find((u) => u.id === contract.owner_user_id)?.full_name || '';
 
 			documentsForSelectedContract = contract.documents ? [...contract.documents] : [];
 		} else {
@@ -71,6 +107,8 @@
 				owner_user_id: '' as any,
 				renewal_notice_days: 30
 			} as Partial<VendorContract>;
+			vendorSearch = '';
+			ownerSearch = '';
 		}
 	}
 
@@ -124,12 +162,27 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📎';
+		return '📁';
 	}
 
 	function handleFileChange(event: Event) {
 		const input = event.target as HTMLInputElement;
-		isFileSelected = (input.files?.length ?? 0) > 0;
+		const files = input.files;
+		const MAX_SIZE = 5 * 1024 * 1024; // 5MB Limit
+
+		if (files) {
+			for (let i = 0; i < files.length; i++) {
+				if (files[i].size > MAX_SIZE) {
+					alert($t(`File size exceeds 5MB limit: ${files[i].name}`));
+					input.value = '';
+					isFileSelected = false;
+					uploadError = 'File size exceeds limit';
+					return;
+				}
+			}
+		}
+
+		isFileSelected = (files?.length ?? 0) > 0;
 		uploadError = null;
 	}
 
@@ -416,16 +469,16 @@
 								{$t('Status_' + contract.status) || contract.status}
 							</span>
 						</td>
-						<td class="px-4 py-3 whitespace-nowrap text-gray-600"
+						<td class="whitespace-nowrap px-4 py-3 text-gray-600"
 							>{formatDate(contract.start_date)}</td
 						>
-						<td class="px-4 py-3 whitespace-nowrap text-gray-600"
+						<td class="whitespace-nowrap px-4 py-3 text-gray-600"
 							>{formatDate(contract.end_date)}</td
 						>
 						<td class="px-4 py-3 text-center text-gray-500">
 							{contract.documents?.length || 0}
 						</td>
-						<td class="px-4 py-3 whitespace-nowrap">
+						<td class="whitespace-nowrap px-4 py-3">
 							<div class="flex items-center gap-2">
 								<button
 									onclick={() => openModal('edit', contract)}
@@ -480,7 +533,8 @@
 		<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
 			<a
 				href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'}
-				class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+				onclick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+				class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 {data.currentPage ===
 				1
 					? 'pointer-events-none opacity-50'
 					: ''}"
@@ -498,21 +552,23 @@
 			>
 			{#each paginationRange as pageNum}
 				{#if typeof pageNum === 'string'}<span
-						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset"
+						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300"
 						>...</span
 					>
 				{:else}<a
 						href={getPageUrl(pageNum)}
+						onclick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
 						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum ===
 						data.currentPage
 							? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
-							: 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}"
+							: 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'}"
 						aria-current={pageNum === data.currentPage ? 'page' : undefined}>{pageNum}</a
 					>{/if}
 			{/each}
 			<a
 				href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'}
-				class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+				onclick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+				class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 {data.currentPage ===
 				data.totalPages
 					? 'pointer-events-none opacity-50'
 					: ''}"
@@ -539,7 +595,7 @@
 	>
 		<div class="fixed inset-0" onclick={closeModal} role="presentation"></div>
 		<div
-			class="relative flex max-h-[90vh] w-full max-w-4xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
+			class="relative flex w-full max-w-4xl transform flex-col rounded-xl bg-white shadow-2xl transition-all max-h-[90vh]"
 		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
@@ -576,7 +632,7 @@
 									id="title"
 									required
 									bind:value={selectedContract.title}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
 							<div>
@@ -587,28 +643,67 @@
 									name="contract_number"
 									id="contract_number"
 									bind:value={selectedContract.contract_number}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<div>
-								<label for="vendor_id" class="mb-1 block text-sm font-medium"
+							<!-- VENDOR SEARCHABLE SELECT -->
+							<div class="relative" use:clickOutside={() => (showVendorDropdown = false)}>
+								<label for="vendor_search" class="mb-1 block text-sm font-medium"
 									>{$t('Vendor')} *</label
-								><select
-									name="vendor_id"
-									id="vendor_id"
-									required
-									bind:value={selectedContract.vendor_id}
-									class="w-full rounded-md border-gray-300 text-sm"
 								>
-									<option value="" disabled>{$t('-- Select Vendor --')}</option>
-									{#each data.vendors as vendor (vendor.id)}<option value={vendor.id}
-											>{vendor.name}</option
-										>{/each}
-								</select>
+								<input type="hidden" name="vendor_id" value={selectedContract.vendor_id} />
+								<input
+									type="text"
+									id="vendor_search"
+									autocomplete="off"
+									placeholder={$t('-- Search Vendor --')}
+									bind:value={vendorSearch}
+									onfocus={() => (showVendorDropdown = true)}
+									oninput={() => {
+										showVendorDropdown = true;
+										selectedContract.vendor_id = '' as any;
+									}}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									required={!selectedContract.vendor_id}
+								/>
+								{#if showVendorDropdown}
+									<ul
+										class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
+									>
+										{#if filteredVendors.length === 0}
+											<li class="relative select-none py-2 pl-3 pr-9 text-gray-500">
+												{$t('No vendors found')}
+											</li>
+										{:else}
+											{#each filteredVendors as vendor (vendor.id)}
+												<li class="relative">
+													<button
+														type="button"
+														class="w-full cursor-pointer select-none py-2 pl-3 pr-9 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+														onclick={() => {
+															selectedContract.vendor_id = vendor.id as any;
+															vendorSearch = vendor.name;
+															showVendorDropdown = false;
+														}}
+													>
+														<span
+															class="block truncate {selectedContract.vendor_id === vendor.id
+																? 'font-semibold'
+																: 'font-normal'}"
+														>
+															{vendor.name}
+														</span>
+													</button>
+												</li>
+											{/each}
+										{/if}
+									</ul>
+								{/if}
 							</div>
+
 							<div>
 								<label for="contract_type_id" class="mb-1 block text-sm font-medium"
 									>{$t('Contract Type')}</label
@@ -616,7 +711,7 @@
 									name="contract_type_id"
 									id="contract_type_id"
 									bind:value={selectedContract.contract_type_id}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								>
 									<option value="">{$t('-- None --')}</option>
 									{#each data.contractTypes as type (type.id)}<option value={type.id}
@@ -634,7 +729,7 @@
 									id="status"
 									required
 									bind:value={selectedContract.status}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 									>{#each contractStatuses as status}<option value={status}
 											>{$t('Status_' + status) || status}</option
 										>{/each}</select
@@ -649,7 +744,7 @@
 									name="contract_value"
 									id="contract_value"
 									bind:value={selectedContract.contract_value}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
 						</div>
@@ -663,7 +758,7 @@
 									name="start_date"
 									id="start_date"
 									bind:value={selectedContract.start_date}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
 							<div>
@@ -673,27 +768,73 @@
 									name="end_date"
 									id="end_date"
 									bind:value={selectedContract.end_date}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<div>
-								<label for="owner_user_id" class="mb-1 block text-sm font-medium"
+							<!-- OWNER SEARCHABLE SELECT -->
+							<div class="relative" use:clickOutside={() => (showOwnerDropdown = false)}>
+								<label for="owner_search" class="mb-1 block text-sm font-medium"
 									>{$t('Owner (Internal)')}</label
-								><select
-									name="owner_user_id"
-									id="owner_user_id"
-									bind:value={selectedContract.owner_user_id}
-									class="w-full rounded-md border-gray-300 text-sm"
 								>
-									<option value="">{$t('-- None --')}</option>
-									{#each data.users as user (user.id)}<option value={user.id}
-											>{user.full_name}</option
-										>{/each}
-								</select>
+								<input type="hidden" name="owner_user_id" value={selectedContract.owner_user_id} />
+								<input
+									type="text"
+									id="owner_search"
+									autocomplete="off"
+									placeholder={$t('-- Search Owner --')}
+									bind:value={ownerSearch}
+									onfocus={() => (showOwnerDropdown = true)}
+									oninput={() => {
+										showOwnerDropdown = true;
+										selectedContract.owner_user_id = '' as any;
+									}}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+								{#if showOwnerDropdown}
+									<ul
+										class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
+									>
+										<li class="relative">
+											<button
+												type="button"
+												class="w-full cursor-pointer select-none py-2 pl-3 pr-9 text-left text-gray-500 hover:bg-gray-100"
+												onclick={() => {
+													selectedContract.owner_user_id = '' as any;
+													ownerSearch = '';
+													showOwnerDropdown = false;
+												}}
+											>
+												{$t('-- None --')}
+											</button>
+										</li>
+										{#each filteredUsers as user (user.id)}
+											<li class="relative">
+												<button
+													type="button"
+													class="w-full cursor-pointer select-none py-2 pl-3 pr-9 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+													onclick={() => {
+														selectedContract.owner_user_id = user.id as any;
+														ownerSearch = user.full_name;
+														showOwnerDropdown = false;
+													}}
+												>
+													<span
+														class="block truncate {selectedContract.owner_user_id === user.id
+															? 'font-semibold'
+															: 'font-normal'}"
+													>
+														{user.full_name}
+													</span>
+												</button>
+											</li>
+										{/each}
+									</ul>
+								{/if}
 							</div>
+
 							<div>
 								<label for="renewal_notice_days" class="mb-1 block text-sm font-medium"
 									>{$t('Renewal Notice (Days)')}</label
@@ -702,7 +843,7 @@
 									name="renewal_notice_days"
 									id="renewal_notice_days"
 									bind:value={selectedContract.renewal_notice_days}
-									class="w-full rounded-md border-gray-300 text-sm"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
 						</div>
@@ -720,6 +861,7 @@
 							<input
 								type="file"
 								bind:this={fileInputRef}
+								onchange={handleFileChange}
 								name="contractFiles"
 								id="contractFiles"
 								multiple
@@ -741,7 +883,7 @@
 							{$t('Uploaded Documents')} ({documentsForSelectedContract.length})
 						</h3>
 						{#if documentsForSelectedContract.length === 0}
-							<p class="text-sm text-gray-500 italic">{$t('No documents uploaded yet.')}</p>
+							<p class="text-sm italic text-gray-500">{$t('No documents uploaded yet.')}</p>
 						{:else}
 							{#each documentsForSelectedContract as doc (doc.id)}
 								<div
@@ -798,8 +940,8 @@
 					>
 					<button
 						type="submit"
-						disabled={isSavingContract}
-						class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white disabled:bg-blue-400"
+						disabled={isSavingContract || !selectedContract.vendor_id}
+						class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white disabled:bg-blue-400 disabled:cursor-not-allowed"
 					>
 						{#if isSavingContract}
 							{$t('Saving...')}

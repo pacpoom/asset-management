@@ -321,6 +321,32 @@ export const actions: Actions = {
 		const connection = await pool.getConnection();
 
 		try {
+			// ==========================================
+			// --- START NEW: Check duplicate name ---
+			// ==========================================
+			let nameCheckSql = 'SELECT id FROM products WHERE name = ?';
+			let nameCheckParams: (string | number)[] = [data.name];
+
+			// ถ้าเป็นการแก้ไข (มี id) ต้องเช็คว่าชื่อซ้ำกับคนอื่นที่ไม่ใช่ตัวเองหรือไม่
+			if (id) {
+				nameCheckSql += ' AND id != ?';
+				nameCheckParams.push(parseInt(id));
+			}
+
+			const [existingProducts] = await connection.execute<any[]>(nameCheckSql, nameCheckParams);
+			
+			if (existingProducts.length > 0) {
+				connection.release();
+				return fail(400, {
+					action: 'saveProduct',
+					success: false,
+					message: `The product name "${data.name}" already exists. Please use a different name.`
+				});
+			}
+			// ==========================================
+			// --- END NEW ---
+			// ==========================================
+
 			await connection.beginTransaction();
 
 			if (imageFile && imageFile.size > 0) {

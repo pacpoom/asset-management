@@ -11,7 +11,7 @@
 
 	$: productOptions = products.map((p: any) => ({
 		value: p.id,
-		label: `${p.sku} - ${p.name}`,
+		label: p.name, // 🌟 แสดงแค่ชื่อสินค้า
 		product: p
 	}));
 
@@ -62,7 +62,7 @@
 			const productObj = foundProduct
 				? {
 						value: foundProduct.id,
-						label: `${foundProduct.sku} - ${foundProduct.name}`,
+						label: foundProduct.name, // 🌟 แสดงแค่ชื่อสินค้า
 						product: foundProduct
 					}
 				: null;
