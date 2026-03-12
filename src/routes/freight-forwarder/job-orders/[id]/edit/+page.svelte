@@ -118,6 +118,14 @@
 	function handleInvoiceChange(e: CustomEvent) {
 		const detail = e.detail;
 	}
+
+	function handleCustomerChange() {
+		selectedContract = null;
+	}
+
+	function handleVendorChange() {
+		selectedVendorContract = null;
+	}
 </script>
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
@@ -194,6 +202,8 @@
 									<Select
 										items={customerOptions}
 										bind:value={selectedCustomer}
+										on:change={handleCustomerChange}
+										on:clear={handleCustomerChange}
 										placeholder="ค้นหาลูกค้า..."
 										container={browser ? document.body : null}
 										class="svelte-select-custom"
@@ -243,6 +253,8 @@
 									<Select
 										items={vendorOptions}
 										bind:value={selectedVendor}
+										on:change={handleVendorChange}
+										on:clear={handleVendorChange}
 										placeholder="ค้นหาผู้จำหน่าย (ถ้ามี)..."
 										container={browser ? document.body : null}
 										class="svelte-select-custom"
