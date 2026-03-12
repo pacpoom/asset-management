@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutServerData } from './$types';
@@ -6,10 +7,14 @@
 	import { slide, fade, fly } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
 
-	import { locale, t } from '$lib/i18n';
+	import { locale, t, loadTranslations } from '$lib/i18n';
 
 	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>();
 	type Menu = LayoutServerData['menus'][0];
+
+	onMount(async () => {
+		await loadTranslations();
+	});
 
 	let isSidebarOpen = $state(false);
 
@@ -38,7 +43,6 @@
 		return (nameOrEmail[0] || '').toUpperCase() + (nameOrEmail[1] || '').toUpperCase();
 	}
 
-	// Function to toggle *any* menu ID (only used when not collapsed)
 	function toggleMenu(id: number) {
 		const newSet = new Set(openMenuIds);
 		if (newSet.has(id)) {
@@ -59,7 +63,6 @@
 		openMenuIds = newSet;
 	}
 
-	// Helper function to find a menu item by ID recursively
 	function findMenuById(menus: Menu[] | undefined, id: number): Menu | null {
 		if (!menus) return null;
 		for (const menu of menus) {
@@ -76,7 +79,6 @@
 		return null;
 	}
 
-	// Close sidebar on navigation change using $effect rune
 	$effect(() => {
 		if ($navigating) {
 			isSidebarOpen = false;
@@ -92,20 +94,16 @@
 		return $page.url.pathname === href;
 	}
 
-	// --- *** FIX ***: Check if a child link in a group is active
 	function isMenuSectionActive(menu: Menu): boolean {
 		if (!menu.children || menu.children.length === 0) {
 			return false;
 		}
 
-		// Recursive function to check all children
 		function checkChildren(menus: Menu[]): boolean {
 			for (const child of menus) {
-				// Check if this child itself is the active link
 				if (child.route && isLinkActive(child.route)) {
 					return true;
 				}
-				// If not, check its children
 				if (child.children && child.children.length > 0) {
 					if (checkChildren(child.children)) {
 						return true;
@@ -118,7 +116,6 @@
 		return checkChildren(menu.children);
 	}
 
-	// --- *** FIX ***: Check if admin child link is active
 	const isAdminSectionActive = $derived(
 		isLinkActive('/roles') || isLinkActive('/permissions') || isLinkActive('/menus')
 	);
