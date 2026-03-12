@@ -108,15 +108,20 @@ function getJobOrderHtml(
 	const displayJobNumber =
 		jobData.job_number || formatJobNumber(jobData.job_type, jobData.job_date, jobData.id);
 
-	const isVendor = !!jobData.vendor_id;
-	const partnerTitle = isVendor ? 'ผู้จำหน่าย (Vendor)' : 'ลูกค้า (Customer)';
-	const partnerCompanyName = isVendor
-		? jobData.vendor_company_name || jobData.vendor_name || 'ไม่ระบุผู้จำหน่าย'
-		: jobData.company_name || jobData.customer_name || 'ไม่ระบุลูกค้า';
-	const partnerContactName = isVendor ? jobData.vendor_name : jobData.customer_name;
-	const partnerAddress = isVendor ? jobData.vendor_address : jobData.customer_address;
-	const partnerTaxId = isVendor ? jobData.vendor_tax_id : jobData.customer_tax_id;
-	const partnerContract = isVendor ? jobData.vendor_contract_number : jobData.contract_number;
+	// ข้อมูลลูกค้า
+	const customerCompanyName = jobData.company_name || jobData.customer_name || 'ไม่ระบุลูกค้า';
+	const customerContactName = jobData.customer_name;
+	const customerAddress = jobData.customer_address;
+	const customerTaxId = jobData.customer_tax_id;
+	const customerContract = jobData.contract_number;
+
+	// ข้อมูลผู้จำหน่าย (ถ้ามี)
+	const hasVendor = !!jobData.vendor_id;
+	const vendorCompanyName = jobData.vendor_company_name || jobData.vendor_name || '-';
+	const vendorContactName = jobData.vendor_name;
+	const vendorAddress = jobData.vendor_address;
+	const vendorTaxId = jobData.vendor_tax_id;
+	const vendorContract = jobData.vendor_contract_number;
 
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
@@ -141,27 +146,52 @@ function getJobOrderHtml(
                     </div>
                 </td>
             </tr>
+        </table>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
             <tr>
-                <td style="padding-top: 1rem; vertical-align: top;">
-                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0; color: #6B7280;">${partnerTitle}</h3>
-                    <p style="font-weight: bold; margin: 0 0 4px 0; font-size: 10pt;">${partnerCompanyName}</p>
-                    ${partnerCompanyName && partnerContactName && partnerCompanyName !== partnerContactName ? `<p style="margin: 0 0 4px 0; font-size: 8pt;">Contact: ${partnerContactName}</p>` : ''}
+                <td style="width: 60%; vertical-align: top;">
+                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0; color: #1d4ed8;">ลูกค้า (Customer)</h3>
+                    <p style="font-weight: bold; margin: 0 0 4px 0; font-size: 10pt;">${customerCompanyName}</p>
+                    ${customerCompanyName && customerContactName && customerCompanyName !== customerContactName ? `<p style="margin: 0 0 4px 0; font-size: 8pt;">Contact: ${customerContactName}</p>` : ''}
                     <div style="font-size: 8pt; line-height: 1.4;">
-                        <p style="margin:0;">${partnerAddress || '-'}</p>
+                        <p style="margin:0;">${customerAddress || '-'}</p>
                     </div>
-                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${partnerTaxId || '-'}</p>
-                    ${partnerContract ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Contract:</span> ${partnerContract}</p>` : ''}
+                    <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${customerTaxId || '-'}</p>
+                    ${customerContract ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Contract:</span> ${customerContract}</p>` : ''}
                 </td>
-                <td style="padding-top: 1rem; vertical-align: top; text-align: right;">
+                
+                <td style="width: 40%; vertical-align: top; text-align: right;">
                     <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0; color: #6B7280;">ผู้เปิดงาน (Prepared By)</h3>
                     <p style="font-size: 8pt;">${jobData.created_by_name || '-'}</p>
                 </td>
             </tr>
         </table>
+        
+        ${
+					hasVendor
+						? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 9pt;">
+            <tr>
+                <td style="width: 100%; vertical-align: top; border-top: 1px solid #dee2e6; padding-top: 1rem;">
+                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0; color: #1d4ed8;">ผู้จำหน่าย (Vendor)</h3>
+                    <p style="font-weight: bold; margin: 0 0 4px 0; font-size: 10pt; color: #374151;">${vendorCompanyName}</p>
+                    ${vendorCompanyName && vendorContactName && vendorCompanyName !== vendorContactName ? `<p style="margin: 0 0 4px 0; font-size: 8pt;">Contact: ${vendorContactName}</p>` : ''}
+                    <div style="font-size: 8pt; line-height: 1.4; color: #4b5563;">
+                        <p style="margin:0;">${vendorAddress || '-'}</p>
+                    </div>
+                    <p style="font-size: 8pt; margin:4px 0 0 0; color: #4b5563;"><span style="font-weight: 600;">Tax ID:</span> ${vendorTaxId || '-'}</p>
+                    ${vendorContract ? `<p style="font-size: 8pt; margin:4px 0 0 0; color: #4b5563;"><span style="font-weight: 600;">Contract:</span> ${vendorContract}</p>` : ''}
+                </td>
+            </tr>
+        </table>
+        `
+						: ''
+				}
     `;
 
 	const jobDetailsHtml = `
-        <div style="margin-top: 15px;">
+        <div>
             <h3 style="font-size: 9pt; font-weight: bold; color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px; text-transform: uppercase;">Shipment Details</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
                 <tr>
