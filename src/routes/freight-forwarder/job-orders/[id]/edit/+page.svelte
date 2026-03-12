@@ -3,10 +3,10 @@
 	import { goto } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { t, locale } from '$lib/i18n';
 
 	export let data;
 	let job = data.job;
-
 	let currentRunningNumber = job.job_number
 		? job.job_number.slice(-4)
 		: String(job.id).padStart(4, '0');
@@ -16,11 +16,9 @@
 		label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
 		address: c.address
 	}));
-
 	let allContracts = data.contracts || [];
 
 	let selectedCustomer = customerOptions.find((c: any) => c.value == job.customer_id) || null;
-
 	let initialContract = allContracts.find((c: any) => c.id == job.contract_id);
 	let selectedContract = initialContract
 		? {
@@ -28,13 +26,12 @@
 				label: `${initialContract.contract_number} (${initialContract.title})`
 			}
 		: null;
-
 	$: filteredContracts = selectedCustomer
 		? allContracts
 				.filter((c: any) => c.customer_id == selectedCustomer.value)
 				.map((c: any) => ({ value: c.id, label: `${c.contract_number} (${c.title})` }))
 		: [];
-
+	let partnerType = job.vendor_id ? 'vendor' : 'customer';
 	let vendorOptions = (data.vendors || []).map((v: any) => ({
 		value: v.id,
 		label: v.company_name ? `${v.company_name} (${v.name})` : v.name,
@@ -42,9 +39,7 @@
 	}));
 	let allVendorContracts = data.vendorContracts || [];
 
-	// ดึงค่าเดิมของ Vendor มาโชว์
 	let selectedVendor = vendorOptions.find((v: any) => v.value == job.vendor_id) || null;
-
 	let initialVendorContract = allVendorContracts.find((c: any) => c.id == job.vendor_contract_id);
 	let selectedVendorContract = initialVendorContract
 		? {
@@ -53,7 +48,6 @@
 				amount: initialVendorContract.contract_value
 			}
 		: null;
-
 	$: filteredVendorContracts = selectedVendor
 		? allVendorContracts
 				.filter((c: any) => c.vendor_id == selectedVendor.value)
@@ -63,7 +57,6 @@
 					amount: c.contract_value
 				}))
 		: [];
-
 	function handleVendorContractChange(e: CustomEvent) {
 		const detail = e.detail;
 	}
@@ -93,15 +86,12 @@
 	$: jobCodeVal = selectedJobType?.value || job.job_type || '___';
 
 	$: previewJobNumber = `${jobCodeVal}${yy}${mm}${currentRunningNumber}`;
-
 	$: activeCurrencies =
 		data?.currencies && data.currencies.length > 0
 			? data.currencies
 			: [{ code: 'THB' }, { code: 'USD' }];
-
 	let selectedCurrency = job.currency || 'THB';
 	let jobAmount: number | string = job.amount || '';
-
 	let salesDocOptions = (data.salesDocs || []).map((doc: any) => ({
 		value: doc.document_number,
 		label: doc.document_number,
@@ -115,58 +105,62 @@
 				.filter(Boolean)
 		: null;
 
+	let invoiceFilterText = '';
 	function handleInvoiceChange(e: CustomEvent) {
 		const detail = e.detail;
 	}
-
-	function handleCustomerChange() {
-		selectedContract = null;
-	}
-
-	function handleVendorChange() {
-		selectedVendorContract = null;
-	}
 </script>
 
+<svelte:head>
+	<title>{$t('Edit Job Order')} - {job.job_number}</title>
+</svelte:head>
+
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
-	<div class="mx-auto mb-6 flex max-w-4xl items-center justify-between">
-		<div class="flex items-center gap-4">
+	<div
+		class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center"
+	>
+		<div class="flex items-center">
 			<a
 				href="/freight-forwarder/job-orders"
-				title="ย้อนกลับ"
-				aria-label="Back to Job Orders"
-				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
+				class="mr-3 text-gray-500 hover:text-gray-800"
+				title={$t('Back')}
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
+					width="24"
+					height="24"
 					viewBox="0 0 24 24"
-					stroke-width="2"
+					fill="none"
 					stroke="currentColor"
-					class="h-5 w-5"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-					/></svg
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="h-6 w-6"><path d="m15 18-6-6 6-6"></path></svg
 				>
 			</a>
 			<div>
-				<div class="flex items-center gap-2">
-					<h1 class="text-xl font-bold text-gray-800">Edit Job Order</h1>
+				<div class="flex items-center gap-3">
+					<h1 class="text-2xl font-bold text-gray-800">{$t('Edit Job')}</h1>
 					<span
-						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
+						class="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
 					>
 						{previewJobNumber}
 					</span>
 				</div>
-				<p class="text-xs text-gray-500">แก้ไขข้อมูลงาน</p>
+			</div>
+		</div>
+
+		<div class="flex flex-shrink-0 items-center gap-2">
+			<div
+				class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold tracking-wide text-blue-700 uppercase"
+			>
+				{$t('Status')}: {$t('Pending')}
 			</div>
 		</div>
 	</div>
 
 	<div
-		class="mx-auto max-w-4xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+		class="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
 	>
 		<div class="h-1.5 w-full bg-orange-500"></div>
 
@@ -179,129 +173,136 @@
 				return async ({ update, result, action }) => {
 					await update();
 					isSaving = false;
-
 					if (result.type === 'success' && action.search === '?/update') {
 						goto('/freight-forwarder/job-orders');
 					}
 				};
 			}}
 		>
+			<input type="hidden" name="id" value={job.id} />
 			<div class="divide-y divide-gray-100">
 				<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-2">
-					<div class="space-y-6">
-						<!-- Customer Section -->
-						<div class="rounded-lg border border-blue-100 bg-blue-50/30 p-4">
-							<h2 class="mb-4 text-xs font-bold tracking-wider text-blue-800 uppercase">
-								Customer Information
-							</h2>
-							<div class="space-y-4">
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-										ลูกค้า (Customer) <span class="text-red-500">*</span>
-									</div>
-									<Select
-										items={customerOptions}
-										bind:value={selectedCustomer}
-										on:change={handleCustomerChange}
-										on:clear={handleCustomerChange}
-										placeholder="ค้นหาลูกค้า..."
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input
-										type="hidden"
-										name="customer_id"
-										value={selectedCustomer?.value || ''}
-										required
-									/>
-								</div>
+					<div class="space-y-5">
+						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
+							{$t('Partner Information')}
+						</h2>
 
-								{#if selectedCustomer}
-									<div
-										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
-									>
-										<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
-										<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
-									</div>
-								{/if}
-
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">Contract (Optional)</div>
-									<Select
-										items={filteredContracts}
-										bind:value={selectedContract}
-										placeholder={selectedCustomer ? 'เลือกสัญญา' : '-'}
-										disabled={!selectedCustomer}
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input type="hidden" name="contract_id" value={selectedContract?.value || ''} />
-								</div>
+						<div>
+							<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+								{$t('Type')} <span class="text-red-500">*</span>
 							</div>
+							<select
+								name="partner_type"
+								bind:value={partnerType}
+								class="w-full rounded-md border border-gray-300 bg-white p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+							>
+								<option value="customer">{$t('Customer')}</option>
+								<option value="vendor">{$t('Vendor')}</option>
+							</select>
 						</div>
 
-						<!-- Vendor Section -->
-						<div class="rounded-lg border border-gray-200 bg-gray-50/50 p-4">
-							<h2 class="mb-4 text-xs font-bold tracking-wider text-gray-600 uppercase">
-								Vendor Information <span class="text-gray-400 font-normal normal-case">(Optional)</span>
-							</h2>
-							<div class="space-y-4">
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-										ผู้จำหน่าย (Vendor)
-									</div>
-									<Select
-										items={vendorOptions}
-										bind:value={selectedVendor}
-										on:change={handleVendorChange}
-										on:clear={handleVendorChange}
-										placeholder="ค้นหาผู้จำหน่าย (ถ้ามี)..."
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input
-										type="hidden"
-										name="vendor_id"
-										value={selectedVendor?.value || ''}
-									/>
+						{#if partnerType === 'customer'}
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									{$t('Customer')} <span class="text-red-500">*</span>
 								</div>
-
-								{#if selectedVendor}
-									<div
-										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
-									>
-										<p class="font-bold text-gray-800">{selectedVendor.label}</p>
-										<p class="mt-1 text-xs">{selectedVendor.address || '-'}</p>
-									</div>
-								{/if}
-
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">Vendor Contract</div>
-									<Select
-										items={filteredVendorContracts}
-										bind:value={selectedVendorContract}
-										on:change={handleVendorContractChange}
-										placeholder={selectedVendor ? 'เลือกสัญญาผู้จำหน่าย' : '-'}
-										disabled={!selectedVendor}
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input
-										type="hidden"
-										name="vendor_contract_id"
-										value={selectedVendorContract?.value || ''}
-									/>
-								</div>
+								<Select
+									items={customerOptions}
+									bind:value={selectedCustomer}
+									placeholder={$t('Search customer...')}
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input
+									type="hidden"
+									name="customer_id"
+									value={selectedCustomer?.value || ''}
+									required={partnerType === 'customer'}
+								/>
 							</div>
-						</div>
+
+							{#if selectedCustomer}
+								<div
+									class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
+								>
+									<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
+									<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
+								</div>
+							{/if}
+
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">{$t('Contract')}</div>
+								<Select
+									items={filteredContracts}
+									bind:value={selectedContract}
+									placeholder={selectedCustomer ? $t('Select contract (Optional)') : '-'}
+									disabled={!selectedCustomer}
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input type="hidden" name="contract_id" value={selectedContract?.value || ''} />
+							</div>
+						{/if}
+
+						{#if partnerType === 'vendor'}
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									{$t('Vendor')} <span class="text-red-500">*</span>
+								</div>
+								<Select
+									items={vendorOptions}
+									bind:value={selectedVendor}
+									placeholder={$t('Search vendor...')}
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input
+									type="hidden"
+									name="vendor_id"
+									value={selectedVendor?.value || ''}
+									required={partnerType === 'vendor'}
+								/>
+							</div>
+
+							{#if selectedVendor}
+								<div
+									class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
+								>
+									<p class="font-bold text-gray-800">{selectedVendor.label}</p>
+									<p class="mt-1 text-xs">{selectedVendor.address || '-'}</p>
+								</div>
+							{/if}
+
+							<div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									{$t('Vendor Contract')}
+								</div>
+								<Select
+									items={filteredVendorContracts}
+									bind:value={selectedVendorContract}
+									on:change={handleVendorContractChange}
+									placeholder={selectedVendor ? $t('Select contract (Optional)') : '-'}
+									disabled={!selectedVendor}
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input
+									type="hidden"
+									name="vendor_contract_id"
+									value={selectedVendorContract?.value || ''}
+								/>
+							</div>
+						{/if}
 					</div>
 
 					<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50/50 p-5">
-						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Job Details</h2>
+						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
+							{$t('Job Details')}
+						</h2>
 						<div class="grid grid-cols-2 gap-4">
 							<div>
 								<label for="job_date" class="mb-1 block text-sm font-semibold text-gray-700"
-									>Job Date</label
+									>{$t('Job Date')}</label
 								>
 								<input
 									id="job_date"
@@ -313,7 +314,7 @@
 							</div>
 							<div>
 								<label for="expire_date" class="mb-1 block text-sm font-semibold text-gray-700"
-									>Expire Date</label
+									>{$t('Expire Date')}</label
 								>
 								<input
 									id="expire_date"
@@ -329,7 +330,7 @@
 
 						<div>
 							<label for="job_status" class="mb-1 block text-sm font-semibold text-gray-700"
-								>Status</label
+								>{$t('Status')}</label
 							>
 							<select
 								id="job_status"
@@ -337,22 +338,22 @@
 								value={job.job_status}
 								class="w-full rounded-md border-gray-300 font-bold shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 							>
-								<option value="Pending">Pending</option>
-								<option value="In Progress">In Progress</option>
-								<option value="Completed">Completed</option>
-								<option value="Cancelled">Cancelled</option>
+								<option value="Pending">{$t('Status_Pending') || 'Pending'}</option>
+								<option value="In Progress">{$t('Status_In Progress') || 'In Progress'}</option>
+								<option value="Completed">{$t('Status_Completed') || 'Completed'}</option>
+								<option value="Cancelled">{$t('Status_Cancelled') || 'Cancelled'}</option>
 							</select>
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Job Code <span class="text-red-500">*</span>
+									{$t('Job Code')} <span class="text-red-500">*</span>
 								</div>
 								<Select
 									items={jobTypeOptions}
 									bind:value={selectedJobType}
-									placeholder="เลือก..."
+									placeholder={$t('Select...')}
 									container={browser ? document.body : null}
 									class="svelte-select-custom"
 									clearable={false}
@@ -367,7 +368,7 @@
 
 							<div>
 								<label for="service_type" class="mb-1.5 block text-sm font-semibold text-gray-700">
-									Service Type <span class="text-red-500">*</span>
+									{$t('Service Type')} <span class="text-red-500">*</span>
 								</label>
 								<select
 									id="service_type"
@@ -376,16 +377,16 @@
 									class="w-full rounded-md border-gray-300 font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									required
 								>
-									<option value="Import">Import</option>
-									<option value="Export">Export</option>
-									<option value="Cross-Trade">Cross-Trade</option>
+									<option value="Import">{$t('Import')}</option>
+									<option value="Export">{$t('Export')}</option>
+									<option value="Cross-Trade">{$t('Cross-Trade')}</option>
 								</select>
 							</div>
 						</div>
 
 						<div>
 							<label for="remarks" class="mb-1 block text-sm font-semibold text-gray-700"
-								>Remark</label
+								>{$t('Remark')}</label
 							>
 							<textarea
 								id="remarks"
@@ -400,12 +401,12 @@
 
 				<div class="p-8">
 					<h2 class="mb-4 border-b pb-1 text-xs font-bold tracking-wider text-gray-400 uppercase">
-						Shipment Information
+						{$t('Shipment Information')}
 					</h2>
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 						<div>
 							<label for="bl_number" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>B/L Number <span class="text-red-500">*</span></label
+								>{$t('B/L Number')} <span class="text-red-500">*</span></label
 							>
 							<input
 								id="bl_number"
@@ -418,12 +419,12 @@
 						</div>
 						<div>
 							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								Liner / Carrier
+								{$t('Liner / Carrier')}
 							</div>
 							<Select
 								items={linerOptions}
 								bind:value={selectedLiner}
-								placeholder="ค้นหาหรือเลือกสายเรือ..."
+								placeholder={$t('Search or select liner...')}
 								container={browser ? document.body : null}
 								class="svelte-select-custom"
 							/>
@@ -435,7 +436,7 @@
 						</div>
 						<div>
 							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>Port / Location</label
+								>{$t('Port / Location')}</label
 							>
 							<input
 								id="location"
@@ -447,21 +448,21 @@
 						</div>
 						<div>
 							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								Customer Invoice
+								{$t('Customer Invoice')}
 							</label>
 							<input
 								type="text"
 								id="invoice_no"
 								name="invoice_no"
 								bind:value={job.invoice_no}
-								placeholder="เช่น INV-001, INV-002"
+								placeholder={$t('e.g., INV-001, INV-002')}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 
 						<div class="col-span-1 mt-4 border-t border-gray-100 pt-6 md:col-span-2">
 							<label for="attachments" class="mb-3 block text-sm font-bold text-gray-700">
-								เอกสารแนบ (Attachments)
+								{$t('Attachments')}
 							</label>
 
 							{#if data.existingAttachments && data.existingAttachments.length > 0}
@@ -485,7 +486,7 @@
 												value={file.id}
 												class="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50 hover:text-red-700"
 											>
-												ลบ
+												{$t('Delete')}
 											</button>
 										</li>
 									{/each}
@@ -503,7 +504,9 @@
 									class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-200"
 								/>
 								<p class="mt-2 text-xs text-gray-500">
-									* สามารถอัปโหลดไฟล์เพิ่มเติมได้ (เช่น B/L, Commercial Invoice)
+									{$t(
+										'* Multiple files can be selected (e.g., B/L, Commercial Invoice, Packing List)'
+									)}
 								</p>
 							</div>
 						</div>
@@ -511,14 +514,14 @@
 				</div>
 
 				<div class="flex items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6">
-					<div class="text-sm font-bold text-gray-600">Initial Amount:</div>
+					<div class="text-sm font-bold text-gray-600">{$t('Initial Amount:')}</div>
 
 					<div
 						class="flex rounded-md border border-gray-300 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
 					>
 						<select
 							name="currency"
-							aria-label="Currency"
+							aria-label={$t('Currency')}
 							bind:value={selectedCurrency}
 							class="w-24 border-0 bg-transparent px-3 py-2 font-bold text-gray-900 focus:ring-0"
 						>
@@ -533,7 +536,7 @@
 							type="number"
 							step="0.01"
 							name="amount"
-							aria-label="Amount"
+							aria-label={$t('Amount')}
 							bind:value={jobAmount}
 							class="w-40 border-0 bg-transparent px-3 py-2 text-right text-lg font-bold text-blue-700 outline-none focus:ring-0"
 						/>
@@ -545,14 +548,14 @@
 						href="/freight-forwarder/job-orders"
 						class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700"
 					>
-						Cancel
+						{$t('Cancel')}
 					</a>
 					<button
 						type="submit"
 						disabled={isSaving}
 						class="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-bold text-white shadow transition-all hover:bg-green-700 disabled:opacity-70"
 					>
-						{isSaving ? 'Saving...' : 'Save Changes'}
+						{isSaving ? $t('Saving...') : $t('Save Changes')}
 					</button>
 				</div>
 			</div>
