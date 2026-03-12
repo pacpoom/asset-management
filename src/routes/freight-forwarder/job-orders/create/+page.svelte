@@ -29,6 +29,7 @@
 	let jobAmount: number | string = '';
 
 	let isSaving = false;
+	let partnerType: 'customer' | 'vendor' = 'customer'; // 🌟 ตัวแปรที่เพิ่มเข้ามาเพื่อให้ระบบสลับใช้งานได้
 	let selectedCustomer: any = null;
 	let selectedContract: any = null;
 	let jobDate = new Date().toISOString().split('T')[0];
@@ -222,42 +223,46 @@
 {/if}
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
-	<div class="mx-auto mb-6 flex max-w-4xl items-center justify-between">
-		<div class="flex items-center gap-4">
+	<div
+		class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center"
+	>
+		<div class="flex items-center">
 			<a
 				href="/freight-forwarder/job-orders"
+				class="mr-3 text-gray-500 hover:text-gray-800"
 				title={$t('Back')}
-				aria-label={$t('Back')}
-				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
+					width="24"
+					height="24"
 					viewBox="0 0 24 24"
-					stroke-width="2"
+					fill="none"
 					stroke="currentColor"
-					class="h-5 w-5"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-					/></svg
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="h-6 w-6"><path d="m15 18-6-6 6-6"></path></svg
 				>
 			</a>
 			<div>
-				<div class="flex items-center gap-2">
-					<h1 class="text-xl font-bold text-gray-800">{$t('Create New Job')}</h1>
+				<div class="flex items-center gap-3">
+					<h1 class="text-2xl font-bold text-gray-800">{$t('Create New Job')}</h1>
 					<span
-						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
+						class="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
 					>
 						{previewJobNumber}
 					</span>
 				</div>
-				<p class="text-xs text-gray-500">{$t('Create New Job')}</p>
 			</div>
 		</div>
-		<div class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 uppercase">
-			{$t('Status')}: {$t('Pending')}
+
+		<div class="flex flex-shrink-0 items-center gap-2">
+			<div
+				class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold tracking-wide text-blue-700 uppercase"
+			>
+				{$t('Status')}: {$t('Pending')}
+			</div>
 		</div>
 	</div>
 
@@ -281,7 +286,6 @@
 		>
 			<div class="divide-y divide-gray-100">
 				<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-2">
-<<<<<<< HEAD
 					<div class="space-y-5">
 						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
 							{$t('Partner Information')}
@@ -320,112 +324,20 @@
 									required={partnerType === 'customer'}
 								/>
 							</div>
-=======
-					<div class="space-y-6">
-						<!-- Customer Section -->
-						<div class="rounded-lg border border-blue-100 bg-blue-50/30 p-4">
-							<h2 class="mb-4 text-xs font-bold tracking-wider text-blue-800 uppercase">
-								Customer Information
-							</h2>
-							<div class="space-y-4">
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-										ลูกค้า (Customer) <span class="text-red-500">*</span>
-									</div>
-									<Select
-										items={customerOptions}
-										bind:value={selectedCustomer}
-										placeholder="ค้นหาลูกค้า..."
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input
-										type="hidden"
-										name="customer_id"
-										value={selectedCustomer?.value || ''}
-										required
-									/>
+
+							{#if selectedCustomer}
+								<div
+									class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600"
+								>
+									<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
+									<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
 								</div>
-
-								{#if selectedCustomer}
-									<div
-										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
-									>
-										<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
-										<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
-									</div>
-								{/if}
-
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">Contract (Optional)</div>
-									<Select
-										items={filteredContracts}
-										bind:value={selectedContract}
-										placeholder={selectedCustomer ? 'เลือกสัญญา' : '-'}
-										disabled={!selectedCustomer}
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input type="hidden" name="contract_id" value={selectedContract?.value || ''} />
-								</div>
-							</div>
-						</div>
-
-						<!-- Vendor Section -->
-						<div class="rounded-lg border border-gray-200 bg-gray-50/50 p-4">
-							<h2 class="mb-4 text-xs font-bold tracking-wider text-gray-600 uppercase">
-								Vendor Information <span class="text-gray-400 font-normal normal-case">(Optional)</span>
-							</h2>
-							<div class="space-y-4">
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-										ผู้จำหน่าย (Vendor)
-									</div>
-									<Select
-										items={vendorOptions}
-										bind:value={selectedVendor}
-										placeholder="ค้นหาผู้จำหน่าย (ถ้ามี)..."
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input
-										type="hidden"
-										name="vendor_id"
-										value={selectedVendor?.value || ''}
-									/>
-								</div>
->>>>>>> 48f47e895989330f1e8fa1be04b7d4af20fd2a23
-
-								{#if selectedVendor}
-									<div
-										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
-									>
-										<p class="font-bold text-gray-800">{selectedVendor.label}</p>
-										<p class="mt-1 text-xs">{selectedVendor.address || '-'}</p>
-									</div>
-								{/if}
-
-								<div>
-									<div class="mb-1.5 block text-sm font-semibold text-gray-700">Vendor Contract</div>
-									<Select
-										items={filteredVendorContracts}
-										bind:value={selectedVendorContract}
-										placeholder={selectedVendor ? 'เลือกสัญญาผู้จำหน่าย' : '-'}
-										disabled={!selectedVendor}
-										container={browser ? document.body : null}
-										class="svelte-select-custom"
-									/>
-									<input
-										type="hidden"
-										name="vendor_contract_id"
-										value={selectedVendorContract?.value || ''}
-									/>
-								</div>
-<<<<<<< HEAD
 							{/if}
 
 							<div>
-								<div class="mb-1.5 block text-sm font-semibold text-gray-700">Contract</div>
+								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
+									{$t('Contract')} ({$t('Optional')})
+								</div>
 								<Select
 									items={filteredContracts}
 									bind:value={selectedContract}
@@ -469,7 +381,7 @@
 
 							<div>
 								<div class="mb-1.5 block text-sm font-semibold text-gray-700">
-									{$t('Vendor Contract')}
+									{$t('Vendor Contract')} ({$t('Optional')})
 								</div>
 								<Select
 									items={filteredVendorContracts}
@@ -486,10 +398,6 @@
 								/>
 							</div>
 						{/if}
-=======
-							</div>
-						</div>
->>>>>>> 48f47e895989330f1e8fa1be04b7d4af20fd2a23
 					</div>
 
 					<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50/50 p-5">
