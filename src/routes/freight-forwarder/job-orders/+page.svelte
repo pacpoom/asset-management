@@ -1,25 +1,48 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { t, locale } from '$lib/i18n';
-
 	export let data;
 	$: jobs = data.job_orders || [];
-
-	let searchQuery = '';
-	$: filteredJobs = jobs.filter((job: any) => {
-		if (!searchQuery) return true;
-		const query = searchQuery.toLowerCase();
-		const jobNum = (
-			job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)
-		).toLowerCase();
-		const customer = (job.company_name || job.customer_name || '').toLowerCase();
-		return jobNum.includes(query) || customer.includes(query);
-	});
 
 	let showDeleteModal = false;
 	let jobToDeleteId: number | null = null;
 	let jobToDeleteName: string = '';
 	let isDeleting = false;
+
+	let searchQuery = '';
+	let itemsPerPage = 10;
+	let currentPage = 1;
+
+	$: filteredJobs = jobs.filter((job: any) => {
+		if (!searchQuery) return true;
+		const q = searchQuery.toLowerCase();
+		
+		const jobNo = (job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)).toLowerCase();
+		const custName = (job.customer_name || '').toLowerCase();
+		const custComp = (job.company_name || '').toLowerCase();
+		const vendName = (job.vendor_name || '').toLowerCase();
+		const vendComp = (job.vendor_company_name || '').toLowerCase();
+
+		return jobNo.includes(q) || 
+		       custName.includes(q) || 
+		       custComp.includes(q) || 
+		       vendName.includes(q) || 
+		       vendComp.includes(q);
+	});
+
+	$: {
+		// รีเซ็ตหน้ากลับไปที่ 1 เมื่อมีการค้นหา
+		if (searchQuery !== null) {
+			currentPage = 1;
+		}
+	}
+
+	$: totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
+	$: if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+	
+	$: paginatedJobs = filteredJobs.slice(
+		(currentPage - 1) * itemsPerPage,
+		currentPage * itemsPerPage
+	);
 
 	function getStatusClass(status: string) {
 		switch (status) {
@@ -59,40 +82,35 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{$t('Job Orders')}</title>
-</svelte:head>
-
 <div class="min-h-screen bg-gray-50 p-6">
 	<div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 		<div>
-			<h1 class="text-2xl font-bold text-gray-800">{$t('Job Orders')}</h1>
-			<p class="text-sm text-gray-500">{$t('Manage freight forwarder job orders')}</p>
+			<h1 class="text-2xl font-bold text-gray-800">Job Orders</h1>
+			<p class="text-sm text-gray-500">จัดการรายการงานขนส่ง (Freight Forwarder)</p>
 		</div>
-
-		<div class="flex items-center gap-3">
+		
+		<div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
 			<div class="relative w-full sm:w-64">
-				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-					<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-						/>
-					</svg>
-				</div>
 				<input
 					type="text"
 					bind:value={searchQuery}
-					placeholder="{$t('Search')}..."
-					class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-9 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					placeholder="ค้นหา Job, Customer, Vendor..."
+					class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				/>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="absolute left-3 top-2.5 h-4 w-4 text-gray-400"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+				</svg>
 			</div>
 
 			<a
 				href="/freight-forwarder/job-orders/create"
-				class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold whitespace-nowrap text-white shadow transition-colors hover:bg-blue-700"
+				class="flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-blue-700 flex-shrink-0"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -104,7 +122,7 @@
 						d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
 					/>
 				</svg>
-				{$t('Create New Job')}
+				เปิด Job ใหม่
 			</a>
 		</div>
 	</div>
@@ -115,48 +133,44 @@
 				<thead class="bg-gray-50 text-gray-700">
 					<tr>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>{$t('Job No. / Date')}</th
+							>Job No. / Date</th
 						>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>{$t('Type / Service')}</th
+							>Type / Service</th
 						>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>{$t('Customer')}</th
+							>Customer / Vendor</th
 						>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-							>{$t('Shipment Info')}</th
+							>Shipment Info</th
 						>
 						<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
-							>{$t('Status')}</th
+							>Status</th
 						>
 						<th class="px-6 py-3 text-right text-xs font-semibold tracking-wider uppercase"
-							>{$t('Amount')}</th
+							>Amount</th
 						>
 						<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
-							>{$t('Action')}</th
+							>Action</th
 						>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
-					{#each filteredJobs as job}
+					{#each paginatedJobs as job}
 						<tr class="hover:bg-gray-50">
-							<td class="px-6 py-4">
+							<td class="px-6 py-4 align-top">
 								<a
 									href="/freight-forwarder/job-orders/{job.id}"
 									class="font-bold text-blue-600 hover:underline"
 								>
 									{job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)}
 								</a>
-								<div class="text-xs text-gray-500">
-									{new Date(job.job_date).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
-										day: 'numeric',
-										month: 'short',
-										year: 'numeric'
-									})}
+								<div class="text-xs text-gray-500 mt-0.5">
+									{new Date(job.job_date).toLocaleDateString('th-TH')}
 								</div>
 							</td>
 
-							<td class="px-6 py-4">
+							<td class="px-6 py-4 align-top">
 								<div class="flex flex-col items-start gap-1.5">
 									<span class="rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700">
 										{job.job_type}
@@ -171,81 +185,77 @@
 								</div>
 							</td>
 
-							<td class="px-6 py-4 whitespace-normal">
+							<td class="px-6 py-4 align-top">
+								<div class="mb-2">
+									<div class="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-0.5">Customer</div>
+									<div class="font-medium text-gray-900 leading-tight">
+										{job.company_name || job.customer_name || 'ไม่ระบุ'}
+									</div>
+									{#if job.company_name && job.customer_name}
+										<div
+											class="max-w-[180px] truncate text-[11px] text-gray-500 mt-0.5"
+											title="{job.customer_name} {job.customer_phone ? 'Tel: ' + job.customer_phone : ''}"
+										>
+											Contact: {job.customer_name}
+											{#if job.customer_phone}
+												<span class="block text-gray-400">Tel: {job.customer_phone}</span>
+											{/if}
+										</div>
+									{/if}
+								</div>
+
 								{#if job.vendor_id}
-									<div class="font-medium text-gray-900">
-										{job.vendor_company_name ||
-											job.vendor_name ||
-											$t('Vendor (Name not specified)')}
-									</div>
-									<div class="mt-1 flex items-center gap-2">
-										<div
-											class="max-w-[200px] truncate text-xs text-gray-500"
-											title={job.vendor_name}
-										>
-											{$t('Contact:')}
-											{job.vendor_name || '-'}
+									<div class="pt-2 border-t border-gray-100">
+										<div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Vendor</div>
+										<div class="font-medium text-gray-900 leading-tight">
+											{job.vendor_company_name || job.vendor_name || 'ไม่ระบุ'}
 										</div>
-										<span
-											class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-purple-700 uppercase"
-										>
-											Vendor
-										</span>
-									</div>
-								{:else}
-									<div class="font-medium text-gray-900">
-										{job.company_name || job.customer_name || $t('Customer (Name not specified)')}
-									</div>
-									<div class="mt-1 flex items-center gap-2">
-										<div
-											class="max-w-[200px] truncate text-xs text-gray-500"
-											title={job.customer_name}
-										>
-											{$t('Contact:')}
-											{job.customer_name || '-'}
-										</div>
-										<span
-											class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-blue-700 uppercase"
-										>
-											Customer
-										</span>
+										{#if job.vendor_company_name && job.vendor_name}
+											<div
+												class="max-w-[180px] truncate text-[11px] text-gray-500 mt-0.5"
+												title="{job.vendor_name} {job.vendor_phone ? 'Tel: ' + job.vendor_phone : ''}"
+											>
+												Contact: {job.vendor_name}
+												{#if job.vendor_phone}
+													<span class="block text-gray-400">Tel: {job.vendor_phone}</span>
+												{/if}
+											</div>
+										{/if}
 									</div>
 								{/if}
 							</td>
 
-							<td class="px-6 py-4">
+							<td class="px-6 py-4 align-top">
 								<div>
 									<span class="text-xs text-gray-400">B/L:</span>
 									<span class="font-mono font-bold text-gray-800">{job.bl_number}</span>
 								</div>
-								<div class="text-xs text-gray-500">{job.liner_name || '-'}</div>
+								<div class="text-xs text-gray-500 mt-1">{job.liner_name || '-'}</div>
 							</td>
 
-							<td class="px-6 py-4 text-center">
+							<td class="px-6 py-4 text-center align-top">
 								<span
 									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getStatusClass(
 										job.job_status
 									)}"
 								>
-									{$t('Status_' + job.job_status) || job.job_status}
+									{job.job_status}
 								</span>
 							</td>
 
-							<td class="px-6 py-4 text-right">
+							<td class="px-6 py-4 text-right align-top">
 								<div class="font-mono font-bold text-gray-800">
-									{Number(job.amount || 0).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
-										minimumFractionDigits: 2
-									})}
+									{Number(job.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
 								</div>
-								<div class="text-[10px] text-gray-500">{job.currency}</div>
+								<div class="text-[10px] text-gray-500 mt-0.5">{job.currency}</div>
 							</td>
 
-							<td class="px-4 py-3 text-center">
-								<div class="flex justify-center gap-2">
+							<td class="px-4 py-4 text-center align-top">
+								<div class="flex justify-center gap-2 mt-1">
 									<a
 										href="/freight-forwarder/job-orders/{job.id}"
 										class="text-gray-400 transition-colors hover:text-blue-600"
-										title={$t('View Details')}
+										title="ดูรายละเอียด"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -267,7 +277,7 @@
 										target="_blank"
 										rel="noopener noreferrer"
 										class="text-gray-400 transition-colors hover:text-green-600"
-										title={$t('Print PDF')}
+										title="พิมพ์ PDF"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -286,7 +296,7 @@
 									<a
 										href="/freight-forwarder/job-orders/{job.id}/edit"
 										class="text-gray-400 transition-colors hover:text-yellow-600"
-										title={$t('Edit')}
+										title="แก้ไข"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -304,7 +314,7 @@
 										type="button"
 										onclick={() => confirmDelete(job)}
 										class="text-gray-400 transition-colors hover:text-red-600"
-										title={$t('Delete')}
+										title="ลบ"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -325,14 +335,64 @@
 					{/each}
 					{#if filteredJobs.length === 0}
 						<tr>
-							<td colspan="7" class="py-12 text-center text-gray-400"
-								>{$t('No job orders found')}</td
-							>
+							<td colspan="7" class="py-12 text-center text-gray-500">
+								<div class="flex flex-col items-center justify-center">
+									<svg class="h-10 w-10 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+									<span>ไม่พบรายการ Job Order หรือคำค้นหาตรงกับข้อมูลที่มี</span>
+								</div>
+							</td>
 						</tr>
 					{/if}
 				</tbody>
 			</table>
 		</div>
+
+		{#if filteredJobs.length > 0}
+			<div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-6">
+				<div class="flex flex-1 items-center justify-between flex-col sm:flex-row gap-4">
+					<div class="flex items-center gap-3">
+						<span class="text-sm text-gray-700">
+							แสดง <span class="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> ถึง 
+							<span class="font-medium">{Math.min(currentPage * itemsPerPage, filteredJobs.length)}</span> 
+							จาก <span class="font-medium">{filteredJobs.length}</span> รายการ
+						</span>
+						<select 
+							bind:value={itemsPerPage} 
+							onchange={() => currentPage = 1} 
+							class="rounded-md border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						>
+							<option value={10}>10 / หน้า</option>
+							<option value={30}>30 / หน้า</option>
+							<option value={50}>50 / หน้า</option>
+							<option value={200}>200 / หน้า</option>
+						</select>
+					</div>
+					<div>
+						<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+							<button 
+								onclick={() => currentPage > 1 && currentPage--} 
+								disabled={currentPage === 1} 
+								class="relative inline-flex items-center rounded-l-md px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-100 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:hover:bg-white"
+							>
+								ก่อนหน้า
+							</button>
+							<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+								หน้า {currentPage} / {totalPages}
+							</span>
+							<button 
+								onclick={() => currentPage < totalPages && currentPage++} 
+								disabled={currentPage === totalPages || totalPages === 0} 
+								class="relative inline-flex items-center rounded-r-md px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-100 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:hover:bg-white"
+							>
+								ถัดไป
+							</button>
+						</nav>
+					</div>
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -363,13 +423,15 @@
 						</svg>
 					</div>
 					<div class="mt-1 text-left sm:mt-0">
-						<h3 class="text-lg leading-6 font-bold text-gray-900">{$t('Confirm Deletion')}</h3>
+						<h3 class="text-lg leading-6 font-bold text-gray-900">ยืนยันการลบข้อมูล</h3>
 						<div class="mt-2">
 							<p class="text-sm text-gray-500">
-								{$t('Are you sure you want to delete job order')}
-								<span class="font-bold text-gray-800">{jobToDeleteName}</span>?
-								<br />{$t('This action')}
-								<span class="font-semibold text-red-600">{$t('cannot be undone')}</span>.
+								คุณแน่ใจหรือไม่ว่าต้องการลบใบงาน <span class="font-bold text-gray-800"
+									>{jobToDeleteName}</span
+								>
+								?
+								<br />การกระทำนี้
+								<span class="font-semibold text-red-600">ไม่สามารถย้อนกลับได้</span>
 							</p>
 						</div>
 					</div>
@@ -383,7 +445,7 @@
 					onclick={closeModal}
 					disabled={isDeleting}
 				>
-					{$t('Cancel')}
+					ยกเลิก
 				</button>
 
 				<form
@@ -392,8 +454,8 @@
 					use:enhance={() => {
 						isDeleting = true;
 						return async ({ update }) => {
-							await update(); // อัปเดตตารางหลังจากลบใน DB แล้ว
-							closeModal(); // ปิดหน้าต่าง Modal
+							await update(); 
+							closeModal(); 
 						};
 					}}
 					class="m-0 flex w-full sm:w-auto"
@@ -423,9 +485,9 @@
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								></path></svg
 							>
-							{$t('Deleting...')}
+							กำลังลบ...
 						{:else}
-							{$t('Confirm Delete')}
+							ยืนยันการลบ
 						{/if}
 					</button>
 				</form>
