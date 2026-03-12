@@ -148,7 +148,11 @@
 									{job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)}
 								</a>
 								<div class="text-xs text-gray-500">
-									{new Date(job.job_date).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US')}
+									{new Date(job.job_date).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', {
+										day: 'numeric',
+										month: 'short',
+										year: 'numeric'
+									})}
 								</div>
 							</td>
 
@@ -167,16 +171,44 @@
 								</div>
 							</td>
 
-							<td class="px-6 py-4">
-								<div class="font-medium text-gray-900">
-									{job.company_name || job.customer_name || $t('Unknown')}
-								</div>
-								{#if job.company_name && job.customer_name}
-									<div
-										class="max-w-[200px] truncate text-xs text-gray-500"
-										title={job.customer_name}
-									>
-										Contact: {job.customer_name}
+							<td class="px-6 py-4 whitespace-normal">
+								{#if job.vendor_id}
+									<div class="font-medium text-gray-900">
+										{job.vendor_company_name ||
+											job.vendor_name ||
+											$t('Vendor (Name not specified)')}
+									</div>
+									<div class="mt-1 flex items-center gap-2">
+										<div
+											class="max-w-[200px] truncate text-xs text-gray-500"
+											title={job.vendor_name}
+										>
+											{$t('Contact:')}
+											{job.vendor_name || '-'}
+										</div>
+										<span
+											class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-purple-700 uppercase"
+										>
+											Vendor
+										</span>
+									</div>
+								{:else}
+									<div class="font-medium text-gray-900">
+										{job.company_name || job.customer_name || $t('Customer (Name not specified)')}
+									</div>
+									<div class="mt-1 flex items-center gap-2">
+										<div
+											class="max-w-[200px] truncate text-xs text-gray-500"
+											title={job.customer_name}
+										>
+											{$t('Contact:')}
+											{job.customer_name || '-'}
+										</div>
+										<span
+											class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-blue-700 uppercase"
+										>
+											Customer
+										</span>
 									</div>
 								{/if}
 							</td>

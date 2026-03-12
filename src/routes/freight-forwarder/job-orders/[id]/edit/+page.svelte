@@ -131,38 +131,45 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
-	<div class="mx-auto mb-6 flex max-w-4xl items-center justify-between">
-		<div class="flex items-center gap-4">
+	<div
+		class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center"
+	>
+		<div class="flex items-center">
 			<a
 				href="/freight-forwarder/job-orders"
+				class="mr-3 text-gray-500 hover:text-gray-800"
 				title={$t('Back')}
-				aria-label={$t('Back')}
-				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
+					width="24"
+					height="24"
 					viewBox="0 0 24 24"
-					stroke-width="2"
+					fill="none"
 					stroke="currentColor"
-					class="h-5 w-5"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-					/></svg
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="h-6 w-6"><path d="m15 18-6-6 6-6"></path></svg
 				>
 			</a>
 			<div>
-				<div class="flex items-center gap-2">
-					<h1 class="text-xl font-bold text-gray-800">{$t('Edit Job Order')}</h1>
+				<div class="flex items-center gap-3">
+					<h1 class="text-2xl font-bold text-gray-800">{$t('Edit Job')}</h1>
 					<span
-						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
+						class="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
 					>
 						{previewJobNumber}
 					</span>
 				</div>
-				<p class="text-xs text-gray-500">{$t('Edit Job Details')}</p>
+			</div>
+		</div>
+
+		<div class="flex flex-shrink-0 items-center gap-2">
+			<div
+				class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold tracking-wide text-blue-700 uppercase"
+			>
+				{$t('Status')}: {$t('Pending')}
 			</div>
 		</div>
 	</div>
