@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+
 	export let data;
+	
 	$: jobs = data.job_orders || [];
+	$: pagination = data.pagination || { total: 0, page: 1, limit: 10, search: '' };
 
 	let showDeleteModal = false;
 	let jobToDeleteId: number | null = null;
@@ -12,37 +17,56 @@
 	let itemsPerPage = 10;
 	let currentPage = 1;
 
-	$: filteredJobs = jobs.filter((job: any) => {
-		if (!searchQuery) return true;
-		const q = searchQuery.toLowerCase();
-		
-		const jobNo = (job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)).toLowerCase();
-		const custName = (job.customer_name || '').toLowerCase();
-		const custComp = (job.company_name || '').toLowerCase();
-		const vendName = (job.vendor_name || '').toLowerCase();
-		const vendComp = (job.vendor_company_name || '').toLowerCase();
-
-		return jobNo.includes(q) || 
-		       custName.includes(q) || 
-		       custComp.includes(q) || 
-		       vendName.includes(q) || 
-		       vendComp.includes(q);
-	});
-
+	// ซิงค์ค่าตัวแปรจาก Server กลับมาที่ Frontend (เวลาโหลดหรือรีเฟรชหน้า)
 	$: {
-		// รีเซ็ตหน้ากลับไปที่ 1 เมื่อมีการค้นหา
-		if (searchQuery !== null) {
+		searchQuery = pagination.search;
+		itemsPerPage = pagination.limit;
+		currentPage = pagination.page;
+	}
+
+	$: totalPages = Math.ceil(pagination.total / itemsPerPage);
+
+	// ฟังก์ชันอัปเดต URL ซึ่งจะกระตุ้นให้ load() ทำงานใหม่แบบอัตโนมัติ
+	function updateData() {
+		const url = new URL($page.url);
+		url.searchParams.set('page', currentPage.toString());
+		url.searchParams.set('limit', itemsPerPage.toString());
+		if (searchQuery) {
+			url.searchParams.set('search', searchQuery);
+		} else {
+			url.searchParams.delete('search');
+		}
+		goto(url.toString(), { keepFocus: true, noScroll: true });
+	}
+
+	// หน่วงเวลาการพิมพ์เพื่อไม่ให้เรียก API ถี่เกินไป
+	let searchTimeout: any;
+	function onSearchInput() {
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
 			currentPage = 1;
+			updateData();
+		}, 400);
+	}
+
+	function onLimitChange() {
+		currentPage = 1;
+		updateData();
+	}
+
+	function prevPage() {
+		if (currentPage > 1) {
+			currentPage--;
+			updateData();
 		}
 	}
 
-	$: totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
-	$: if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
-	
-	$: paginatedJobs = filteredJobs.slice(
-		(currentPage - 1) * itemsPerPage,
-		currentPage * itemsPerPage
-	);
+	function nextPage() {
+		if (currentPage < totalPages) {
+			currentPage++;
+			updateData();
+		}
+	}
 
 	function getStatusClass(status: string) {
 		switch (status) {
@@ -94,6 +118,7 @@
 				<input
 					type="text"
 					bind:value={searchQuery}
+					oninput={onSearchInput}
 					placeholder="ค้นหา Job, Customer, Vendor..."
 					class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				/>
@@ -156,7 +181,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
-					{#each paginatedJobs as job}
+					{#each jobs as job}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 align-top">
 								<a
@@ -333,7 +358,7 @@
 							</td>
 						</tr>
 					{/each}
-					{#if filteredJobs.length === 0}
+					{#if jobs.length === 0}
 						<tr>
 							<td colspan="7" class="py-12 text-center text-gray-500">
 								<div class="flex flex-col items-center justify-center">
@@ -349,18 +374,18 @@
 			</table>
 		</div>
 
-		{#if filteredJobs.length > 0}
+		{#if pagination.total > 0}
 			<div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-6">
 				<div class="flex flex-1 items-center justify-between flex-col sm:flex-row gap-4">
 					<div class="flex items-center gap-3">
 						<span class="text-sm text-gray-700">
 							แสดง <span class="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> ถึง 
-							<span class="font-medium">{Math.min(currentPage * itemsPerPage, filteredJobs.length)}</span> 
-							จาก <span class="font-medium">{filteredJobs.length}</span> รายการ
+							<span class="font-medium">{Math.min(currentPage * itemsPerPage, pagination.total)}</span> 
+							จาก <span class="font-medium">{pagination.total}</span> รายการ
 						</span>
 						<select 
 							bind:value={itemsPerPage} 
-							onchange={() => currentPage = 1} 
+							onchange={onLimitChange} 
 							class="rounded-md border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 						>
 							<option value={10}>10 / หน้า</option>
@@ -372,7 +397,7 @@
 					<div>
 						<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
 							<button 
-								onclick={() => currentPage > 1 && currentPage--} 
+								onclick={prevPage} 
 								disabled={currentPage === 1} 
 								class="relative inline-flex items-center rounded-l-md px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-100 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:hover:bg-white"
 							>
@@ -382,7 +407,7 @@
 								หน้า {currentPage} / {totalPages}
 							</span>
 							<button 
-								onclick={() => currentPage < totalPages && currentPage++} 
+								onclick={nextPage} 
 								disabled={currentPage === totalPages || totalPages === 0} 
 								class="relative inline-flex items-center rounded-r-md px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-100 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:hover:bg-white"
 							>
