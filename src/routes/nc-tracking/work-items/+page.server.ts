@@ -2,16 +2,12 @@ import { fail } from '@sveltejs/kit';
 import pool from '$lib/server/database';
 
 export const load = async ({ url }) => {
-	// รับ id ของ Work Master ที่เลือก (ถ้ามี)
 	const selectedMasterId = Number(url.searchParams.get('master_id')) || null;
 
-	// [แก้ไข] เพิ่ม <any[]> เพื่อบอก TypeScript ว่าผลลัพธ์คือ Array
 	const [masters] = await pool.query<any[]>('SELECT * FROM Work_Master ORDER BY id DESC');
 
-	// 2. ดึงข้อมูล Work Items (Detail) เฉพาะของ Master ที่เลือก
 	let details: any[] = [];
 	if (selectedMasterId) {
-		// [แก้ไข] เพิ่ม <any[]> ตรงนี้ด้วย
 		const [rows] = await pool.query<any[]>(
 			'SELECT * FROM Work_detail WHERE work_id = ? ORDER BY id ASC',
 			[selectedMasterId]

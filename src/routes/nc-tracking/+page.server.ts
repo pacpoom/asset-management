@@ -3,12 +3,10 @@ import pool from '$lib/server/database';
 import path from 'path';
 import fs from 'fs/promises';
 
-// โฟลเดอร์เก็บรูป (สร้างโฟลเดอร์ uploads/inspections ในโปรเจคด้วยนะครับ)
 const UPLOAD_DIR = path.resolve('uploads', 'inspections');
 
 async function saveFile(file: File) {
 	if (!file || file.size === 0) return null;
-	// สร้างโฟลเดอร์ถ้ายังไม่มี
 	try {
 		await fs.access(UPLOAD_DIR);
 	} catch {
@@ -26,15 +24,17 @@ export const load = async ({ url }) => {
 	const limit = 10;
 	const offset = (page - 1) * limit;
 
-	// 1. ดึงรายการ Inspection ล่าสุด
+	// 1. ดึงรายการ Inspection ล่าสุด (ประวัติการเจอ NG)
 	const [rows] = await pool.query(
 		'SELECT * FROM inspections ORDER BY created_at DESC LIMIT ? OFFSET ?',
 		[limit, offset]
 	);
 	const [count] = await pool.query('SELECT COUNT(*) as total FROM inspections');
 
-	// 2. ดึง Master Data
-	const [parts] = await pool.query('SELECT * FROM master_parts ORDER BY name ASC');
+	// 🌟 2. ดึง Master Data (ดึงจากตาราง Work_Master และ Work_detail)
+	const [masters] = await pool.query('SELECT * FROM Work_Master ORDER BY id ASC');
+	const [details] = await pool.query('SELECT * FROM Work_detail ORDER BY id ASC');
+
 	const [defects] = await pool.query('SELECT * FROM master_defects ORDER BY name ASC');
 	const [solutions] = await pool.query('SELECT * FROM master_solutions ORDER BY name ASC');
 
@@ -43,7 +43,8 @@ export const load = async ({ url }) => {
 		total: (count as any)[0].total,
 		page,
 		limit,
-		masterParts: JSON.parse(JSON.stringify(parts)),
+		masters: JSON.parse(JSON.stringify(masters)), // <-- ต้องมีบรรทัดนี้ส่งไปให้หน้าจอ
+		details: JSON.parse(JSON.stringify(details)), // <-- และบรรทัดนี้
 		masterDefects: JSON.parse(JSON.stringify(defects)),
 		masterSolutions: JSON.parse(JSON.stringify(solutions))
 	};
