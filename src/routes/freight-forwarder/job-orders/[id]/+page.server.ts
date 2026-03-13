@@ -53,7 +53,18 @@ export const load = async ({ params }) => {
 			[id]
 		);
 
-		// 4. ดึงข้อมูล Master Data สำหรับฟอร์มเพิ่มค่าใช้จ่าย (แก้ไขจุดที่ Dropdown ไม่ขึ้น)
+		// 4. ดึงข้อมูล Sales Documents (เอกสารขายที่เชื่อมกับ Job นี้)
+		const [salesDocs] = await pool.query<any[]>(
+			`
+			SELECT id, document_type, document_number, document_date, total_amount, status 
+			FROM sales_documents 
+			WHERE job_order_id = ? AND status != 'Void'
+			ORDER BY document_date DESC, id DESC
+			`,
+			[id]
+		);
+
+		// 5. ดึงข้อมูล Master Data สำหรับฟอร์มเพิ่มค่าใช้จ่าย
 		const [expenseCategories] = await pool.query<any[]>(
 			'SELECT id, category_name FROM expense_categories WHERE is_active = 1 ORDER BY category_name ASC'
 		);
@@ -66,6 +77,7 @@ export const load = async ({ params }) => {
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
 			expenses: JSON.parse(JSON.stringify(expenses)),
+			salesDocuments: JSON.parse(JSON.stringify(salesDocs)),
 			expenseCategories: JSON.parse(JSON.stringify(expenseCategories)),
 			expenseItems: JSON.parse(JSON.stringify(expenseItems)),
 			availableStatuses: ['Pending', 'In Progress', 'Completed', 'Cancelled']
