@@ -91,7 +91,24 @@
 
 	function isLinkActive(href: string | null) {
 		if (!href) return false;
-		return $page.url.pathname === href;
+		const currentPath = $page.url.pathname.replace(/\/$/, '');
+		const targetHref = href.trim().replace(/\/$/, '');
+
+		if (targetHref === '') return currentPath === '';
+		if (currentPath === targetHref) return true;
+		if (currentPath.startsWith(targetHref + '/')) {
+			const subPath = currentPath.substring(targetHref.length + 1);
+
+			const isActionRoute =
+				/^(create|edit|new|generate-pdf|print|export|slip|report|\d+)/.test(subPath) ||
+				subPath.includes('edit');
+
+			if (isActionRoute) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	function isMenuSectionActive(menu: Menu): boolean {
@@ -150,7 +167,7 @@
 											>{menu.icon || 'folder'}</span
 										>
 										<span
-											class="overflow-hidden font-medium whitespace-nowrap transition-all duration-100"
+											class="leading-snug font-medium whitespace-normal transition-all duration-100"
 											>{$t(menu.title)}</span
 										>
 									</a>
@@ -216,7 +233,7 @@
 									{menu.icon || 'circle'}
 								</span>
 								<span
-									class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
+									class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
 								>
 									{$t(menu.title)}
 								</span>
@@ -253,7 +270,7 @@
 										>{menu.icon || 'folder'}</span
 									>
 									<span
-										class="overflow-hidden font-medium whitespace-nowrap transition-all duration-100"
+										class="text-left leading-snug font-medium whitespace-normal transition-all duration-100"
 										>{$t(menu.title)}</span
 									>
 								</div>
@@ -285,7 +302,7 @@
 								>{menu.icon || 'circle'}</span
 							>
 							<span
-								class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
+								class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
 								>{$t(menu.title)}</span
 							>
 						</div>
@@ -328,9 +345,9 @@
 
 		<aside
 			class="fixed inset-y-0 left-0 z-30 flex transform flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out
-			{isSidebarOpen ? 'w-64 translate-x-0 p-4' : 'w-64 -translate-x-full p-4'}
+			{isSidebarOpen ? 'w-80 translate-x-0 p-4' : 'w-80 -translate-x-full p-4'}
 			lg:translate-x-0
-			{isSidebarExpanded ? 'lg:w-64 lg:p-4' : 'lg:w-20 lg:px-2 lg:py-4'}
+			{isSidebarExpanded ? 'lg:w-80 lg:p-4' : 'lg:w-20 lg:px-2 lg:py-4'}
 			{!isSidebarPinned && isSidebarHovering ? 'shadow-xl' : ''}"
 			onmouseenter={() => (isSidebarHovering = true)}
 			onmouseleave={() => (isSidebarHovering = false)}
@@ -387,7 +404,7 @@
 								dashboard
 							</span>
 							<span
-								class={`overflow-hidden font-medium whitespace-nowrap transition-all duration-100 ${
+								class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${
 									!isSidebarExpanded ? 'lg:hidden' : ''
 								}`}
 							>
@@ -403,12 +420,10 @@
 									type="button"
 									onclick={() => {
 										if (!isSidebarPinned) {
-											// If collapsed, clicking this *pins* it open
 											isSidebarPinned = true;
 											isSidebarHovering = false;
 											isAdminMenuOpen = true;
 										} else {
-											// If pinned open, it just toggles the sub-menu
 											isAdminMenuOpen = !isAdminMenuOpen;
 										}
 									}}
@@ -422,7 +437,7 @@
 											>admin_panel_settings</span
 										>
 										<span
-											class={`overflow-hidden px-0 text-xs font-semibold whitespace-nowrap text-gray-400 uppercase transition-all duration-100 ${!isSidebarExpanded ? 'lg:hidden' : ''}`}
+											class={`px-0 text-left text-xs leading-snug font-semibold whitespace-normal text-gray-400 uppercase transition-all duration-100 ${!isSidebarExpanded ? 'lg:hidden' : ''}`}
 										>
 											{$t('System Management')}
 										</span>
@@ -456,7 +471,9 @@
 												title={$t('Roles & Permissions')}
 												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
 													>shield_person</span
-												><span class="font-medium">{$t('Roles & Permissions')}</span></a
+												><span class="text-sm leading-snug font-medium whitespace-normal"
+													>{$t('Roles & Permissions')}</span
+												></a
 											>
 										</li>
 										<li>
@@ -470,7 +487,9 @@
 												title={$t('Permissions')}
 												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
 													>verified_user</span
-												><span class="font-medium">{$t('Permissions')}</span></a
+												><span class="text-sm leading-snug font-medium whitespace-normal"
+													>{$t('Permissions')}</span
+												></a
 											>
 										</li>
 										<li>
@@ -483,7 +502,9 @@
 													: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 												title={$t('Menu Management')}
 												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span
-												><span class="font-medium">{$t('Menu Management')}</span></a
+												><span class="text-sm leading-snug font-medium whitespace-normal"
+													>{$t('Menu Management')}</span
+												></a
 											>
 										</li>
 									</ul>
@@ -497,7 +518,7 @@
 
 		<div
 			class="flex flex-1 flex-col transition-all duration-300 ease-in-out
-			{isSidebarPinned ? 'lg:pl-64' : 'lg:pl-20'}"
+    {isSidebarPinned ? 'lg:pl-80' : 'lg:pl-20'}"
 		>
 			<header
 				class="sticky top-0 z-10 hidden h-16 items-center border-b border-gray-200 bg-white/90 px-4 shadow-sm backdrop-blur-sm lg:flex"
