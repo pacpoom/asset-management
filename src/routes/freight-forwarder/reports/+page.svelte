@@ -8,11 +8,11 @@
 	import { t, locale } from '$lib/i18n';
 
 	export let data;
-	let { revenueStats, jobTypeStats, serviceTypeStats, topCustomers, monthlyTrend, filters } = data;
+	let { financialStats, jobTypeStats, serviceTypeStats, topCustomers, monthlyTrend, filters } =
+		data;
 
 	let startDate = filters.startDate;
 	let endDate = filters.endDate;
-
 	let jobTypeChartCanvas: HTMLCanvasElement;
 	let trendChartCanvas: HTMLCanvasElement;
 
@@ -101,39 +101,120 @@
 		</div>
 	</div>
 
-	<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		{#each revenueStats as stat}
+	{#each financialStats as stat}
+		<div
+			class="relative mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+		>
 			<div
-				class="relative overflow-hidden rounded-xl border border-gray-100 bg-white p-5 shadow-sm"
+				class="absolute top-0 left-0 h-full w-1.5"
+				class:bg-blue-500={stat.currency === 'THB'}
+				class:bg-green-500={stat.currency === 'USD'}
+				class:bg-orange-500={stat.currency === 'EUR'}
+			></div>
+
+			<div
+				class="mb-4 flex flex-col justify-between border-b border-gray-100 pb-3 pl-3 sm:flex-row sm:items-center"
 			>
-				<dt class="truncate text-sm font-medium text-gray-500">
-					{$t('Total Revenue')} ({stat.currency})
-				</dt>
-				<dd class="mt-2 text-3xl font-bold text-gray-900">
-					{Number(stat.total_amount).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US')}
-					<span class="text-sm font-normal text-gray-400">.00</span>
-				</dd>
-				<div class="mt-1 text-xs text-gray-400">
-					{$t('From total')}
-					{stat.job_count}
-					{$t('jobs')}
+				<h2 class="flex items-center gap-2 text-lg font-bold text-gray-800">
+					{$t('Financial Overview')}
+					<span
+						class="rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-sm font-bold text-gray-700"
+						>{stat.currency}</span
+					>
+				</h2>
+				<div class="mt-1 text-sm text-gray-500 sm:mt-0">
+					{$t('From total')} <span class="font-bold text-gray-900">{stat.job_count}</span>
+					{$t('Jobs')}
 				</div>
+			</div>
+
+			<div class="grid grid-cols-1 gap-4 pl-3 md:grid-cols-3">
+				<div class="rounded-xl border border-green-100 bg-green-50/50 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-sm font-semibold text-gray-500">{$t('Total Revenue')}</div>
+						<svg
+							class="h-5 w-5 text-green-500"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+							/></svg
+						>
+					</div>
+					<div class="mt-2 text-2xl font-bold text-green-600">
+						{Number(stat.total_revenue).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
+							minimumFractionDigits: 2
+						})}
+					</div>
+				</div>
+
+				<div class="rounded-xl border border-red-100 bg-red-50/50 p-5">
+					<div class="flex items-center justify-between">
+						<div class="text-sm font-semibold text-gray-500">{$t('Total Expenses')}</div>
+						<svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
+							/></svg
+						>
+					</div>
+					<div class="mt-2 text-2xl font-bold text-red-500">
+						{Number(stat.total_expense).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
+							minimumFractionDigits: 2
+						})}
+					</div>
+				</div>
+
 				<div
-					class="absolute top-0 right-0 h-2 w-full"
-					class:bg-blue-500={stat.currency === 'THB'}
-					class:bg-green-500={stat.currency === 'USD'}
-					class:bg-orange-500={stat.currency === 'EUR'}
-				></div>
+					class="rounded-xl {stat.total_revenue - stat.total_expense >= 0
+						? 'border-blue-100 bg-blue-50/50'
+						: 'border-orange-100 bg-orange-50/50'} border p-5"
+				>
+					<div class="flex items-center justify-between">
+						<div class="text-sm font-semibold text-gray-600">{$t('Net Profit')}</div>
+						<svg
+							class="h-5 w-5 {stat.total_revenue - stat.total_expense >= 0
+								? 'text-blue-500'
+								: 'text-orange-500'}"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							><path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+							/></svg
+						>
+					</div>
+					<div
+						class="mt-2 text-2xl font-bold {stat.total_revenue - stat.total_expense >= 0
+							? 'text-blue-600'
+							: 'text-orange-600'}"
+					>
+						{Number(stat.total_revenue - stat.total_expense).toLocaleString(
+							$locale === 'th' ? 'th-TH' : 'en-US',
+							{ minimumFractionDigits: 2 }
+						)}
+					</div>
+				</div>
 			</div>
-		{/each}
-		{#if revenueStats.length === 0}
-			<div
-				class="col-span-full rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-gray-500"
-			>
-				{$t('No revenue data found for the selected period')}
-			</div>
-		{/if}
-	</div>
+		</div>
+	{/each}
+
+	{#if financialStats.length === 0}
+		<div
+			class="mb-6 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-500"
+		>
+			{$t('No financial data found for the selected period')}
+		</div>
+	{/if}
 
 	<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -175,7 +256,7 @@
 					<tr>
 						<th class="px-6 py-3 text-left font-semibold uppercase">{$t('Customer Name')}</th>
 						<th class="px-6 py-3 text-center font-semibold uppercase">{$t('Job Count')}</th>
-						<th class="px-6 py-3 text-right font-semibold uppercase">{$t('Total Amount')}</th>
+						<th class="px-6 py-3 text-right font-semibold uppercase">{$t('Total Revenue')}</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
@@ -199,8 +280,11 @@
 									{$t('Jobs')}
 								</span>
 							</td>
-							<td class="px-6 py-4 text-right font-mono font-bold text-gray-900">
-								{Number(customer.total_amount).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US')}
+							<td class="px-6 py-4 text-right font-mono font-bold text-green-600">
+								{Number(customer.total_amount).toLocaleString(
+									$locale === 'th' ? 'th-TH' : 'en-US',
+									{ minimumFractionDigits: 2 }
+								)}
 								<span class="text-xs text-gray-500">{customer.currency}</span>
 							</td>
 						</tr>

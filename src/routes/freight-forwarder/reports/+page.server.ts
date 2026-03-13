@@ -9,12 +9,26 @@ export const load = async ({ url }) => {
 	const endDate = url.searchParams.get('end_date') || lastDay;
 
 	try {
-		const [revenueStats]: any = await pool.query(
+		const [financialStats]: any = await pool.query(
 			`
-			SELECT currency, SUM(amount) as total_amount, COUNT(*) as job_count
-			FROM job_orders
-			WHERE job_date BETWEEN ? AND ?
-			GROUP BY currency
+			SELECT 
+				j.currency,
+				COUNT(j.id) as job_count,
+				SUM(
+					COALESCE(
+						(SELECT SUM(total_amount) FROM sales_documents s WHERE s.job_order_id = j.id AND s.status != 'Void'),
+						j.amount, 0
+					)
+				) as total_revenue,
+				SUM(
+					COALESCE(
+						(SELECT SUM(total_amount) FROM job_expenses e WHERE e.job_order_id = j.id),
+						0
+					)
+				) as total_expense
+			FROM job_orders j
+			WHERE j.job_date BETWEEN ? AND ?
+			GROUP BY j.currency
 		`,
 			[startDate, endDate]
 		);
@@ -41,12 +55,21 @@ export const load = async ({ url }) => {
 
 		const [topCustomers]: any = await pool.query(
 			`
-			SELECT c.company_name, COUNT(j.id) as job_count, SUM(j.amount) as total_amount, j.currency
+			SELECT 
+				c.company_name, 
+				COUNT(j.id) as job_count, 
+				SUM(
+					COALESCE(
+						(SELECT SUM(total_amount) FROM sales_documents s WHERE s.job_order_id = j.id AND s.status != 'Void'),
+						j.amount, 0
+					)
+				) as total_amount, 
+				j.currency
 			FROM job_orders j
 			JOIN customers c ON j.customer_id = c.id
 			WHERE j.job_date BETWEEN ? AND ?
 			GROUP BY c.id, j.currency
-			ORDER BY job_count DESC
+			ORDER BY total_amount DESC
 			LIMIT 5
 		`,
 			[startDate, endDate]
@@ -61,7 +84,7 @@ export const load = async ({ url }) => {
 		`);
 
 		return {
-			revenueStats: JSON.parse(JSON.stringify(revenueStats)),
+			financialStats: JSON.parse(JSON.stringify(financialStats)),
 			jobTypeStats: JSON.parse(JSON.stringify(jobTypeStats)),
 			serviceTypeStats: JSON.parse(JSON.stringify(serviceTypeStats)),
 			topCustomers: JSON.parse(JSON.stringify(topCustomers)),
@@ -71,7 +94,7 @@ export const load = async ({ url }) => {
 	} catch (error) {
 		console.error('Reports Error:', error);
 		return {
-			revenueStats: [],
+			financialStats: [],
 			jobTypeStats: [],
 			serviceTypeStats: [],
 			topCustomers: [],

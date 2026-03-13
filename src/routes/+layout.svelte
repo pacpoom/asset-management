@@ -91,16 +91,20 @@
 
 	function isLinkActive(href: string | null) {
 		if (!href) return false;
+
 		const currentPath = $page.url.pathname.replace(/\/$/, '');
 		const targetHref = href.trim().replace(/\/$/, '');
 
-		if (targetHref === '') return currentPath === '';
-		if (currentPath === targetHref) return true;
+		if (targetHref === '') {
+			return currentPath === '';
+		}
+		if (currentPath === targetHref) {
+			return true;
+		}
 		if (currentPath.startsWith(targetHref + '/')) {
 			const subPath = currentPath.substring(targetHref.length + 1);
-
 			const isActionRoute =
-				/^(create|edit|new|generate-pdf|print|export|slip|report|\d+)/.test(subPath) ||
+				/^(create|edit|new|generate-pdf|print|export|slip|\d+)/.test(subPath) ||
 				subPath.includes('edit');
 
 			if (isActionRoute) {
