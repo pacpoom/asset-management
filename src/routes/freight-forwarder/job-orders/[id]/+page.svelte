@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { tick } from 'svelte';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
@@ -28,8 +30,45 @@
 	let expTaxType = $state('None');
 	let expRemarks = $state('');
 
-	// กรอง Items ตาม Category ที่เลือก
-	let filteredExpenseItems = $derived(expenseItems.filter((i: any) => i.expense_category_id == expCategoryId));
+	// สำหรับ svelte-select ค้นหาหมวดหมู่และรายการ
+	let selectedCategory = $state<any>(null);
+	let selectedItem = $state<any>(null);
+
+	// กรอง options เพื่อใช้งานร่วมกับ svelte-select
+	let categoryOptions = $derived(expenseCategories.map((c: any) => ({
+		value: c.id,
+		label: c.category_name
+	})));
+
+	let filteredItemOptions = $derived(
+		expenseItems
+			.filter((i: any) => i.expense_category_id == (selectedCategory?.value || ''))
+			.map((i: any) => ({
+				value: i.id,
+				label: i.item_name
+			}))
+	);
+
+	// ผูกค่า selected จาก svelte-select เข้ากับตัวแปรหลัก
+	$effect(() => {
+		if (selectedCategory && selectedCategory.value !== expCategoryId) {
+			expCategoryId = selectedCategory.value;
+			selectedItem = null; // รีเซ็ต Item เมื่อเปลี่ยน Category
+			expItemId = '';
+		} else if (!selectedCategory) {
+			expCategoryId = '';
+			selectedItem = null;
+			expItemId = '';
+		}
+	});
+
+	$effect(() => {
+		if (selectedItem && selectedItem.value !== expItemId) {
+			expItemId = selectedItem.value;
+		} else if (!selectedItem) {
+			expItemId = '';
+		}
+	});
 
 	// คำนวณ Total Amount ในฟอร์มแบบ Real-time
 	let calculatedExpTotal = $derived.by(() => {
@@ -86,6 +125,7 @@
 	function openExpenseModal() {
 		expCategoryId = ''; expItemId = ''; expRefDoc = ''; 
 		expAmount = ''; expTaxType = 'None'; expRemarks = '';
+		selectedCategory = null; selectedItem = null;
 		isExpenseModalOpen = true;
 	}
 
@@ -221,8 +261,9 @@
 </div>
 
 {#if isExpenseModalOpen}
+<!-- ขยาย Modal ด้วย max-w-2xl -->
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity">
-	<div class="w-full max-w-lg rounded-xl bg-white shadow-2xl overflow-hidden">
+	<div class="w-full max-w-2xl rounded-xl bg-white shadow-2xl overflow-hidden">
 		<div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
 			<h3 class="font-bold text-gray-800 text-lg">บันทึกค่าใช้จ่าย (Add Expense)</h3>
 			<button type="button" onclick={() => isExpenseModalOpen = false} class="text-gray-400 hover:text-gray-600" aria-label="Close modal">✕</button>
@@ -236,41 +277,48 @@
 				if(result.type === 'success') isExpenseModalOpen = false;
 			};
 		}}>
-			<div class="p-6 space-y-4">
-				<div class="grid grid-cols-2 gap-4">
+			<div class="p-6 space-y-5">
+				<div class="grid grid-cols-2 gap-5">
 					<div>
-						<label for="exp_category" class="block text-sm font-semibold text-gray-700 mb-1">Category <span class="text-red-500">*</span></label>
-						<select id="exp_category" bind:value={expCategoryId} class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required>
-							<option value="" disabled selected>เลือกหมวดหมู่</option>
-							{#each expenseCategories as cat}
-								<option value={cat.id}>{cat.category_name}</option>
-							{/each}
-						</select>
+						<label for="exp_category" class="block text-sm font-semibold text-gray-700 mb-1.5">Category <span class="text-red-500">*</span></label>
+						<!-- เปลี่ยนเป็น svelte-select -->
+						<Select 
+							items={categoryOptions}
+							bind:value={selectedCategory}
+							placeholder="ค้นหาหมวดหมู่..."
+							container={browser ? document.body : null}
+							class="svelte-select-custom"
+						/>
 					</div>
 					<div>
-						<label for="expense_item_id" class="block text-sm font-semibold text-gray-700 mb-1">Item <span class="text-red-500">*</span></label>
-						<select id="expense_item_id" name="expense_item_id" bind:value={expItemId} class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required disabled={!expCategoryId}>
-							<option value="" disabled selected>เลือกรายการ</option>
-							{#each filteredExpenseItems as item}
-								<option value={item.id}>{item.item_name}</option>
-							{/each}
-						</select>
+						<label for="expense_item_id" class="block text-sm font-semibold text-gray-700 mb-1.5">Item <span class="text-red-500">*</span></label>
+						<!-- เปลี่ยนเป็น svelte-select -->
+						<Select 
+							items={filteredItemOptions}
+							bind:value={selectedItem}
+							placeholder="ค้นหารายการ..."
+							disabled={!selectedCategory}
+							container={browser ? document.body : null}
+							class="svelte-select-custom"
+						/>
+						<!-- ส่งค่าตัวแปรเพื่อบันทึกลงฐานข้อมูล -->
+						<input type="hidden" name="expense_item_id" value={expItemId} required />
 					</div>
 				</div>
 
 				<div>
-					<label for="ref_document" class="block text-sm font-semibold text-gray-700 mb-1">Ref Document (เลขใบเสร็จ/ใบแจ้งหนี้)</label>
-					<input id="ref_document" type="text" name="ref_document" bind:value={expRefDoc} class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="เช่น INV-2026-001">
+					<label for="ref_document" class="block text-sm font-semibold text-gray-700 mb-1.5">Ref Document (เลขใบเสร็จ/ใบแจ้งหนี้)</label>
+					<input id="ref_document" type="text" name="ref_document" bind:value={expRefDoc} class="w-full rounded-md border-gray-300 py-2 focus:border-blue-500 focus:ring-blue-500" placeholder="เช่น INV-2026-001">
 				</div>
 
-				<div class="grid grid-cols-2 gap-4">
+				<div class="grid grid-cols-2 gap-5">
 					<div>
-						<label for="amount" class="block text-sm font-semibold text-gray-700 mb-1">Amount (ยอดก่อนภาษี) <span class="text-red-500">*</span></label>
-						<input id="amount" type="number" step="0.01" name="amount" bind:value={expAmount} required class="w-full rounded-md border-gray-300 text-right focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
+						<label for="amount" class="block text-sm font-semibold text-gray-700 mb-1.5">Amount (ยอดก่อนภาษี) <span class="text-red-500">*</span></label>
+						<input id="amount" type="number" step="0.01" name="amount" bind:value={expAmount} required class="w-full rounded-md border-gray-300 py-2 text-right focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
 					</div>
 					<div>
-						<label for="tax_type" class="block text-sm font-semibold text-gray-700 mb-1">Tax Type</label>
-						<select id="tax_type" name="tax_type" bind:value={expTaxType} class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+						<label for="tax_type" class="block text-sm font-semibold text-gray-700 mb-1.5">Tax Type</label>
+						<select id="tax_type" name="tax_type" bind:value={expTaxType} class="w-full rounded-md border-gray-300 py-2 focus:border-blue-500 focus:ring-blue-500">
 							<option value="None">ไม่มี (None)</option>
 							<option value="VAT 7%">VAT 7% (+)</option>
 							<option value="WHT 3%">WHT 3% (-)</option>
@@ -279,20 +327,20 @@
 					</div>
 				</div>
 
-				<div class="bg-gray-50 p-3 rounded-lg flex justify-between items-center border border-gray-200">
-					<span class="text-sm font-semibold text-gray-600">Total Amount (ยอดสุทธิ):</span>
-					<span class="text-lg font-bold text-red-600">{formatCurrency(calculatedExpTotal)}</span>
+				<div class="bg-blue-50/50 p-4 rounded-lg flex justify-between items-center border border-blue-100 mt-2">
+					<span class="text-sm font-semibold text-gray-700">Total Amount (ยอดสุทธิ):</span>
+					<span class="text-xl font-bold text-red-600">{formatCurrency(calculatedExpTotal)}</span>
 				</div>
 
 				<div>
-					<label for="remarks" class="block text-sm font-semibold text-gray-700 mb-1">Remarks</label>
+					<label for="remarks" class="block text-sm font-semibold text-gray-700 mb-1.5">Remarks</label>
 					<textarea id="remarks" name="remarks" bind:value={expRemarks} rows="2" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="คำอธิบายเพิ่มเติม..."></textarea>
 				</div>
 			</div>
 
-			<div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
-				<button type="button" onclick={() => isExpenseModalOpen = false} class="px-4 py-2 border rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-100 transition-colors">ยกเลิก</button>
-				<button type="submit" disabled={isSavingExpense || !expItemId || !expAmount} class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
+			<div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 rounded-b-xl">
+				<button type="button" onclick={() => isExpenseModalOpen = false} class="px-5 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-colors">ยกเลิก</button>
+				<button type="submit" disabled={isSavingExpense || !expItemId || !expAmount} class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
 					{isSavingExpense ? 'กำลังบันทึก...' : 'บันทึกค่าใช้จ่าย'}
 				</button>
 			</div>
@@ -300,3 +348,16 @@
 	</div>
 </div>
 {/if}
+
+<style>
+	/* เพิ่มสไตล์ให้กับ svelte-select เพื่อให้เข้ากับ UI ของระบบ */
+	:global(div.svelte-select-custom) {
+		border-color: #d1d5db !important;
+		border-radius: 0.375rem !important;
+		min-height: 42px !important;
+		background-color: white !important;
+	}
+	:global(div.svelte-select-custom input) {
+		font-size: 0.875rem !important;
+	}
+</style>
