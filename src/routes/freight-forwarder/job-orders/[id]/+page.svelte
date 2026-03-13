@@ -13,12 +13,17 @@
 	let companyData = $derived(data.company || null);
 	
 	let expenses = $derived(data.expenses || []);
+	let salesDocuments = $derived(data.salesDocuments || []);
 	let expenseCategories = $derived(data.expenseCategories || []);
 	let expenseItems = $derived(data.expenseItems || []);
 
-	// คำนวณยอดเงินรวม (Reactive)
+	// คำนวณยอดเงินรวมและกำไร/ขาดทุน (Reactive)
 	let totalExpense = $derived(expenses.reduce((sum: number, exp: any) => sum + Number(exp.total_amount), 0));
-	let estimatedProfit = $derived(Number(job.amount || 0) - totalExpense);
+	let totalRevenue = $derived(salesDocuments.reduce((sum: number, doc: any) => sum + Number(doc.total_amount), 0));
+	
+	// หากยังไม่มีเอกสารขาย ให้แสดงกำไรประเมินจากยอด Initial Amount แทน
+	let revenueToUse = $derived(totalRevenue > 0 ? totalRevenue : Number(job.amount || 0));
+	let netProfit = $derived(revenueToUse - totalExpense);
 
 	// ตัวแปรควบคุม Modal การเพิ่มค่าใช้จ่าย
 	let isExpenseModalOpen = $state(false);
@@ -166,6 +171,61 @@
 	</div>
 </div>
 
+<!-- ======================= -->
+<!-- FINANCIAL SUMMARY CARDS -->
+<!-- ======================= -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+	<!-- รายได้รวม (Total Revenue) -->
+	<div class="rounded-xl border bg-white p-5 shadow-sm">
+		<div class="flex items-center justify-between">
+			<div class="text-sm font-semibold text-gray-500">รายได้รวม (Total Revenue)</div>
+			<div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-50">
+				<svg class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+			</div>
+		</div>
+		<div class="mt-2 text-2xl font-bold {totalRevenue > 0 ? 'text-green-600' : 'text-gray-900'}">
+			{formatCurrency(totalRevenue > 0 ? totalRevenue : Number(job.amount || 0))}
+		</div>
+		<div class="mt-1 text-xs text-gray-400">
+			{#if totalRevenue > 0}
+				จากเอกสารขายทั้งหมด {salesDocuments.length} รายการ
+			{:else}
+				รายได้ประเมินเบื้องต้น (Initial Amount)
+			{/if}
+		</div>
+	</div>
+
+	<!-- ค่าใช้จ่ายรวม (Total Expenses) -->
+	<div class="rounded-xl border bg-white p-5 shadow-sm">
+		<div class="flex items-center justify-between">
+			<div class="text-sm font-semibold text-gray-500">ค่าใช้จ่ายรวม (Total Expenses)</div>
+			<div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-50">
+				<svg class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+			</div>
+		</div>
+		<div class="mt-2 text-2xl font-bold text-red-500">
+			{formatCurrency(totalExpense)}
+		</div>
+		<div class="mt-1 text-xs text-gray-400">จากค่าใช้จ่ายที่บันทึกไว้ {expenses.length} รายการ</div>
+	</div>
+
+	<!-- กำไร/ขาดทุน สุทธิ (Net Profit) -->
+	<div class="rounded-xl border bg-white p-5 shadow-sm {netProfit < 0 ? 'bg-red-50/30' : 'bg-blue-50/30'}">
+		<div class="flex items-center justify-between">
+			<div class="text-sm font-semibold text-gray-700">กำไรสุทธิ (Net Profit)</div>
+			<div class="flex h-8 w-8 items-center justify-center rounded-full {netProfit < 0 ? 'bg-red-100' : 'bg-blue-100'}">
+				<svg class="h-4 w-4 {netProfit < 0 ? 'text-red-600' : 'text-blue-600'}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+			</div>
+		</div>
+		<div class="mt-2 text-2xl font-bold {netProfit < 0 ? 'text-red-600' : 'text-blue-600'}">
+			{netProfit > 0 ? '+' : ''}{formatCurrency(netProfit)}
+		</div>
+		<div class="mt-1 text-xs text-gray-500">
+			{totalRevenue > 0 ? 'คำนวณจากยอดขายจริงหักค่าใช้จ่าย' : 'ประเมินจากยอด Initial Amount หักค่าใช้จ่าย'}
+		</div>
+	</div>
+</div>
+
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">รายละเอียดการขนส่ง (Shipment Details)</h3>
 	<div class="p-6">
@@ -188,6 +248,57 @@
 	</div>
 </div>
 
+<!-- ======================= -->
+<!-- SALES & INVOICES TABLE  -->
+<!-- ======================= -->
+<div class="mb-6 rounded-lg border bg-white shadow-sm overflow-hidden">
+	<div class="flex justify-between items-center border-b p-4 bg-gray-50">
+		<h2 class="text-lg font-semibold text-gray-700">เอกสารขาย (Sales & Invoices)</h2>
+	</div>
+
+	<div class="overflow-x-auto">
+		<table class="min-w-full divide-y divide-gray-200">
+			<thead class="bg-white text-xs text-gray-500 uppercase">
+				<tr>
+					<th class="px-6 py-3 text-left font-semibold">Document No.</th>
+					<th class="px-6 py-3 text-left font-semibold">Type</th>
+					<th class="px-6 py-3 text-left font-semibold">Date</th>
+					<th class="px-6 py-3 text-center font-semibold">Status</th>
+					<th class="px-6 py-3 text-right font-semibold">Total Amount</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-gray-100 bg-white text-sm">
+				{#each salesDocuments as doc}
+					<tr class="hover:bg-gray-50">
+						<td class="px-6 py-3">
+							<!-- แก้ไขลิงก์เป็น /sales-documents/{doc.id} -->
+							<a href="/sales-documents/{doc.id}" class="font-bold text-blue-600 hover:underline">{doc.document_number}</a>
+						</td>
+						<td class="px-6 py-3 text-gray-600">
+							<span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold">{doc.document_type}</span>
+						</td>
+						<td class="px-6 py-3 text-gray-600">{formatDate(doc.document_date)}</td>
+						<td class="px-6 py-3 text-center">
+							<span class="px-2 py-0.5 rounded text-xs font-semibold 
+								{doc.status === 'Paid' ? 'bg-green-100 text-green-700' : 
+								 doc.status === 'Sent' ? 'bg-blue-100 text-blue-700' : 
+								 'bg-gray-100 text-gray-700'}">
+								{doc.status}
+							</span>
+						</td>
+						<td class="px-6 py-3 text-right font-mono font-bold text-green-600">{formatCurrency(doc.total_amount)}</td>
+					</tr>
+				{:else}
+					<tr><td colspan="5" class="px-6 py-8 text-center text-gray-400">ยังไม่มีเอกสารขายที่เชื่อมโยงกับ Job นี้</td></tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+</div>
+
+<!-- ======================= -->
+<!-- EXPENSES TABLE          -->
+<!-- ======================= -->
 <div class="mb-6 rounded-lg border bg-white shadow-sm overflow-hidden">
 	<div class="flex justify-between items-center border-b p-4 bg-gray-50">
 		<h2 class="text-lg font-semibold text-gray-700">ต้นทุนและค่าใช้จ่าย (Job Expenses)</h2>
@@ -235,28 +346,6 @@
 				{/each}
 			</tbody>
 		</table>
-	</div>
-</div>
-
-<div class="mb-6 rounded-lg border bg-white p-6 shadow-sm">
-	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700 mb-4">สรุปการเงิน (Financial Summary)</h2>
-	<div class="flex justify-end w-full">
-		<div class="w-full max-w-sm space-y-3">
-			<div class="flex justify-between items-center text-gray-600">
-				<span class="font-medium">รายได้ (Revenue):</span>
-				<span class="font-mono text-lg font-bold">{formatCurrency(job.amount)}</span>
-			</div>
-			<div class="flex justify-between items-center text-red-600">
-				<span class="font-medium">ต้นทุน (Total Expense):</span>
-				<span class="font-mono text-lg font-bold">- {formatCurrency(totalExpense)}</span>
-			</div>
-			<div class="flex justify-between items-center border-t-2 border-gray-800 pt-3">
-				<span class="text-base font-bold text-gray-900">กำไรประเมิน (Est. Profit):</span>
-				<span class="font-mono text-2xl font-bold {estimatedProfit >= 0 ? 'text-green-600' : 'text-red-600'}">
-					{formatCurrency(estimatedProfit)}
-				</span>
-			</div>
-		</div>
 	</div>
 </div>
 
