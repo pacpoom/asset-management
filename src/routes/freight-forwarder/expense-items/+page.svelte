@@ -8,7 +8,7 @@
     let isModalOpen = $state(false);
     let isSaving = $state(false);
     let modalMode = $state<'create' | 'edit'>('create');
-    
+
     // ข้อมูลฟอร์ม
     let formData = $state({
         id: '',
@@ -103,6 +103,7 @@
     </div>
 </div>
 
+<!-- ================= MODAL ================= -->
 {#if isModalOpen}
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -126,8 +127,8 @@
                 {/if}
 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">หมวดหมู่ (Category) <span class="text-red-500">*</span></label>
-                    <select name="expense_category_id" bind:value={formData.expense_category_id} required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                    <label for="expense_category_id" class="block text-sm font-semibold text-gray-700 mb-1">หมวดหมู่ (Category) <span class="text-red-500">*</span></label>
+                    <select id="expense_category_id" name="expense_category_id" bind:value={formData.expense_category_id} required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                         <option value="" disabled selected>เลือกหมวดหมู่...</option>
                         {#each categories as cat}
                             <option value={cat.id}>{cat.category_name}</option>
@@ -136,18 +137,18 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Item Code</label>
-                    <input type="text" name="item_code" bind:value={formData.item_code} class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="รหัสย่อย (ถ้ามี)">
+                    <label for="item_code" class="block text-sm font-semibold text-gray-700 mb-1">Item Code</label>
+                    <input id="item_code" type="text" name="item_code" bind:value={formData.item_code} class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="รหัสย่อย (ถ้ามี)">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Item Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="item_name" bind:value={formData.item_name} required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="e.g. ค่ารถหัวลาก">
+                    <label for="item_name" class="block text-sm font-semibold text-gray-700 mb-1">Item Name <span class="text-red-500">*</span></label>
+                    <input id="item_name" type="text" name="item_name" bind:value={formData.item_name} required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="e.g. ค่ารถหัวลาก">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Description</label>
-                    <textarea name="description" bind:value={formData.description} rows="2" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="คำอธิบายเพิ่มเติม..."></textarea>
+                    <label for="item_description" class="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                    <textarea id="item_description" name="description" bind:value={formData.description} rows="2" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" placeholder="คำอธิบายเพิ่มเติม..."></textarea>
                 </div>
 
                 {#if modalMode === 'edit'}
