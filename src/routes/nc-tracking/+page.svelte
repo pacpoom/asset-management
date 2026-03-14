@@ -8,7 +8,6 @@
 
 	$: masters = data.masters || [];
 	$: allDetails = data.details || [];
-
 	$: defectOptions = (data.masterDefects || []).map((d: any) => ({
 		value: d.name,
 		label: d.name
@@ -31,13 +30,11 @@
 	let selectedVinObj: any = null;
 
 	async function loadVinOptions(filterText: string) {
-		// พิมพ์อย่างน้อย 3 ตัวอักษรค่อยเริ่มค้นหา เพื่อลดภาระเซิร์ฟเวอร์
 		if (!filterText || filterText.length < 3) return Promise.resolve([]);
 		try {
 			const res = await fetch(`/api/vehicle-lookup?q=${filterText}`);
 			const data = await res.json();
 			if (Array.isArray(data)) {
-				// แปลงรูปแบบให้เข้ากับ svelte-select
 				return data.map((v: any) => ({
 					value: v.vin_number,
 					label: v.vin_number,
@@ -66,10 +63,11 @@
 	}
 
 	let selectedMasterId: number | null = null;
-	$: currentChecklist = allDetails.filter((d: any) => d.work_id === selectedMasterId);
+
+	// 🌟 แก้ไขตรงนี้: เปลี่ยนจาก === เป็น == เพื่อให้เทียบตัวเลขกับตัวหนังสือได้
+	$: currentChecklist = allDetails.filter((d: any) => d.work_id == selectedMasterId);
 
 	let checkStatus: Record<number, 'OK' | 'NG'> = {};
-
 	let activeNgItem: any = null;
 	let formPosition = '';
 	let selectedDefect: any = null;
@@ -335,10 +333,20 @@
 											</td>
 										</tr>
 									{/each}
+
 									{#if currentChecklist.length === 0}
 										<tr>
-											<td colspan="2" class="py-12 text-center text-gray-400">
-												กรุณาเลือกหมวดหมู่ด้านซ้าย
+											<td colspan="2" class="py-16 text-center text-gray-500">
+												{#if selectedMasterId}
+													<p class="mb-2 text-lg font-bold">ยังไม่มีรายการตรวจสอบในหมวดหมู่นี้</p>
+													<p class="text-sm text-gray-400">
+														คุณสามารถไปเพิ่มจุดตรวจสอบได้ที่เมนู <span
+															class="font-bold text-blue-600">Work Items</span
+														> ด้านซ้ายมือครับ
+													</p>
+												{:else}
+													กรุณาเลือกหมวดหมู่ด้านซ้าย
+												{/if}
 											</td>
 										</tr>
 									{/if}

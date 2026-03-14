@@ -43,8 +43,8 @@ export const load = async ({ url }) => {
 		total: (count as any)[0].total,
 		page,
 		limit,
-		masters: JSON.parse(JSON.stringify(masters)), // <-- ต้องมีบรรทัดนี้ส่งไปให้หน้าจอ
-		details: JSON.parse(JSON.stringify(details)), // <-- และบรรทัดนี้
+		masters: JSON.parse(JSON.stringify(masters)),
+		details: JSON.parse(JSON.stringify(details)),
 		masterDefects: JSON.parse(JSON.stringify(defects)),
 		masterSolutions: JSON.parse(JSON.stringify(solutions))
 	};

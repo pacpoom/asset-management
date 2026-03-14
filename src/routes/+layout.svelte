@@ -159,6 +159,7 @@
 								<div class="group relative">
 									<a
 										href={menu.route}
+										onclick={() => toggleMenu(menu.id)}
 										class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 {isLinkActive(
 											menu.route
 										)
