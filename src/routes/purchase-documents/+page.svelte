@@ -256,11 +256,11 @@
 
 									{#if doc.status !== 'Draft'}
 										<a
-											href="/purchase-documents/generate-pdf?id={doc.id}"
+											href="/purchase-documents/generate-pdf?id={doc.id}&lang={$locale}"
 											target="_blank"
 											rel="noopener noreferrer"
 											class="text-gray-400 transition-colors hover:text-gray-600"
-											title={$t('Print PDF') || 'พิมพ์ PDF'}
+											title={$t('Print PDF')}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"

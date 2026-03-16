@@ -119,7 +119,9 @@
 			</h1>
 			<p class="mt-1 text-sm text-gray-500">
 				{$t('Vendor')}: <span class="font-medium text-gray-700">{document.vendor_name}</span> |
-				{$t('Job Order')}: <span class="font-medium text-gray-700">{document.job_number || '-'}</span> |
+				{$t('Job Order')}:
+				<span class="font-medium text-gray-700">{document.job_number || '-'}</span>
+				|
 				{$t('Reference')}: {document.reference_doc || '-'}
 			</p>
 		</div>
@@ -165,7 +167,7 @@
 		{/if}
 
 		<a
-			href="/purchase-documents/generate-pdf?id={document.id}"
+			href="/purchase-documents/generate-pdf?id={document.id}&lang={$locale}"
 			target="_blank"
 			class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
 		>
