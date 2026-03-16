@@ -6,6 +6,7 @@
 	let items = $derived(data.items || []);
 	let categories = $derived(data.categories || []);
 
+	// Modal States
 	let isModalOpen = $state(false);
 	let isSaving = $state(false);
 	let modalMode = $state<'create' | 'edit'>('create');
@@ -14,6 +15,23 @@
 	let itemToDeleteId = $state<string | number | null>(null);
 	let itemToDeleteName = $state('');
 	let isDeleting = $state(false);
+
+	// Pagination States
+	let itemsPerPage = $state(10);
+	let currentPage = $state(1);
+
+	// Derived Pagination Variables
+	let totalPages = $derived(Math.max(1, Math.ceil(items.length / itemsPerPage)));
+	let paginatedItems = $derived(
+		items.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+	);
+
+	// ป้องกันกรณีลบข้อมูลแล้วหน้าปัจจุบันว่างเปล่า
+	$effect(() => {
+		if (currentPage > totalPages) {
+			currentPage = totalPages;
+		}
+	});
 
 	let formData = $state({
 		id: '',
@@ -66,6 +84,37 @@
 		itemToDeleteName = '';
 		isDeleting = false;
 	}
+
+	// ฟังก์ชัน Export CSV
+	function exportToCSV() {
+		// กำหนด Header (เปลี่ยนคำตามต้องการได้)
+		const headers = ['Item Code', 'Item Name', 'Category', 'Status', 'Description'];
+		
+		// Map ข้อมูลทั้งหมด (ไม่ได้เอาแค่หน้าที่แสดงผล) เพื่อ Export
+		const csvRows = items.map((item: any) => {
+			return [
+				`"${item.item_code || ''}"`,
+				`"${item.item_name || ''}"`,
+				`"${item.category_name || ''}"`,
+				`"${item.is_active ? 'Active' : 'Inactive'}"`,
+				`"${(item.description || '').replace(/"/g, '""')}"` // ป้องกันเครื่องหมายคำพูดใน description ทำพัง
+			].join(',');
+		});
+
+		// รวม Header และ ข้อมูล
+		const csvContent = [headers.join(','), ...csvRows].join('\n');
+		
+		// ใส่ \uFEFF (Byte Order Mark) เพื่อให้ Excel อ่านภาษาไทยเป็น UTF-8 ได้ถูกต้อง
+		const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		
+		const link = document.createElement('a');
+		link.href = url;
+		link.setAttribute('download', `expense_items_${new Date().toISOString().split('T')[0]}.csv`);
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	}
 </script>
 
 <div class="mx-auto max-w-6xl p-6">
@@ -74,12 +123,23 @@
 			<h1 class="text-2xl font-bold text-gray-800">{$t('Expense Items')}</h1>
 			<p class="text-sm text-gray-500">{$t('Manage Expense Sub-Items')}</p>
 		</div>
-		<button
-			onclick={openCreateModal}
-			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-blue-700"
-		>
-			{$t('Add Item')}
-		</button>
+		<div class="flex gap-2">
+			<button
+				onclick={exportToCSV}
+				class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+				</svg>
+				{$t('Export CSV')}
+			</button>
+			<button
+				onclick={openCreateModal}
+				class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-blue-700"
+			>
+				{$t('Add Item')}
+			</button>
+		</div>
 	</div>
 
 	{#if form?.message}
@@ -114,7 +174,8 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200">
-				{#each items as item}
+				<!-- ใช้ paginatedItems แทน items -->
+				{#each paginatedItems as item}
 					<tr class="hover:bg-gray-50">
 						<td class="px-6 py-4 font-mono text-gray-600">{item.item_code || '-'}</td>
 						<td class="px-6 py-4 font-bold text-gray-900">{item.item_name}</td>
@@ -178,17 +239,58 @@
 						</td>
 					</tr>
 				{:else}
-					<tr
-						><td colspan="5" class="px-6 py-8 text-center text-gray-500"
-							>{$t('No expense items found')}</td
-						></tr
-					>
+					<tr>
+						<td colspan="5" class="px-6 py-8 text-center text-gray-500">
+							{$t('No expense items found')}
+						</td>
+					</tr>
 				{/each}
 			</tbody>
 		</table>
+
+		<!-- Pagination Controls -->
+		{#if items.length > 0}
+			<div class="flex items-center justify-between border-t border-gray-200 bg-white px-6 py-3">
+				<div class="flex items-center text-sm text-gray-500">
+					<span>{$t('Showing')}</span>
+					<select
+						bind:value={itemsPerPage}
+						onchange={() => (currentPage = 1)}
+						class="mx-2 rounded-md border-gray-300 py-1 pl-2 pr-8 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					>
+						<option value={10}>10</option>
+						<option value={20}>20</option>
+						<option value={50}>50</option>
+						<option value={100}>100</option>
+					</select>
+					<span>{$t('entries')} ({items.length} {$t('total')})</span>
+				</div>
+
+				<div class="flex items-center space-x-2">
+					<button
+						onclick={() => (currentPage -= 1)}
+						disabled={currentPage === 1}
+						class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						{$t('Previous')}
+					</button>
+					<span class="text-sm text-gray-700">
+						{$t('Page')} {currentPage} {$t('of')} {totalPages}
+					</span>
+					<button
+						onclick={() => (currentPage += 1)}
+						disabled={currentPage === totalPages}
+						class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						{$t('Next')}
+					</button>
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>
 
+<!-- Modal Create / Edit -->
 {#if isModalOpen}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
 		<div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
@@ -312,6 +414,7 @@
 	</div>
 {/if}
 
+<!-- Modal Delete -->
 {#if showDeleteModal}
 	<div
 		class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity"
