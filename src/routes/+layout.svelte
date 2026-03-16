@@ -224,13 +224,15 @@
 								href={menu.route}
 								class="group flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
                                 {isLinkActive(menu.route)
-									? !isSidebarExpanded || isFlyout
+									? !(isSidebarExpanded || isSidebarOpen) || isFlyout
 										? 'bg-blue-100 text-blue-700'
 										: 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
                                 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
-                                {!isSidebarExpanded && !isFlyout ? 'justify-center' : ''}"
-								title={!isSidebarExpanded && !isFlyout ? $t(menu.title) : ''}
+                                {!(isSidebarExpanded || isSidebarOpen) && !isFlyout
+									? 'justify-center'
+									: ''}"
+								title={!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? $t(menu.title) : ''}
 							>
 								<span
 									class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
@@ -238,14 +240,14 @@
 									{menu.icon || 'circle'}
 								</span>
 								<span
-									class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
+									class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? 'lg:hidden' : ''}`}
 								>
 									{$t(menu.title)}
 								</span>
 							</a>
 						{/if}
 					{:else if menu.children && menu.children.length > 0}
-						{#if !isSidebarExpanded && !isFlyout}
+						{#if !(isSidebarExpanded || isSidebarOpen) && !isFlyout}
 							<div
 								class="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isMenuSectionActive(
 									menu
@@ -297,23 +299,24 @@
 						{/if}
 					{:else}
 						<div
-							class="flex items-center gap-3 rounded-lg px-3 py-3 text-gray-400 {!isSidebarExpanded &&
-							!isFlyout
+							class="flex items-center gap-3 rounded-lg px-3 py-3 text-gray-400 {!(
+								isSidebarExpanded || isSidebarOpen
+							) && !isFlyout
 								? 'justify-center'
 								: ''}"
-							title={!isSidebarExpanded && !isFlyout ? $t(menu.title) : ''}
+							title={!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? $t(menu.title) : ''}
 						>
 							<span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
 								>{menu.icon || 'circle'}</span
 							>
 							<span
-								class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!isSidebarExpanded && !isFlyout ? 'lg:hidden' : ''}`}
+								class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? 'lg:hidden' : ''}`}
 								>{$t(menu.title)}</span
 							>
 						</div>
 					{/if}
 
-					{#if menu.children && menu.children.length > 0 && isSidebarExpanded && !isFlyout && openMenuIds.has(menu.id)}
+					{#if menu.children && menu.children.length > 0 && (isSidebarExpanded || isSidebarOpen) && !isFlyout && openMenuIds.has(menu.id)}
 						<div transition:fly={{ y: -10, duration: 300 }}>
 							{@render menuList(menu.children, level + 1)}
 						</div>
@@ -342,14 +345,14 @@
 	<div class="min-h-screen bg-gray-50 text-gray-800">
 		{#if isSidebarOpen}
 			<div
-				class="fixed inset-0 z-20 bg-black/50 lg:hidden"
+				class="fixed inset-0 z-[65] bg-black/50 lg:hidden"
 				onclick={() => (isSidebarOpen = false)}
 				role="presentation"
 			></div>
 		{/if}
 
 		<aside
-			class="fixed inset-y-0 left-0 z-30 flex transform flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out
+			class="fixed inset-y-0 left-0 z-[70] flex transform flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out
 			{isSidebarOpen ? 'w-80 translate-x-0 p-4' : 'w-80 -translate-x-full p-4'}
 			lg:translate-x-0
 			{isSidebarExpanded ? 'lg:w-80 lg:p-4' : 'lg:w-20 lg:px-2 lg:py-4'}
@@ -396,12 +399,12 @@
 						<a
 							href="/"
 							class="group mb-1 flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
-							{isLinkActive('/')
+    {isLinkActive('/')
 								? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 								: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
-							focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
-							{!isSidebarExpanded ? 'justify-center' : ''}"
-							title={!isSidebarExpanded ? $t('Dashboard') : ''}
+    focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
+    {!(isSidebarExpanded || isSidebarOpen) ? 'justify-center' : ''}"
+							title={!(isSidebarExpanded || isSidebarOpen) ? $t('Dashboard') : ''}
 						>
 							<span
 								class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
@@ -410,7 +413,7 @@
 							</span>
 							<span
 								class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${
-									!isSidebarExpanded ? 'lg:hidden' : ''
+									!(isSidebarExpanded || isSidebarOpen) ? 'lg:hidden' : ''
 								}`}
 							>
 								{$t('Dashboard')}
@@ -526,7 +529,7 @@
     {isSidebarPinned ? 'lg:pl-80' : 'lg:pl-20'}"
 		>
 			<header
-				class="sticky top-0 z-10 hidden h-16 items-center border-b border-gray-200 bg-white/90 px-4 shadow-sm backdrop-blur-sm lg:flex"
+				class="sticky top-0 z-[60] hidden h-16 items-center border-b border-gray-200 bg-white/90 px-4 shadow-sm backdrop-blur-sm lg:flex"
 			>
 				<button
 					onclick={() => {
@@ -638,7 +641,7 @@
 			</header>
 
 			<header
-				class="sticky top-0 z-10 flex min-h-[4rem] items-center justify-between border-b border-gray-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur-sm lg:hidden"
+				class="sticky top-0 z-[60] flex min-h-[4rem] items-center justify-between border-b border-gray-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur-sm lg:hidden"
 			>
 				<button
 					onclick={() => (isSidebarOpen = true)}

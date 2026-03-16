@@ -12,14 +12,14 @@ interface Menu extends RowDataPacket {
 	parent_id: number | null;
 	permission_name: string | null;
 	order: number;
-	children: Menu[]; // To hold nested children (REQUIRED for the tree structure)
+	children: Menu[];
 }
 
 // Type for company data
 interface CompanyData extends RowDataPacket {
-    name: string;
-    system_name: string | null;
-    logo_path: string | null;
+	name: string;
+	system_name: string | null;
+	logo_path: string | null;
 }
 
 /**
@@ -33,31 +33,27 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 
 	// First pass: add all menus to a map and initialize children array
 	menus.forEach((menu) => {
-		// Ensure a new object is created and children property is initialized
-        const menuWithChildren: Menu = {
-            ...menu,
-            children: [],
-            // Cast properties to ensure correct types (as some might be RowDataPacket defaults)
-            parent_id: menu.parent_id !== undefined ? (menu.parent_id as number | null) : null,
-            permission_name: menu.permission_name !== undefined ? (menu.permission_name as string | null) : null,
-        };
+		const menuWithChildren: Menu = {
+			...menu,
+			children: [],
+			parent_id: menu.parent_id !== undefined ? (menu.parent_id as number | null) : null,
+			permission_name:
+				menu.permission_name !== undefined ? (menu.permission_name as string | null) : null
+		};
 		menuMap.set(menu.id, menuWithChildren);
 	});
 
-    // Convert Map values back to array for the next loop
-    const menusWithChildren = Array.from(menuMap.values());
+	const menusWithChildren = Array.from(menuMap.values());
 
 	// Second pass: link children to their parents
 	menusWithChildren.forEach((menu) => {
 		if (menu.parent_id !== null && menuMap.has(menu.parent_id)) {
-            // Ensure parent exists before pushing
-             const parent = menuMap.get(menu.parent_id);
-             if (parent) {
-                parent.children?.push(menu);
-             } else {
-                 // Handle orphaned menu item if necessary, or just add to root
-                 rootMenus.push(menu);
-             }
+			const parent = menuMap.get(menu.parent_id);
+			if (parent) {
+				parent.children?.push(menu);
+			} else {
+				rootMenus.push(menu);
+			}
 		} else {
 			rootMenus.push(menu);
 		}
@@ -66,7 +62,7 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 	// Sort all levels of the menu by the 'order' property
 	const sortMenus = (menuList: Menu[]) => {
 		menuList.sort((a, b) => a.order - b.order);
-		menuList.forEach(menu => {
+		menuList.forEach((menu) => {
 			if (menu.children && menu.children.length > 0) {
 				sortMenus(menu.children);
 			}
@@ -78,29 +74,26 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 	return rootMenus;
 }
 
-
 /**
  * LayoutServerLoad function to check login status and load dynamic,
  * permission-based menus for the sidebar on every page.
  * ADDED: Also loads company logo path and name/system_name.
  */
 export const load: LayoutServerLoad = async ({ url, locals }) => {
-	// If user is not logged in and not on the login page, redirect them.
 	if (!locals.user && url.pathname !== '/login') {
 		throw redirect(303, '/login');
 	}
 
 	let menus: Menu[] = [];
-    let companyLogoPath: string | null = null;
-    let systemName: string = 'Core Business'; // Default fallback name
+	let companyLogoPath: string | null = null;
+	let systemName: string = 'Core Business';
 
-	// If the user is logged in, fetch menus and company data
 	if (locals.user) {
 		try {
-            // --- Fetch Menus ---
+			// --- Fetch Menus ---
 			let query: string;
 			let params: any[] = [];
-            let isDynamicInClause = false;
+			let isDynamicInClause = false;
 
 			// Admin gets all menus
 			if (locals.user.role === 'admin') {
@@ -109,7 +102,7 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
                     FROM menus
                     ORDER BY parent_id ASC, \`order\` ASC, title ASC
                 `;
-			} else { // Fetch menus based on user permissions
+			} else {
 				const userPermissions = locals.user.permissions;
 				if (userPermissions && userPermissions.length > 0) {
 					query = `
@@ -126,8 +119,8 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 						ORDER BY parent_id ASC, \`order\` ASC, title ASC
 					`;
 					params = [userPermissions, userPermissions];
-                    isDynamicInClause = true;
-				} else { // Fetch only public menus
+					isDynamicInClause = true;
+				} else {
 					query = `
 						SELECT id, title, icon, route, parent_id, permission_name, \`order\`
 						FROM menus
@@ -137,29 +130,27 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 				}
 			}
 
-            let menuRows;
-            if (isDynamicInClause) {
-                 [menuRows] = await pool.query<Menu[]>(query, params);
-            } else {
-                 [menuRows] = await pool.execute<Menu[]>(query, params);
-            }
+			let menuRows;
+			if (isDynamicInClause) {
+				[menuRows] = await pool.query<Menu[]>(query, params);
+			} else {
+				[menuRows] = await pool.execute<Menu[]>(query, params);
+			}
 			menus = buildMenuTree(menuRows as Menu[]);
 
-            // --- Fetch Company Info (Name & Logo) ---
-            const [companyRows] = await pool.execute<CompanyData[]>(
-                `SELECT name, system_name, logo_path FROM company WHERE id = ? LIMIT 1`,
-                [1] // Assuming company ID is always 1
-            );
-            if (companyRows.length > 0) {
-                companyLogoPath = companyRows[0].logo_path;
-                // Prefer system_name, fallback to name, then default
-                if (companyRows[0].system_name) {
-                    systemName = companyRows[0].system_name;
-                } else if (companyRows[0].name) {
-                    systemName = companyRows[0].name;
-                }
-            }
-
+			// --- Fetch Company Info (Name & Logo) ---
+			const [companyRows] = await pool.execute<CompanyData[]>(
+				`SELECT name, system_name, logo_path FROM company WHERE id = ? LIMIT 1`,
+				[1]
+			);
+			if (companyRows.length > 0) {
+				companyLogoPath = companyRows[0].logo_path;
+				if (companyRows[0].system_name) {
+					systemName = companyRows[0].system_name;
+				} else if (companyRows[0].name) {
+					systemName = companyRows[0].name;
+				}
+			}
 		} catch (err) {
 			console.error('[+layout.server.ts] Database error during data fetch:', err);
 		}
@@ -168,7 +159,7 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 	return {
 		user: locals.user,
 		menus: menus,
-        companyLogoPath,
-        systemName // Renamed from companyName to indicate intent
+		companyLogoPath,
+		systemName
 	};
 };

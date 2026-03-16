@@ -175,7 +175,6 @@
 				<tr>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
-					<!-- 🌟 เพิ่มคอลัมน์ Job Order -->
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Job Order')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Vendor')}</th>
@@ -187,7 +186,6 @@
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#if documents.length === 0}
 					<tr>
-						<!-- 🌟 ปรับ colspan จาก 7 เป็น 8 -->
 						<td colspan="8" class="py-8 text-center text-gray-500"
 							>{$t('No purchase documents found')}</td
 						>
@@ -207,10 +205,11 @@
 							<td class="px-4 py-3 font-medium text-indigo-600">
 								<a href="/purchase-documents/{doc.id}">{doc.document_number || '(Draft)'}</a>
 							</td>
-							<!-- 🌟 แสดงเลข Job Order -->
 							<td class="px-4 py-3 text-gray-600">
 								{#if doc.job_number}
-									<span class="inline-flex items-center rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-gray-500/10 ring-inset">
+									<span
+										class="inline-flex items-center rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-gray-500/10 ring-inset"
+									>
 										{doc.job_number}
 									</span>
 								{:else}
@@ -245,13 +244,56 @@
 											viewBox="0 0 20 20"
 											fill="currentColor"
 											class="h-5 w-5"
-											><path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" /><path
+										>
+											<path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+											<path
 												fill-rule="evenodd"
 												d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 8.142 1.987 10.336 5.404.347.526.347 1.186 0 1.712C18.142 14.013 14.257 16 10 16c-4.257 0-8.142-1.987-10.336-5.404zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
 												clip-rule="evenodd"
-											/></svg
-										>
+											/>
+										</svg>
 									</a>
+
+									{#if doc.status !== 'Draft'}
+										<a
+											href="/purchase-documents/generate-pdf?id={doc.id}"
+											target="_blank"
+											rel="noopener noreferrer"
+											class="text-gray-400 transition-colors hover:text-gray-600"
+											title={$t('Print PDF') || 'พิมพ์ PDF'}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												class="h-5 w-5"
+											>
+												<path
+													fill-rule="evenodd"
+													d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z"
+													clip-rule="evenodd"
+												/>
+											</svg>
+										</a>
+									{:else}
+										<span
+											class="cursor-not-allowed text-gray-200"
+											title={$t('Must save document before printing') || 'บันทึกเอกสารก่อนพิมพ์'}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												class="h-5 w-5"
+											>
+												<path
+													fill-rule="evenodd"
+													d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z"
+													clip-rule="evenodd"
+												/>
+											</svg>
+										</span>
+									{/if}
 									<a
 										href="/purchase-documents/{doc.id}/edit"
 										class="text-gray-400 transition-colors hover:text-yellow-600"
