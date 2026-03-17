@@ -89,6 +89,19 @@
 		}
 	});
 
+	function exactMenuExists(path: string): boolean {
+		let exists = false;
+		function check(menus: Menu[] | undefined) {
+			if (!menus) return;
+			for (const m of menus) {
+				if (m.route && m.route.replace(/\/$/, '') === path) exists = true;
+				if (m.children) check(m.children);
+			}
+		}
+		check(data.menus);
+		return exists;
+	}
+
 	function isLinkActive(href: string | null) {
 		if (!href) return false;
 
@@ -102,6 +115,10 @@
 			return true;
 		}
 		if (currentPath.startsWith(targetHref + '/')) {
+			if (exactMenuExists(currentPath)) {
+				return false;
+			}
+
 			const subPath = currentPath.substring(targetHref.length + 1);
 			const isActionRoute =
 				/^(create|edit|new|generate-pdf|print|export|slip|\d+)/.test(subPath) ||
