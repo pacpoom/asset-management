@@ -234,7 +234,7 @@
 
 									{#if doc.status !== 'Draft'}
 										<a
-											href="/sales-documents/generate-pdf?id={doc.id}"
+											href="/sales-documents/generate-pdf?id={doc.id}&lang={$locale}"
 											target="_blank"
 											rel="noopener noreferrer"
 											class="text-gray-400 transition-colors hover:text-gray-600"
