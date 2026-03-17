@@ -26,9 +26,47 @@ interface Unit extends RowDataPacket {
 	symbol: string;
 }
 
-// --- Load Function (สำหรับแสดง List) ---
+// --- Helper Functions ---
+function parseFloatOrZero(value: FormDataEntryValue | null): number {
+	if (value === null || value === undefined || value === '') return 0;
+	const num = parseFloat(value.toString());
+	return isNaN(num) ? 0 : num;
+}
+function parseNumberOrNull(value: FormDataEntryValue | null): number | null {
+	if (value === null || value === undefined || value === '') return null;
+	const num = Number(value);
+	return isNaN(num) ? null : num;
+}
+
+// ระบบ Auto-run สำหรับ Item Code
+async function generateItemCode() {
+	const prefix = 'ITM';
+	const today = new Date();
+	const year = today.getFullYear().toString().slice(-2);
+	const month = (today.getMonth() + 1).toString().padStart(2, '0');
+	const datePrefix = `${prefix}${year}${month}`;
+
+	const [rows]: any[] = await pool.execute(
+		`SELECT item_code FROM items WHERE item_code LIKE ? ORDER BY item_code DESC LIMIT 1`,
+		[`${datePrefix}-%`]
+	);
+
+	let nextNumber = 1;
+	if (rows.length > 0) {
+		const lastCode = rows[0].item_code;
+		const parts = lastCode.split('-');
+		if (parts.length > 1) {
+			const lastNumber = parseInt(parts[1], 10);
+			if (!isNaN(lastNumber)) {
+				nextNumber = lastNumber + 1;
+			}
+		}
+	}
+	return `${datePrefix}-${nextNumber.toString().padStart(4, '0')}`;
+}
+
+// --- Load Function ---
 export const load: PageServerLoad = async ({ url, locals }) => {
-    // เช็คสิทธิ์การเข้าถึง (ปรับชื่อสิทธิ์ตามระบบของคุณ)
 	checkPermission(locals, 'view items');
 
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
@@ -55,18 +93,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(searchTerm, searchTerm, searchTerm);
 		}
 
-		// นับจำนวนทั้งหมดสำหรับ Pagination
-		const countSql = `
-            SELECT COUNT(i.id) as total
-            FROM items i
-            ${whereClause}
-        `;
-		
+		const countSql = `SELECT COUNT(i.id) as total FROM items i ${whereClause}`;
 		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / limit);
 
-		// ดึงข้อมูล Items พร้อม Join ตาราง Units
 		const itemsSql = `
             SELECT
                 i.*,
@@ -81,7 +112,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		
 		const [itemRows] = await pool.execute<Item[]>(itemsSql, params);
 
-		// ดึงข้อมูล Units สำหรับใช้ใน Dropdown ตอน Add/Edit
 		const [unitRows] = await pool.execute<Unit[]>(
 			'SELECT id, name, symbol FROM units ORDER BY name'
 		);
@@ -100,19 +130,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	}
 };
 
-// --- Helper ---
-function parseFloatOrZero(value: FormDataEntryValue | null): number {
-	if (value === null || value === undefined || value === '') return 0;
-	const num = parseFloat(value.toString());
-	return isNaN(num) ? 0 : num;
-}
-function parseNumberOrNull(value: FormDataEntryValue | null): number | null {
-	if (value === null || value === undefined || value === '') return null;
-	const num = Number(value);
-	return isNaN(num) ? null : num;
-}
-
-// --- Actions (สำหรับ Add, Edit, Delete) ---
+// --- Actions ---
 export const actions: Actions = {
 	saveItem: async ({ request, locals }) => {
 		const formData = await request.formData();
@@ -121,19 +139,24 @@ export const actions: Actions = {
 		const requiredPermission = id ? 'edit items' : 'create items';
 		checkPermission(locals, requiredPermission);
 
-		const item_code = formData.get('item_code')?.toString()?.trim();
+		let item_code = formData.get('item_code')?.toString()?.trim();
 		const item_name = formData.get('item_name')?.toString()?.trim();
 		const item_name_eng = formData.get('item_name_eng')?.toString()?.trim() || null;
 		const unit_id = parseNumberOrNull(formData.get('unit_id'));
 		const min_stock = parseFloatOrZero(formData.get('min_stock'));
 		const max_stock = parseFloatOrZero(formData.get('max_stock'));
 
-		if (!item_code || !item_name || !unit_id) {
+		if (!item_name || !unit_id) {
 			return fail(400, {
 				action: 'saveItem',
 				success: false,
-				message: 'Item Code, Item Name, and Unit are required.'
+				message: 'Item Name and Unit are required.'
 			});
+		}
+
+		// ใช้ Auto-run หากไม่กรอก item_code
+		if (!item_code) {
+			item_code = await generateItemCode();
 		}
 
 		const connection = await pool.getConnection();
@@ -162,7 +185,6 @@ export const actions: Actions = {
 			await connection.beginTransaction();
 
 			if (id) {
-				// UPDATE (Edit)
 				const sql = `UPDATE items SET
                     item_code = ?, item_name = ?, item_name_eng = ?, unit_id = ?, min_stock = ?, max_stock = ?
                     WHERE id = ?`;
@@ -170,7 +192,6 @@ export const actions: Actions = {
 					item_code, item_name, item_name_eng, unit_id, min_stock, max_stock, parseInt(id)
 				]);
 			} else {
-				// INSERT (New)
 				const sql = `INSERT INTO items (
                     item_code, item_name, item_name_eng, unit_id, min_stock, max_stock
                  ) VALUES (?, ?, ?, ?, ?, ?)`;
@@ -180,27 +201,11 @@ export const actions: Actions = {
 			}
 
 			await connection.commit();
-			return {
-				action: 'saveItem',
-				success: true,
-				message: `Item '${item_code}' saved successfully!`
-			};
+			return { action: 'saveItem', success: true, message: `Item '${item_code}' saved successfully!` };
 		} catch (err: any) {
 			await connection.rollback();
-			console.error(`Database error on saving item (ID: ${id || 'New'}): ${err.message}`, err.stack);
-			
-			if (err.code === 'ER_NO_REFERENCED_ROW_2') {
-				return fail(400, {
-					action: 'saveItem',
-					success: false,
-					message: 'Invalid Unit selected.'
-				});
-			}
-			return fail(500, {
-				action: 'saveItem',
-				success: false,
-				message: `Failed to save item data. Error: ${err.message}`
-			});
+			console.error(`Database error on saving item: ${err.message}`, err.stack);
+			return fail(500, { action: 'saveItem', success: false, message: `Failed to save item. Error: ${err.message}` });
 		} finally {
 			connection.release();
 		}
@@ -211,36 +216,19 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 
-		if (!id) {
-			return fail(400, { action: 'deleteItem', success: false, message: 'Invalid item ID.' });
-		}
-		const itemId = parseInt(id);
+		if (!id) return fail(400, { action: 'deleteItem', success: false, message: 'Invalid ID.' });
 
 		try {
-			const [deleteResult] = await pool.execute('DELETE FROM items WHERE id = ?', [itemId]);
-
+			const [deleteResult] = await pool.execute('DELETE FROM items WHERE id = ?', [parseInt(id)]);
 			if ((deleteResult as any).affectedRows === 0) {
-				return fail(404, {
-					action: 'deleteItem',
-					success: false,
-					message: 'Item not found.'
-				});
+				return fail(404, { action: 'deleteItem', success: false, message: 'Item not found.' });
 			}
-
 			return { action: 'deleteItem', success: true, message: 'Item deleted successfully.' };
 		} catch (error: any) {
 			if (error.code === 'ER_ROW_IS_REFERENCED_2') {
-				return fail(409, {
-					action: 'deleteItem',
-					success: false,
-					message: 'Cannot delete item. It is currently in use in the warehouse.'
-				});
+				return fail(409, { action: 'deleteItem', success: false, message: 'Cannot delete item. It is currently in use.' });
 			}
-			return fail(500, {
-				action: 'deleteItem',
-				success: false,
-				message: `Failed to delete item. Error: ${error.message}`
-			});
+			return fail(500, { action: 'deleteItem', success: false, message: `Failed to delete item. Error: ${error.message}` });
 		}
 	}
 };

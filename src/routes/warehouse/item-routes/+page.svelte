@@ -7,15 +7,15 @@
 	import { t, locale } from '$lib/i18n';
 
 	// --- Types ---
+	type Route = PageData['routes'][0];
 	type Item = PageData['items'][0];
-	type Unit = PageData['units'][0];
 
 	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let modalMode = $state<'add' | 'edit' | null>(null);
-	let selectedItem = $state<Partial<Item> | null>(null);
-	let itemToDelete = $state<Item | null>(null);
+	let selectedRoute = $state<Partial<Route> | null>(null);
+	let routeToDelete = $state<Route | null>(null);
 	let isSaving = $state(false);
 
 	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(null);
@@ -34,11 +34,7 @@
 			params.set('limit', data.limit.toString());
 			params.set('page', '1');
 
-			goto(`${$page.url.pathname}?${params.toString()}`, {
-				keepFocus: true,
-				noScroll: true,
-				replaceState: true
-			});
+			goto(`${$page.url.pathname}?${params.toString()}`, { keepFocus: true, noScroll: true, replaceState: true });
 		}, 400);
 	}
 
@@ -48,58 +44,45 @@
 		params.set('limit', newLimit);
 		params.set('page', '1');
 
-		goto(`${$page.url.pathname}?${params.toString()}`, {
-			keepFocus: true,
-			noScroll: true,
-			replaceState: true
-		});
+		goto(`${$page.url.pathname}?${params.toString()}`, { keepFocus: true, noScroll: true, replaceState: true });
 	}
 
-	function openModal(mode: 'add' | 'edit', item: Item | null = null) {
+	function openModal(mode: 'add' | 'edit', route: Route | null = null) {
 		modalMode = mode;
 		globalMessage = null;
 
-		if (mode === 'edit' && item) {
-			selectedItem = { ...item };
+		if (mode === 'edit' && route) {
+			selectedRoute = { ...route };
 		} else {
-			selectedItem = {
-				item_code: '',
-				item_name: '',
-				item_name_eng: '',
-				min_stock: 0,
-				max_stock: 0
+			selectedRoute = {
+				item_id: undefined as any,
+				route_no: '',
+				route_name: '',
+				min: 0,
+				max: 0
 			} as any;
 		}
 	}
 
 	function closeModal() {
 		modalMode = null;
-		selectedItem = null;
+		selectedRoute = null;
 	}
 
-	function showGlobalMessage(
-		message: { success: boolean; text: string; type: 'success' | 'error' },
-		duration: number = 5000
-	) {
+	function showGlobalMessage(message: { success: boolean; text: string; type: 'success' | 'error' }, duration: number = 5000) {
 		clearTimeout(messageTimeout);
 		globalMessage = message;
-		messageTimeout = setTimeout(() => {
-			globalMessage = null;
-		}, duration);
+		messageTimeout = setTimeout(() => { globalMessage = null; }, duration);
 	}
 
 	function formatQuantity(value: number | null | undefined) {
 		if (value === null || value === undefined) return '-';
-		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
-			style: 'decimal',
-			minimumFractionDigits: 0,
-			maximumFractionDigits: 2
-		}).format(value);
+		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
 	}
 
 	// --- Reactive Effects ---
 	$effect.pre(() => {
-		if (form?.action === 'saveItem') {
+		if (form?.action === 'saveRoute') {
 			if (form.success) {
 				closeModal();
 				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
@@ -110,14 +93,14 @@
 			form.action = undefined;
 		}
 
-		if (form?.action === 'deleteItem') {
+		if (form?.action === 'deleteRoute') {
 			if (form.success) {
 				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
 				invalidateAll();
 			} else if (form.message) {
 				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
 			}
-			itemToDelete = null;
+			routeToDelete = null;
 			form.action = undefined;
 		}
 	});
@@ -131,17 +114,11 @@
 		const rangeWithDots: (number | string)[] = [];
 		let l: number | undefined;
 		for (let i = 1; i <= data.totalPages; i++) {
-			if (i == 1 || i == data.totalPages || (i >= left && i < right)) {
-				range.push(i);
-			}
+			if (i == 1 || i == data.totalPages || (i >= left && i < right)) { range.push(i); }
 		}
 		for (const i of range) {
 			if (l) {
-				if (i - l === 2) {
-					rangeWithDots.push(l + 1);
-				} else if (i - l !== 1) {
-					rangeWithDots.push('...');
-				}
+				if (i - l === 2) { rangeWithDots.push(l + 1); } else if (i - l !== 1) { rangeWithDots.push('...'); }
 			}
 			rangeWithDots.push(i);
 			l = i;
@@ -159,27 +136,21 @@
 </script>
 
 <svelte:head>
-	<title>{$t('Item Master')}</title>
+	<title>{$t('Item Routes')}</title>
 </svelte:head>
 
 <!-- Global Message Toast -->
 {#if globalMessage}
-	<div
-		transition:fade
-		class="fixed top-4 right-4 z-[70] max-w-sm rounded-lg p-4 text-sm font-semibold shadow-xl {globalMessage.type ===
-		'success'
-			? 'bg-green-100 text-green-800'
-			: 'bg-red-100 text-red-800'}"
-	>
+	<div transition:fade class="fixed top-4 right-4 z-[70] max-w-sm rounded-lg p-4 text-sm font-semibold shadow-xl {globalMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
 		{globalMessage.text}
 	</div>
 {/if}
 
-<!-- Header & Action Buttons -->
+<!-- Header -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">{$t('Item Master')}</h1>
-		<p class="mt-1 text-sm text-gray-500">{$t('Manage warehouse item list and configurations')}</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Item Routes')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Manage item routes and configurations')}</p>
 	</div>
 	<div class="flex items-center gap-2">
 		<form method="POST" action="{$page.url.pathname}/export">
@@ -211,7 +182,7 @@
 			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
 				<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 			</svg>
-			{$t('Add New Item')}
+			{$t('Add New Route')}
 		</button>
 	</div>
 </div>
@@ -226,7 +197,7 @@
 			name="search"
 			bind:value={searchQuery}
 			oninput={handleSearchInput}
-			placeholder={$t('Search by Item Code or Name...')}
+			placeholder={$t('Search by Route No, Name or Item Code...')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -242,49 +213,37 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Item Code')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Item Name')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Name (Eng)')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Unit')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Route No')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Route Name')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Item')}</th>
 				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Min')}</th>
 				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Max')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
-			{#if data.items.length === 0}
+			{#if data.routes.length === 0}
 				<tr>
-					<td colspan="7" class="py-12 text-center text-gray-500">
-						{#if data.searchQuery}{$t('No items found for:')} "{data.searchQuery}"{:else}{$t('No items data found')}{/if}
+					<td colspan="6" class="py-12 text-center text-gray-500">
+						{#if data.searchQuery}{$t('No routes found for:')} "{data.searchQuery}"{:else}{$t('No route data found')}{/if}
 					</td>
 				</tr>
 			{:else}
-				{#each data.items as item (item.id)}
+				{#each data.routes as route (route.id)}
 					<tr class="hover:bg-gray-50">
-						<td class="px-4 py-3 font-mono font-medium text-gray-800">{item.item_code}</td>
-						<td class="px-4 py-3 text-gray-700">{item.item_name}</td>
-						<td class="px-4 py-3 text-gray-500">{item.item_name_eng || '-'}</td>
-						<td class="px-4 py-3 text-center text-gray-600">
-							<span class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-								{item.unit_symbol || item.unit_name || '-'}
-							</span>
+						<td class="px-4 py-3 font-mono font-medium text-gray-800">{route.route_no}</td>
+						<td class="px-4 py-3 text-gray-700">{route.route_name}</td>
+						<td class="px-4 py-3 text-gray-600">
+							<span class="font-mono text-xs text-blue-700">{route.item_code}</span> - {route.item_name}
 						</td>
-						<td class="px-4 py-3 text-right text-orange-600 font-medium">{formatQuantity(item.min_stock)}</td>
-						<td class="px-4 py-3 text-right text-green-600 font-medium">{formatQuantity(item.max_stock)}</td>
+						<td class="px-4 py-3 text-right text-orange-600 font-medium">{formatQuantity(route.min)}</td>
+						<td class="px-4 py-3 text-right text-green-600 font-medium">{formatQuantity(route.max)}</td>
 						<td class="px-4 py-3 whitespace-nowrap text-center">
 							<div class="flex items-center justify-center gap-2">
-								<button
-									onclick={() => openModal('edit', item)}
-									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-									title={$t('Edit')}
-								>
+								<button onclick={() => openModal('edit', route)} class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600" title={$t('Edit')}>
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
 								</button>
-								<button
-									onclick={() => (itemToDelete = item)}
-									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
-									title={$t('Delete')}
-								>
+								<button onclick={() => (routeToDelete = route)} class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600" title={$t('Delete')}>
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
 								</button>
 							</div>
@@ -297,16 +256,12 @@
 </div>
 
 <!-- Pagination & Paging Size -->
-{#if data.items.length > 0 || data.searchQuery}
+{#if data.routes.length > 0 || data.searchQuery}
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
 		<div class="flex items-center gap-4">
 			<div class="flex items-center gap-2">
 				<span class="text-sm text-gray-700">{$t('Show')}</span>
-				<select
-					class="rounded-md border-gray-300 py-1 pl-3 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
-					value={data.limit}
-					onchange={(e) => changeLimit(e.currentTarget.value)}
-				>
+				<select class="rounded-md border-gray-300 py-1 pl-3 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500" value={data.limit} onchange={(e) => changeLimit(e.currentTarget.value)}>
 					<option value="10">10</option>
 					<option value="20">20</option>
 					<option value="50">50</option>
@@ -325,9 +280,9 @@
 
 		{#if data.totalPages > 1}
 			<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+				<!-- Paging Buttons similar to existing pages -->
 				<a href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'} class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === 1 ? 'pointer-events-none opacity-50' : ''}">
-					<span class="sr-only">{$t('Previous')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+					<span class="sr-only">{$t('Previous')}</span><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
 				</a>
 				{#each paginationRange as pageNum}
 					{#if typeof pageNum === 'string'}
@@ -337,8 +292,7 @@
 					{/if}
 				{/each}
 				<a href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'} class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === data.totalPages ? 'pointer-events-none opacity-50' : ''}">
-					<span class="sr-only">{$t('Next')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+					<span class="sr-only">{$t('Next')}</span><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
 				</a>
 			</nav>
 		{/if}
@@ -346,19 +300,19 @@
 {/if}
 
 <!-- Add/Edit Modal -->
-{#if modalMode && selectedItem}
+{#if modalMode && selectedRoute}
 	<div transition:slide class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
 		<div class="fixed inset-0" onclick={closeModal} role="presentation"></div>
 		<div class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all">
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? $t('Add New Item') : $t('Edit Item')}
+					{modalMode === 'add' ? $t('Add New Route') : $t('Edit Route')}
 				</h2>
 			</div>
 
 			<form
 				method="POST"
-				action="?/saveItem"
+				action="?/saveRoute"
 				use:enhance={() => {
 					isSaving = true;
 					return async ({ update }) => {
@@ -369,114 +323,93 @@
 				class="flex-1 overflow-y-auto p-6"
 			>
 				{#if modalMode === 'edit'}
-					<input type="hidden" name="id" value={selectedItem.id} />
+					<input type="hidden" name="id" value={selectedRoute.id} />
 				{/if}
 
 				<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-					<!-- Item Code -->
+					<!-- Route No -->
 					<div>
-						<label for="item_code" class="mb-1 block text-sm font-medium">
-							{$t('Item Code')} <span class="text-gray-500 font-normal">({$t('Leave blank to auto-generate')})</span>
+						<label for="route_no" class="mb-1 block text-sm font-medium">
+							{$t('Route No')} <span class="text-gray-500 font-normal">({$t('Leave blank to auto-generate')})</span>
 						</label>
 						<input
 							type="text"
-							name="item_code"
-							id="item_code"
-							bind:value={selectedItem.item_code}
+							name="route_no"
+							id="route_no"
+							bind:value={selectedRoute.route_no}
 							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 uppercase"
 							placeholder="{$t('Auto-generate if blank')}"
 						/>
 					</div>
 
-					<!-- Unit -->
+					<!-- Link Item -->
 					<div>
-						<label for="unit_id" class="mb-1 block text-sm font-medium">{$t('Unit *')}</label>
+						<label for="item_id" class="mb-1 block text-sm font-medium">{$t('Item *')}</label>
 						<select
-							name="unit_id"
-							id="unit_id"
+							name="item_id"
+							id="item_id"
 							required
-							bind:value={selectedItem.unit_id}
+							bind:value={selectedRoute.item_id}
 							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value={undefined} disabled>{$t('Select Unit')}</option>
-							{#each data.units as unit (unit.id)}
-								<option value={unit.id}>{unit.name} ({unit.symbol})</option>
+							<option value={undefined} disabled>{$t('Select Linked Item')}</option>
+							{#each data.items as item (item.id)}
+								<option value={item.id}>[{item.item_code}] {item.item_name}</option>
 							{/each}
 						</select>
 					</div>
 
-					<!-- Item Name (Thai/Local) -->
+					<!-- Route Name -->
 					<div class="sm:col-span-2">
-						<label for="item_name" class="mb-1 block text-sm font-medium">{$t('Item Name *')}</label>
+						<label for="route_name" class="mb-1 block text-sm font-medium">{$t('Route Name *')}</label>
 						<input
 							type="text"
-							name="item_name"
-							id="item_name"
+							name="route_name"
+							id="route_name"
 							required
-							bind:value={selectedItem.item_name}
+							bind:value={selectedRoute.route_name}
 							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+							placeholder="e.g. Zone A - Rack 1"
 						/>
 					</div>
 
-					<!-- Item Name (English) -->
-					<div class="sm:col-span-2">
-						<label for="item_name_eng" class="mb-1 block text-sm font-medium">{$t('Item Name (Eng)')}</label>
-						<input
-							type="text"
-							name="item_name_eng"
-							id="item_name_eng"
-							bind:value={selectedItem.item_name_eng}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-						/>
-					</div>
-
-					<!-- Min Stock -->
+					<!-- Min -->
 					<div>
-						<label for="min_stock" class="mb-1 block text-sm font-medium">{$t('Min Level')}</label>
+						<label for="min" class="mb-1 block text-sm font-medium">{$t('Min Level')}</label>
 						<input
 							type="number"
 							step="any"
-							name="min_stock"
-							id="min_stock"
-							bind:value={selectedItem.min_stock}
+							name="min"
+							id="min"
+							bind:value={selectedRoute.min}
 							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 						/>
 					</div>
 
-					<!-- Max Stock -->
+					<!-- Max -->
 					<div>
-						<label for="max_stock" class="mb-1 block text-sm font-medium">{$t('Max Level')}</label>
+						<label for="max" class="mb-1 block text-sm font-medium">{$t('Max Level')}</label>
 						<input
 							type="number"
 							step="any"
-							name="max_stock"
-							id="max_stock"
-							bind:value={selectedItem.max_stock}
+							name="max"
+							id="max"
+							bind:value={selectedRoute.max}
 							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 						/>
 					</div>
 				</div>
 
-				{#if form?.message && !form.success && form.action === 'saveItem'}
+				{#if form?.message && !form.success && form.action === 'saveRoute'}
 					<div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-600">
 						<p><strong>{$t('Error:')}</strong> {form.message}</p>
 					</div>
 				{/if}
 
 				<div class="mt-8 flex justify-end gap-3 border-t pt-4">
-					<button
-						type="button"
-						onclick={closeModal}
-						class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-					>
-						{$t('Cancel')}
-					</button>
-					<button
-						type="submit"
-						disabled={isSaving}
-						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
-					>
-						{isSaving ? $t('Saving...') : $t('Save Item')}
+					<button type="button" onclick={closeModal} class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50">{$t('Cancel')}</button>
+					<button type="submit" disabled={isSaving} class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400">
+						{isSaving ? $t('Saving...') : $t('Save Route')}
 					</button>
 				</div>
 			</form>
@@ -485,36 +418,25 @@
 {/if}
 
 <!-- Delete Confirmation Modal -->
-{#if itemToDelete}
+{#if routeToDelete}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="alertdialog">
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				{$t('Are you sure you want to delete item:')} <br />
-				<strong class="font-mono text-sm text-gray-800">{itemToDelete.item_code}</strong> - {itemToDelete.item_name}?
+				{$t('Are you sure you want to delete route:')} <br />
+				<strong class="font-mono text-sm text-gray-800">{routeToDelete.route_no}</strong> - {routeToDelete.route_name}?
 				<br /><br />
 				<span class="text-red-600">{$t('This action cannot be undone.')}</span>
 			</p>
 			
-			{#if form?.message && !form.success && form.action === 'deleteItem'}
+			{#if form?.message && !form.success && form.action === 'deleteRoute'}
 				<p class="mt-3 text-sm text-red-600"><strong>{$t('Error:')}</strong> {form.message}</p>
 			{/if}
 
-			<form method="POST" action="?/deleteItem" use:enhance class="mt-6 flex justify-end gap-3">
-				<input type="hidden" name="id" value={itemToDelete.id} />
-				<button
-					type="button"
-					onclick={() => (itemToDelete = null)}
-					class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-				>
-					{$t('Cancel')}
-				</button>
-				<button
-					type="submit"
-					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
-				>
-					{$t('Delete')}
-				</button>
+			<form method="POST" action="?/deleteRoute" use:enhance class="mt-6 flex justify-end gap-3">
+				<input type="hidden" name="id" value={routeToDelete.id} />
+				<button type="button" onclick={() => (routeToDelete = null)} class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50">{$t('Cancel')}</button>
+				<button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700">{$t('Delete')}</button>
 			</form>
 		</div>
 	</div>
