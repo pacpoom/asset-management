@@ -162,7 +162,7 @@
 		{/if}
 
 		<a
-			href="/sales-documents/generate-pdf?id={document.id}"
+			href="/sales-documents/generate-pdf?id={document.id}&lang={$locale}"
 			target="_blank"
 			class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50"
 		>

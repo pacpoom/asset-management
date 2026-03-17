@@ -60,73 +60,30 @@ interface ItemData {
 	is_vat?: number | boolean;
 }
 
-// 🌟 ระบบแปลภาษาที่ฝังไว้เพื่อให้ใช้งานได้ทันทีโดยไม่พึ่งพาไฟล์ภายนอก
-const pdfDict: Record<string, Record<string, string>> = {
-	th: {
-		No: 'เลขที่ / No.',
-		Date: 'วันที่ / Date',
-		Term: 'เครดิต / Term',
-		Due: 'ครบกำหนด / Due',
-		Ref: 'อ้างอิง / Ref',
-		PreparedBy: 'ผู้จัดทำ / Prepared By',
-		Vendor: 'ผู้จำหน่าย (Vendor)',
-		ShipTo: 'สถานที่จัดส่ง (Shipping Address)',
-		Contact: 'ผู้ติดต่อ:',
-		Tel: 'โทร:',
-		Seq: 'ลำดับ',
-		Desc: 'รายการ (Description)',
-		Qty: 'จำนวน',
-		UnitCost: 'ต้นทุน/หน่วย',
-		Amount: 'จำนวนเงิน',
-		Notes: 'หมายเหตุ (Notes):',
-		NetText: 'จำนวนเงินสุทธิเป็นตัวอักษร',
-		Subtotal: 'รวมเป็นเงิน',
-		Discount: 'ส่วนลด',
-		AfterDiscount: 'หลังหักส่วนลด',
-		VAT: 'VAT ซื้อ',
-		WHT: 'หัก ณ ที่จ่าย',
-		GrandTotal: 'ยอดต้องชำระ',
-		Auth: 'ผู้อนุมัติ (Authorized Signature)',
-		Page: 'หน้า',
-		Carry: '-- ยอดยกไป (Carried Forward) --',
-		Days: 'วัน (Days)',
-		Cash: 'เงินสด (Cash)'
+const pdfSpecificDict: Record<string, Record<string, string>> = {
+	'th': {
+		'No': 'เลขที่ / No.', 'Date': 'วันที่ / Date', 'Term': 'เครดิต / Term', 'Due': 'ครบกำหนด / Due',
+		'Ref': 'อ้างอิง / Ref', 'PreparedBy': 'ผู้จัดทำ / Prepared By', 'Vendor': 'ผู้จำหน่าย (Vendor)',
+		'ShipTo': 'สถานที่จัดส่ง (Shipping Address)', 'Contact': 'ผู้ติดต่อ:', 'Tel': 'โทร:',
+		'Seq': 'ลำดับ', 'Desc': 'รายการ (Description)', 'Qty': 'จำนวน', 'UnitCost': 'ต้นทุน/หน่วย', 'Amount': 'จำนวนเงิน',
+		'Notes': 'หมายเหตุ (Notes):', 'NetText': 'จำนวนเงินสุทธิเป็นตัวอักษร',
+		'Subtotal': 'รวมเป็นเงิน', 'Discount': 'ส่วนลด', 'AfterDiscount': 'หลังหักส่วนลด',
+		'VAT': 'VAT ซื้อ', 'WHT': 'หัก ณ ที่จ่าย', 'GrandTotal': 'ยอดต้องชำระ',
+		'Auth': 'ผู้อนุมัติ (Authorized Signature)', 'Page': 'หน้า', 'Carry': '-- ยอดยกไป (Carried Forward) --',
+		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)'
 	},
-	en: {
-		No: 'No.',
-		Date: 'Date',
-		Term: 'Term',
-		Due: 'Due Date',
-		Ref: 'Reference',
-		PreparedBy: 'Prepared By',
-		Vendor: 'Vendor',
-		ShipTo: 'Shipping Address',
-		Contact: 'Contact:',
-		Tel: 'Tel:',
-		Seq: 'Item',
-		Desc: 'Description',
-		Qty: 'Qty',
-		UnitCost: 'Unit Cost',
-		Amount: 'Amount',
-		Notes: 'Notes:',
-		NetText: 'Net Amount in Words',
-		Subtotal: 'Subtotal',
-		Discount: 'Discount',
-		AfterDiscount: 'Total After Discount',
-		VAT: 'Purchase VAT',
-		WHT: 'Withholding Tax',
-		GrandTotal: 'Grand Total',
-		Auth: 'Authorized Signature',
-		Page: 'Page',
-		Carry: '-- Carried Forward --',
-		Days: 'Days',
-		Cash: 'Cash'
+	'en': {
+		'No': 'No.', 'Date': 'Date', 'Term': 'Term', 'Due': 'Due Date',
+		'Ref': 'Reference', 'PreparedBy': 'Prepared By', 'Vendor': 'Vendor',
+		'ShipTo': 'Shipping Address', 'Contact': 'Contact:', 'Tel': 'Tel:',
+		'Seq': 'Item', 'Desc': 'Description', 'Qty': 'Qty', 'UnitCost': 'Unit Cost', 'Amount': 'Amount',
+		'Notes': 'Notes:', 'NetText': 'Net Amount in Words',
+		'Subtotal': 'Subtotal', 'Discount': 'Discount', 'AfterDiscount': 'Total After Discount',
+		'VAT': 'VAT', 'WHT': 'Withholding Tax', 'GrandTotal': 'Grand Total',
+		'Auth': 'Authorized Signature', 'Page': 'Page', 'Carry': '-- Carried Forward --',
+		'Days': 'Days', 'Cash': 'Cash'
 	}
 };
-
-function tPdf(key: string, lang: string): string {
-	return pdfDict[lang]?.[key] || pdfDict['th'][key] || key;
-}
 
 function getLogoBase64(logoPath: string | null): string | null {
 	if (!logoPath) return null;
@@ -231,8 +188,14 @@ function getInvoiceHtml(
 	docData: DocumentData,
 	itemsData: ItemData[],
 	logoBase64: string | null,
-	lang: string // 🌟 เพิ่ม Parameter ภาษา
+	lang: string, 
+	dbDict: { en: Record<string, string>; th: Record<string, string> } 
 ): string {
+
+	function tPdf(key: string, currentLang: string): string {
+		return dbDict[currentLang as 'en' | 'th']?.[key] || pdfSpecificDict[currentLang]?.[key] || key;
+	}
+
 	const subtotal = Number(docData.subtotal || 0);
 	const discount = Number(docData.discount_amount || 0);
 	const totalAfterDiscount = Number(docData.total_after_discount || 0);
@@ -359,11 +322,11 @@ function getInvoiceHtml(
     <thead>
         <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
             <th class="p-2 text-center w-12">${tPdf('Seq', lang)}</th>
-            <th class="p-2 text-left">${tPdf('Desc', lang)}</th>
+            <th class="p-2 text-left">${tPdf('Description', lang)}</th>
             <th class="p-2 text-right w-16">${tPdf('Qty', lang)}</th>
-            <th class="p-2 text-right w-24">${tPdf('UnitCost', lang)}</th>
-            <th class="p-2 text-center w-16" style="color: #2563eb;">VAT</th>
-            <th class="p-2 text-center w-16" style="color: #ef4444;">WHT</th>
+            <th class="p-2 text-right w-24">${tPdf('UnitPrice', lang)}</th>
+            <th class="p-2 text-center w-24 whitespace-nowrap" style="color: #2563eb;">${tPdf('VAT', lang)}</th>
+            <th class="p-2 text-center w-24 whitespace-nowrap" style="color: #ef4444;">${tPdf('WHT', lang)}</th>
             <th class="p-2 text-right w-28">${tPdf('Amount', lang)}</th>
         </tr>
     </thead>
@@ -536,11 +499,27 @@ function getInvoiceHtml(
     `;
 }
 
-export const GET = async ({ url }) => {
+
+export const GET = async ({ url, fetch }) => {
 	const id = url.searchParams.get('id');
-	const lang = url.searchParams.get('lang') || 'th'; // 🌟 รับค่าภาษาจาก URL
+	const lang = url.searchParams.get('lang') || 'th';
 
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });
+
+
+	let dbDict = { en: {} as Record<string, string>, th: {} as Record<string, string> };
+	try {
+		const res = await fetch('/api/translations');
+		if (res.ok) {
+			const data = await res.json();
+			data.forEach((item: any) => {
+				dbDict.en[item.translation_key] = item.en_text;
+				dbDict.th[item.translation_key] = item.th_text;
+			});
+		}
+	} catch (e) {
+		console.error('Failed to fetch translations:', e);
+	}
 
 	let connection;
 	try {
@@ -582,8 +561,8 @@ export const GET = async ({ url }) => {
 
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		// 🌟 ส่ง lang ไปท้ายสุดให้ตรงกับพารามิเตอร์ด้านบน
-		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64, lang);
+		
+		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64, lang, dbDict);
 
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
