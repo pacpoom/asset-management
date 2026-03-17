@@ -25,7 +25,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (searchQuery) {
 			whereClause += ` AND (
                 r.route_no LIKE ? OR
-                r.route_name LIKE ? OR
+                rm.name LIKE ? OR
                 i.item_code LIKE ? OR
                 i.item_name LIKE ?
             ) `;
@@ -35,12 +35,13 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const sql = `
             SELECT
-                r.route_no, r.route_name,
+                r.route_no, rm.name as route_name,
                 i.item_code, i.item_name,
                 r.min, r.max,
                 r.created_at, r.updated_at
             FROM item_routes r
             LEFT JOIN items i ON r.item_id = i.id
+            LEFT JOIN route_masters rm ON r.route_name_id = rm.id
             ${whereClause}
             ORDER BY r.route_no ASC
         `;
@@ -69,7 +70,7 @@ export const POST: RequestHandler = async ({ request }) => {
             const row = worksheet.getRow(rowNumber);
 
             row.getCell('A').value = route.route_no;
-            row.getCell('B').value = route.route_name;
+            row.getCell('B').value = route.route_name; // ดึงมาจาก rm.name ตาม alias ข้างบน
             row.getCell('C').value = route.item_code;
             row.getCell('D').value = route.item_name;
             row.getCell('E').value = route.min;

@@ -9,6 +9,7 @@
 	// --- Types ---
 	type Route = PageData['routes'][0];
 	type Item = PageData['items'][0];
+	type RouteMaster = PageData['routeMasters'][0];
 
 	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
@@ -17,6 +18,20 @@
 	let selectedRoute = $state<Partial<Route> | null>(null);
 	let routeToDelete = $state<Route | null>(null);
 	let isSaving = $state(false);
+
+	// Searchable Dropdown States
+	let itemSearchValue = $state('');
+	let showItemDropdown = $state(false);
+
+	let rmSearchValue = $state('');
+	let showRmDropdown = $state(false);
+
+	// Route Master Modal State
+	let showRouteMasterModal = $state(false);
+	let editingRouteMasterId = $state<number | null>(null);
+	let routeMasterToDelete = $state<RouteMaster | null>(null);
+	let isSavingMaster = $state(false);
+	let newRouteMasterName = $state('');
 
 	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(null);
 	let messageTimeout: NodeJS.Timeout;
@@ -53,20 +68,51 @@
 
 		if (mode === 'edit' && route) {
 			selectedRoute = { ...route };
+			
+			const item = data.items.find((i: Item) => i.id === route.item_id);
+			itemSearchValue = item ? `[${item.item_code}] ${item.item_name}` : '';
+			
+			const rm = data.routeMasters.find((r: RouteMaster) => r.id === route.route_name_id);
+			rmSearchValue = rm ? rm.name : '';
 		} else {
 			selectedRoute = {
 				item_id: undefined as any,
+				route_name_id: undefined as any,
 				route_no: '',
-				route_name: '',
 				min: 0,
 				max: 0
 			} as any;
+			itemSearchValue = '';
+			rmSearchValue = '';
 		}
 	}
 
 	function closeModal() {
 		modalMode = null;
 		selectedRoute = null;
+		showItemDropdown = false;
+		showRmDropdown = false;
+	}
+
+	function openRouteMasterModal(rm: RouteMaster | null = null) {
+		if (rm) {
+			editingRouteMasterId = rm.id;
+			newRouteMasterName = rm.name;
+		} else {
+			editingRouteMasterId = null;
+			newRouteMasterName = '';
+		}
+		showRouteMasterModal = true;
+		showRmDropdown = false;
+	}
+
+	function closeRouteMasterModal() {
+		showRouteMasterModal = false;
+	}
+
+	function confirmDeleteRouteMaster(rm: RouteMaster) {
+		routeMasterToDelete = rm;
+		showRmDropdown = false;
 	}
 
 	function showGlobalMessage(message: { success: boolean; text: string; type: 'success' | 'error' }, duration: number = 5000) {
@@ -101,6 +147,38 @@
 				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
 			}
 			routeToDelete = null;
+			form.action = undefined;
+		}
+
+		if (form?.action === 'saveRouteMaster') {
+			if (form.success) {
+				closeRouteMasterModal();
+				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
+				// Auto-select the newly created or edited route master
+				if (selectedRoute) {
+					selectedRoute.route_name_id = form.newId as number;
+					rmSearchValue = newRouteMasterName;
+				}
+				invalidateAll();
+			} else if (form.message) {
+				// We don't close modal on error so they see it
+			}
+			form.action = undefined;
+		}
+
+		if (form?.action === 'deleteRouteMaster') {
+			if (form.success) {
+				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
+				// If we deleted the route master that was currently selected, reset it
+				if (selectedRoute && selectedRoute.route_name_id === routeMasterToDelete?.id) {
+					selectedRoute.route_name_id = undefined;
+					rmSearchValue = '';
+				}
+				invalidateAll();
+			} else if (form.message) {
+				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
+			}
+			routeMasterToDelete = null;
 			form.action = undefined;
 		}
 	});
@@ -232,7 +310,7 @@
 				{#each data.routes as route (route.id)}
 					<tr class="hover:bg-gray-50">
 						<td class="px-4 py-3 font-mono font-medium text-gray-800">{route.route_no}</td>
-						<td class="px-4 py-3 text-gray-700">{route.route_name}</td>
+						<td class="px-4 py-3 text-gray-700">{route.route_master_name}</td>
 						<td class="px-4 py-3 text-gray-600">
 							<span class="font-mono text-xs text-blue-700">{route.item_code}</span> - {route.item_name}
 						</td>
@@ -299,9 +377,9 @@
 	</div>
 {/if}
 
-<!-- Add/Edit Modal -->
+<!-- Add/Edit Main Modal -->
 {#if modalMode && selectedRoute}
-	<div transition:slide class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+	<div transition:slide class="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
 		<div class="fixed inset-0" onclick={closeModal} role="presentation"></div>
 		<div class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all">
 			<div class="flex-shrink-0 border-b px-6 py-4">
@@ -342,35 +420,129 @@
 						/>
 					</div>
 
-					<!-- Link Item -->
-					<div>
-						<label for="item_id" class="mb-1 block text-sm font-medium">{$t('Item *')}</label>
-						<select
-							name="item_id"
-							id="item_id"
-							required
-							bind:value={selectedRoute.item_id}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-						>
-							<option value={undefined} disabled>{$t('Select Linked Item')}</option>
-							{#each data.items as item (item.id)}
-								<option value={item.id}>[{item.item_code}] {item.item_name}</option>
-							{/each}
-						</select>
-					</div>
-
-					<!-- Route Name -->
-					<div class="sm:col-span-2">
-						<label for="route_name" class="mb-1 block text-sm font-medium">{$t('Route Name *')}</label>
+					<!-- Link Item (Searchable Dropdown) -->
+					<div class="relative">
+						<label for="item_search" class="mb-1 block text-sm font-medium">{$t('Item *')}</label>
+						<input type="hidden" name="item_id" value={selectedRoute?.item_id || ''} />
 						<input
 							type="text"
-							name="route_name"
-							id="route_name"
-							required
-							bind:value={selectedRoute.route_name}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-							placeholder="e.g. Zone A - Rack 1"
+							id="item_search"
+							autocomplete="off"
+							required={!selectedRoute?.item_id}
+							placeholder="{$t('Search and select item...')}"
+							bind:value={itemSearchValue}
+							oninput={() => {
+								showItemDropdown = true;
+								if (selectedRoute) selectedRoute.item_id = undefined; // Force re-selection if typing changes
+							}}
+							onfocus={() => showItemDropdown = true}
+							onblur={() => showItemDropdown = false}
+							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 {selectedRoute?.item_id === undefined && itemSearchValue ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : ''}"
 						/>
+						{#if showItemDropdown}
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+							<ul 
+								class="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
+								onmousedown={(e) => e.preventDefault()}
+							>
+								{#each data.items.filter((i: Item) => `[${i.item_code}] ${i.item_name}`.toLowerCase().includes(itemSearchValue.toLowerCase())) as item (item.id)}
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<li
+										class="relative cursor-pointer select-none py-2 pl-3 pr-9 text-gray-900 hover:bg-blue-600 hover:text-white"
+										onclick={() => {
+											if (selectedRoute) selectedRoute.item_id = item.id;
+											itemSearchValue = `[${item.item_code}] ${item.item_name}`;
+											showItemDropdown = false;
+										}}
+									>
+										[{item.item_code}] {item.item_name}
+									</li>
+								{/each}
+								{#if data.items.filter((i: Item) => `[${i.item_code}] ${i.item_name}`.toLowerCase().includes(itemSearchValue.toLowerCase())).length === 0}
+									<li class="relative cursor-default select-none py-2 pl-3 pr-9 text-gray-500">{$t('No items found')}</li>
+								{/if}
+							</ul>
+						{/if}
+					</div>
+
+					<!-- Route Master Name (Searchable Dropdown + Add Button) -->
+					<div class="sm:col-span-2">
+						<label for="rm_search" class="mb-1 block text-sm font-medium">{$t('Route Name *')}</label>
+						<div class="flex items-start gap-2">
+							<div class="relative w-full">
+								<input type="hidden" name="route_name_id" value={selectedRoute?.route_name_id || ''} />
+								<input
+									type="text"
+									id="rm_search"
+									autocomplete="off"
+									required={!selectedRoute?.route_name_id}
+									placeholder="{$t('Search and select route name...')}"
+									bind:value={rmSearchValue}
+									oninput={() => {
+										showRmDropdown = true;
+										if (selectedRoute) selectedRoute.route_name_id = undefined; // Force re-selection if typing changes
+									}}
+									onfocus={() => showRmDropdown = true}
+									onblur={() => showRmDropdown = false}
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 {selectedRoute?.route_name_id === undefined && rmSearchValue ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : ''}"
+								/>
+								{#if showRmDropdown}
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<ul 
+										class="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
+										onmousedown={(e) => e.preventDefault()}
+									>
+										{#each data.routeMasters.filter((rm: RouteMaster) => rm.name.toLowerCase().includes(rmSearchValue.toLowerCase())) as rm (rm.id)}
+											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+											<li class="relative flex items-center justify-between border-b border-gray-50 py-1 pl-3 pr-2 last:border-0 hover:bg-gray-100">
+												<!-- svelte-ignore a11y_click_events_have_key_events -->
+												<!-- svelte-ignore a11y_no_static_element_interactions -->
+												<div
+													class="flex-1 cursor-pointer select-none py-1 text-gray-900"
+													onclick={() => {
+														if (selectedRoute) selectedRoute.route_name_id = rm.id;
+														rmSearchValue = rm.name;
+														showRmDropdown = false;
+													}}
+												>
+													{rm.name}
+												</div>
+												<div class="flex items-center gap-1 pl-2">
+													<button
+														type="button"
+														class="rounded p-1.5 text-gray-400 transition-colors hover:bg-blue-100 hover:text-blue-600"
+														title={$t('Edit')}
+														onclick={(e) => { e.stopPropagation(); openRouteMasterModal(rm); }}
+													>
+														<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+													</button>
+													<button
+														type="button"
+														class="rounded p-1.5 text-gray-400 transition-colors hover:bg-red-100 hover:text-red-600"
+														title={$t('Delete')}
+														onclick={(e) => { e.stopPropagation(); confirmDeleteRouteMaster(rm); }}
+													>
+														<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
+													</button>
+												</div>
+											</li>
+										{/each}
+										{#if data.routeMasters.filter((rm: RouteMaster) => rm.name.toLowerCase().includes(rmSearchValue.toLowerCase())).length === 0}
+											<li class="relative cursor-default select-none py-2 pl-3 pr-9 text-gray-500">{$t('No route names found')}</li>
+										{/if}
+									</ul>
+								{/if}
+							</div>
+							<button 
+								type="button" 
+								onclick={() => openRouteMasterModal(null)}
+								class="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-md bg-gray-100 border border-gray-300 text-gray-600 hover:bg-gray-200 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
+								title={$t('Add New Route Master')}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+							</button>
+						</div>
 					</div>
 
 					<!-- Min -->
@@ -417,14 +589,93 @@
 	</div>
 {/if}
 
-<!-- Delete Confirmation Modal -->
+<!-- Add/Edit Route Master Modal -->
+{#if showRouteMasterModal}
+	<div transition:fade class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+		<div class="fixed inset-0" onclick={closeRouteMasterModal} role="presentation"></div>
+		<div class="relative w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+			<h3 class="text-lg font-bold text-gray-900 mb-4">
+				{editingRouteMasterId ? $t('Edit Route Master') : $t('Add Route Master')}
+			</h3>
+			
+			<form 
+				method="POST" 
+				action="?/saveRouteMaster" 
+				use:enhance={() => {
+					isSavingMaster = true;
+					return async ({ update }) => {
+						await update({ reset: false });
+						isSavingMaster = false;
+					};
+				}}
+			>
+				{#if editingRouteMasterId}
+					<input type="hidden" name="id" value={editingRouteMasterId} />
+				{/if}
+
+				<div class="mb-4">
+					<label for="new_route_name" class="mb-1 block text-sm font-medium">{$t('Name *')}</label>
+					<input
+						type="text"
+						name="name"
+						id="new_route_name"
+						required
+						bind:value={newRouteMasterName}
+						class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+						placeholder="e.g. TRIM1, PACKING"
+					/>
+				</div>
+
+				{#if form?.message && !form.success && form.action === 'saveRouteMaster'}
+					<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-600">
+						<p><strong>{$t('Error:')}</strong> {form.message}</p>
+					</div>
+				{/if}
+
+				<div class="flex justify-end gap-3">
+					<button type="button" onclick={closeRouteMasterModal} class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50">{$t('Cancel')}</button>
+					<button type="submit" disabled={isSavingMaster} class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400">
+						{isSavingMaster ? $t('Saving...') : $t('Save')}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Delete Route Master Confirmation Modal -->
+{#if routeMasterToDelete}
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="alertdialog">
+		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
+			<p class="mt-2 text-sm text-gray-600">
+				{$t('Are you sure you want to delete this route master?')} <br />
+				<strong class="font-mono text-sm text-gray-800">{routeMasterToDelete.name}</strong>
+				<br /><br />
+				<span class="text-red-600">{$t('This action cannot be undone.')}</span>
+			</p>
+			
+			{#if form?.message && !form.success && form.action === 'deleteRouteMaster'}
+				<p class="mt-3 text-sm text-red-600"><strong>{$t('Error:')}</strong> {form.message}</p>
+			{/if}
+
+			<form method="POST" action="?/deleteRouteMaster" use:enhance class="mt-6 flex justify-end gap-3">
+				<input type="hidden" name="id" value={routeMasterToDelete.id} />
+				<button type="button" onclick={() => (routeMasterToDelete = null)} class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50">{$t('Cancel')}</button>
+				<button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700">{$t('Delete')}</button>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Delete Confirmation Modal (Route) -->
 {#if routeToDelete}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="alertdialog">
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="alertdialog">
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
 				{$t('Are you sure you want to delete route:')} <br />
-				<strong class="font-mono text-sm text-gray-800">{routeToDelete.route_no}</strong> - {routeToDelete.route_name}?
+				<strong class="font-mono text-sm text-gray-800">{routeToDelete.route_no}</strong> - {routeToDelete.route_master_name}?
 				<br /><br />
 				<span class="text-red-600">{$t('This action cannot be undone.')}</span>
 			</p>
