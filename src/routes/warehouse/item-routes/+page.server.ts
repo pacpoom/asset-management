@@ -9,6 +9,7 @@ interface ItemRoute extends RowDataPacket {
 	item_id: number;
 	route_no: string;
 	route_name_id: number;
+	stock: number;
 	min: number;
 	max: number;
 	created_at: string;
@@ -227,6 +228,7 @@ export const actions: Actions = {
 		let route_no = formData.get('route_no')?.toString()?.trim();
 		const route_name_id = parseNumberOrNull(formData.get('route_name_id'));
 		const item_id = parseNumberOrNull(formData.get('item_id'));
+		const stock = parseFloatOrZero(formData.get('stock'));
 		const min = parseFloatOrZero(formData.get('min'));
 		const max = parseFloatOrZero(formData.get('max'));
 
@@ -261,11 +263,11 @@ export const actions: Actions = {
 			await connection.beginTransaction();
 
 			if (id) {
-				const sql = `UPDATE item_routes SET item_id = ?, route_no = ?, route_name_id = ?, min = ?, max = ? WHERE id = ?`;
-				await connection.execute(sql, [item_id, route_no, route_name_id, min, max, parseInt(id)]);
+				const sql = `UPDATE item_routes SET item_id = ?, route_no = ?, route_name_id = ?, stock = ?, min = ?, max = ? WHERE id = ?`;
+				await connection.execute(sql, [item_id, route_no, route_name_id, stock, min, max, parseInt(id)]);
 			} else {
-				const sql = `INSERT INTO item_routes (item_id, route_no, route_name_id, min, max) VALUES (?, ?, ?, ?, ?)`;
-				await connection.execute(sql, [item_id, route_no, route_name_id, min, max]);
+				const sql = `INSERT INTO item_routes (item_id, route_no, route_name_id, stock, min, max) VALUES (?, ?, ?, ?, ?, ?)`;
+				await connection.execute(sql, [item_id, route_no, route_name_id, stock, min, max]);
 			}
 
 			await connection.commit();

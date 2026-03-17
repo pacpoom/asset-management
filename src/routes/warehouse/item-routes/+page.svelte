@@ -79,6 +79,7 @@
 				item_id: undefined as any,
 				route_name_id: undefined as any,
 				route_no: '',
+				stock: 0,
 				min: 0,
 				max: 0
 			} as any;
@@ -294,6 +295,7 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Route No')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Route Name')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Item')}</th>
+				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Stock')}</th>
 				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Min')}</th>
 				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Max')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
@@ -302,7 +304,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.routes.length === 0}
 				<tr>
-					<td colspan="6" class="py-12 text-center text-gray-500">
+					<td colspan="7" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery}{$t('No routes found for:')} "{data.searchQuery}"{:else}{$t('No route data found')}{/if}
 					</td>
 				</tr>
@@ -314,6 +316,7 @@
 						<td class="px-4 py-3 text-gray-600">
 							<span class="font-mono text-xs text-blue-700">{route.item_code}</span> - {route.item_name}
 						</td>
+						<td class="px-4 py-3 text-right text-gray-800 font-medium">{formatQuantity(route.stock)}</td>
 						<td class="px-4 py-3 text-right text-orange-600 font-medium">{formatQuantity(route.min)}</td>
 						<td class="px-4 py-3 text-right text-green-600 font-medium">{formatQuantity(route.max)}</td>
 						<td class="px-4 py-3 whitespace-nowrap text-center">
@@ -543,6 +546,19 @@
 								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 							</button>
 						</div>
+					</div>
+
+					<!-- Stock -->
+					<div>
+						<label for="stock" class="mb-1 block text-sm font-medium">{$t('Stock Level')}</label>
+						<input
+							type="number"
+							step="any"
+							name="stock"
+							id="stock"
+							bind:value={selectedRoute.stock}
+							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+						/>
 					</div>
 
 					<!-- Min -->

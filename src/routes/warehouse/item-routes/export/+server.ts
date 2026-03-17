@@ -8,6 +8,7 @@ interface RouteExportData extends RowDataPacket {
 	route_name: string;
 	item_code: string | null;
 	item_name: string | null;
+	stock: number;
 	min: number;
 	max: number;
 	created_at: string;
@@ -37,7 +38,7 @@ export const POST: RequestHandler = async ({ request }) => {
             SELECT
                 r.route_no, rm.name as route_name,
                 i.item_code, i.item_name,
-                r.min, r.max,
+                r.stock, r.min, r.max,
                 r.created_at, r.updated_at
             FROM item_routes r
             LEFT JOIN items i ON r.item_id = i.id
@@ -56,6 +57,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			{ header: 'Route Name', key: 'route_name', width: 35 },
 			{ header: 'Item Code', key: 'item_code', width: 20 },
 			{ header: 'Item Name', key: 'item_name', width: 40 },
+			{ header: 'Stock', key: 'stock', width: 15, style: { numFmt: '#,##0.00' } },
 			{ header: 'Min Level', key: 'min', width: 15, style: { numFmt: '#,##0.00' } },
 			{ header: 'Max Level', key: 'max', width: 15, style: { numFmt: '#,##0.00' } },
 			{ header: 'Created At', key: 'created_at', width: 20, style: { numFmt: 'yyyy-mm-dd hh:mm:ss' } },
@@ -70,13 +72,14 @@ export const POST: RequestHandler = async ({ request }) => {
             const row = worksheet.getRow(rowNumber);
 
             row.getCell('A').value = route.route_no;
-            row.getCell('B').value = route.route_name; // ดึงมาจาก rm.name ตาม alias ข้างบน
+            row.getCell('B').value = route.route_name; 
             row.getCell('C').value = route.item_code;
             row.getCell('D').value = route.item_name;
-            row.getCell('E').value = route.min;
-            row.getCell('F').value = route.max;
-            row.getCell('G').value = route.created_at ? new Date(route.created_at) : null;
-            row.getCell('H').value = route.updated_at ? new Date(route.updated_at) : null;
+            row.getCell('E').value = route.stock;
+            row.getCell('F').value = route.min;
+            row.getCell('G').value = route.max;
+            row.getCell('H').value = route.created_at ? new Date(route.created_at) : null;
+            row.getCell('I').value = route.updated_at ? new Date(route.updated_at) : null;
 		}
 
 		const buffer = await workbook.xlsx.writeBuffer();
