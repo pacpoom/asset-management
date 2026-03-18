@@ -23,7 +23,6 @@ export const load = async ({ url }) => {
 };
 
 export const actions = {
-	// Action สำหรับเพิ่ม Work Item (Detail)
 	addDetail: async ({ request }) => {
 		const formData = await request.formData();
 		const work_id = formData.get('work_id');
@@ -41,7 +40,6 @@ export const actions = {
 		}
 	},
 
-	// Action สำหรับลบ Item
 	deleteDetail: async ({ request }) => {
 		const formData = await request.formData();
 		const id = formData.get('id');

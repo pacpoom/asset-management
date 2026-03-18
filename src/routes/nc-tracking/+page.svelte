@@ -22,7 +22,6 @@
 	let showInspectionModal = false;
 	let showNgModal = false;
 	let isSaving = false;
-
 	let showDeleteModal = false;
 	let itemToDelete: any = null;
 	let isDeleting = false;
@@ -39,13 +38,11 @@
 	let formMile = '';
 	let selectedVinObj: any = null;
 
-	// 🌟 ฟังก์ชันดึงข้อมูล VIN และตรวจสอบ Exact Match สำหรับ Scanner
 	async function loadVinOptions(filterText: string) {
 		if (!filterText || filterText.length < 3) return Promise.resolve([]);
 		try {
 			const res = await fetch(`/api/vehicle-lookup?q=${filterText}`);
 			const data = await res.json();
-
 			if (Array.isArray(data)) {
 				const options = data.map((v: any) => ({
 					value: v.vin_number,
@@ -53,7 +50,6 @@
 					model: v.model,
 					color: v.color
 				}));
-
 				const exactMatch = options.find(
 					(opt) => opt.value.toUpperCase() === filterText.toUpperCase()
 				);
@@ -92,12 +88,10 @@
 		const dbWorkId = d.work_id || d.Work_id || d.WORK_ID;
 		return String(dbWorkId) === String(selectedMasterId);
 	});
-
 	let checkStatus: Record<number, 'OK' | 'NG'> = {};
 	let ngData: Record<number, any> = {};
 	let zoomFileInput: HTMLInputElement;
 	let farFileInput: HTMLInputElement;
-
 	$: checkedCount = Object.keys(checkStatus).length;
 	$: totalCount = allDetails.length;
 	$: progressPercent = totalCount === 0 ? 0 : Math.round((checkedCount / totalCount) * 100);
@@ -109,14 +103,37 @@
 	let selectedSolution: any = null;
 	let formSolutionName = '';
 
+	let searchQuery = '';
+	let itemsPerPage = 50;
+	let currentPage = 1;
+	const itemsPerPageOptions = [50, 100, 200, 300, 400, 500];
+
+	$: filteredChecklists = checklists.filter(
+		(item: any) =>
+			(item.vin_no && item.vin_no.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			(item.model && item.model.toLowerCase().includes(searchQuery.toLowerCase()))
+	);
+
+	$: totalPages = Math.ceil(filteredChecklists.length / itemsPerPage) || 1;
+	$: if (searchQuery || itemsPerPage) {
+		currentPage = 1;
+	}
+
+	$: paginatedChecklists = filteredChecklists.slice(
+		(currentPage - 1) * itemsPerPage,
+		currentPage * itemsPerPage
+	);
+
 	function formatDate(dateStr: string) {
 		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleString('th-TH', {
+		let safeDateStr = dateStr;
+		if (!safeDateStr.includes('T')) safeDateStr = safeDateStr.replace(' ', 'T');
+		if (!safeDateStr.includes('Z')) safeDateStr += 'Z';
+
+		return new Date(safeDateStr).toLocaleString('th-TH', {
 			year: 'numeric',
 			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
+			day: 'numeric'
 		});
 	}
 
@@ -146,7 +163,6 @@
 	function saveNgLocal() {
 		const zoomFile = zoomFileInput?.files?.[0];
 		const farFile = farFileInput?.files?.[0];
-
 		ngData[activeNgItem.id] = {
 			parts_name: activeNgItem.work_name,
 			position: formPosition,
@@ -177,7 +193,6 @@
 		formData.append('color', formColor);
 		formData.append('soc', formSoc.toString());
 		formData.append('mile', formMile.toString());
-
 		const pdiData = allDetails.map((d: any) => {
 			const status = checkStatus[d.id];
 			const ng = status === 'NG' ? ngData[d.id] : {};
@@ -197,7 +212,6 @@
 				solution: ng.solution || ''
 			};
 		});
-
 		formData.append('pdi_data', JSON.stringify(pdiData));
 
 		try {
@@ -292,6 +306,33 @@
 </div>
 
 <div class="p-6 pt-0">
+	<div class="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+		<div class="relative w-full md:w-1/3">
+			<span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+				<span class="material-symbols-outlined text-[20px]">search</span>
+			</span>
+			<input
+				type="text"
+				bind:value={searchQuery}
+				placeholder="ค้นหาเลขตัวถัง (VIN) หรือรุ่นรถ..."
+				class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 shadow-sm transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+			/>
+		</div>
+
+		<div class="flex items-center gap-2">
+			<label for="itemsPerPage" class="text-sm font-medium text-gray-600">{$t('Showing')}</label>
+			<select
+				id="itemsPerPage"
+				bind:value={itemsPerPage}
+				class="cursor-pointer rounded-lg border border-gray-300 bg-white py-2 pr-8 pl-3 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+			>
+				{#each itemsPerPageOptions as opt}
+					<option value={opt}>{opt} {$t('pages')}</option>
+				{/each}
+			</select>
+		</div>
+	</div>
+
 	<div class="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50 text-gray-700">
@@ -305,10 +346,14 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
-				{#if checklists.length === 0}
-					<tr><td colspan="4" class="py-10 text-center text-gray-500">ไม่พบข้อมูลปัญหา</td></tr>
+				{#if paginatedChecklists.length === 0}
+					<tr
+						><td colspan="4" class="py-10 text-center text-gray-500"
+							>{searchQuery ? 'ไม่พบข้อมูลที่ค้นหา' : 'ไม่พบข้อมูลปัญหา'}</td
+						></tr
+					>
 				{:else}
-					{#each checklists as item}
+					{#each paginatedChecklists as item}
 						<tr class="transition-colors hover:bg-gray-50">
 							<td class="px-4 py-3 font-medium text-gray-600">
 								{formatDate(item.created_at)}
@@ -383,26 +428,26 @@
 										</svg>
 									</a>
 
-									<a
-										href="/nc-tracking/generate-pdf?id={item.id}"
-										target="_blank"
-										rel="noopener noreferrer"
-										class="text-gray-400 transition-colors hover:text-green-600"
-										title={$t('Print PDF') || 'พิมพ์ PDF'}
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											viewBox="0 0 20 20"
-											fill="currentColor"
-											class="h-5 w-5"
+									{#if item.ng_count > 0}
+										<a
+											href="/nc-tracking/{item.id}/rework"
+											class="text-gray-400 transition-colors hover:text-orange-500"
+											title={$t('Rework') || 'บันทึกการซ่อมแก้ไข'}
 										>
-											<path
-												fill-rule="evenodd"
-												d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z"
-												clip-rule="evenodd"
-											/>
-										</svg>
-									</a>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												class="h-5 w-5"
+											>
+												<path
+													fill-rule="evenodd"
+													d="M11.961 2.016a.75.75 0 00-1.002-1.002 6.516 6.516 0 00-3.923 10.395l-5.698 5.698a1.5 1.5 0 002.122 2.121l5.698-5.698a6.516 6.516 0 0010.395-3.923.75.75 0 00-1.002-1.002l-2.736 2.736a.75.75 0 01-1.06 0l-1.06-1.06a.75.75 0 010-1.06l2.736-2.736z"
+													clip-rule="evenodd"
+												/>
+											</svg>
+										</a>
+									{/if}
 
 									<a
 										href="/nc-tracking/{item.id}/edit"
@@ -448,6 +493,37 @@
 				{/if}
 			</tbody>
 		</table>
+
+		{#if totalPages > 1}
+			<div
+				class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-6"
+			>
+				<div class="text-sm text-gray-700">
+					{$t('แสดงหน้าที่')} <span class="font-bold text-blue-600">{currentPage}</span>
+					{$t('จาก')}
+					<span class="font-bold">{totalPages}</span>
+					({$t('ทั้งหมด')}
+					{filteredChecklists.length}
+					{$t('คัน')})
+				</div>
+				<div class="flex gap-2">
+					<button
+						disabled={currentPage === 1}
+						on:click={() => (currentPage -= 1)}
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+					>
+						{$t('ก่อนหน้า')}
+					</button>
+					<button
+						disabled={currentPage === totalPages}
+						on:click={() => (currentPage += 1)}
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+					>
+						{$t('ถัดไป')}
+					</button>
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -867,7 +943,7 @@
 							fill="currentColor"
 							><path
 								fill-rule="evenodd"
-								d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+								d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
 								clip-rule="evenodd"
 							/></svg
 						>
@@ -896,9 +972,8 @@
 				<button
 					on:click={closeAlertModal}
 					class="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-blue-700"
+					>ตกลง (OK)</button
 				>
-					ตกลง (OK)
-				</button>
 			</div>
 		</div>
 	</div>

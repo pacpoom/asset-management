@@ -135,6 +135,54 @@
 										<p class="font-medium text-gray-800">{displayValue(item.solution)}</p>
 									</div>
 								</div>
+
+								<div class="flex flex-col gap-4 sm:flex-row lg:col-span-2">
+									{#if item.img_zoom || item.img_far}
+										{#if item.img_zoom}
+											<div class="flex-1">
+												<p class="mb-2 text-xs font-semibold text-gray-500">📷 ระยะใกล้ (Zoom)</p>
+												<a
+													href="/uploads/inspections/{item.img_zoom}"
+													target="_blank"
+													rel="noopener noreferrer"
+													class="block overflow-hidden rounded-lg border border-gray-200 shadow-sm"
+													title="คลิกเพื่อดูรูปขนาดเต็ม"
+												>
+													<img
+														src="/uploads/inspections/{item.img_zoom}"
+														alt="Zoom Defect"
+														class="h-48 w-full object-cover transition-transform duration-300 hover:scale-105"
+													/>
+												</a>
+											</div>
+										{/if}
+
+										{#if item.img_far}
+											<div class="flex-1">
+												<p class="mb-2 text-xs font-semibold text-gray-500">📸 ระยะไกล (Far)</p>
+												<a
+													href="/uploads/inspections/{item.img_far}"
+													target="_blank"
+													rel="noopener noreferrer"
+													class="block overflow-hidden rounded-lg border border-gray-200 shadow-sm"
+													title="คลิกเพื่อดูรูปขนาดเต็ม"
+												>
+													<img
+														src="/uploads/inspections/{item.img_far}"
+														alt="Far Defect"
+														class="h-48 w-full object-cover transition-transform duration-300 hover:scale-105"
+													/>
+												</a>
+											</div>
+										{/if}
+									{:else}
+										<div
+											class="flex w-full items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white/50 p-6"
+										>
+											<p class="text-sm font-medium text-gray-400">ไม่มีรูปภาพแนบ</p>
+										</div>
+									{/if}
+								</div>
 							</div>
 						</div>
 					{/if}
