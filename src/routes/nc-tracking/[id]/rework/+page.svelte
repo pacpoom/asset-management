@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
 	import { Toaster, toast } from 'svelte-sonner';
+	import { goto } from '$app/navigation';
 
 	export let data: any;
 	export let form: any;
@@ -14,16 +15,6 @@
 	}));
 
 	let isSubmitting = false;
-
-	function prepareData() {
-		return JSON.stringify(
-			items.map((item: any) => ({
-				id: item.id,
-				repair_status: item.repair_status,
-				repair_note: item.repair_note
-			}))
-		);
-	}
 </script>
 
 <Toaster richColors position="top-right" />
@@ -52,7 +43,7 @@
 
 	<div class="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
 		<div class="flex items-center gap-2 border-b border-gray-100 bg-orange-50/50 p-4">
-			<span class="material-symbols-outlined text-orange-500">build</span>
+			<span class="material-symbols-outlined text-orange-500"></span>
 			<h2 class="font-bold text-gray-800">
 				{$t('รายการที่ต้องแก้ไขทั้งหมด')} ({items.length} รายการ)
 			</h2>
@@ -61,20 +52,34 @@
 		<form
 			method="POST"
 			action="?/saveRepair"
-			use:enhance={() => {
+			use:enhance={({ formData }) => {
+				formData.set(
+					'items',
+					JSON.stringify(
+						items.map((item: any) => ({
+							id: item.id,
+							repair_status: item.repair_status,
+							repair_note: item.repair_note
+						}))
+					)
+				);
+
 				isSubmitting = true;
 				return async ({ update, result }) => {
 					isSubmitting = false;
 					await update();
 					if (result.type === 'success') {
 						toast.success('บันทึกการซ่อมสำเร็จ!');
+						setTimeout(() => {
+							goto('/nc-tracking');
+						}, 1000);
+					} else {
+						toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
 					}
 				};
 			}}
 			class="p-6"
 		>
-			<input type="hidden" name="items" value={prepareData()} />
-
 			<div class="space-y-6">
 				{#each items as item, i}
 					<div class="relative rounded-lg border border-gray-200 bg-gray-50/30 p-5">

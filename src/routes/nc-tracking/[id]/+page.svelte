@@ -134,6 +134,62 @@
 										<p class="text-xs font-semibold text-gray-500">วิธีแก้ไขที่แนะนำ (Solution)</p>
 										<p class="font-medium text-gray-800">{displayValue(item.solution)}</p>
 									</div>
+
+									<div class="mt-4 rounded-lg border border-red-100 bg-white/60 p-3 shadow-sm">
+										<p class="mb-1 text-xs font-semibold text-gray-500">
+											สถานะการซ่อม (Repair Status)
+										</p>
+										{#if item.repair_status === 'Repaired'}
+											<span
+												class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-800"
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													class="mr-1 h-3 w-3"
+													viewBox="0 0 20 20"
+													fill="currentColor"
+												>
+													<path
+														fill-rule="evenodd"
+														d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+														clip-rule="evenodd"
+													/>
+												</svg>
+												ซ่อมเสร็จแล้ว (Repaired)
+											</span>
+										{:else}
+											<span
+												class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800"
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													class="mr-1 h-3 w-3"
+													viewBox="0 0 20 20"
+													fill="currentColor"
+												>
+													<path
+														fill-rule="evenodd"
+														d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+														clip-rule="evenodd"
+													/>
+												</svg>
+												รอซ่อม (Pending)
+											</span>
+										{/if}
+
+										{#if item.repair_note}
+											<div class="mt-3">
+												<p class="text-xs font-semibold text-gray-500">
+													บันทึกจากช่าง (Repair Note)
+												</p>
+												<p
+													class="mt-1 rounded border border-gray-200 bg-white p-2 text-sm font-medium text-gray-800"
+												>
+													{item.repair_note}
+												</p>
+											</div>
+										{/if}
+									</div>
 								</div>
 
 								<div class="flex flex-col gap-4 sm:flex-row lg:col-span-2">

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import { t } from '$lib/i18n';
 
 	export let data;
 	$: masters = data.masters || [];
@@ -20,8 +21,10 @@
 <div class="min-h-screen bg-slate-50 p-6">
 	<div class="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
 		<div>
-			<h1 class="text-2xl font-bold text-slate-800">ตั้งค่าหัวข้อการตรวจสอบ (Inspection Master)</h1>
-			<p class="text-sm text-slate-500">จัดการหมวดหมู่และจุดที่ต้องตรวจสอบของรถยนต์ก่อนส่งมอบ</p>
+			<h1 class="text-2xl font-bold text-slate-800">{$t('Inspection Master')}</h1>
+			<p class="text-sm text-slate-500">
+				{$t('จัดการหมวดหมู่และจุดที่ต้องตรวจสอบของรถยนต์ก่อนส่งมอบ')}
+			</p>
 		</div>
 	</div>
 
@@ -41,7 +44,7 @@
 						stroke-linecap="round"
 						stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h7" /></svg
 					>
-					<h2 class="font-bold text-slate-700">หมวดหมู่การตรวจสอบ</h2>
+					<h2 class="font-bold text-slate-700">{$t('หมวดหมู่การตรวจสอบ')}</h2>
 				</div>
 				<button
 					on:click={() => (showAddFlowModal = true)}
@@ -56,7 +59,7 @@
 						stroke-width="2"
 						><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg
 					>
-					เพิ่มหมวด
+					{$t('Add Category')}
 				</button>
 			</div>
 
@@ -89,7 +92,7 @@
 					<div
 						class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500"
 					>
-						ไม่มีหมวดหมู่การตรวจสอบ<br />กดปุ่ม "เพิ่มหมวด" ด้านบน
+						{$t('ไม่มีหมวดหมู่การตรวจสอบ')}<br />{$t('กดปุ่ม "เพิ่มหมวด" ด้านบน')}
 					</div>
 				{/if}
 			</div>
@@ -103,15 +106,14 @@
 					class="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4"
 				>
 					<div>
-						<h2 class="text-lg font-bold text-slate-800">จุดที่ต้องตรวจสอบ (Inspection Points)</h2>
+						<h2 class="text-lg font-bold text-slate-800">{$t('Inspection Points')}</h2>
 						{#if selectedMaster}
 							<p class="mt-0.5 text-sm text-slate-500">
-								หมวดหมู่: <span class="font-semibold text-blue-600"
-									>{selectedMaster.Work_description}</span
-								>
+								{$t('Category')}
+								<span class="font-semibold text-blue-600">{selectedMaster.Work_description}</span>
 							</p>
 						{:else}
-							<p class="mt-0.5 text-sm text-slate-500">กรุณาเลือกหมวดหมู่จากเมนูด้านซ้าย</p>
+							<p class="mt-0.5 text-sm text-slate-500">{$t('กรุณาเลือกหมวดหมู่จากเมนูด้านซ้าย')}</p>
 						{/if}
 					</div>
 
@@ -129,7 +131,7 @@
 							stroke-width="2.5"
 							><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg
 						>
-						เพิ่มจุดตรวจสอบ
+						{$t('Add Checkpoint')}
 					</button>
 				</div>
 
@@ -151,18 +153,20 @@
 									d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
 								/></svg
 							>
-							<p class="font-medium text-slate-500">กรุณาเลือกหมวดหมู่การตรวจสอบด้านซ้าย</p>
-							<p class="text-sm">เพื่อดูหรือจัดการจุดที่ต้องตรวจสอบ</p>
+							<p class="font-medium text-slate-500">{$t('กรุณาเลือกหมวดหมู่การตรวจสอบด้านซ้าย')}</p>
+							<p class="text-sm">{$t('เพื่อดูหรือจัดการจุดที่ต้องตรวจสอบ')}</p>
 						</div>
 					{:else}
 						<div class="overflow-hidden rounded-lg border border-slate-200">
 							<table class="w-full text-left text-sm">
 								<thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
 									<tr>
-										<th class="w-16 p-4 text-center font-semibold">ลำดับ</th>
-										<th class="p-4 font-semibold">ชื่อจุดตรวจสอบ (Point Name)</th>
-										<th class="w-40 p-4 text-center font-semibold">ผลลัพธ์ (Preview)</th>
-										<th class="w-24 p-4 text-center font-semibold">จัดการ</th>
+										<th class="w-16 p-4 text-center font-semibold">{$t('ID')}</th>
+										<th class="p-4 font-semibold">{$t('Point Name')}</th>
+										<th class="w-40 p-4 text-center font-semibold">{$t('Preview')}</th>
+										<th class="w-32 p-4 text-center font-semibold whitespace-nowrap"
+											>{$t('Actions')}</th
+										>
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-slate-100">
@@ -234,8 +238,11 @@
 	>
 		<div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
 			<div class="bg-blue-600 px-6 py-4">
-				<h3 class="text-lg font-bold text-white">เพิ่มจุดตรวจสอบ (Inspection Point)</h3>
-				<p class="mt-0.5 text-sm text-blue-100">หมวดหมู่: {selectedMaster.Work_description}</p>
+				<h3 class="text-lg font-bold text-white">{$t('Add Inspection Point')}</h3>
+				<p class="mt-0.5 text-sm text-blue-100">
+					{$t('Category')}
+					{selectedMaster.Work_description}
+				</p>
 			</div>
 			<form
 				method="POST"
@@ -252,7 +259,7 @@
 				<div class="space-y-5 p-6">
 					<div>
 						<label for="work_code" class="mb-1.5 block text-sm font-semibold text-slate-700"
-							>รหัสอ้างอิง (หมวดหมู่)</label
+							>{$t('รหัสอ้างอิง (หมวดหมู่)')}</label
 						>
 						<input
 							id="work_code"
@@ -265,18 +272,17 @@
 
 					<div>
 						<label for="work_name" class="mb-1.5 block text-sm font-semibold text-slate-700"
-							>ชื่อจุดตรวจสอบ <span class="text-red-500">*</span></label
+							>{$t('Point Name')} <span class="text-red-500">*</span></label
 						>
 						<input
 							id="work_name"
 							type="text"
 							name="work_name"
-							placeholder="เช่น รอยขีดข่วนกันชนหน้า, ระดับน้ำมันเครื่อง..."
 							class="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
 							required
 						/>
 						<p class="mt-1.5 text-xs text-slate-500">
-							ระบุจุดของรถยนต์ที่พนักงานต้องทำการเดินตรวจสอบ
+							{$t('ระบุจุดของรถยนต์ที่พนักงานต้องทำการเดินตรวจสอบ')}
 						</p>
 					</div>
 				</div>
@@ -287,13 +293,13 @@
 						on:click={() => (showAddModal = false)}
 						class="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
 					>
-						ยกเลิก
+						{$t('Cancel')}
 					</button>
 					<button
 						type="submit"
 						class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
 					>
-						บันทึกข้อมูล
+						{$t('Seve')}
 					</button>
 				</div>
 			</form>
@@ -307,8 +313,10 @@
 	>
 		<div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
 			<div class="bg-slate-800 px-6 py-4">
-				<h3 class="text-lg font-bold text-white">เพิ่มหมวดหมู่การตรวจสอบ</h3>
-				<p class="mt-0.5 text-sm text-slate-300">สร้างกลุ่มเพื่อให้ง่ายต่อการเช็ครถตามจุดต่างๆ</p>
+				<h3 class="text-lg font-bold text-white">{$t('เพิ่มหมวดหมู่การตรวจสอบ')}</h3>
+				<p class="mt-0.5 text-sm text-slate-300">
+					{$t('สร้างกลุ่มเพื่อให้ง่ายต่อการเช็ครถตามจุดต่างๆ')}
+				</p>
 			</div>
 			<form
 				method="POST"
@@ -322,13 +330,12 @@
 			>
 				<div class="space-y-2 p-6">
 					<label for="category_name" class="mb-1 block text-sm font-semibold text-slate-700"
-						>ชื่อหมวดหมู่ (Category Name) <span class="text-red-500">*</span></label
+						>{$t('Category Name')} <span class="text-red-500">*</span></label
 					>
 					<input
 						id="category_name"
 						type="text"
 						name="name"
-						placeholder="เช่น ตรวจสอบภายนอกรถ, ตรวจสอบห้องเครื่อง..."
 						class="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-slate-800 focus:ring-2 focus:ring-slate-800/20 focus:outline-none"
 						required
 					/>
