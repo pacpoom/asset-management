@@ -8,7 +8,11 @@
 	$: checklists = data.checklists || [];
 	$: masters = data.masters || [];
 	$: allDetails = data.details || [];
-	$: defectOptions = (data.masterDefects || []).map((d: any) => ({ value: d.name, label: d.name }));
+	$: defectOptions = [
+		...(data.masterDefects || []).map((d: any) => ({ value: d.name, label: d.name })),
+		{ value: 'OTHER', label: 'อื่นๆ (โปรดระบุ)' }
+	];
+
 	$: solutionOptions = (data.masterSolutions || []).map((s: any) => ({
 		value: s.name,
 		label: s.name
@@ -765,10 +769,22 @@
 								id="defect_input"
 								items={defectOptions}
 								bind:value={selectedDefect}
-								on:change={(e) => (formDefectName = e.detail ? e.detail.value : '')}
+								on:change={(e) =>
+									(formDefectName = e.detail && e.detail.value !== 'OTHER' ? e.detail.value : '')}
 								placeholder="เลือกปัญหา..."
 								container={browser ? document.body : null}
 							/>
+
+							{#if selectedDefect?.value === 'OTHER'}
+								<input
+									type="text"
+									bind:value={formDefectName}
+									placeholder="พิมพ์ระบุลักษณะปัญหาที่พบ..."
+									class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+									required
+								/>
+							{/if}
+
 							<input type="hidden" name="defect" value={formDefectName} required />
 						</div>
 						<div>

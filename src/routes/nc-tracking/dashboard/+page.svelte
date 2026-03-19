@@ -160,12 +160,13 @@
 							</td>
 							<td class="px-6 py-4 text-gray-500">{item.date}</td>
 							<td class="px-6 py-4 text-center">
-								<button
-									class="rounded-lg p-1.5 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
+								<a
+									href="/nc-tracking/{item.id}"
+									class="inline-block rounded-lg p-1.5 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
 									title="View Details"
 								>
 									<span class="material-symbols-outlined block text-xl">visibility</span>
-								</button>
+								</a>
 							</td>
 						</tr>
 					{/each}

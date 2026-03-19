@@ -19,11 +19,15 @@
 		}
 	}
 
-	$: defectOptions = (data.masterDefects || []).map((d: any) => ({ value: d.name, label: d.name }));
+	$: defectOptions = [
+		...(data.masterDefects || []).map((d: any) => ({ value: d.name, label: d.name })),
+		{ value: 'OTHER', label: 'อื่นๆ (โปรดระบุ)' }
+	];
 	$: solutionOptions = (data.masterSolutions || []).map((s: any) => ({
 		value: s.name,
 		label: s.name
 	}));
+
 	$: positionOptions = (data.masterParts || []).map((p: any) => ({
 		value: p.position ? `${p.name} (${p.position})` : p.name,
 		label: p.position ? `${p.name} (${p.position})` : p.name
@@ -54,12 +58,26 @@
 	let showNgModal = false;
 	let activeItem: any = null;
 	let currentNgData = { position: '', defect: '', solution: '', img_zoom: null, img_far: null };
+	let modalSelectedDefect: any = null;
+	let modalDefectText = '';
 	let zoomInput: HTMLInputElement;
 	let farInput: HTMLInputElement;
 
 	function openNgEdit(item: any) {
 		activeItem = item;
 		const existing = ngDetails[item.work_detail_id];
+		const isMasterDefect = data.masterDefects?.some((d: any) => d.name === existing.defect);
+		if (existing.defect && !isMasterDefect) {
+			modalSelectedDefect = { value: 'OTHER', label: 'อื่นๆ (โปรดระบุ)' };
+			modalDefectText = existing.defect;
+		} else if (existing.defect) {
+			modalSelectedDefect = { value: existing.defect, label: existing.defect };
+			modalDefectText = existing.defect;
+		} else {
+			modalSelectedDefect = null;
+			modalDefectText = '';
+		}
+
 		currentNgData = {
 			position: existing.position || '',
 			defect: existing.defect || '',
@@ -75,14 +93,12 @@
 			typeof currentNgData.position === 'object'
 				? (currentNgData.position as any).label
 				: currentNgData.position;
-		const defVal =
-			typeof currentNgData.defect === 'object'
-				? (currentNgData.defect as any).label
-				: currentNgData.defect;
 		const solVal =
 			typeof currentNgData.solution === 'object'
 				? (currentNgData.solution as any).label
 				: currentNgData.solution;
+
+		const defVal = modalDefectText;
 
 		ngDetails[activeItem.work_detail_id] = {
 			...ngDetails[activeItem.work_detail_id],
@@ -278,9 +294,22 @@
 					<Select
 						id="defect_select"
 						items={defectOptions}
-						bind:value={currentNgData.defect}
+						bind:value={modalSelectedDefect}
+						on:change={(e) => {
+							modalDefectText = e.detail && e.detail.value !== 'OTHER' ? e.detail.value : '';
+						}}
 						container={browser ? document.body : null}
 					/>
+
+					{#if modalSelectedDefect?.value === 'OTHER'}
+						<input
+							type="text"
+							bind:value={modalDefectText}
+							placeholder="พิมพ์ระบุลักษณะปัญหาที่พบ..."
+							class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+							required
+						/>
+					{/if}
 				</div>
 				<div>
 					<label for="sol_select" class="mb-1 block text-sm font-bold text-gray-700"
