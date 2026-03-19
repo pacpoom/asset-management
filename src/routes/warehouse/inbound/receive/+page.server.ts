@@ -43,12 +43,11 @@ export const actions: Actions = {
 		const serial_number = formData.get('serial_number')?.toString()?.trim();
 		const qty = parseFloat(formData.get('qty')?.toString() || '1');
 		
-		// ใช้วันที่ปัจจุบันตาม Local Timezone ของ Server
-		const now = new Date();
-		const year = now.getFullYear();
-		const month = String(now.getMonth() + 1).padStart(2, '0');
-		const day = String(now.getDate()).padStart(2, '0');
-		const inbound_date = `${year}-${month}-${day}`;
+		// บังคับใช้ Timezone ของไทย (Asia/Bangkok) เพื่อแก้ปัญหา Database ตั้งค่าเป็น UTC
+		const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' });
+		
+		const created_at = nowStr; // "YYYY-MM-DD HH:mm:ss"
+		const inbound_date = nowStr.split(' ')[0]; // "YYYY-MM-DD"
 
 		if (!location_id || !item_id || isNaN(qty) || qty <= 0) {
 			return fail(400, { action: 'saveInbound', success: false, message: 'ข้อมูลไม่ครบถ้วน หรือระบุจำนวนไม่ถูกต้อง' });
@@ -71,12 +70,21 @@ export const actions: Actions = {
 
 			await connection.beginTransaction();
 
+			// 1. Insert ลง Inventory Stock
 			const sql = `INSERT INTO inventory_stock (
-				item_id, location_id, serial_number, qty, actual_qty, inbound_date
-			) VALUES (?, ?, ?, ?, ?, ?)`;
+				item_id, location_id, serial_number, qty, actual_qty, inbound_date, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 			
-			await connection.execute(sql, [
-				item_id, location_id, serial_number, qty, qty, inbound_date // ให้ actual_qty เท่ากับ qty เริ่มต้น
+			const [result] = await connection.execute<any>(sql, [
+				item_id, location_id, serial_number, qty, qty, inbound_date, created_at, created_at 
+			]);
+
+			// 2. Insert ลง Transaction Log
+			const logSql = `INSERT INTO transaction_logs (
+				transaction_type, item_id, location_id, serial_number, qty_change, notes, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+			await connection.execute(logSql, [
+				'INBOUND_RECEIVE', item_id, location_id, serial_number, qty, `รับเข้าจากหน้า Inbound (Stock ID: ${result.insertId})`, created_at
 			]);
 
 			await connection.commit();
