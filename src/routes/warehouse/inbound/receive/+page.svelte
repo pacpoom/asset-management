@@ -7,9 +7,9 @@
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// --- References for Autofocus ---
-	let locationInputEl: HTMLInputElement;
-	let barcodeInputEl: HTMLInputElement;
-	let qtyInputEl: HTMLInputElement;
+	let locationInputEl = $state<HTMLInputElement>();
+	let barcodeInputEl = $state<HTMLInputElement>();
+	let qtyInputEl = $state<HTMLInputElement>();
 
 	// --- State variables ---
 	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(null);

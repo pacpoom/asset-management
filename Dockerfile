@@ -13,7 +13,6 @@ ENV DB_DATABASE=bizcore
 COPY . .
 RUN npm install
 RUN mkdir -p static/uploads
-RUN rm -rf .svelte-kit
 RUN npm run build
 
 FROM node:20-slim AS production
