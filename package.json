@@ -43,6 +43,7 @@
 	},
 	"dependencies": {
 		"bcrypt": "^6.0.0",
+		"chart.js": "^4.5.1",
 		"exceljs": "^4.4.0",
 		"express": "^4.19.2",
 		"file-type": "^21.0.0",
@@ -52,6 +53,7 @@
 		"pdfmake": "^0.2.20",
 		"puppeteer": "^24.31.0",
 		"sirv": "^2.0.4",
+		"svelte-chartjs": "^4.0.1",
 		"svelte-select": "^5.8.3",
 		"svelte-sonner": "^1.0.6",
 		"uuid": "^13.0.0"
