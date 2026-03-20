@@ -683,7 +683,7 @@
 						disabled={isSaving}
 						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
 					>
-						{isSaving ? $t('Saving...') : $t('Save Stock')}
+						{isSaving ? $t('Saving...') : $t('Save')}
 					</button>
 				</div>
 			</form>
