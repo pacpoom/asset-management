@@ -19,6 +19,35 @@
 	let globalMessage = $state<{ success: boolean; text: string } | null>(null);
 	let messageTimeout: NodeJS.Timeout;
 
+	// --- Pagination & Search State ---
+	let searchQuery = $state('');
+	let currentPage = $state(1);
+	let itemsPerPage = $state(10);
+	const pageSizeOptions = [10, 20, 50, 100];
+
+	// --- Derived State for Filtering and Pagination ---
+	let filteredPermissions = $derived(
+		data.permissions.filter(
+			(p) =>
+				p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				p.guard_name.toLowerCase().includes(searchQuery.toLowerCase())
+		)
+	);
+
+	let totalPages = $derived(Math.max(1, Math.ceil(filteredPermissions.length / itemsPerPage)));
+
+	let paginatedPermissions = $derived(
+		filteredPermissions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+	);
+
+	// รีเซ็ตหน้ากลับไปหน้า 1 หากค้นหาแล้วหน้าปัจจุบันเกินกว่าจำนวนหน้าทั้งหมด
+	$effect(() => {
+		if (currentPage > totalPages) {
+			currentPage = 1;
+		}
+	});
+	// ---------------------------------
+
 	function openModal(mode: 'add' | 'edit', permission: Permission | null = null) {
 		modalMode = mode;
 		selectedPermission =
@@ -89,7 +118,38 @@
 	</button>
 </div>
 
-<div class="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+<!-- Tools Bar: Search & Items Per Page -->
+<div class="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+	<div class="relative w-full sm:w-72">
+		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+			</svg>
+		</div>
+		<input
+			type="text"
+			bind:value={searchQuery}
+			placeholder={$t('Search permissions...')}
+			class="block w-full rounded-lg border-gray-300 py-2 pl-10 pr-3 text-sm focus:border-blue-500 focus:ring-blue-500"
+		/>
+	</div>
+	
+	<div class="flex items-center gap-2">
+		<label for="itemsPerPage" class="text-sm text-gray-600">{$t('Show')}</label>
+		<select
+			id="itemsPerPage"
+			bind:value={itemsPerPage}
+			class="rounded-lg border-gray-300 py-2 pl-3 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
+		>
+			{#each pageSizeOptions as size}
+				<option value={size}>{size}</option>
+			{/each}
+		</select>
+		<span class="text-sm text-gray-600">{$t('entries')}</span>
+	</div>
+</div>
+
+<div class="overflow-x-auto rounded-t-lg border border-gray-200 bg-white shadow-sm">
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
@@ -105,7 +165,7 @@
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
-			{#each data.permissions as permission (permission.id)}
+			{#each paginatedPermissions as permission (permission.id)}
 				<tr class="transition-colors hover:bg-gray-50">
 					<td class="px-6 py-4 font-medium text-gray-900">{permission.name}</td>
 					<td class="px-6 py-4 font-mono text-xs text-gray-500">{permission.guard_name}</td>
@@ -148,12 +208,89 @@
 						</div>
 					</td>
 				</tr>
+			{:else}
+				<tr>
+					<td colspan="3" class="px-6 py-8 text-center text-gray-500">
+						{#if searchQuery}
+							{$t('No permissions found matching your search.')}
+						{:else}
+							{$t('No permissions available.')}
+						{/if}
+					</td>
+				</tr>
 			{/each}
 		</tbody>
 	</table>
 </div>
 
+<!-- Pagination Controls -->
+<div class="flex items-center justify-between rounded-b-lg border border-t-0 border-gray-200 bg-white px-4 py-3 sm:px-6 shadow-sm">
+	<div class="flex flex-1 justify-between sm:hidden">
+		<button
+			onclick={() => currentPage--}
+			disabled={currentPage === 1}
+			class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+		>
+			{$t('Previous')}
+		</button>
+		<button
+			onclick={() => currentPage++}
+			disabled={currentPage === totalPages}
+			class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+		>
+			{$t('Next')}
+		</button>
+	</div>
+	<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+		<div>
+			<p class="text-sm text-gray-700">
+				{$t('Showing')}
+				<span class="font-medium">
+					{filteredPermissions.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
+				</span>
+				{$t('to')}
+				<span class="font-medium">
+					{Math.min(currentPage * itemsPerPage, filteredPermissions.length)}
+				</span>
+				{$t('of')}
+				<span class="font-medium">{filteredPermissions.length}</span>
+				{$t('entries')}
+			</p>
+		</div>
+		<div>
+			<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+				<button
+					onclick={() => currentPage--}
+					disabled={currentPage === 1}
+					class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					<span class="sr-only">{$t('Previous')}</span>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+						<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+					</svg>
+				</button>
+				
+				<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+					{currentPage} / {totalPages}
+				</span>
+
+				<button
+					onclick={() => currentPage++}
+					disabled={currentPage === totalPages}
+					class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					<span class="sr-only">{$t('Next')}</span>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+						<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+					</svg>
+				</button>
+			</nav>
+		</div>
+	</div>
+</div>
+
 {#if modalMode && selectedPermission}
+	<!-- Modal Code remains unchanged... -->
 	<div
 		transition:slide={{ duration: 200 }}
 		class="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-sm"
@@ -223,6 +360,7 @@
 {/if}
 
 {#if permissionToDelete}
+	<!-- Delete Modal remains unchanged... -->
 	<div
 		class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
 	>
