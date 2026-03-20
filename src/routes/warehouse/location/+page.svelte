@@ -6,10 +6,8 @@
 	import { page } from '$app/stores';
 	import { t, locale } from '$lib/i18n';
 
-	// --- Types ---
 	type Location = PageData['locations'][0];
 
-	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let modalMode = $state<'add' | 'edit' | null>(null);
@@ -17,19 +15,18 @@
 	let locationToDelete = $state<Location | null>(null);
 	let isSaving = $state(false);
 
-	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(null);
+	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(
+		null
+	);
 	let messageTimeout: NodeJS.Timeout;
 
-	// Search State
 	let searchQuery = $state(data.searchQuery ?? '');
 	let searchTimer: NodeJS.Timeout;
 
-	// Auto-generate Location Code effect
 	$effect(() => {
 		if (selectedLocation && modalMode === 'add') {
-			// ถ้าอยู่ในโหมด add และผู้ใช้กำลังพิมพ์ zone, area, bin ให้ต่อ string อัตโนมัติ
 			const { zone, area, bin } = selectedLocation;
-			const parts = [zone, area, bin].filter(p => p && p.trim() !== '');
+			const parts = [zone, area, bin].filter((p) => p && p.trim() !== '');
 			if (parts.length > 0) {
 				selectedLocation.location_code = parts.join('-');
 			} else {
@@ -38,7 +35,6 @@
 		}
 	});
 
-	// --- Functions ---
 	function handleSearchInput() {
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(() => {
@@ -111,7 +107,6 @@
 		}).format(value);
 	}
 
-	// --- Reactive Effects ---
 	$effect.pre(() => {
 		if (form?.action === 'saveLocation') {
 			if (form.success) {
@@ -136,7 +131,6 @@
 		}
 	});
 
-	// --- Pagination Logic ---
 	const paginationRange = $derived.by(() => {
 		const delta = 1;
 		const left = data.currentPage - delta;
@@ -176,17 +170,18 @@
 	<title>{$t('Location Master')}</title>
 </svelte:head>
 
-<!-- Global Message Toast -->
 {#if globalMessage}
 	<div
 		transition:fade
-		class="fixed top-4 right-4 z-[70] max-w-sm rounded-lg p-4 text-sm font-semibold shadow-xl {globalMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}"
+		class="fixed top-4 right-4 z-[70] max-w-sm rounded-lg p-4 text-sm font-semibold shadow-xl {globalMessage.type ===
+		'success'
+			? 'bg-green-100 text-green-800'
+			: 'bg-red-100 text-red-800'}"
 	>
 		{globalMessage.text}
 	</div>
 {/if}
 
-<!-- Header & Action Buttons -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
 		<h1 class="text-2xl font-bold text-gray-800">{$t('Location Master')}</h1>
@@ -199,8 +194,19 @@
 				type="submit"
 				class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
-					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="24"
+					height="24"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					class="h-4 w-4"
+				>
+					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline
+						points="7 10 12 15 17 10"
+					/><line x1="12" y1="15" x2="12" y2="3" />
 				</svg>
 				{$t('Export to Excel')}
 			</button>
@@ -209,7 +215,14 @@
 			onclick={() => openModal('add')}
 			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 		>
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				class="h-4 w-4"
+			>
 				<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 			</svg>
 			{$t('Add New Location')}
@@ -217,7 +230,6 @@
 	</div>
 </div>
 
-<!-- Search Bar -->
 <div class="mb-4">
 	<form method="GET" action={$page.url.pathname} class="relative">
 		<input type="hidden" name="page" value="1" />
@@ -231,14 +243,22 @@
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-			<svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+			<svg
+				class="h-4 w-4 text-gray-400"
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 20 20"
+				fill="currentColor"
+			>
+				<path
+					fill-rule="evenodd"
+					d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+					clip-rule="evenodd"
+				/>
 			</svg>
 		</div>
 	</form>
 </div>
 
-<!-- Data Table -->
 <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
@@ -247,8 +267,8 @@
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Zone')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Area')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Bin')}</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Min Capacity')}</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Max Capacity')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Min Capacity')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Max Capacity')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
@@ -256,7 +276,9 @@
 			{#if data.locations.length === 0}
 				<tr>
 					<td colspan="7" class="py-12 text-center text-gray-500">
-						{#if data.searchQuery}{$t('No locations found for:')} "{data.searchQuery}"{:else}{$t('No locations data found')}{/if}
+						{#if data.searchQuery}{$t('No locations found for:')} "{data.searchQuery}"{:else}{$t(
+								'No locations data found'
+							)}{/if}
 					</td>
 				</tr>
 			{:else}
@@ -264,27 +286,51 @@
 					<tr class="hover:bg-gray-50">
 						<td class="px-4 py-3 font-mono font-medium text-gray-800">{loc.location_code}</td>
 						<td class="px-4 py-3 text-center text-gray-700">
-							<span class="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">{loc.zone}</span>
+							<span class="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700"
+								>{loc.zone}</span
+							>
 						</td>
 						<td class="px-4 py-3 text-center text-gray-700">{loc.area}</td>
 						<td class="px-4 py-3 text-center text-gray-700">{loc.bin}</td>
-						<td class="px-4 py-3 text-right text-orange-600 font-medium">{formatQuantity(loc.min_capacity)}</td>
-						<td class="px-4 py-3 text-right text-green-600 font-medium">{formatQuantity(loc.max_capacity)}</td>
-						<td class="px-4 py-3 whitespace-nowrap text-center">
+						<td class="px-4 py-3 text-center font-medium text-orange-600"
+							>{formatQuantity(loc.min_capacity)}</td
+						>
+						<td class="px-4 py-3 text-center font-medium text-green-600"
+							>{formatQuantity(loc.max_capacity)}</td
+						>
+						<td class="px-4 py-3 text-center whitespace-nowrap">
 							<div class="flex items-center justify-center gap-2">
 								<button
 									onclick={() => openModal('edit', loc)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
 									title={$t('Edit')}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg
+									>
 								</button>
 								<button
 									onclick={() => (locationToDelete = loc)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
 									title={$t('Delete')}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg
+									>
 								</button>
 							</div>
 						</td>
@@ -295,15 +341,14 @@
 	</table>
 </div>
 
-<!-- Pagination & Paging Size -->
 {#if data.locations.length > 0 || data.searchQuery}
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
-		<div class="flex items-center gap-4">
+		<div class="flex flex-col items-center gap-3 sm:flex-row sm:gap-6">
 			<div class="flex items-center gap-2">
-				<span class="text-sm text-gray-700">{$t('Show')}</span>
+				<span class="text-sm text-gray-700">{$t('Showing')}</span>
 				<select
-					class="rounded-md border-gray-300 py-1 pl-3 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
-					value={data.limit}
+					class="rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm focus:border-blue-500 focus:ring-blue-500"
+					value={data.limit?.toString() || '10'}
 					onchange={(e) => changeLimit(e.currentTarget.value)}
 				>
 					<option value="10">10</option>
@@ -313,42 +358,81 @@
 				</select>
 				<span class="text-sm text-gray-700">{$t('entries')}</span>
 			</div>
-			
+
 			{#if data.totalPages > 0}
-				<p class="hidden text-sm text-gray-700 sm:block">
+				<div class="text-sm text-gray-700">
+					<span class="mr-4 hidden h-4 border-l border-gray-300 align-middle sm:inline-block"
+					></span>
 					{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
 					{$t('of')} <span class="font-medium">{data.totalPages}</span>
-				</p>
+				</div>
 			{/if}
 		</div>
 
 		{#if data.totalPages > 1}
 			<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-				<a href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'} class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === 1 ? 'pointer-events-none opacity-50' : ''}">
+				<a
+					href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'}
+					class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+					1
+						? 'pointer-events-none opacity-50'
+						: ''}"
+				>
 					<span class="sr-only">{$t('Previous')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+						><path
+							fill-rule="evenodd"
+							d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+							clip-rule="evenodd"
+						/></svg
+					>
 				</a>
 				{#each paginationRange as pageNum}
 					{#if typeof pageNum === 'string'}
-						<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset">...</span>
+						<span
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset"
+							>...</span
+						>
 					{:else}
-						<a href={getPageUrl(pageNum)} class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum === data.currentPage ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600' : 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}">{pageNum}</a>
+						<a
+							href={getPageUrl(pageNum)}
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum ===
+							data.currentPage
+								? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+								: 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}">{pageNum}</a
+						>
 					{/if}
 				{/each}
-				<a href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'} class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === data.totalPages ? 'pointer-events-none opacity-50' : ''}">
+				<a
+					href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'}
+					class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+					data.totalPages
+						? 'pointer-events-none opacity-50'
+						: ''}"
+				>
 					<span class="sr-only">{$t('Next')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+						><path
+							fill-rule="evenodd"
+							d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+							clip-rule="evenodd"
+						/></svg
+					>
 				</a>
 			</nav>
 		{/if}
 	</div>
 {/if}
 
-<!-- Add/Edit Modal -->
 {#if modalMode && selectedLocation}
-	<div transition:slide class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+	<div
+		transition:slide
+		class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+	>
 		<div class="fixed inset-0" onclick={closeModal} role="presentation"></div>
-		<div class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all">
+		<div
+			class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
+		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
 					{modalMode === 'add' ? $t('Add New Location') : $t('Edit Location')}
@@ -372,67 +456,66 @@
 				{/if}
 
 				<div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-					
-					<!-- Zone -->
 					<div>
-						<label for="zone" class="mb-1 block text-sm font-medium">{$t('Zone *')}</label>
+						<label for="zone" class="mb-1 block text-sm font-medium">{$t('Zone')}</label>
 						<input
 							type="text"
 							name="zone"
 							id="zone"
 							required
 							bind:value={selectedLocation.zone}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 uppercase"
+							class="w-full rounded-md border-gray-300 text-sm uppercase focus:border-blue-500 focus:ring-blue-500"
 							placeholder="e.g. A"
 						/>
 					</div>
 
-					<!-- Area -->
 					<div>
-						<label for="area" class="mb-1 block text-sm font-medium">{$t('Area *')}</label>
+						<label for="area" class="mb-1 block text-sm font-medium">{$t('Area')}</label>
 						<input
 							type="text"
 							name="area"
 							id="area"
 							required
 							bind:value={selectedLocation.area}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 uppercase"
+							class="w-full rounded-md border-gray-300 text-sm uppercase focus:border-blue-500 focus:ring-blue-500"
 							placeholder="e.g. 01"
 						/>
 					</div>
 
-					<!-- Bin -->
 					<div>
-						<label for="bin" class="mb-1 block text-sm font-medium">{$t('Bin *')}</label>
+						<label for="bin" class="mb-1 block text-sm font-medium">{$t('Bin')}</label>
 						<input
 							type="text"
 							name="bin"
 							id="bin"
 							required
 							bind:value={selectedLocation.bin}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 uppercase"
+							class="w-full rounded-md border-gray-300 text-sm uppercase focus:border-blue-500 focus:ring-blue-500"
 							placeholder="e.g. 01"
 						/>
 					</div>
 
-					<!-- Location Code -->
 					<div class="sm:col-span-3">
 						<label for="location_code" class="mb-1 block text-sm font-medium">
-							{$t('Location Code')} <span class="text-gray-500 font-normal">({$t('Auto-generated as Zone-Area-Bin, but editable')})</span>
+							{$t('Location Code')}
+							<span class="font-normal text-gray-500"
+								>({$t('Auto-generated as Zone-Area-Bin, but editable')})</span
+							>
 						</label>
 						<input
 							type="text"
 							name="location_code"
 							id="location_code"
 							bind:value={selectedLocation.location_code}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 font-mono uppercase bg-gray-50"
+							class="w-full rounded-md border-gray-300 bg-gray-50 font-mono text-sm uppercase focus:border-blue-500 focus:ring-blue-500"
 							placeholder="e.g. A-01-01"
 						/>
 					</div>
 
-					<!-- Min Capacity -->
 					<div class="sm:col-span-1">
-						<label for="min_capacity" class="mb-1 block text-sm font-medium">{$t('Min Capacity')}</label>
+						<label for="min_capacity" class="mb-1 block text-sm font-medium"
+							>{$t('Min Capacity')}</label
+						>
 						<input
 							type="number"
 							step="any"
@@ -443,9 +526,10 @@
 						/>
 					</div>
 
-					<!-- Max Capacity -->
 					<div class="sm:col-span-1">
-						<label for="max_capacity" class="mb-1 block text-sm font-medium">{$t('Max Capacity')}</label>
+						<label for="max_capacity" class="mb-1 block text-sm font-medium"
+							>{$t('Max Capacity')}</label
+						>
 						<input
 							type="number"
 							step="any"
@@ -484,9 +568,11 @@
 	</div>
 {/if}
 
-<!-- Delete Confirmation Modal -->
 {#if locationToDelete}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="alertdialog">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+		role="alertdialog"
+	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
@@ -495,7 +581,7 @@
 				<br /><br />
 				<span class="text-red-600">{$t('This action cannot be undone.')}</span>
 			</p>
-			
+
 			{#if form?.message && !form.success && form.action === 'deleteLocation'}
 				<p class="mt-3 text-sm text-red-600"><strong>{$t('Error:')}</strong> {form.message}</p>
 			{/if}

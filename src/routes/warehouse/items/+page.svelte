@@ -18,7 +18,9 @@
 	let itemToDelete = $state<Item | null>(null);
 	let isSaving = $state(false);
 
-	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(null);
+	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(
+		null
+	);
 	let messageTimeout: NodeJS.Timeout;
 
 	// Search State
@@ -159,7 +161,7 @@
 </script>
 
 <svelte:head>
-	<title>{$t('Item Master')}</title>
+	<title>{$t('Items Master')}</title>
 </svelte:head>
 
 <!-- Global Message Toast -->
@@ -178,7 +180,7 @@
 <!-- Header & Action Buttons -->
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">{$t('Item Master')}</h1>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Items Master')}</h1>
 		<p class="mt-1 text-sm text-gray-500">{$t('Manage warehouse item list and configurations')}</p>
 	</div>
 	<div class="flex items-center gap-2">
@@ -208,7 +210,14 @@
 			onclick={() => openModal('add')}
 			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 		>
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				class="h-4 w-4"
+			>
 				<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 			</svg>
 			{$t('Add New Item')}
@@ -230,8 +239,17 @@
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-			<svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+			<svg
+				class="h-4 w-4 text-gray-400"
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 20 20"
+				fill="currentColor"
+			>
+				<path
+					fill-rule="evenodd"
+					d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+					clip-rule="evenodd"
+				/>
 			</svg>
 		</div>
 	</form>
@@ -255,7 +273,9 @@
 			{#if data.items.length === 0}
 				<tr>
 					<td colspan="7" class="py-12 text-center text-gray-500">
-						{#if data.searchQuery}{$t('No items found for:')} "{data.searchQuery}"{:else}{$t('No items data found')}{/if}
+						{#if data.searchQuery}{$t('No items found for:')} "{data.searchQuery}"{:else}{$t(
+								'No items data found'
+							)}{/if}
 					</td>
 				</tr>
 			{:else}
@@ -269,23 +289,45 @@
 								{item.unit_symbol || item.unit_name || '-'}
 							</span>
 						</td>
-						<td class="px-4 py-3 text-right text-orange-600 font-medium">{formatQuantity(item.min_stock)}</td>
-						<td class="px-4 py-3 text-right text-green-600 font-medium">{formatQuantity(item.max_stock)}</td>
-						<td class="px-4 py-3 whitespace-nowrap text-center">
+						<td class="px-4 py-3 text-right font-medium text-orange-600"
+							>{formatQuantity(item.min_stock)}</td
+						>
+						<td class="px-4 py-3 text-right font-medium text-green-600"
+							>{formatQuantity(item.max_stock)}</td
+						>
+						<td class="px-4 py-3 text-center whitespace-nowrap">
 							<div class="flex items-center justify-center gap-2">
 								<button
 									onclick={() => openModal('edit', item)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
 									title={$t('Edit')}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg
+									>
 								</button>
 								<button
 									onclick={() => (itemToDelete = item)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
 									title={$t('Delete')}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg
+									>
 								</button>
 							</div>
 						</td>
@@ -303,7 +345,7 @@
 			<div class="flex items-center gap-2">
 				<span class="text-sm text-gray-700">{$t('Show')}</span>
 				<select
-					class="rounded-md border-gray-300 py-1 pl-3 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
+					class="rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm focus:border-blue-500 focus:ring-blue-500"
 					value={data.limit}
 					onchange={(e) => changeLimit(e.currentTarget.value)}
 				>
@@ -314,7 +356,7 @@
 				</select>
 				<span class="text-sm text-gray-700">{$t('entries')}</span>
 			</div>
-			
+
 			{#if data.totalPages > 0}
 				<p class="hidden text-sm text-gray-700 sm:block">
 					{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
@@ -325,20 +367,53 @@
 
 		{#if data.totalPages > 1}
 			<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-				<a href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'} class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === 1 ? 'pointer-events-none opacity-50' : ''}">
+				<a
+					href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'}
+					class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+					1
+						? 'pointer-events-none opacity-50'
+						: ''}"
+				>
 					<span class="sr-only">{$t('Previous')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+						><path
+							fill-rule="evenodd"
+							d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+							clip-rule="evenodd"
+						/></svg
+					>
 				</a>
 				{#each paginationRange as pageNum}
 					{#if typeof pageNum === 'string'}
-						<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset">...</span>
+						<span
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset"
+							>...</span
+						>
 					{:else}
-						<a href={getPageUrl(pageNum)} class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum === data.currentPage ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600' : 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}">{pageNum}</a>
+						<a
+							href={getPageUrl(pageNum)}
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum ===
+							data.currentPage
+								? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+								: 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}">{pageNum}</a
+						>
 					{/if}
 				{/each}
-				<a href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'} class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === data.totalPages ? 'pointer-events-none opacity-50' : ''}">
+				<a
+					href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'}
+					class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+					data.totalPages
+						? 'pointer-events-none opacity-50'
+						: ''}"
+				>
 					<span class="sr-only">{$t('Next')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+						><path
+							fill-rule="evenodd"
+							d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+							clip-rule="evenodd"
+						/></svg
+					>
 				</a>
 			</nav>
 		{/if}
@@ -347,9 +422,14 @@
 
 <!-- Add/Edit Modal -->
 {#if modalMode && selectedItem}
-	<div transition:slide class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+	<div
+		transition:slide
+		class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+	>
 		<div class="fixed inset-0" onclick={closeModal} role="presentation"></div>
-		<div class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all">
+		<div
+			class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
+		>
 			<div class="flex-shrink-0 border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
 					{modalMode === 'add' ? $t('Add New Item') : $t('Edit Item')}
@@ -376,15 +456,16 @@
 					<!-- Item Code -->
 					<div>
 						<label for="item_code" class="mb-1 block text-sm font-medium">
-							{$t('Item Code')} <span class="text-gray-500 font-normal">({$t('Leave blank to auto-generate')})</span>
+							{$t('Item Code')}
+							<span class="font-normal text-gray-500">({$t('Leave blank to auto-generate')})</span>
 						</label>
 						<input
 							type="text"
 							name="item_code"
 							id="item_code"
 							bind:value={selectedItem.item_code}
-							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 uppercase"
-							placeholder="{$t('Auto-generate if blank')}"
+							class="w-full rounded-md border-gray-300 text-sm uppercase focus:border-blue-500 focus:ring-blue-500"
+							placeholder={$t('Auto-generate if blank')}
 						/>
 					</div>
 
@@ -407,7 +488,8 @@
 
 					<!-- Item Name (Thai/Local) -->
 					<div class="sm:col-span-2">
-						<label for="item_name" class="mb-1 block text-sm font-medium">{$t('Item Name *')}</label>
+						<label for="item_name" class="mb-1 block text-sm font-medium">{$t('Item Name *')}</label
+						>
 						<input
 							type="text"
 							name="item_name"
@@ -420,7 +502,9 @@
 
 					<!-- Item Name (English) -->
 					<div class="sm:col-span-2">
-						<label for="item_name_eng" class="mb-1 block text-sm font-medium">{$t('Item Name (Eng)')}</label>
+						<label for="item_name_eng" class="mb-1 block text-sm font-medium"
+							>{$t('Item Name (Eng)')}</label
+						>
 						<input
 							type="text"
 							name="item_name_eng"
@@ -486,7 +570,10 @@
 
 <!-- Delete Confirmation Modal -->
 {#if itemToDelete}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="alertdialog">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+		role="alertdialog"
+	>
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
@@ -495,7 +582,7 @@
 				<br /><br />
 				<span class="text-red-600">{$t('This action cannot be undone.')}</span>
 			</p>
-			
+
 			{#if form?.message && !form.success && form.action === 'deleteItem'}
 				<p class="mt-3 text-sm text-red-600"><strong>{$t('Error:')}</strong> {form.message}</p>
 			{/if}

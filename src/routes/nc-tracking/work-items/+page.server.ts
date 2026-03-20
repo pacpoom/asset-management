@@ -40,6 +40,23 @@ export const actions = {
 		}
 	},
 
+	updateDetail: async ({ request }) => {
+		const formData = await request.formData();
+		const id = formData.get('id');
+		const work_name = formData.get('work_name');
+
+		try {
+			await pool.execute('UPDATE Work_detail SET work_name = ?, updated_at = NOW() WHERE id = ?', [
+				work_name,
+				id
+			]);
+			return { success: true };
+		} catch (error: any) {
+			console.error(error);
+			return fail(500, { message: 'Failed to update item' });
+		}
+	},
+
 	deleteDetail: async ({ request }) => {
 		const formData = await request.formData();
 		const id = formData.get('id');
@@ -53,17 +70,48 @@ export const actions = {
 
 	addMaster: async ({ request }) => {
 		const formData = await request.formData();
-		const autoCode = `WC-${Date.now().toString().slice(-5)}`;
+		const code = formData.get('code');
 		const name = formData.get('name');
 
 		try {
 			await pool.execute(
 				'INSERT INTO Work_Master (Work_Code, Work_description, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
-				[autoCode, name]
+				[code, name]
 			);
 			return { success: true };
 		} catch (e) {
 			return fail(500, { message: 'Failed' });
+		}
+	},
+
+	updateMaster: async ({ request }) => {
+		const formData = await request.formData();
+		const id = formData.get('id');
+		const code = formData.get('code');
+		const name = formData.get('name');
+
+		try {
+			await pool.execute(
+				'UPDATE Work_Master SET Work_Code = ?, Work_description = ?, updated_at = NOW() WHERE id = ?',
+				[code, name, id]
+			);
+			return { success: true };
+		} catch (error: any) {
+			console.error(error);
+			return fail(500, { message: 'Failed to update master' });
+		}
+	},
+
+	deleteMaster: async ({ request }) => {
+		const formData = await request.formData();
+		const id = formData.get('id');
+		try {
+			await pool.execute('DELETE FROM Work_detail WHERE work_id = ?', [id]);
+			await pool.execute('DELETE FROM Work_Master WHERE id = ?', [id]);
+			return { success: true };
+		} catch (error: any) {
+			console.error(error);
+			return fail(500, { message: 'Delete failed' });
 		}
 	}
 };
