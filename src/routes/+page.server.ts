@@ -5,6 +5,9 @@ import { checkPermission } from '$lib/server/auth';
 import type { RowDataPacket } from 'mysql2';
 
 export const load: PageServerLoad = async ({ locals }) => {
+	// เพิ่มการตรวจสอบสิทธิ์การเข้าถึงหน้า Dashboard
+	checkPermission(locals, 'view dashboard');
+
 	try {
 		const [
 			[assetsCount],

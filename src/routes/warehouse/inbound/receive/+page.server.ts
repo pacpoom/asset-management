@@ -41,6 +41,7 @@ export const actions: Actions = {
 		const location_id = formData.get('location_id')?.toString();
 		const item_id = formData.get('item_id')?.toString();
 		const serial_number = formData.get('serial_number')?.toString()?.trim();
+		const serial_id = formData.get('serial_id')?.toString()?.trim(); // รับค่า serial_id (Label ตัวเต็ม)
 		const qty = parseFloat(formData.get('qty')?.toString() || '1');
 		
 		// บังคับใช้ Timezone ของไทย (Asia/Bangkok) เพื่อแก้ปัญหา Database ตั้งค่าเป็น UTC
@@ -70,13 +71,13 @@ export const actions: Actions = {
 
 			await connection.beginTransaction();
 
-			// 1. Insert ลง Inventory Stock
+			// 1. Insert ลง Inventory Stock (เพิ่ม serial_id)
 			const sql = `INSERT INTO inventory_stock (
-				item_id, location_id, serial_number, qty, actual_qty, inbound_date, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+				item_id, location_id, serial_number, serial_id, qty, actual_qty, inbound_date, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 			
 			const [result] = await connection.execute<any>(sql, [
-				item_id, location_id, serial_number, qty, qty, inbound_date, created_at, created_at 
+				item_id, location_id, serial_number, serial_id, qty, qty, inbound_date, created_at, created_at 
 			]);
 
 			// 2. Insert ลง Transaction Log

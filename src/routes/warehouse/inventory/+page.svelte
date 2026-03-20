@@ -94,6 +94,7 @@
 				item_id: undefined as any,
 				location_id: undefined as any,
 				serial_number: '',
+				serial_id: '',
 				qty: 0,
 				actual_qty: 0,
 				inbound_date: getLocalDateString() // Default is today (Local)
@@ -284,6 +285,7 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Item')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Location')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Serial Number')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Serial ID')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('System Qty')}</th>
 				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Actual Qty')}</th>
@@ -295,7 +297,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.stocks.length === 0}
 				<tr>
-					<td colspan="9" class="py-12 text-center text-gray-500">
+					<td colspan="10" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery}{$t('No stock found for:')} "{data.searchQuery}"{:else}{$t('No inventory stock found')}{/if}
 					</td>
 				</tr>
@@ -310,6 +312,7 @@
 							<span class="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">{stock.location_code}</span>
 						</td>
 						<td class="px-4 py-3 text-gray-700">{stock.serial_number || '-'}</td>
+						<td class="px-4 py-3 text-gray-700 font-mono text-xs">{stock.serial_id || '-'}</td>
 						<td class="px-4 py-3 text-center text-gray-600">
 							<span class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
 								{stock.unit_symbol || stock.unit_name || '-'}
@@ -520,6 +523,21 @@
 							bind:value={selectedStock.serial_number}
 							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 uppercase"
 							placeholder="e.g. SN-12345"
+						/>
+					</div>
+
+					<!-- Serial ID -->
+					<div>
+						<label for="serial_id" class="mb-1 block text-sm font-medium">
+							{$t('Serial ID (Full Label)')} <span class="text-gray-500 font-normal">({$t('Optional')})</span>
+						</label>
+						<input
+							type="text"
+							name="serial_id"
+							id="serial_id"
+							bind:value={selectedStock.serial_id}
+							class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 uppercase"
+							placeholder="e.g. FULL-BARCODE-STRING"
 						/>
 					</div>
 
