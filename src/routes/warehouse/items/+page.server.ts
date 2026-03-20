@@ -67,7 +67,7 @@ async function generateItemCode() {
 
 // --- Load Function ---
 export const load: PageServerLoad = async ({ url, locals }) => {
-	checkPermission(locals, 'view items');
+	checkPermission(locals, 'view items master');
 
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';

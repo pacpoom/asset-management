@@ -70,7 +70,7 @@ async function generateRouteNo() {
 }
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-	checkPermission(locals, 'view item routes');
+	checkPermission(locals, 'view items route');
 
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';

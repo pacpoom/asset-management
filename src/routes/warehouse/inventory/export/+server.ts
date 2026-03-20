@@ -8,6 +8,7 @@ interface StockExportData extends RowDataPacket {
 	item_name: string;
 	location_code: string;
 	serial_number: string | null;
+	serial_id: string | null;
 	unit_name: string | null;
 	unit_symbol: string | null;
 	qty: number;
@@ -28,12 +29,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (searchQuery) {
 			whereClause += ` AND (
                 inv.serial_number LIKE ? OR
+                inv.serial_id LIKE ? OR
                 i.item_code LIKE ? OR
                 i.item_name LIKE ? OR
                 l.location_code LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		const sql = `
@@ -41,7 +43,7 @@ export const POST: RequestHandler = async ({ request }) => {
                 i.item_code, i.item_name,
                 u.name AS unit_name, u.symbol AS unit_symbol,
                 l.location_code,
-                inv.serial_number, inv.qty, inv.actual_qty,
+                inv.serial_number, inv.serial_id, inv.qty, inv.actual_qty,
                 inv.inbound_date, inv.created_at, inv.updated_at
             FROM inventory_stock inv
             LEFT JOIN items i ON inv.item_id = i.id
@@ -61,6 +63,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			{ header: 'Item Name', key: 'item_name', width: 40 },
 			{ header: 'Location Code', key: 'location_code', width: 20 },
 			{ header: 'Serial Number', key: 'serial_number', width: 25 },
+			{ header: 'Serial ID', key: 'serial_id', width: 35 },
 			{ header: 'Unit', key: 'unit', width: 15 },
 			{ header: 'System Qty', key: 'qty', width: 15, style: { numFmt: '#,##0.00' } },
 			{ header: 'Actual Qty', key: 'actual_qty', width: 15, style: { numFmt: '#,##0.00' } },
@@ -80,12 +83,13 @@ export const POST: RequestHandler = async ({ request }) => {
             row.getCell('B').value = stock.item_name;
             row.getCell('C').value = stock.location_code;
             row.getCell('D').value = stock.serial_number;
-            row.getCell('E').value = stock.unit_symbol || stock.unit_name || '-';
-            row.getCell('F').value = stock.qty;
-            row.getCell('G').value = stock.actual_qty;
-            row.getCell('H').value = stock.inbound_date ? new Date(stock.inbound_date) : null;
-            row.getCell('I').value = stock.created_at ? new Date(stock.created_at) : null;
-            row.getCell('J').value = stock.updated_at ? new Date(stock.updated_at) : null;
+            row.getCell('E').value = stock.serial_id;
+            row.getCell('F').value = stock.unit_symbol || stock.unit_name || '-';
+            row.getCell('G').value = stock.qty;
+            row.getCell('H').value = stock.actual_qty;
+            row.getCell('I').value = stock.inbound_date ? new Date(stock.inbound_date) : null;
+            row.getCell('J').value = stock.created_at ? new Date(stock.created_at) : null;
+            row.getCell('K').value = stock.updated_at ? new Date(stock.updated_at) : null;
 		}
 
 		const buffer = await workbook.xlsx.writeBuffer();

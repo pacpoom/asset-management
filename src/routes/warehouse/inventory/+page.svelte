@@ -88,6 +88,7 @@
 				item_id: undefined as any,
 				location_id: undefined as any,
 				serial_number: '',
+				serial_id: '',
 				qty: 0,
 				actual_qty: 0,
 				inbound_date: getLocalDateString()
@@ -304,6 +305,7 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Item')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Location')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Serial Number')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Serial ID')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('System Qty')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actual Qty')}</th>
@@ -315,7 +317,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.stocks.length === 0}
 				<tr>
-					<td colspan="9" class="py-12 text-center text-gray-500">
+					<td colspan="10" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery}{$t('No stock found for:')} "{data.searchQuery}"{:else}{$t(
 								'No inventory stock found'
 							)}{/if}
@@ -335,6 +337,7 @@
 							>
 						</td>
 						<td class="px-4 py-3 text-gray-700">{stock.serial_number || '-'}</td>
+						<td class="px-4 py-3 font-mono text-xs text-gray-700">{stock.serial_id || '-'}</td>
 						<td class="px-4 py-3 text-center text-gray-600">
 							<span class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
 								{stock.unit_symbol || stock.unit_name || '-'}

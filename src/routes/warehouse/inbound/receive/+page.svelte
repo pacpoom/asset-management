@@ -28,6 +28,7 @@
 		itemCode: string;
 		itemName: string;
 		serialNumber: string;
+		serialId: string; // เพิ่มตัวแปรสำหรับเก็บ Barcode เต็ม (serial_id)
 		qty: number;
 	} | null>(null);
 
@@ -99,6 +100,7 @@
 					itemCode: foundItem.item_code,
 					itemName: foundItem.item_name,
 					serialNumber: extractedSerial,
+					serialId: rawBarcode,
 					qty: 1
 				};
 				showQtyModal = true;
@@ -264,6 +266,8 @@
 				<input type="hidden" name="location_id" value={selectedLocationId} />
 				<input type="hidden" name="item_id" value={parsedData.itemId} />
 				<input type="hidden" name="serial_number" value={parsedData.serialNumber} />
+				<input type="hidden" name="serial_id" value={parsedData.serialId} />
+				<!-- ซ่อนส่งค่า Label เต็มไป Backend -->
 
 				<div class="mb-5 rounded-lg border border-gray-100 bg-gray-50 p-4">
 					<div class="mb-2 flex justify-between">
@@ -278,6 +282,11 @@
 					<div class="flex justify-between border-t border-gray-200 pt-2">
 						<span class="text-sm text-gray-500">Serial Number:</span>
 						<span class="font-mono font-bold text-indigo-700">{parsedData.serialNumber}</span>
+					</div>
+					<!-- เพิ่มส่วนแสดงผลบาร์โค้ดแบบเต็ม เพื่อให้เห็นชัดเจน -->
+					<div class="mt-2 flex justify-between border-t border-gray-200 pt-2">
+						<span class="text-sm text-gray-500">Serial ID (Full Label):</span>
+						<span class="font-mono text-xs text-gray-500">{parsedData.serialId}</span>
 					</div>
 				</div>
 

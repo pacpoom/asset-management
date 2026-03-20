@@ -10,6 +10,7 @@ interface InventoryStock extends RowDataPacket {
 	item_id: number;
 	location_id: number;
 	serial_number: string | null;
+	serial_id: string | null;
 	qty: number;
 	actual_qty: number;
 	inbound_date: string;
@@ -67,12 +68,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		if (searchQuery) {
 			whereClause += ` AND (
                 inv.serial_number LIKE ? OR
+                inv.serial_id LIKE ? OR
                 i.item_code LIKE ? OR
                 i.item_name LIKE ? OR
                 l.location_code LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		const countSql = `
@@ -136,6 +138,7 @@ export const actions: Actions = {
 		const item_id = parseNumberOrNull(formData.get('item_id'));
 		const location_id = parseNumberOrNull(formData.get('location_id'));
 		const serial_number = formData.get('serial_number')?.toString()?.trim() || null;
+		const serial_id = formData.get('serial_id')?.toString()?.trim() || null;
 		const qty = parseFloatOrZero(formData.get('qty'));
 		const actual_qty = parseFloatOrZero(formData.get('actual_qty'));
 		const inbound_date = formData.get('inbound_date')?.toString();
@@ -177,17 +180,17 @@ export const actions: Actions = {
 
 			if (id) {
 				const sql = `UPDATE inventory_stock SET
-                    item_id = ?, location_id = ?, serial_number = ?, qty = ?, actual_qty = ?, inbound_date = ?
+                    item_id = ?, location_id = ?, serial_number = ?, serial_id = ?, qty = ?, actual_qty = ?, inbound_date = ?
                     WHERE id = ?`;
 				await connection.execute(sql, [
-					item_id, location_id, serial_number, qty, actual_qty, inbound_date, parseInt(id)
+					item_id, location_id, serial_number, serial_id, qty, actual_qty, inbound_date, parseInt(id)
 				]);
 			} else {
 				const sql = `INSERT INTO inventory_stock (
-                    item_id, location_id, serial_number, qty, actual_qty, inbound_date
-                 ) VALUES (?, ?, ?, ?, ?, ?)`;
+                    item_id, location_id, serial_number, serial_id, qty, actual_qty, inbound_date
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?)`;
 				await connection.execute(sql, [
-					item_id, location_id, serial_number, qty, actual_qty, inbound_date
+					item_id, location_id, serial_number, serial_id, qty, actual_qty, inbound_date
 				]);
 			}
 
