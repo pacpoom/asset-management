@@ -13,6 +13,9 @@ interface Item extends RowDataPacket {
 interface Location extends RowDataPacket {
 	id: number;
 	location_code: string;
+	zone: string;
+	area: string;
+	bin: string;
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -20,8 +23,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	try {
 		// โหลด Master Data มาไว้ใช้สำหรับ Validate ฝั่ง Client เพื่อความรวดเร็วเวลาสแกน
+		// อัปเดต: ดึง zone, area, bin มาด้วยเพื่อใช้เป็น Filter ในหน้าบ้าน
 		const [items] = await pool.execute<Item[]>('SELECT id, item_code, item_name FROM items');
-		const [locations] = await pool.execute<Location[]>('SELECT id, location_code FROM locations');
+		const [locations] = await pool.execute<Location[]>(
+			'SELECT id, location_code, zone, area, bin FROM locations ORDER BY zone ASC, area ASC, bin ASC'
+		);
 
 		return {
 			items,

@@ -29,9 +29,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	const startDate = url.searchParams.get('startDate') || '';
 	const endDate = url.searchParams.get('endDate') || '';
 
-	let limit = parseInt(url.searchParams.get('limit') || '50', 10);
+	// แก้ไขตรงนี้: เปลี่ยนค่า Default จาก 50 เป็น 10
+	let limit = parseInt(url.searchParams.get('limit') || '10', 10);
 	const allowedLimits = [10, 20, 50, 200];
-	if (!allowedLimits.includes(limit)) limit = 50;
+	if (!allowedLimits.includes(limit)) limit = 10; // เปลี่ยนค่า Fallback จาก 50 เป็น 10 ด้วย
+	
 	const offset = (page - 1) * limit;
 
 	try {

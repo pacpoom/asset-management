@@ -425,7 +425,7 @@
 				<span class="text-sm text-gray-700">{$t('Show')}</span>
 				<select
 					class="rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm focus:border-blue-500 focus:ring-blue-500"
-					value={data.limit}
+					value={data.limit.toString()}
 					onchange={(e) => changeLimit(e.currentTarget.value)}
 				>
 					<option value="10">10</option>
