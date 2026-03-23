@@ -2,7 +2,8 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { t } from '$lib/i18n';
+	// นำเข้า locale มาเพื่อส่งไปตอนกด Export
+	import { t, locale } from '$lib/i18n';
 
 	export let data;
 
@@ -182,9 +183,9 @@
 
 			<!-- Buttons -->
 			<div class="flex w-full gap-2 sm:w-auto">
-				<!-- พ่วงค่า Date เข้าไปที่ URL สำหรับ Export ด้วย -->
+				<!-- พ่วงค่า locale เข้าไปที่ URL สำหรับ Export ด้วย -->
 				<a
-					href={`/freight-forwarder/job-orders/export-excel?search=${encodeURIComponent(searchQuery)}&startDate=${startDate}&endDate=${endDate}`}
+					href={`/freight-forwarder/job-orders/export-excel?search=${encodeURIComponent(searchQuery)}&startDate=${startDate}&endDate=${endDate}&locale=${$locale}`}
 					target="_blank"
 					class="flex flex-1 flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-green-700 sm:flex-none sm:w-auto"
 				>
@@ -247,7 +248,7 @@
 									{job.job_number || formatJobNumber(job.job_type, job.job_date, job.id)}
 								</a>
 								<div class="mt-0.5 text-xs text-gray-500">
-									{new Date(job.job_date).toLocaleDateString('th-TH')}
+									{new Date(job.job_date).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US')}
 								</div>
 								{#if job.created_by_name}
 								<div class="mt-1 flex items-center text-[11px] text-gray-500" title={$t('Created By')}>
@@ -340,7 +341,7 @@
 										job.job_status
 									)}"
 								>
-									{job.job_status}
+									{$t('Status_' + job.job_status) || job.job_status}
 								</span>
 							</td>
 

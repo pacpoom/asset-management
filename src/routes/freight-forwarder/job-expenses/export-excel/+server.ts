@@ -3,7 +3,24 @@ import ExcelJS from 'exceljs';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export const GET = async ({ url }: RequestEvent) => {
-	// 1. จัดการวันที่ (Default เป็นเดือนปัจจุบัน)
+	// 1. จัดการวันที่และ Locale จาก URL
+	const locale = url.searchParams.get('locale') || 'en';
+	const dateFormatStr = locale === 'th' ? 'th-TH' : 'en-US';
+
+	// ฟังก์ชันช่วยแปลภาษา
+	const t = (key: string) => {
+		const dict: Record<string, Record<string, string>> = {
+			th: {
+				'Job No.': 'เลขที่ใบงาน',
+				'Date': 'วันที่',
+				'Customer': 'ลูกค้า',
+				'Total Expense': 'รวมค่าใช้จ่าย',
+				'Job Expense Summary': 'สรุปค่าใช้จ่ายใบงาน'
+			}
+		};
+		return dict[locale]?.[key] || key;
+	};
+
 	const now = new Date();
 	const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
 	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -71,13 +88,14 @@ export const GET = async ({ url }: RequestEvent) => {
 
 	// 5. สร้าง Workbook & Worksheet สำหรับ Excel
 	const workbook = new ExcelJS.Workbook();
-	const worksheet = workbook.addWorksheet('Job Expense Summary');
+	// ชื่อ Worksheet ห้ามเกิน 31 ตัวอักษร
+	const worksheet = workbook.addWorksheet(t('Job Expense Summary').substring(0, 31)); 
 
-	// กำหนดโครงสร้างคอลัมน์แบบ Fixed ทางซ้าย
+	// กำหนดโครงสร้างคอลัมน์แบบ Fixed ทางซ้าย พร้อมแปลภาษา
 	const columns = [
-		{ header: 'Job No.', key: 'job_number', width: 18 },
-		{ header: 'Date', key: 'job_date', width: 15 },
-		{ header: 'Customer', key: 'customer', width: 35 }
+		{ header: t('Job No.'), key: 'job_number', width: 18 },
+		{ header: t('Date'), key: 'job_date', width: 15 },
+		{ header: t('Customer'), key: 'customer', width: 35 }
 	];
 
 	// เพิ่มคอลัมน์แบบ Dynamic ตามจำนวน Category ที่มี
@@ -86,7 +104,7 @@ export const GET = async ({ url }: RequestEvent) => {
 	});
 
 	// เพิ่มคอลัมน์ผลรวมตอนท้ายสุด
-	columns.push({ header: 'Total Expense', key: 'total', width: 20 });
+	columns.push({ header: t('Total Expense'), key: 'total', width: 20 });
 	
 	worksheet.columns = columns;
 
@@ -104,7 +122,8 @@ export const GET = async ({ url }: RequestEvent) => {
 	pivotData.forEach((job) => {
 		const rowData: any = {
 			job_number: job.job_number,
-			job_date: job.job_date ? new Date(job.job_date).toLocaleDateString('th-TH') : '',
+			// จัดรูปแบบวันที่ตามภาษาที่เลือก
+			job_date: job.job_date ? new Date(job.job_date).toLocaleDateString(dateFormatStr) : '',
 			customer: job.customer,
 			total: job.total
 		};
@@ -129,7 +148,7 @@ export const GET = async ({ url }: RequestEvent) => {
 	return new Response(buffer as BlobPart, {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-			'Content-Disposition': 'attachment; filename="Job_Expense_Summary_Pivot.xlsx"'
+			'Content-Disposition': `attachment; filename="Job_Expense_Summary_${locale}.xlsx"`
 		}
 	});
 };

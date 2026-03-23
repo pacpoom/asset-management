@@ -5,6 +5,32 @@ import type { RequestEvent } from '@sveltejs/kit';
 export const GET = async ({ url }: RequestEvent) => {
 	const search = url.searchParams.get('search') || '';
 	
+	// รับค่าภาษาจาก URL (ถ้าไม่มีให้ใช้ 'en')
+	const locale = url.searchParams.get('locale') || 'en';
+	const dateFormatStr = locale === 'th' ? 'th-TH' : 'en-US';
+
+	// ฟังก์ชันช่วยแปลภาษา
+	const t = (key: string) => {
+		const dict: Record<string, Record<string, string>> = {
+			th: {
+				'Job Orders': 'รายการใบงาน',
+				'Job No.': 'เลขที่ใบงาน',
+				'Job Date': 'วันที่',
+				'Type': 'ประเภท',
+				'Service': 'บริการ',
+				'Customer': 'ลูกค้า',
+				'Vendor': 'ผู้จำหน่าย',
+				'B/L Number': 'เลขที่ B/L',
+				'Liner / Carrier': 'สายเรือ',
+				'Status': 'สถานะ',
+				'Amount': 'ยอดเงิน',
+				'Currency': 'สกุลเงิน',
+				'Created By': 'ผู้สร้าง'
+			}
+		};
+		return dict[locale]?.[key] || key;
+	};
+	
 	// คำนวณวันที่เริ่มต้นและสิ้นสุดของเดือนปัจจุบันเป็น Default
 	const now = new Date();
 	const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -56,22 +82,23 @@ export const GET = async ({ url }: RequestEvent) => {
 	const jobs = rows as any[];
 
 	const workbook = new ExcelJS.Workbook();
-	const worksheet = workbook.addWorksheet('Job Orders');
+	// ใส่ชื่อชีตและแปลภาษา (ห้ามเกิน 31 ตัวอักษร)
+	const worksheet = workbook.addWorksheet(t('Job Orders').substring(0, 31));
 
-	// กำหนดคอลัมน์ให้ตรงกับข้อมูลที่แสดงในหน้าตาราง
+	// กำหนดคอลัมน์และแปลภาษา Header
 	worksheet.columns = [
-		{ header: 'Job No.', key: 'job_number', width: 20 },
-		{ header: 'Job Date', key: 'job_date', width: 15 },
-		{ header: 'Type', key: 'job_type', width: 10 },
-		{ header: 'Service', key: 'service_type', width: 15 },
-		{ header: 'Customer', key: 'customer', width: 40 },
-		{ header: 'Vendor', key: 'vendor', width: 40 },
-		{ header: 'B/L Number', key: 'bl_number', width: 25 },
-		{ header: 'Liner / Carrier', key: 'liner_name', width: 30 },
-		{ header: 'Status', key: 'job_status', width: 15 },
-		{ header: 'Amount', key: 'amount', width: 15 },
-		{ header: 'Currency', key: 'currency', width: 10 },
-		{ header: 'Created By', key: 'created_by_name', width: 25 }
+		{ header: t('Job No.'), key: 'job_number', width: 20 },
+		{ header: t('Job Date'), key: 'job_date', width: 15 },
+		{ header: t('Type'), key: 'job_type', width: 10 },
+		{ header: t('Service'), key: 'service_type', width: 15 },
+		{ header: t('Customer'), key: 'customer', width: 40 },
+		{ header: t('Vendor'), key: 'vendor', width: 40 },
+		{ header: t('B/L Number'), key: 'bl_number', width: 25 },
+		{ header: t('Liner / Carrier'), key: 'liner_name', width: 30 },
+		{ header: t('Status'), key: 'job_status', width: 15 },
+		{ header: t('Amount'), key: 'amount', width: 15 },
+		{ header: t('Currency'), key: 'currency', width: 10 },
+		{ header: t('Created By'), key: 'created_by_name', width: 25 }
 	];
 
 	// ตกแต่งส่วนหัว (Header Row)
@@ -85,7 +112,8 @@ export const GET = async ({ url }: RequestEvent) => {
 	// นำข้อมูลเข้า Worksheet
 	jobs.forEach((job) => {
 		const displayJobNumber = job.job_number || `JOB-${job.id}`;
-		const jobDate = job.job_date ? new Date(job.job_date).toLocaleDateString('th-TH') : '';
+		// จัดรูปแบบวันที่ตามภาษาที่เลือก
+		const jobDate = job.job_date ? new Date(job.job_date).toLocaleDateString(dateFormatStr) : '';
 		const customer = job.company_name || job.customer_name || '-';
 		const vendor = job.vendor_company_name || job.vendor_name || '-';
 
@@ -113,7 +141,7 @@ export const GET = async ({ url }: RequestEvent) => {
 	return new Response(buffer as BlobPart, {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-			'Content-Disposition': 'attachment; filename="Job_Orders_Export.xlsx"'
+			'Content-Disposition': `attachment; filename="Job_Orders_Export_${locale}.xlsx"`
 		}
 	});
 };
