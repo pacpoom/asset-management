@@ -6,6 +6,7 @@ import ExcelJS from 'exceljs';
 interface StockExportData extends RowDataPacket {
 	item_code: string;
 	item_name: string;
+	sub_warehouse_name: string | null;
 	location_code: string;
 	serial_number: string | null;
 	serial_id: string | null;
@@ -32,16 +33,18 @@ export const POST: RequestHandler = async ({ request }) => {
                 inv.serial_id LIKE ? OR
                 i.item_code LIKE ? OR
                 i.item_name LIKE ? OR
-                l.location_code LIKE ?
+                l.location_code LIKE ? OR
+                sw.name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		const sql = `
             SELECT
                 i.item_code, i.item_name,
                 u.name AS unit_name, u.symbol AS unit_symbol,
+                sw.name AS sub_warehouse_name,
                 l.location_code,
                 inv.serial_number, inv.serial_id, inv.qty, inv.actual_qty,
                 inv.inbound_date, inv.created_at, inv.updated_at
@@ -49,6 +52,7 @@ export const POST: RequestHandler = async ({ request }) => {
             LEFT JOIN items i ON inv.item_id = i.id
             LEFT JOIN units u ON i.unit_id = u.id
             LEFT JOIN locations l ON inv.location_id = l.id
+            LEFT JOIN sub_warehouses sw ON l.sub_warehouse_id = sw.id
             ${whereClause}
             ORDER BY inv.created_at DESC, inv.id DESC
         `;
@@ -61,6 +65,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		worksheet.columns = [
 			{ header: 'Item Code', key: 'item_code', width: 20 },
 			{ header: 'Item Name', key: 'item_name', width: 40 },
+			{ header: 'Sub Warehouse', key: 'sub_warehouse', width: 25 },
 			{ header: 'Location Code', key: 'location_code', width: 20 },
 			{ header: 'Serial Number', key: 'serial_number', width: 25 },
 			{ header: 'Serial ID', key: 'serial_id', width: 35 },
@@ -81,15 +86,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
             row.getCell('A').value = stock.item_code;
             row.getCell('B').value = stock.item_name;
-            row.getCell('C').value = stock.location_code;
-            row.getCell('D').value = stock.serial_number;
-            row.getCell('E').value = stock.serial_id;
-            row.getCell('F').value = stock.unit_symbol || stock.unit_name || '-';
-            row.getCell('G').value = stock.qty;
-            row.getCell('H').value = stock.actual_qty;
-            row.getCell('I').value = stock.inbound_date ? new Date(stock.inbound_date) : null;
-            row.getCell('J').value = stock.created_at ? new Date(stock.created_at) : null;
-            row.getCell('K').value = stock.updated_at ? new Date(stock.updated_at) : null;
+            row.getCell('C').value = stock.sub_warehouse_name || '-';
+            row.getCell('D').value = stock.location_code;
+            row.getCell('E').value = stock.serial_number;
+            row.getCell('F').value = stock.serial_id;
+            row.getCell('G').value = stock.unit_symbol || stock.unit_name || '-';
+            row.getCell('H').value = stock.qty;
+            row.getCell('I').value = stock.actual_qty;
+            row.getCell('J').value = stock.inbound_date ? new Date(stock.inbound_date) : null;
+            row.getCell('K').value = stock.created_at ? new Date(stock.created_at) : null;
+            row.getCell('L').value = stock.updated_at ? new Date(stock.updated_at) : null;
 		}
 
 		const buffer = await workbook.xlsx.writeBuffer();

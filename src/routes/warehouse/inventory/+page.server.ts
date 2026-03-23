@@ -20,6 +20,7 @@ interface InventoryStock extends RowDataPacket {
 	item_code?: string;
 	item_name?: string;
 	location_code?: string;
+	sub_warehouse_name?: string | null;
 	unit_name?: string;
 	unit_symbol?: string;
 }
@@ -33,6 +34,7 @@ interface Item extends RowDataPacket {
 interface Location extends RowDataPacket {
 	id: number;
 	location_code: string;
+	sub_warehouse_name?: string | null;
 }
 
 // --- Helper Functions ---
@@ -71,10 +73,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 inv.serial_id LIKE ? OR
                 i.item_code LIKE ? OR
                 i.item_name LIKE ? OR
-                l.location_code LIKE ?
+                l.location_code LIKE ? OR
+                sw.name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		const countSql = `
@@ -82,6 +85,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             FROM inventory_stock inv
             LEFT JOIN items i ON inv.item_id = i.id
             LEFT JOIN locations l ON inv.location_id = l.id
+            LEFT JOIN sub_warehouses sw ON l.sub_warehouse_id = sw.id
             ${whereClause}
         `;
 		const [countResult] = await pool.execute<any[]>(countSql, params);
@@ -95,11 +99,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 i.item_name,
                 u.name AS unit_name,
                 u.symbol AS unit_symbol,
-                l.location_code
+                l.location_code,
+                sw.name AS sub_warehouse_name
             FROM inventory_stock inv
             LEFT JOIN items i ON inv.item_id = i.id
             LEFT JOIN units u ON i.unit_id = u.id
             LEFT JOIN locations l ON inv.location_id = l.id
+            LEFT JOIN sub_warehouses sw ON l.sub_warehouse_id = sw.id
             ${whereClause}
             ORDER BY inv.created_at DESC, inv.id DESC
             LIMIT ${limit} OFFSET ${offset}
@@ -109,7 +115,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		// โหลด Data สำหรับทำ Dropdown
 		const [itemRows] = await pool.execute<Item[]>('SELECT id, item_code, item_name FROM items ORDER BY item_code');
-		const [locationRows] = await pool.execute<Location[]>('SELECT id, location_code FROM locations ORDER BY location_code');
+		const [locationRows] = await pool.execute<Location[]>('SELECT l.id, l.location_code, sw.name AS sub_warehouse_name FROM locations l LEFT JOIN sub_warehouses sw ON l.sub_warehouse_id = sw.id ORDER BY l.location_code');
 
 		return {
 			stocks: stockRows,

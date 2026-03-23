@@ -82,7 +82,7 @@
 			itemSearchValue = item ? `[${item.item_code}] ${item.item_name}` : '';
 
 			const loc = data.locations.find((l: Location) => l.id === stock.location_id);
-			locSearchValue = loc ? loc.location_code : '';
+			locSearchValue = loc ? (loc.sub_warehouse_name ? `[${loc.sub_warehouse_name}] ${loc.location_code}` : loc.location_code) : '';
 		} else {
 			selectedStock = {
 				item_id: undefined as any,
@@ -278,7 +278,7 @@
 			name="search"
 			bind:value={searchQuery}
 			oninput={handleSearchInput}
-			placeholder={$t('Search by Serial Number, Item, or Location...')}
+			placeholder={$t('Search by Serial, Item, Location, or Sub Warehouse...')}
 			class="w-full rounded-lg border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -302,10 +302,9 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Item')}</th>
+				<th class="px-8 py-4 text-left font-semibold text-gray-600">{$t('Item')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Location')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Serial Number')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Serial ID')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('System Qty')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actual Qty')}</th>
@@ -317,7 +316,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.stocks.length === 0}
 				<tr>
-					<td colspan="10" class="py-12 text-center text-gray-500">
+					<td colspan="9" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery}{$t('No stock found for:')} "{data.searchQuery}"{:else}{$t(
 								'No inventory stock found'
 							)}{/if}
@@ -331,13 +330,24 @@
 							><br />
 							<span class="text-xs text-gray-500">{stock.item_name}</span>
 						</td>
-						<td class="px-4 py-3 font-mono text-gray-700">
-							<span class="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700"
-								>{stock.location_code}</span
-							>
+						<td class="px-4 py-3">
+							<div class="mb-1 font-mono text-gray-700">
+								<span class="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700"
+									>{stock.location_code}</span
+								>
+							</div>
+							{#if stock.sub_warehouse_name}
+								<span class="inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 border border-indigo-100">
+									{stock.sub_warehouse_name}
+								</span>
+							{/if}
 						</td>
-						<td class="px-4 py-3 text-gray-700">{stock.serial_number || '-'}</td>
-						<td class="px-4 py-3 font-mono text-xs text-gray-700">{stock.serial_id || '-'}</td>
+						<td class="px-4 py-3">
+							<div class="text-gray-700 font-medium">{stock.serial_number || '-'}</div>
+							<div class="font-mono text-[11px] text-gray-500 mt-0.5" title={$t('Serial ID')}>
+								{stock.serial_id || '-'}
+							</div>
+						</td>
 						<td class="px-4 py-3 text-center text-gray-600">
 							<span class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
 								{stock.unit_symbol || stock.unit_name || '-'}
@@ -588,7 +598,7 @@
 								class="ring-opacity-5 absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black focus:outline-none sm:text-sm"
 								onmousedown={(e) => e.preventDefault()}
 							>
-								{#each data.locations.filter((l: Location) => l.location_code
+								{#each data.locations.filter((l: Location) => (l.location_code + ' ' + (l.sub_warehouse_name||''))
 										.toLowerCase()
 										.includes(locSearchValue.toLowerCase())) as loc (loc.id)}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -597,11 +607,11 @@
 										class="relative cursor-pointer py-2 pr-9 pl-3 text-gray-900 select-none hover:bg-blue-600 hover:text-white"
 										onclick={() => {
 											if (selectedStock) selectedStock.location_id = loc.id;
-											locSearchValue = loc.location_code;
+											locSearchValue = loc.sub_warehouse_name ? `[${loc.sub_warehouse_name}] ${loc.location_code}` : loc.location_code;
 											showLocDropdown = false;
 										}}
 									>
-										{loc.location_code}
+										{loc.sub_warehouse_name ? `[${loc.sub_warehouse_name}] ` : ''}{loc.location_code}
 									</li>
 								{/each}
 							</ul>
