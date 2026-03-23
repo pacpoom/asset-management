@@ -5,12 +5,14 @@
 	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
-	$: ({ documents, currentPage, totalPages, searchQuery, filterStatus, filterType } = data);
+	$: ({ documents, currentPage, totalPages, totalItems, limit, searchQuery, filterStatus, filterType, dateFrom, dateTo } = data);
 
 	let searchInput = searchQuery;
 	let statusInput = filterStatus;
 	let typeInput = filterType;
-	let searchTimeout: NodeJS.Timeout;
+	let dateFromInput = dateFrom;
+	let dateToInput = dateTo;
+	let limitInput = limit || 10;
 
 	let isDeleteModalOpen = false;
 	let itemToDelete: any = null;
@@ -26,18 +28,33 @@
 		itemToDelete = null;
 	}
 
-	function handleSearch() {
-		clearTimeout(searchTimeout);
-		searchTimeout = setTimeout(() => applyFilters(), 500);
-	}
-
-	function applyFilters() {
+	function applyFilters(resetPage = true) {
 		const params = new URLSearchParams();
-		params.set('page', '1');
+		// หากกดค้นหาหรือเปลี่ยนจำนวนรายการให้รีเซ็ตกลับไปหน้า 1
+		params.set('page', resetPage === true ? '1' : currentPage.toString());
 		if (searchInput) params.set('search', searchInput);
 		if (statusInput) params.set('status', statusInput);
 		if (typeInput) params.set('type', typeInput);
+		
+		// กรณีที่ต้องการให้ผู้ใช้เคลียร์วันที่ได้ ให้ set ค่าว่างได้เลย
+		params.set('dateFrom', dateFromInput || '');
+		params.set('dateTo', dateToInput || '');
+		
+		params.set('limit', limitInput.toString());
 		goto(`?${params.toString()}`);
+	}
+
+	function goToPage(page: number) {
+		if (page >= 1 && page <= totalPages) {
+			currentPage = page;
+			applyFilters(false);
+		}
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			applyFilters(true);
+		}
 	}
 
 	function getStatusClass(status: string) {
@@ -119,44 +136,86 @@
 	</a>
 </div>
 
-<div
-	class="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-4"
->
-	<div class="relative md:col-span-2">
-		<input
-			type="search"
-			bind:value={searchInput}
-			on:input={handleSearch}
-			placeholder={$t('Search Document Placeholder')}
-			class="w-full rounded-lg border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-		/>
-	</div>
-	<div>
-		<select
-			bind:value={typeInput}
-			on:change={applyFilters}
-			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-		>
-			<option value="">{$t('All Document Types')}</option>
-			<option value="QT">{$t('Quotation (QT)')}</option>
-			<option value="BN">{$t('Billing Note (BN)')}</option>
-			<option value="INV">{$t('Invoice (INV)')}</option>
-			<option value="RE">{$t('Receipt (RE)')}</option>
-		</select>
-	</div>
-	<div>
-		<select
-			bind:value={statusInput}
-			on:change={applyFilters}
-			class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-		>
-			<option value="">{$t('All Statuses')}</option>
-			<option value="Draft">{$t('Status_Draft')}</option>
-			<option value="Sent">{$t('Status_Sent')}</option>
-			<option value="Paid">{$t('Status_Paid')}</option>
-			<option value="Overdue">{$t('Status_Overdue')}</option>
-			<option value="Void">{$t('Status_Void')}</option>
-		</select>
+<div class="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+	<div class="grid grid-cols-1 gap-4 md:grid-cols-12 lg:grid-cols-12">
+		<!-- Search -->
+		<div class="md:col-span-4 lg:col-span-3">
+			<label for="searchFilter" class="mb-1 block text-xs font-medium text-gray-500">{$t('Search')}</label>
+			<input
+				id="searchFilter"
+				type="search"
+				bind:value={searchInput}
+				on:keydown={handleKeydown}
+				placeholder={$t('Doc No, Customer, Ref')}
+				class="w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+			/>
+		</div>
+		
+		<!-- From Date -->
+		<div class="md:col-span-4 lg:col-span-2">
+			<label for="dateFromFilter" class="mb-1 block text-xs font-medium text-gray-500">{$t('From Date')}</label>
+			<input
+				id="dateFromFilter"
+				type="date"
+				bind:value={dateFromInput}
+				class="w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+			/>
+		</div>
+		
+		<!-- To Date -->
+		<div class="md:col-span-4 lg:col-span-2">
+			<label for="dateToFilter" class="mb-1 block text-xs font-medium text-gray-500">{$t('To Date')}</label>
+			<input
+				id="dateToFilter"
+				type="date"
+				bind:value={dateToInput}
+				class="w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+			/>
+		</div>
+
+		<!-- Type -->
+		<div class="md:col-span-4 lg:col-span-2">
+			<label for="typeFilter" class="mb-1 block text-xs font-medium text-gray-500">{$t('Type')}</label>
+			<select
+				id="typeFilter"
+				bind:value={typeInput}
+				class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+			>
+				<option value="">{$t('All Types')}</option>
+				<option value="QT">{$t('Quotation (QT)')}</option>
+				<option value="BN">{$t('Billing Note (BN)')}</option>
+				<option value="INV">{$t('Invoice (INV)')}</option>
+				<option value="RE">{$t('Receipt (RE)')}</option>
+			</select>
+		</div>
+
+		<!-- Status -->
+		<div class="md:col-span-4 lg:col-span-2">
+			<label for="statusFilter" class="mb-1 block text-xs font-medium text-gray-500">{$t('Status')}</label>
+			<select
+				id="statusFilter"
+				bind:value={statusInput}
+				class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+			>
+				<option value="">{$t('All Statuses')}</option>
+				<option value="Draft">{$t('Status_Draft')}</option>
+				<option value="Sent">{$t('Status_Sent')}</option>
+				<option value="Paid">{$t('Status_Paid')}</option>
+				<option value="Overdue">{$t('Status_Overdue')}</option>
+				<option value="Void">{$t('Status_Void')}</option>
+			</select>
+		</div>
+
+		<!-- Search Button -->
+		<div class="md:col-span-4 lg:col-span-1 flex items-end justify-end">
+			<button
+				type="button"
+				on:click={() => applyFilters(true)}
+				class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 h-[38px]"
+			>
+				{$t('Search')}
+			</button>
+		</div>
 	</div>
 </div>
 
@@ -167,9 +226,11 @@
 				<tr>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Document No.')}</th>
-					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Date')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">{$t('Date')}</th>
 					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Customer')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Other Ref')}</th>
 					<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Total Amount')}</th>
+					<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Created By')}</th>
 					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
 					<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Actions')}</th>
 				</tr>
@@ -177,7 +238,7 @@
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#if documents.length === 0}
 					<tr>
-						<td colspan="7" class="py-8 text-center text-gray-500">{$t('No documents found')}</td>
+						<td colspan="9" class="py-8 text-center text-gray-500">{$t('No documents found')}</td>
 					</tr>
 				{:else}
 					{#each documents as doc}
@@ -191,16 +252,18 @@
 									{$t(getDocTypeName(doc.document_type))}
 								</span>
 							</td>
-							<td class="px-4 py-3 font-medium text-blue-600">
+							<td class="px-4 py-3 font-medium text-blue-600 whitespace-nowrap">
 								<a href="/sales-documents/{doc.id}">{doc.document_number || '(Draft)'}</a>
 							</td>
 							<td class="px-4 py-3 whitespace-nowrap text-gray-600"
 								>{formatDate(doc.document_date)}</td
 							>
 							<td class="px-4 py-3 font-medium text-gray-900">{doc.customer_name}</td>
-							<td class="px-4 py-3 text-right font-semibold text-gray-900"
+							<td class="px-4 py-3 text-gray-600 max-w-[150px] truncate" title={doc.reference_doc}>{doc.reference_doc || '-'}</td>
+							<td class="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap"
 								>{formatCurrency(doc.total_amount)}</td
 							>
+							<td class="px-4 py-3 text-gray-600 whitespace-nowrap">{doc.created_by_name || '-'}</td>
 							<td class="px-4 py-3 text-center">
 								<span
 									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getStatusClass(
@@ -317,6 +380,46 @@
 			</tbody>
 		</table>
 	</div>
+
+	<!-- Pagination Footer -->
+	{#if documents.length > 0}
+	<div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+		<div class="flex flex-1 justify-between sm:hidden">
+			<button type="button" on:click={() => goToPage(currentPage - 1)} disabled={currentPage <= 1} class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">{$t('Previous')}</button>
+			<button type="button" on:click={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages} class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">{$t('Next')}</button>
+		</div>
+		
+		<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+			<div class="flex items-center gap-2">
+				<span class="text-sm text-gray-700">{$t('Show')}</span>
+				<select bind:value={limitInput} on:change={() => applyFilters(true)} class="rounded-md border-gray-300 py-1.5 text-sm focus:border-blue-500 focus:ring-blue-500">
+					<option value={10}>10</option>
+					<option value={30}>30</option>
+					<option value={50}>50</option>
+					<option value={200}>200</option>
+				</select>
+				<span class="text-sm text-gray-700">{$t('entries')}</span>
+				<span class="ml-4 text-sm text-gray-700">{$t('Total')} <span class="font-medium">{totalItems}</span> {$t('records')}</span>
+			</div>
+			
+			<div>
+				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+					<button type="button" on:click={() => goToPage(currentPage - 1)} disabled={currentPage <= 1} class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">
+						<span class="sr-only">{$t('Previous')}</span>
+						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+					</button>
+					<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+						{$t('Page')} {currentPage} {$t('of')} {totalPages || 1}
+					</span>
+					<button type="button" on:click={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages} class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">
+						<span class="sr-only">{$t('Next')}</span>
+						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+					</button>
+				</nav>
+			</div>
+		</div>
+	</div>
+	{/if}
 </div>
 
 {#if isDeleteModalOpen}

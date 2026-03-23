@@ -7,7 +7,8 @@
 	export let data;
 
 	$: jobs = data.job_orders || [];
-	$: pagination = data.pagination || { total: 0, page: 1, limit: 10, search: '' };
+	// รับค่า Date filter มาจาก Server
+	$: pagination = data.pagination || { total: 0, page: 1, limit: 10, search: '', startDate: '', endDate: '' };
 
 	let showDeleteModal = false;
 	let jobToDeleteId: number | null = null;
@@ -17,11 +18,16 @@
 	let searchQuery = '';
 	let itemsPerPage = 10;
 	let currentPage = 1;
+	let startDate = '';
+	let endDate = '';
 
+	// Sync ค่า State กับ Pagination
 	$: {
-		searchQuery = pagination.search;
-		itemsPerPage = pagination.limit;
-		currentPage = pagination.page;
+		searchQuery = pagination.search || '';
+		itemsPerPage = pagination.limit || 10;
+		currentPage = pagination.page || 1;
+		startDate = pagination.startDate || '';
+		endDate = pagination.endDate || '';
 	}
 
 	$: totalPages = Math.ceil(pagination.total / itemsPerPage);
@@ -30,11 +36,25 @@
 		const url = new URL($page.url);
 		url.searchParams.set('page', currentPage.toString());
 		url.searchParams.set('limit', itemsPerPage.toString());
+		
 		if (searchQuery) {
 			url.searchParams.set('search', searchQuery);
 		} else {
 			url.searchParams.delete('search');
 		}
+
+		if (startDate) {
+			url.searchParams.set('startDate', startDate);
+		} else {
+			url.searchParams.delete('startDate');
+		}
+
+		if (endDate) {
+			url.searchParams.set('endDate', endDate);
+		} else {
+			url.searchParams.delete('endDate');
+		}
+
 		goto(url.toString(), { keepFocus: true, noScroll: true });
 	}
 
@@ -45,6 +65,11 @@
 			currentPage = 1;
 			updateData();
 		}, 400);
+	}
+
+	function onDateChange() {
+		currentPage = 1;
+		updateData();
 	}
 
 	function onLimitChange() {
@@ -105,14 +130,38 @@
 </script>
 
 <div class="min-h-screen bg-gray-50 p-6">
-	<div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+	<div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-800">{$t('Job Orders')}</h1>
 			<p class="text-sm text-gray-500">{$t('Manage Freight Forwarder Jobs')}</p>
 		</div>
 
-		<div class="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
-			<div class="relative w-full sm:w-64">
+		<div class="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center">
+			<!-- Date Filters -->
+			<div class="flex w-full flex-col items-center gap-2 sm:flex-row lg:w-auto">
+				<div class="relative w-full sm:w-auto">
+					<input
+						type="date"
+						bind:value={startDate}
+						onchange={onDateChange}
+						class="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+						title={$t('Start Date')}
+					/>
+				</div>
+				<span class="hidden text-gray-400 sm:inline">-</span>
+				<div class="relative w-full sm:w-auto">
+					<input
+						type="date"
+						bind:value={endDate}
+						onchange={onDateChange}
+						class="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+						title={$t('End Date')}
+					/>
+				</div>
+			</div>
+
+			<!-- Search -->
+			<div class="relative w-full lg:w-64">
 				<input
 					type="text"
 					bind:value={searchQuery}
@@ -127,31 +176,35 @@
 					viewBox="0 0 24 24"
 					stroke="currentColor"
 				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-					/>
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
 				</svg>
 			</div>
 
-			<a
-				href="/freight-forwarder/job-orders/create"
-				class="flex w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-blue-700 sm:w-auto"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 20 20"
-					fill="currentColor"
-					class="h-5 w-5"
+			<!-- Buttons -->
+			<div class="flex w-full gap-2 sm:w-auto">
+				<!-- พ่วงค่า Date เข้าไปที่ URL สำหรับ Export ด้วย -->
+				<a
+					href={`/freight-forwarder/job-orders/export-excel?search=${encodeURIComponent(searchQuery)}&startDate=${startDate}&endDate=${endDate}`}
+					target="_blank"
+					class="flex flex-1 flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-green-700 sm:flex-none sm:w-auto"
 				>
-					<path
-						d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
-					/>
-				</svg>
-				{$t('Open New Job')}
-			</a>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					</svg>
+					<span class="hidden sm:inline">{$t('Export')}</span>
+				</a>
+
+				<a
+					href="/freight-forwarder/job-orders/create"
+					class="flex flex-1 flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-blue-700 sm:flex-none sm:w-auto"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+						<path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+					</svg>
+					<span class="hidden sm:inline">{$t('New Job')}</span>
+					<span class="sm:hidden">{$t('New')}</span>
+				</a>
+			</div>
 		</div>
 	</div>
 
@@ -196,6 +249,14 @@
 								<div class="mt-0.5 text-xs text-gray-500">
 									{new Date(job.job_date).toLocaleDateString('th-TH')}
 								</div>
+								{#if job.created_by_name}
+								<div class="mt-1 flex items-center text-[11px] text-gray-500" title={$t('Created By')}>
+									<svg xmlns="http://www.w3.org/2000/svg" class="mr-1 h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+									</svg>
+									<span class="max-w-[120px] truncate">{job.created_by_name}</span>
+								</div>
+								{/if}
 							</td>
 
 							<td class="px-6 py-4 align-top">
@@ -218,7 +279,7 @@
 									<div class="mb-0.5 text-[10px] font-bold tracking-wider text-blue-500 uppercase">
 										{$t('Customer')}
 									</div>
-									<div class="leading-tight font-medium text-gray-900">
+									<div class="font-medium leading-tight text-gray-900">
 										{job.company_name || job.customer_name || $t('Not specified')}
 									</div>
 									{#if job.company_name && job.customer_name}
@@ -244,7 +305,7 @@
 										>
 											{$t('Vendor')}
 										</div>
-										<div class="leading-tight font-medium text-gray-900">
+										<div class="font-medium leading-tight text-gray-900">
 											{job.vendor_company_name || job.vendor_name || $t('Not specified')}
 										</div>
 										{#if job.vendor_company_name && job.vendor_name}
