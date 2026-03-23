@@ -6,7 +6,9 @@
 	import { page, navigating } from '$app/stores';
 	import { slide, fade, fly } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
-
+	// นำเข้ารูป default-avatar จากโฟลเดอร์ profile
+	import defaultAvatar from './default-avatar.jpg';
+	
 	import { locale, t, loadTranslations } from '$lib/i18n';
 
 	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>();
@@ -647,7 +649,7 @@
 								/>
 							{:else}
 								<img
-									src="/default-avatar.jpg"
+									src={defaultAvatar}
 									alt="Default Profile"
 									class="h-10 w-10 rounded-full border border-gray-200 object-cover shadow-sm transition-transform hover:scale-105"
 								/>

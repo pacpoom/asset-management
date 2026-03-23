@@ -17,7 +17,7 @@ interface ProductCategory extends RowDataPacket {
 export const load: PageServerLoad = async ({ locals, url }) => {
 	try {
 		// Permission Check
-		checkPermission(locals, 'manage settings');
+		checkPermission(locals, 'manage categories');
 
 		// Get page number and search query from URL parameters
 		const page = parseInt(url.searchParams.get('page') || '1', 10);
@@ -94,7 +94,7 @@ export const actions: Actions = {
 	 */
 	saveCategory: async ({ request, locals }) => {
 		// Permission Check
-		checkPermission(locals, 'manage settings');
+		checkPermission(locals, 'manage categories');
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 		const name = data.get('name')?.toString()?.trim();
@@ -155,7 +155,7 @@ export const actions: Actions = {
 	 */
 	deleteCategory: async ({ request, locals }) => {
 		// Permission Check
-		checkPermission(locals, 'manage settings');
+		checkPermission(locals, 'manage categories');
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 

@@ -4,6 +4,9 @@
 	import { slide } from 'svelte/transition';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	
+	// นำเข้ารูปภาพจากโฟลเดอร์เดียวกัน
+	import defaultAvatar from './default-avatar.jpg';
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -86,8 +89,9 @@
 					>Profile Image</label
 				>
 
+				<!-- เปลี่ยนการเรียกใช้ตรงนี้ ให้เป็นตัวแปรที่เรา import มา -->
 				<img
-					src={previewUrl || '/default-avatar.jpg'}
+					src={previewUrl || defaultAvatar}
 					alt="Profile"
 					class="mb-4 h-40 w-40 rounded-full border bg-gray-100 object-cover"
 				/>

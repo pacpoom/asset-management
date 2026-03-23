@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 
 interface LocationExportData extends RowDataPacket {
 	location_code: string;
+	sub_warehouse_name: string | null;
 	zone: string;
 	area: string;
 	bin: string;
@@ -24,23 +25,27 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		if (searchQuery) {
 			whereClause += ` AND (
-                location_code LIKE ? OR
-                zone LIKE ? OR
-                area LIKE ? OR
-                bin LIKE ?
+                l.location_code LIKE ? OR
+                l.zone LIKE ? OR
+                l.area LIKE ? OR
+                l.bin LIKE ? OR
+                sw.name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		const sql = `
             SELECT
-                location_code, zone, area, bin,
-                min_capacity, max_capacity,
-                created_at, updated_at
-            FROM locations
+                l.location_code, 
+                sw.name as sub_warehouse_name,
+                l.zone, l.area, l.bin,
+                l.min_capacity, l.max_capacity,
+                l.created_at, l.updated_at
+            FROM locations l
+            LEFT JOIN sub_warehouses sw ON l.sub_warehouse_id = sw.id
             ${whereClause}
-            ORDER BY zone ASC, area ASC, bin ASC
+            ORDER BY l.zone ASC, l.area ASC, l.bin ASC
         `;
 
 		const [locationRows] = await pool.execute<LocationExportData[]>(sql, params);
@@ -50,6 +55,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		worksheet.columns = [
 			{ header: 'Location Code', key: 'location_code', width: 20 },
+			{ header: 'Sub Warehouse', key: 'sub_warehouse_name', width: 25 },
 			{ header: 'Zone', key: 'zone', width: 15 },
 			{ header: 'Area', key: 'area', width: 15 },
 			{ header: 'Bin', key: 'bin', width: 15 },
@@ -67,13 +73,14 @@ export const POST: RequestHandler = async ({ request }) => {
             const row = worksheet.getRow(rowNumber);
 
             row.getCell('A').value = loc.location_code;
-            row.getCell('B').value = loc.zone;
-            row.getCell('C').value = loc.area;
-            row.getCell('D').value = loc.bin;
-            row.getCell('E').value = loc.min_capacity;
-            row.getCell('F').value = loc.max_capacity;
-            row.getCell('G').value = loc.created_at ? new Date(loc.created_at) : null;
-            row.getCell('H').value = loc.updated_at ? new Date(loc.updated_at) : null;
+            row.getCell('B').value = loc.sub_warehouse_name || '-';
+            row.getCell('C').value = loc.zone;
+            row.getCell('D').value = loc.area;
+            row.getCell('E').value = loc.bin;
+            row.getCell('F').value = loc.min_capacity;
+            row.getCell('G').value = loc.max_capacity;
+            row.getCell('H').value = loc.created_at ? new Date(loc.created_at) : null;
+            row.getCell('I').value = loc.updated_at ? new Date(loc.updated_at) : null;
 		}
 
 		const buffer = await workbook.xlsx.writeBuffer();

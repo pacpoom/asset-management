@@ -20,6 +20,17 @@ interface Customer extends RowDataPacket {
 	created_at: string;
 	updated_at: string;
 	documents: CustomerDocument[];
+	contacts: CustomerContact[]; // Added contacts array
+}
+
+interface CustomerContact extends RowDataPacket {
+	id: number;
+	customer_id: number;
+	name: string;
+	position: string | null;
+	email: string | null;
+	phone: string | null;
+	created_at: string;
 }
 
 interface CustomerNote extends RowDataPacket {
@@ -38,7 +49,6 @@ interface CustomerDocument extends RowDataPacket {
 	file_path: string;
 	uploaded_by_user_id: number;
 	uploaded_at: string;
-	// uploader_name?: string;
 }
 
 interface User extends RowDataPacket {
@@ -126,7 +136,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		if (searchQuery) {
 			whereClause += ` AND (
                 c.name LIKE ? OR
-                c.company_name LIKE ? OR -- NEW: Search company name
+                c.company_name LIKE ? OR
                 c.email LIKE ? OR
                 c.phone LIKE ? OR
                 c.tax_id LIKE ? OR
@@ -140,15 +150,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
              FROM customers c
              LEFT JOIN users u ON c.assigned_to_user_id = u.id
              ${whereClause}`;
-		console.log('[DEBUG] Count SQL:', countSql);
-		console.log('[DEBUG] Count Params:', JSON.stringify(params));
-
 		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / pageSize);
 
 		const fetchSql = `SELECT
-                c.id, c.name, c.company_name, c.email, c.phone, c.address, c.tax_id, c.notes, -- Fetched company_name
+                c.id, c.name, c.company_name, c.email, c.phone, c.address, c.tax_id, c.notes,
                 c.assigned_to_user_id, u.full_name AS assigned_user_name,
                 c.created_at, c.updated_at
              FROM customers c
@@ -157,19 +164,15 @@ export const load: PageServerLoad = async ({ url, locals }) => {
              ORDER BY c.created_at DESC
              LIMIT ? OFFSET ?`;
 		const fetchParams = [...params, pageSize, offset];
-		console.log('[DEBUG] Fetch SQL:', fetchSql);
-		console.log('[DEBUG] Fetch Params:', JSON.stringify(fetchParams));
-
 		const [customerRows] = await pool.query<Customer[]>(fetchSql, fetchParams);
 
+		// Fetch Documents
 		const documentSql = `
             SELECT id, customer_id, file_name, file_path, uploaded_by_user_id, uploaded_at
             FROM customer_documents
             ORDER BY uploaded_at DESC
         `;
-		console.log('[DEBUG] Document SQL:', documentSql);
 		const [documentRows] = await pool.execute<CustomerDocument[]>(documentSql);
-
 		const documentsByCustomerId = new Map<number, CustomerDocument[]>();
 		documentRows.forEach((doc) => {
 			const list = documentsByCustomerId.get(doc.customer_id) || [];
@@ -177,17 +180,32 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			documentsByCustomerId.set(doc.customer_id, list);
 		});
 
+		// Fetch Contacts
+		const contactSql = `
+            SELECT id, customer_id, name, position, email, phone, created_at 
+            FROM customer_contacts 
+            ORDER BY created_at DESC
+        `;
+		const [contactRows] = await pool.execute<CustomerContact[]>(contactSql);
+		const contactsByCustomerId = new Map<number, CustomerContact[]>();
+		contactRows.forEach((contact) => {
+			const list = contactsByCustomerId.get(contact.customer_id) || [];
+			list.push(contact);
+			contactsByCustomerId.set(contact.customer_id, list);
+		});
+
+		// Fetch Users
 		const userSql = 'SELECT id, full_name, email FROM users ORDER BY full_name';
-		console.log('[DEBUG] User SQL:', userSql);
 		const [userRows] = await pool.execute<User[]>(userSql);
 
-		const customersWithDocs = customerRows.map((cust) => ({
+		const customersWithRelations = customerRows.map((cust) => ({
 			...cust,
-			documents: documentsByCustomerId.get(cust.id) || []
+			documents: documentsByCustomerId.get(cust.id) || [],
+			contacts: contactsByCustomerId.get(cust.id) || []
 		}));
 
 		return {
-			customers: customersWithDocs,
+			customers: customersWithRelations,
 			users: userRows,
 			currentPage: page,
 			totalPages,
@@ -222,7 +240,6 @@ export const actions: Actions = {
 
 		const userId = locals.user?.id;
 		if (!userId) {
-			console.error('saveCustomer: User not found in locals.');
 			throw error(401, 'Unauthorized: User session not found.');
 		}
 
@@ -235,7 +252,7 @@ export const actions: Actions = {
 					`UPDATE customers SET
                         name = ?, company_name = ?, email = ?, phone = ?, address = ?, tax_id = ?, notes = ?, assigned_to_user_id = ?, updated_at = NOW()
                      WHERE id = ?`,
-					[name, company_name, email, phone, address, tax_id, notes, assignedUserId, parseInt(id)] // Added company_name
+					[name, company_name, email, phone, address, tax_id, notes, assignedUserId, parseInt(id)]
 				);
 				return { action: 'saveCustomer', success: true, message: 'Customer updated successfully!' };
 			} else {
@@ -255,10 +272,7 @@ export const actions: Actions = {
 				};
 			}
 		} catch (err: any) {
-			console.error(
-				`Database error on saving customer (ID: ${id || 'New'}): ${err.message}`,
-				err.stack
-			);
+			console.error(`Database error: ${err.message}`, err.stack);
 			if (err.code === 'ER_DUP_ENTRY') {
 				return fail(409, {
 					action: 'saveCustomer',
@@ -280,11 +294,7 @@ export const actions: Actions = {
 		const id = data.get('id')?.toString();
 
 		if (!id) {
-			return fail(400, {
-				action: 'deleteCustomer',
-				success: false,
-				message: 'Invalid customer ID.'
-			});
+			return fail(400, { action: 'deleteCustomer', success: false, message: 'Invalid ID.' });
 		}
 
 		const customerId = parseInt(id);
@@ -298,25 +308,20 @@ export const actions: Actions = {
 				[customerId]
 			);
 
+			// Delete related contacts manually to be safe (though FK CASCADE does this)
+			await connection.execute('DELETE FROM customer_contacts WHERE customer_id = ?', [customerId]);
+			
 			await connection.execute('DELETE FROM customers WHERE id = ?', [customerId]);
 
 			const deletePromises = docsToDelete.map((doc) => deleteFile(doc.file_path));
-			await Promise.all(deletePromises); // Wait for all file deletions
+			await Promise.all(deletePromises);
 
 			await connection.commit();
 			throw redirect(303, '/customers');
 		} catch (error: any) {
 			await connection.rollback();
 			if (error.status === 303) throw error;
-
-			console.error(`Error deleting customer ID ${customerId}: ${error.message}`, error.stack);
-			if (error.code === 'ER_ROW_IS_REFERENCED_2') {
-				return fail(409, {
-					action: 'deleteCustomer',
-					success: false,
-					message: 'Cannot delete customer. Check related records (e.g., invoices, orders).'
-				});
-			}
+			console.error(`Error deleting customer: ${error.message}`, error.stack);
 			return fail(500, {
 				action: 'deleteCustomer',
 				success: false,
@@ -327,209 +332,148 @@ export const actions: Actions = {
 		}
 	},
 
+    // --- Actions for Contacts ---
+	addContact: async ({ request, locals }) => {
+		checkPermission(locals, 'edit customers'); // Using edit customers permission
+		const data = await request.formData();
+		const customer_id = data.get('customer_id')?.toString();
+		const name = data.get('name')?.toString()?.trim();
+		const position = data.get('position')?.toString()?.trim() || null;
+		const email = data.get('email')?.toString()?.trim() || null;
+		const phone = data.get('phone')?.toString()?.trim() || null;
+
+		if (!customer_id || !name) {
+			return fail(400, { action: 'addContact', success: false, message: 'Name is required.' });
+		}
+
+		try {
+			const [result] = await pool.execute(
+				'INSERT INTO customer_contacts (customer_id, name, position, email, phone, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+				[parseInt(customer_id), name, position, email, phone]
+			);
+			const insertId = (result as any).insertId;
+			const [newContact] = await pool.execute<CustomerContact[]>(
+				'SELECT * FROM customer_contacts WHERE id = ?', [insertId]
+			);
+			return { action: 'addContact', success: true, message: 'Contact added.', newContact: newContact[0] };
+		} catch (error: any) {
+			console.error(`Failed to add contact: ${error.message}`);
+			return fail(500, { action: 'addContact', success: false, message: `Error: ${error.message}` });
+		}
+	},
+
+	deleteContact: async ({ request, locals }) => {
+		checkPermission(locals, 'edit customers');
+		const data = await request.formData();
+		const contact_id = data.get('contact_id')?.toString();
+
+		if (!contact_id) {
+			return fail(400, { action: 'deleteContact', success: false, message: 'Contact ID required.' });
+		}
+
+		try {
+			const [result] = await pool.execute('DELETE FROM customer_contacts WHERE id = ?', [contact_id]);
+			if ((result as any).affectedRows === 0) return fail(404, { success: false, message: 'Not found.' });
+			return { action: 'deleteContact', success: true, message: 'Contact deleted.', deletedContactId: parseInt(contact_id) };
+		} catch (error: any) {
+			console.error(`Failed to delete contact: ${error.message}`);
+			return fail(500, { action: 'deleteContact', success: false, message: `Error: ${error.message}` });
+		}
+	},
+
+    // --- Actions for Documents ---
 	uploadDocument: async ({ request, locals }) => {
 		checkPermission(locals, 'upload customer documents');
-
 		let savedFileData: { filePath: string; originalName: string } | null = null;
-
 		try {
 			const data = await request.formData();
 			const customer_id = data.get('customer_id')?.toString();
 			const documentFile = data.get('document') as File;
 
 			if (!customer_id || !documentFile || documentFile.size === 0) {
-				return fail(400, {
-					action: 'uploadDocument',
-					success: false,
-					message: 'Customer ID and document file are required.'
-				});
-			}
-
-			if (!locals.user?.id) {
-				console.error('uploadDocument: User not found in locals.');
-				throw error(401, 'Unauthorized: User session not found.');
+				return fail(400, { action: 'uploadDocument', success: false, message: 'File required.' });
 			}
 
 			const customerId = parseInt(customer_id);
-			const uploaderUserId = locals.user.id;
-
-			console.log(
-				`uploadDocument: Attempting upload for customer ID ${customerId}, file: ${documentFile.name}`
-			);
-
+			const uploaderUserId = locals.user?.id;
 			savedFileData = await saveFile(documentFile);
 
-			if (!savedFileData) {
-				throw new Error('File saving process failed unexpectedly.');
-			}
-
-			const fileInfo = savedFileData;
-
-			console.log(`uploadDocument: File saved, attempting DB insert for path ${fileInfo.filePath}`);
+			if (!savedFileData) throw new Error('File saving process failed.');
 
 			await pool.execute(
-				`INSERT INTO customer_documents (customer_id, file_name, file_path, uploaded_by_user_id, uploaded_at)
-                 VALUES (?, ?, ?, ?, NOW())`,
-				[customerId, fileInfo.originalName, fileInfo.filePath, uploaderUserId]
+				`INSERT INTO customer_documents (customer_id, file_name, file_path, uploaded_by_user_id, uploaded_at) VALUES (?, ?, ?, ?, NOW())`,
+				[customerId, savedFileData.originalName, savedFileData.filePath, uploaderUserId]
 			);
-			console.log(`uploadDocument: DB insert successful for ${fileInfo.originalName}`);
 
 			const [newDocResult] = await pool.execute<CustomerDocument[]>(
-				`SELECT id, customer_id, file_name, file_path, uploaded_by_user_id, uploaded_at
-                 FROM customer_documents
-                 WHERE customer_id = ? AND file_path = ? ORDER BY id DESC LIMIT 1`,
-				[customerId, fileInfo.filePath]
+				`SELECT * FROM customer_documents WHERE customer_id = ? AND file_path = ? ORDER BY id DESC LIMIT 1`,
+				[customerId, savedFileData.filePath]
 			);
 
-			if (newDocResult.length === 0) {
-				console.error(
-					`uploadDocument: Failed to retrieve the newly inserted document record for customer ${customerId}, path ${fileInfo.filePath}`
-				);
-			}
-
-			return {
-				action: 'uploadDocument',
-				success: true,
-				message: `Document "${fileInfo.originalName}" uploaded successfully.`,
-				newDocument: newDocResult.length > 0 ? newDocResult[0] : null
-			};
+			return { action: 'uploadDocument', success: true, message: 'Uploaded.', newDocument: newDocResult[0] };
 		} catch (err: any) {
-			console.error(`Error in uploadDocument action: ${err.message}`, err.stack);
-
-			if (savedFileData?.filePath) {
-				console.log(
-					`uploadDocument: Error occurred after file save, attempting cleanup for ${savedFileData.filePath}`
-				);
-				await deleteFile(savedFileData.filePath).catch((cleanupErr) => {
-					console.error(
-						`uploadDocument: Failed to cleanup file ${savedFileData?.filePath} after error: ${cleanupErr.message}`
-					);
-				});
-			}
-
-			return fail(500, {
-				action: 'uploadDocument',
-				success: false,
-				message: err.message || 'Failed to upload document due to a server error.'
-			});
+			if (savedFileData?.filePath) await deleteFile(savedFileData.filePath).catch(() => {});
+			return fail(500, { action: 'uploadDocument', success: false, message: err.message });
 		}
 	},
 
 	deleteDocument: async ({ request, locals }) => {
 		const data = await request.formData();
 		const document_id = data.get('document_id')?.toString();
-
-		if (!document_id) {
-			return fail(400, { action: 'deleteDocument', success: false, message: 'Invalid ID.' });
-		}
+		if (!document_id) return fail(400, { success: false, message: 'Invalid ID.' });
 
 		const docId = parseInt(document_id);
 		let connection;
-
 		try {
 			connection = await pool.getConnection();
 			await connection.beginTransaction();
 
-			const [docs] = await connection.execute<any[]>(
-				'SELECT file_path FROM customer_documents WHERE id = ?',
-				[docId]
-			);
-
+			const [docs] = await connection.execute<any[]>('SELECT file_path FROM customer_documents WHERE id = ?', [docId]);
 			if (docs.length === 0) {
 				await connection.rollback();
-				return fail(404, {
-					action: 'deleteDocument',
-					success: false,
-					message: 'Document not found in database.'
-				});
+				return fail(404, { success: false, message: 'Not found.' });
 			}
-
-			const filePath = docs[0].file_path;
 
 			await connection.execute('DELETE FROM customer_documents WHERE id = ?', [docId]);
-
 			await connection.commit();
 
-			if (filePath) {
+			if (docs[0].file_path) {
 				try {
-					const filename = path.basename(filePath);
+					const filename = path.basename(docs[0].file_path);
 					const fullPath = path.join(process.cwd(), 'uploads', 'customer_docs', filename);
-
 					await fs.unlink(fullPath);
-				} catch (fileErr: any) {
-					if (fileErr.code !== 'ENOENT') {
-						console.error('Failed to delete physical file:', fileErr);
-					}
-				}
+				} catch (e) {}
 			}
-
-			return {
-				action: 'deleteDocument',
-				success: true,
-				message: 'Document deleted.',
-				deletedDocumentId: docId
-			};
+			return { action: 'deleteDocument', success: true, message: 'Deleted.', deletedDocumentId: docId };
 		} catch (err: any) {
 			if (connection) await connection.rollback();
-			console.error(`Delete Document Error: ${err.message}`);
-			return fail(500, {
-				action: 'deleteDocument',
-				success: false,
-				message: `Failed to delete. Error: ${err.message}`
-			});
+			return fail(500, { success: false, message: err.message });
 		} finally {
 			if (connection) connection.release();
 		}
 	},
 
+    // --- Actions for Notes ---
 	addNote: async ({ request, locals }) => {
 		checkPermission(locals, 'add customer notes');
 		const data = await request.formData();
 		const customer_id = data.get('customer_id')?.toString();
 		const note = data.get('note')?.toString()?.trim();
 
-		if (!customer_id || !note) {
-			return fail(400, {
-				action: 'addNote',
-				success: false,
-				message: 'Customer ID and note text are required.'
-			});
-		}
-		if (!locals.user?.id) {
-			throw error(401, 'Unauthorized');
-		}
+		if (!customer_id || !note) return fail(400, { success: false, message: 'Note required.' });
 
 		try {
 			const [result] = await pool.execute(
 				'INSERT INTO customer_notes (customer_id, note, user_id, created_at) VALUES (?, ?, ?, NOW())',
-				[parseInt(customer_id), note, locals.user.id]
+				[parseInt(customer_id), note, locals.user?.id]
 			);
-			const insertId = (result as any).insertId;
-			const [newNoteResult] = await pool.execute<CustomerNote[]>(
-				`
-                SELECT cn.id, cn.customer_id, cn.note, cn.user_id, cn.created_at, u.full_name as user_full_name
-                FROM customer_notes cn
-                JOIN users u ON cn.user_id = u.id
-                WHERE cn.id = ?
-            `,
-				[insertId]
+			const [newNote] = await pool.execute<CustomerNote[]>(
+				`SELECT cn.*, u.full_name as user_full_name FROM customer_notes cn JOIN users u ON cn.user_id = u.id WHERE cn.id = ?`,
+				[(result as any).insertId]
 			);
-			return {
-				action: 'addNote',
-				success: true,
-				message: 'Note added.',
-				newNote: newNoteResult[0]
-			};
+			return { action: 'addNote', success: true, message: 'Added.', newNote: newNote[0] };
 		} catch (error: any) {
-			console.error(
-				`Failed to add note for customer ${customer_id}: ${error.message}`,
-				error.stack
-			);
-			return fail(500, {
-				action: 'addNote',
-				success: false,
-				message: `Failed to add note. Error: ${error.message}`
-			});
+			return fail(500, { success: false, message: error.message });
 		}
 	},
 
@@ -537,37 +481,13 @@ export const actions: Actions = {
 		checkPermission(locals, 'delete customer notes');
 		const data = await request.formData();
 		const note_id = data.get('note_id')?.toString();
-		const customer_id = data.get('customer_id')?.toString();
-
-		if (!note_id || !customer_id) {
-			return fail(400, {
-				action: 'deleteNote',
-				success: false,
-				message: 'Note ID and Customer ID are required.'
-			});
-		}
-		if (!locals.user?.id) {
-			throw error(401, 'Unauthorized');
-		}
+		if (!note_id) return fail(400, { success: false, message: 'ID required.' });
 
 		try {
-			const [result] = await pool.execute('DELETE FROM customer_notes WHERE id = ?', [note_id]);
-			if ((result as any).affectedRows === 0) {
-				return fail(404, { action: 'deleteNote', success: false, message: 'Note not found.' });
-			}
-			return {
-				action: 'deleteNote',
-				success: true,
-				message: 'Note deleted.',
-				deletedNoteId: parseInt(note_id)
-			};
+			await pool.execute('DELETE FROM customer_notes WHERE id = ?', [note_id]);
+			return { action: 'deleteNote', success: true, message: 'Deleted.', deletedNoteId: parseInt(note_id) };
 		} catch (error: any) {
-			console.error(`Failed to delete note ID ${note_id}: ${error.message}`, error.stack);
-			return fail(500, {
-				action: 'deleteNote',
-				success: false,
-				message: `Failed to delete note. Error: ${error.message}`
-			});
+			return fail(500, { success: false, message: error.message });
 		}
 	}
 };
