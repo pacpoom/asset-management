@@ -1,12 +1,16 @@
 import pool from '$lib/server/database';
 
 export const load = async ({ url }) => {
+	// 1. จัดการ Default เป็นเดือนปัจจุบัน (YYYY-MM)
 	const now = new Date();
-	const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+	const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+	const selectedMonth = url.searchParams.get('month') || currentMonth;
 
-	const startDate = url.searchParams.get('start_date') || firstDay;
-	const endDate = url.searchParams.get('end_date') || lastDay;
+	// คำนวณ startDate และ endDate จากเดือนที่เลือก
+	const [year, month] = selectedMonth.split('-');
+	const startDate = `${year}-${month}-01`;
+	const lastDay = new Date(Number(year), Number(month), 0).getDate();
+	const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
 
 	try {
 		const [financialStats]: any = await pool.query(
@@ -89,7 +93,7 @@ export const load = async ({ url }) => {
 			serviceTypeStats: JSON.parse(JSON.stringify(serviceTypeStats)),
 			topCustomers: JSON.parse(JSON.stringify(topCustomers)),
 			monthlyTrend: JSON.parse(JSON.stringify(monthlyTrend)),
-			filters: { startDate, endDate }
+			filters: { month: selectedMonth }
 		};
 	} catch (error) {
 		console.error('Reports Error:', error);
@@ -99,7 +103,7 @@ export const load = async ({ url }) => {
 			serviceTypeStats: [],
 			topCustomers: [],
 			monthlyTrend: [],
-			filters: { startDate, endDate }
+			filters: { month: selectedMonth }
 		};
 	}
 };

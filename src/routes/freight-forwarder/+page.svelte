@@ -1,10 +1,30 @@
 <script lang="ts">
 	import { t, locale } from '$lib/i18n';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	export let data;
 	$: stats = data.stats;
 	$: recentJobs = data.recentJobs || [];
 	$: alerts = data.alerts || [];
+	$: filters = data.filters || { month: '' };
+
+	let selectedMonth = '';
+
+	// Sync state
+	$: {
+		selectedMonth = filters.month;
+	}
+
+	function applyFilter() {
+		const url = new URL($page.url);
+		if (selectedMonth) {
+			url.searchParams.set('month', selectedMonth);
+		} else {
+			url.searchParams.delete('month');
+		}
+		goto(url.toString(), { keepFocus: true, noScroll: true });
+	}
 
 	function getStatusClass(status: string) {
 		switch (status) {
@@ -47,9 +67,23 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50 p-6">
-	<div class="mb-8">
-		<h1 class="text-2xl font-bold text-gray-900">{$t('Dashboard (Freight Forwarder)')}</h1>
-		<p class="mt-1 text-sm text-gray-500">{$t('Daily Freight Management Overview')}</p>
+	<!-- เพิ่มตัวเลือกเดือนในส่วนหัวของ Dashboard -->
+	<div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+		<div>
+			<h1 class="text-2xl font-bold text-gray-900">{$t('Dashboard (Freight Forwarder)')}</h1>
+			<p class="mt-1 text-sm text-gray-500">{$t('Daily Freight Management Overview')}</p>
+		</div>
+
+		<div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
+			<label for="month-filter" class="text-sm font-medium text-gray-600">{$t('Month')}:</label>
+			<input
+				id="month-filter"
+				type="month"
+				bind:value={selectedMonth}
+				onchange={applyFilter}
+				class="rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500"
+			/>
+		</div>
 	</div>
 
 	<div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">

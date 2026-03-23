@@ -5,19 +5,31 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { t, locale } from '$lib/i18n';
 
 	export let data;
 	let { financialStats, jobTypeStats, serviceTypeStats, topCustomers, monthlyTrend, filters } =
 		data;
 
-	let startDate = filters.startDate;
-	let endDate = filters.endDate;
+	let selectedMonth = '';
+
+	// Sync state
+	$: {
+		selectedMonth = filters.month;
+	}
+
 	let jobTypeChartCanvas: HTMLCanvasElement;
 	let trendChartCanvas: HTMLCanvasElement;
 
 	function applyFilter() {
-		goto(`?start_date=${startDate}&end_date=${endDate}`);
+		const url = new URL($page.url);
+		if (selectedMonth) {
+			url.searchParams.set('month', selectedMonth);
+		} else {
+			url.searchParams.delete('month');
+		}
+		goto(url.toString(), { keepFocus: true, noScroll: true });
 	}
 
 	onMount(() => {
@@ -81,20 +93,16 @@
 		</div>
 
 		<div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
+			<label for="month" class="text-sm font-medium text-gray-600">{$t('Month')}:</label>
 			<input
-				type="date"
-				bind:value={startDate}
-				class="rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-			/>
-			<span class="text-gray-400">-</span>
-			<input
-				type="date"
-				bind:value={endDate}
-				class="rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+				id="month"
+				type="month"
+				bind:value={selectedMonth}
+				class="rounded-md border-gray-300 py-1.5 px-3 text-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
 			<button
 				onclick={applyFilter}
-				class="rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+				class="rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
 			>
 				{$t('Search')}
 			</button>
