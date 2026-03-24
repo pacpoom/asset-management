@@ -30,9 +30,14 @@ interface DocumentData extends RowDataPacket {
 	notes: string | null;
 
 	customer_name: string;
+	customer_company_name: string | null;
 	customer_address: string | null;
 	customer_tax_id: string | null;
 	created_by_name: string;
+
+    contact_name: string | null; 
+    contact_phone: string | null; 
+    contact_email: string | null; 
 
 	jo_job_type: string | null;
 	jo_bl_number: string | null;
@@ -67,7 +72,7 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		'VAT': 'VAT ชื้อ', 'WHT': 'หัก ณ ที่จ่ายรวม', 'GrandTotal': 'จำนวนเงินสุทธิ',
 		'ReceivedBy': 'ผู้รับเอกสาร (Received by)', 'Auth': 'ผู้มีอำนาจลงนาม (Authorized Signature)',
 		'Page': 'หน้า', 'Carry': '-- ยอดยกไป (Carried Forward) --',
-		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)'
+		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)', 'Attn': 'เรียน (Attn)'
 	},
 	'en': {
 		'No': 'No.', 'Date': 'Date', 'Term': 'Term', 'Due': 'Due Date',
@@ -78,7 +83,7 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		'VAT': 'VAT', 'WHT': 'Total WHT', 'GrandTotal': 'Grand Total',
 		'ReceivedBy': 'Received by', 'Auth': 'Authorized Signature',
 		'Page': 'Page', 'Carry': '-- Carried Forward --',
-		'Days': 'Days', 'Cash': 'Cash'
+		'Days': 'Days', 'Cash': 'Cash', 'Attn': 'Attn'
 	}
 };
 
@@ -182,7 +187,6 @@ function getInvoiceHtml(
 	dbDict: { en: Record<string, string>; th: Record<string, string> } 
 ): string {
 
-	
 	function tPdf(key: string, currentLang: string): string {
 		return dbDict[currentLang as 'en' | 'th']?.[key] || pdfSpecificDict[currentLang]?.[key] || key;
 	}
@@ -278,11 +282,12 @@ function getInvoiceHtml(
             <tr>
                 <td style="padding-top: 1rem; vertical-align: top;">
                     <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('Customer', lang)}</h3>
-                    <p style="font-weight: bold; margin: 0 0 4px 0;">${docData.customer_name}</p>
+                    <p style="font-weight: bold; margin: 0 0 4px 0;">${docData.customer_company_name || docData.customer_name}</p>
                     <div style="font-size: 8pt; line-height: 1.4;">
                         <p style="margin:0; white-space: pre-wrap;">${docData.customer_address || '-'}</p>
                     </div>
                     <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${docData.customer_tax_id || '-'}</p>
+                    ${docData.contact_name ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">${tPdf('Attn', lang)}:</span> ${docData.contact_name} ${docData.contact_phone ? `(Tel: ${docData.contact_phone})` : ''}</p>` : ''}
                 </td>
                 <td style="padding-top: 1rem; vertical-align: top; text-align: right;">
                     <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('Issued By', lang)}</h3>
@@ -292,7 +297,6 @@ function getInvoiceHtml(
         </table>
     `;
 
-	
 	const itemTableHead = `
     <thead>
         <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
@@ -307,7 +311,6 @@ function getInvoiceHtml(
     </thead>
 `;
 
-	
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
@@ -373,58 +376,92 @@ function getInvoiceHtml(
         </div>
     `;
 
-	const MAX_WITH_FOOTER = 10;
-	const MAX_WITHOUT_FOOTER = 18;
-	const itemPages: ItemData[][] = [];
-	let remaining = [...itemsData];
-
-	if (remaining.length === 0) itemPages.push([]);
-	else {
-		while (remaining.length > 0) {
-			if (remaining.length <= MAX_WITH_FOOTER) {
-				itemPages.push(remaining);
-				remaining = [];
-			} else if (remaining.length <= MAX_WITHOUT_FOOTER) {
-				itemPages.push(remaining);
-				remaining = [];
-				itemPages.push([]);
-			} else {
-				itemPages.push(remaining.slice(0, MAX_WITHOUT_FOOTER));
-				remaining = remaining.slice(MAX_WITHOUT_FOOTER);
-			}
+	// --- LOGIC ตัดคำนวณแบ่งหน้าโดยใช้บรรทัดเป็นตัวอ้างอิง ---
+	function countLines(text: string | null | undefined): number {
+		if (!text) return 1;
+		const lines = text.split('\n');
+		let total = 0;
+		for (const line of lines) {
+			// ให้ 1 บรรทัด หรือถ้าตัวอักษรยาวเกิน 50 ตัว ให้ตีเป็นหลายบรรทัด
+			total += Math.max(1, Math.ceil(line.length / 50));
 		}
+		return total;
 	}
-	const totalPages = itemPages.length;
 
-	const pagesHtml = itemPages
-		.map((pageItems, index) => {
+	const MAX_LINES_PER_PAGE = 22;  // จำนวนบรรทัดสูงสุดต่อหน้าเนื้อหาปกติ
+	const MAX_LINES_LAST_PAGE = 12; // จำนวนบรรทัดสูงสุดสำหรับหน้าที่มีสรุปยอด (Summary) เพื่อเผื่อพื้นที่
+
+	interface PageInfo {
+		items: ItemData[];
+		startIndex: number;
+	}
+
+	const pages: PageInfo[] = [];
+	let currentPageItems: ItemData[] = [];
+	let currentLineCount = 0;
+	let currentItemIndex = 0;
+	let pageStartIndex = 0;
+
+	for (const item of itemsData) {
+		const itemLines = countLines(item.description);
+
+		// ถ้าเพิ่ม item นี้แล้วบรรทัดจะเกินหน้า ให้ดันขึ้นหน้าใหม่
+		if (currentLineCount + itemLines > MAX_LINES_PER_PAGE && currentPageItems.length > 0) {
+			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
+			currentPageItems = [];
+			currentLineCount = 0;
+			pageStartIndex = currentItemIndex;
+		}
+
+		currentPageItems.push(item);
+		currentLineCount += itemLines;
+		currentItemIndex++;
+	}
+
+	// จัดการหน้าสุดท้าย (เหลือเศษมาในลูป)
+	if (currentPageItems.length > 0) {
+		// ตรวจสอบว่าหน้าสุดท้ายมีพื้นที่เหลือพอสำหรับ Summary หรือไม่
+		if (currentLineCount > MAX_LINES_LAST_PAGE) {
+			// พื้นที่ไม่พอ ใส่ items ในหน้าปัจจุบันให้หมด แล้วสร้างหน้าว่าง 1 หน้าสำหรับ Summary Block
+			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
+			pages.push({ items: [], startIndex: currentItemIndex });
+		} else {
+			// พื้นที่พอ วางลงหน้าปัจจุบันได้เลย
+			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
+		}
+	} else if (pages.length === 0) {
+		pages.push({ items: [], startIndex: 0 }); // กรณีไม่มี Item เลย
+	}
+
+	const totalPages = pages.length;
+
+	const pagesHtml = pages
+		.map((pageInfo, index) => {
 			const isLastPage = index === totalPages - 1;
 			const pageNum = index + 1;
-			let startIndex = 0;
-			for (let i = 0; i < index; i++) startIndex += itemPages[i].length;
 
-			const rowsHtml = pageItems
+			const rowsHtml = pageInfo.items
 				.map(
 					(item, i) => `
     <tr style="border-bottom: 1px solid #eee;">
-        <td class="p-2 text-center">${startIndex + i + 1}</td>
-        <td class="p-2">${item.description}</td>
-        <td class="p-2 text-right">${formatNumber(item.quantity)}</td>
-        <td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
-        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500;">
+        <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
+        <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
+        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500; vertical-align: top;">
             ${item.is_vat ? '7%' : '-'}
         </td>
-        <td class="p-2 text-center" style="color: #ef4444; font-weight: 500;">
+        <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
         </td>
-        <td class="p-2 text-right">${formatNumber(item.line_total)}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.line_total)}</td>
     </tr>
 `
 				)
 				.join('');
 
 			const tableHtml =
-				pageItems.length > 0
+				pageInfo.items.length > 0
 					? `
             <table style="width: 100%; border-collapse: collapse; font-size: 8pt;">
                 ${itemTableHead}
@@ -436,17 +473,22 @@ function getInvoiceHtml(
 			let footerHtml = '';
 			if (isLastPage) {
 				footerHtml = `
-                ${summaryBlock}
-                ${signatureBlock}
-                <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                <div style="width: 100%;">
+                    ${summaryBlock}
+                    ${signatureBlock}
+                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                </div>
             `;
 			} else {
 				footerHtml = `
-                <div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">${tPdf('Carry', lang)}</div>
-                <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                <div style="width: 100%;">
+                    <div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">${tPdf('Carry', lang)}</div>
+                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                </div>
             `;
 			}
 
+			// ใส่ page-break ให้ถูกต้อง และครอบเนื้อหาให้อยู่ในหน้าเดียวเสมอ
 			return `
             <div class="document-page" style="${index > 0 ? 'page-break-before: always;' : ''}">
                 ${headerContent}
@@ -465,9 +507,27 @@ function getInvoiceHtml(
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
                 body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #333; background: #fff !important; margin: 0; padding: 0; }
-                .document-page { padding: 40px; box-sizing: border-box; position: relative; height: 297mm; }
-                .footer-container { position: absolute; bottom: 40px; left: 40px; right: 40px; }
-                @media print { @page { size: A4; margin: 0; } body { -webkit-print-color-adjust: exact; } }
+                
+				/* ปรับปรุงโครงสร้าง document-page ให้อิงความสูงชัดเจนเพื่อป้องกัน footer ทับ */
+				.document-page { 
+					padding: 40px; 
+					box-sizing: border-box; 
+					position: relative; 
+					height: 297mm; 
+					overflow: hidden; 
+				}
+                
+				.footer-container { 
+					position: absolute; 
+					bottom: 40px; 
+					left: 40px; 
+					right: 40px; 
+				}
+                
+				@media print { 
+					@page { size: A4; margin: 0; } 
+					body { -webkit-print-color-adjust: exact; } 
+				}
             </style>
         </head>
         <body>${pagesHtml}</body>
@@ -475,14 +535,12 @@ function getInvoiceHtml(
     `;
 }
 
-
 export const GET = async ({ url, fetch }) => {
 	const id = url.searchParams.get('id');
 	const lang = url.searchParams.get('lang') || 'th'; 
 
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });
 
-	
 	let dbDict = { en: {} as Record<string, string>, th: {} as Record<string, string> };
 	try {
 		const res = await fetch('/api/translations');
@@ -504,11 +562,13 @@ export const GET = async ({ url, fetch }) => {
 		const [rows] = await connection.execute<DocumentData[]>(
 			`
             SELECT sd.*, 
-                   c.name as customer_name, c.address as customer_address, c.tax_id as customer_tax_id, 
+                   c.name as customer_name, c.company_name as customer_company_name, c.address as customer_address, c.tax_id as customer_tax_id, 
                    u.full_name as created_by_name,
+                   cc.name as contact_name, cc.phone as contact_phone, cc.email as contact_email,
                    jo.job_type as jo_job_type, jo.bl_number as jo_bl_number , jo.job_number as job_number
             FROM sales_documents sd
             LEFT JOIN customers c ON sd.customer_id = c.id
+            LEFT JOIN customer_contacts cc ON sd.customer_contact_id = cc.id
             LEFT JOIN users u ON sd.created_by_user_id = u.id
             LEFT JOIN job_orders jo ON sd.job_order_id = jo.id
             WHERE sd.id = ?
@@ -534,7 +594,6 @@ export const GET = async ({ url, fetch }) => {
 
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		
 		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64, lang, dbDict);
 
 		const browser = await puppeteer.launch({

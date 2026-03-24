@@ -27,6 +27,15 @@
 		type: 'success' | 'error';
 	} | null>(null);
 	let messageTimeout: NodeJS.Timeout;
+
+	// [เพิ่ม] Contact State
+	let contactsForSelectedVendor = $state<any[]>([]);
+	let isAddingContact = $state(false);
+	let newContactName = $state('');
+	let newContactPosition = $state('');
+	let newContactEmail = $state('');
+	let newContactPhone = $state('');
+
 	let notesForSelectedVendor = $state<any[]>([]);
 	let newNote = $state('');
 	let isAddingNote = $state(false);
@@ -46,7 +55,10 @@
 		uploadError = null;
 		notesForSelectedVendor = [];
 		documentsForSelectedVendor = [];
+		contactsForSelectedVendor = []; // Reset Contacts
 		newNote = '';
+		newContactName = ''; newContactPosition = ''; newContactEmail = ''; newContactPhone = ''; // Reset form
+		
 		if (fileInputRef) {
 			fileInputRef.value = '';
 			isFileSelected = false;
@@ -56,6 +68,7 @@
 			selectedVendor = { ...vendor };
 			documentsForSelectedVendor = vendor.documents ? [...vendor.documents] : [];
 			notesForSelectedVendor = vendor.note_history ? [...vendor.note_history] : [];
+			contactsForSelectedVendor = vendor.contacts ? [...vendor.contacts] : []; // Load Contacts
 			selectedUserObj = vendor.assigned_to_user_id
 				? userOptions.find((o: any) => o.value === vendor.assigned_to_user_id) || null
 				: null;
@@ -70,6 +83,7 @@
 		selectedVendor = null;
 		notesForSelectedVendor = [];
 		documentsForSelectedVendor = [];
+		contactsForSelectedVendor = [];
 		uploadError = null;
 		newNote = '';
 		isFileSelected = false;
@@ -390,6 +404,7 @@
 			</div>
 
 			<div class="flex-1 overflow-y-auto">
+				<!-- ฟอร์มข้อมูลหลัก Vendor -->
 				<form
 					method="POST"
 					action="?/saveVendor"
@@ -504,6 +519,79 @@
 				</form>
 
 				{#if modalMode === 'edit' && selectedVendor.id}
+					<!-- [เพิ่ม] ส่วนจัดการผู้ติดต่อ (Contact Persons) -->
+					<div class="border-t bg-gray-50 px-6 py-4">
+						<h3 class="mb-3 text-sm font-semibold text-gray-800">{$t('Contact Persons')}</h3>
+						
+						<!-- ฟอร์มเพิ่มผู้ติดต่อ -->
+						<form method="POST" action="?/addContact" use:enhance={() => {
+							isAddingContact = true;
+							return async ({ update, result }) => {
+								await update();
+								isAddingContact = false;
+								if (result.type === 'success' && (result.data as any).newContact) {
+									contactsForSelectedVendor = [(result.data as any).newContact, ...contactsForSelectedVendor];
+									newContactName = ''; newContactPosition = ''; newContactEmail = ''; newContactPhone = '';
+								}
+							};
+						}} class="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-4 items-end rounded-lg border bg-white p-3 shadow-sm">
+							<input type="hidden" name="vendor_id" value={selectedVendor.id} />
+							<div>
+								<label for="contact_name" class="mb-1 block text-xs font-medium text-gray-700">{$t('Name')} *</label>
+								<input type="text" id="contact_name" name="name" required bind:value={newContactName} class="w-full rounded border-gray-300 text-xs py-1.5" placeholder={$t('Name')} />
+							</div>
+							<div>
+								<label for="contact_position" class="mb-1 block text-xs font-medium text-gray-700">{$t('Position')}</label>
+								<input type="text" name="position" bind:value={newContactPosition} class="w-full rounded border-gray-300 text-xs py-1.5" placeholder={$t('Position')} />
+							</div>
+							<div>
+								<label for="contact_contact" class="mb-1 block text-xs font-medium text-gray-700">{$t('Email / Phone')}</label>
+								<div class="flex flex-col gap-1">
+									<input type="text" name="phone" bind:value={newContactPhone} class="w-full rounded border-gray-300 text-xs py-1.5" placeholder={$t('Phone')} />
+									<input type="email" name="email" bind:value={newContactEmail} class="w-full rounded border-gray-300 text-xs py-1.5" placeholder={$t('Email')} />
+								</div>
+							</div>
+							<div class="h-full flex items-end">
+								<button type="submit" disabled={isAddingContact || !newContactName.trim()} class="w-full rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-indigo-700 disabled:opacity-50">
+									{$t('Add Contact')}
+								</button>
+							</div>
+						</form>
+
+						<!-- รายการผู้ติดต่อ -->
+						{#if contactsForSelectedVendor.length === 0}
+							<p class="text-center text-xs text-gray-500 italic">{$t('No contact persons')}</p>
+						{:else}
+							<ul class="space-y-1">
+								{#each contactsForSelectedVendor as contact (contact.id)}
+									<li class="flex items-center justify-between rounded border bg-white p-2 text-sm">
+										<div>
+											<div class="font-medium text-gray-900">{contact.name} <span class="text-xs font-normal text-gray-500 ml-2">{contact.position || ''}</span></div>
+											<div class="text-xs text-gray-500 mt-0.5">
+												{#if contact.phone}<span class="mr-3">📞 {contact.phone}</span>{/if}
+												{#if contact.email}<span>✉️ {contact.email}</span>{/if}
+											</div>
+										</div>
+										<form method="POST" action="?/deleteContact" use:enhance={() => {
+											return async ({ result, update }) => {
+												if (result.type === 'success') {
+													contactsForSelectedVendor = contactsForSelectedVendor.filter(c => c.id !== contact.id);
+												}
+												await update();
+											}
+										}}>
+											<input type="hidden" name="contact_id" value={contact.id} />
+											<button type="submit" class="text-red-400 hover:text-red-600 p-1" aria-label={$t('Delete')}>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+											</button>
+										</form>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+
+					<!-- Attachments -->
 					<div class="border-t bg-gray-50 px-6 py-4">
 						<h3 class="mb-2 text-sm font-semibold">{$t('Attachments')}</h3>
 						<form
@@ -570,6 +658,7 @@
 						</ul>
 					</div>
 
+					<!-- Notes -->
 					<div class="border-t bg-gray-50 px-6 py-4">
 						<h3 class="mb-2 text-sm font-semibold">{$t('Note History')}</h3>
 						<form

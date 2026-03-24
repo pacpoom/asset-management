@@ -21,7 +21,19 @@ interface Vendor extends RowDataPacket {
 	created_at: string;
 	updated_at: string;
 	documents: VendorDocument[];
-	note_history: VendorNote[]; // [เพิ่ม] รายการประวัติโน้ต
+	note_history: VendorNote[];
+	contacts: VendorContact[]; // [เพิ่ม] รายการผู้ติดต่อ
+}
+
+// [เพิ่ม] Interface สำหรับผู้ติดต่อ
+interface VendorContact extends RowDataPacket {
+	id: number;
+	vendor_id: number;
+	name: string;
+	position: string | null;
+	email: string | null;
+	phone: string | null;
+	created_at: string;
 }
 
 interface VendorNote extends RowDataPacket {
@@ -147,12 +159,19 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             ORDER BY uploaded_at DESC
         `);
 
-		// [เพิ่ม] Fetch Note History
+		// Fetch Note History
 		const [noteRows] = await pool.execute<VendorNote[]>(`
             SELECT vn.id, vn.vendor_id, vn.note, vn.user_id, vn.created_at, u.full_name as user_full_name
             FROM vendor_notes vn
             LEFT JOIN users u ON vn.user_id = u.id
             ORDER BY vn.created_at DESC
+        `);
+
+		// [เพิ่ม] Fetch Contacts
+		const [contactRows] = await pool.execute<VendorContact[]>(`
+            SELECT id, vendor_id, name, position, email, phone, created_at 
+            FROM vendor_contacts 
+            ORDER BY created_at DESC
         `);
 
 		// Map Data
@@ -170,6 +189,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			notesByVendorId.set(note.vendor_id, list);
 		});
 
+		// [เพิ่ม] Map Contacts Data
+		const contactsByVendorId = new Map<number, VendorContact[]>();
+		contactRows.forEach((contact) => {
+			const list = contactsByVendorId.get(contact.vendor_id) || [];
+			list.push(contact);
+			contactsByVendorId.set(contact.vendor_id, list);
+		});
+
 		// Fetch Users
 		const [userRows] = await pool.execute<User[]>(
 			'SELECT id, full_name, email FROM users ORDER BY full_name'
@@ -178,7 +205,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const vendorsWithData = vendorRows.map((vend) => ({
 			...vend,
 			documents: documentsByVendorId.get(vend.id) || [],
-			note_history: notesByVendorId.get(vend.id) || [] // [เพิ่ม]
+			note_history: notesByVendorId.get(vend.id) || [],
+			contacts: contactsByVendorId.get(vend.id) || [] // [เพิ่ม] ส่งข้อมูล contacts ไปยังหน้าเว็บ
 		}));
 
 		return {
@@ -282,6 +310,9 @@ export const actions: Actions = {
 			);
 
 			await connection.execute('DELETE FROM vendor_notes WHERE vendor_id = ?', [vendorId]);
+			
+			// [เพิ่ม] ลบผู้ติดต่อที่เกี่ยวข้อง (ทำเพื่อความชัวร์ แม้จะมี ON DELETE CASCADE ก็ตาม)
+			await connection.execute('DELETE FROM vendor_contacts WHERE vendor_id = ?', [vendorId]);
 
 			await connection.execute('DELETE FROM vendor_documents WHERE vendor_id = ?', [vendorId]);
 
@@ -311,6 +342,55 @@ export const actions: Actions = {
 				success: false,
 				message: `Failed to delete. Error: ${error.message}`
 			});
+		}
+	},
+
+	// --- [เพิ่ม] Actions สำหรับจัดการผู้ติดต่อ (Contacts) ---
+	addContact: async ({ request, locals }) => {
+		checkPermission(locals, 'edit vendors'); 
+		const data = await request.formData();
+		const vendor_id = data.get('vendor_id')?.toString();
+		const name = data.get('name')?.toString()?.trim();
+		const position = data.get('position')?.toString()?.trim() || null;
+		const email = data.get('email')?.toString()?.trim() || null;
+		const phone = data.get('phone')?.toString()?.trim() || null;
+
+		if (!vendor_id || !name) {
+			return fail(400, { action: 'addContact', success: false, message: 'Name is required.' });
+		}
+
+		try {
+			const [result] = await pool.execute(
+				'INSERT INTO vendor_contacts (vendor_id, name, position, email, phone, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+				[parseInt(vendor_id), name, position, email, phone]
+			);
+			const insertId = (result as any).insertId;
+			const [newContact] = await pool.execute<VendorContact[]>(
+				'SELECT * FROM vendor_contacts WHERE id = ?', [insertId]
+			);
+			return { action: 'addContact', success: true, message: 'Contact added.', newContact: JSON.parse(JSON.stringify(newContact[0])) };
+		} catch (error: any) {
+			console.error(`Failed to add vendor contact: ${error.message}`);
+			return fail(500, { action: 'addContact', success: false, message: `Error: ${error.message}` });
+		}
+	},
+
+	deleteContact: async ({ request, locals }) => {
+		checkPermission(locals, 'edit vendors');
+		const data = await request.formData();
+		const contact_id = data.get('contact_id')?.toString();
+
+		if (!contact_id) {
+			return fail(400, { action: 'deleteContact', success: false, message: 'Contact ID required.' });
+		}
+
+		try {
+			const [result] = await pool.execute('DELETE FROM vendor_contacts WHERE id = ?', [contact_id]);
+			if ((result as any).affectedRows === 0) return fail(404, { success: false, message: 'Not found.' });
+			return { action: 'deleteContact', success: true, message: 'Contact deleted.', deletedContactId: parseInt(contact_id) };
+		} catch (error: any) {
+			console.error(`Failed to delete vendor contact: ${error.message}`);
+			return fail(500, { action: 'deleteContact', success: false, message: `Error: ${error.message}` });
 		}
 	},
 

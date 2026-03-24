@@ -7,18 +7,18 @@
 	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
-	$: ({ customers, units, jobOrders, prefillData } = data);
+	$: ({ customers, customerContacts, units, jobOrders, prefillData } = data);
 	let localProducts = data.products || [];
 
 	$: customerOptions = customers.map((c: any) => ({
 		value: c.id,
-		label: c.name,
+		label: c.company_name || c.name,
 		customer: c
 	}));
 
 	$: productOptions = localProducts.map((p: any) => ({
 		value: p.id,
-		label: p.name, // 🌟 แสดงแค่ชื่อสินค้า
+		label: p.name,
 		product: p
 	}));
 
@@ -29,6 +29,11 @@
 
 	let selectedCustomerObj: any = null;
 	let selectedCustomerId: string | number = '';
+	
+	let selectedContactObj: any = null;
+	let selectedContactId: string | number = '';
+	
+	let selectedJobOrderObj: any = null;
 	let selectedJobOrderId: string | number = '';
 
 	let referenceDoc = '';
@@ -54,6 +59,39 @@
 		? jobOrders.filter((jo: any) => jo.customer_id == selectedCustomerId)
 		: [];
 
+	$: filteredContacts = selectedCustomerId
+		? customerContacts.filter((c: any) => c.customer_id == selectedCustomerId)
+		: [];
+
+	// แปลงตัวเลือก Contact ให้เป็นรูปแบบของ svelte-select
+	$: contactOptions = filteredContacts.map((c: any) => ({
+		value: c.id,
+		label: `${c.name} ${c.position ? `(${c.position})` : ''}`
+	}));
+
+	// แปลงตัวเลือก Job Order ให้เป็นรูปแบบของ svelte-select
+	$: jobOrderOptions = filteredJobOrders.map((job: any) => ({
+		value: job.id,
+		label: `${job.job_number} | BL: ${job.bl_number !== '-' && job.bl_number ? job.bl_number : 'N/A'}`
+	}));
+
+	// Auto-select Object เมื่อมีการกำหนด ID ผ่าน Prefill
+	$: if (selectedContactId && contactOptions.length > 0) {
+		if (!selectedContactObj || selectedContactObj.value !== selectedContactId) {
+			selectedContactObj = contactOptions.find((c: any) => c.value == selectedContactId) || null;
+		}
+	} else if (!selectedContactId) {
+		selectedContactObj = null;
+	}
+
+	$: if (selectedJobOrderId && jobOrderOptions.length > 0) {
+		if (!selectedJobOrderObj || selectedJobOrderObj.value !== selectedJobOrderId) {
+			selectedJobOrderObj = jobOrderOptions.find((j: any) => j.value == selectedJobOrderId) || null;
+		}
+	} else if (!selectedJobOrderId) {
+		selectedJobOrderObj = null;
+	}
+
 	onMount(() => {
 		if (prefillData) {
 			documentType = prefillData.targetType;
@@ -61,6 +99,8 @@
 
 			selectedCustomerId = prefillData.document.customer_id;
 			selectedCustomerObj = customerOptions.find((c: any) => c.value == selectedCustomerId) || null;
+			
+			selectedContactId = prefillData.document.customer_contact_id || '';
 
 			setTimeout(() => {
 				selectedJobOrderId = prefillData.document.job_order_id || '';
@@ -101,15 +141,27 @@
 	function onCustomerChange(selected: any) {
 		selectedCustomerObj = selected;
 		selectedCustomerId = selected ? selected.value : '';
+		
 		selectedJobOrderId = '';
+		selectedJobOrderObj = null;
+		
+		selectedContactId = ''; 
+		selectedContactObj = null;
+	}
+
+	function onContactChange(selected: any) {
+		selectedContactObj = selected;
+		selectedContactId = selected ? selected.value : '';
+	}
+
+	function onJobOrderChange(selected: any) {
+		selectedJobOrderObj = selected;
+		selectedJobOrderId = selected ? selected.value : '';
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
 	
-	// 🌟 คำนวณยอดที่คิด VAT (เฉพาะรายการที่เลือก VAT 7%)
 	$: subtotalVatable = items.reduce((sum, item) => sum + (item.is_vat ? (item.line_total || 0) : 0), 0);
-	
-	// 🌟 คำนวณสัดส่วนส่วนลดสำหรับยอดที่คิด VAT เพื่อให้ VAT ลดลงตามสัดส่วนส่วนลดรวม
 	$: vatableRatio = subtotal > 0 ? (subtotalVatable / subtotal) : 0;
 	$: vatableAfterDiscount = Math.max(0, subtotalVatable - (discountAmount * vatableRatio));
 	
@@ -176,25 +228,12 @@
 	let isSavingProduct = false;
 	let toastMessage = '';
 	let newProduct = {
-		sku: '',
-		name: '',
-		description: '',
-		product_type: 'Stock',
-		category_id: null as any,
-		unit_id: null as any,
-		purchase_unit_id: null as any,
-		sales_unit_id: null as any,
-		purchase_cost: 0,
-		selling_price: 0,
-		quantity_on_hand: 0,
-		reorder_level: 0,
-		preferred_vendor_id: null as any,
-		preferred_customer_id: null as any,
-		asset_account_id: null as any,
-		income_account_id: null as any,
-		expense_account_id: null as any,
-		is_active: true,
-		default_wht_rate: 3
+		sku: '', name: '', description: '', product_type: 'Stock', category_id: null as any,
+		unit_id: null as any, purchase_unit_id: null as any, sales_unit_id: null as any,
+		purchase_cost: 0, selling_price: 0, quantity_on_hand: 0, reorder_level: 0,
+		preferred_vendor_id: null as any, preferred_customer_id: null as any,
+		asset_account_id: null as any, income_account_id: null as any, expense_account_id: null as any,
+		is_active: true, default_wht_rate: 3
 	};
 
 	let vendorSearchText = '';
@@ -232,25 +271,11 @@
 		isVendorDropdownOpen = false;
 		isCustomerDropdownOpen = false;
 		newProduct = {
-			sku: '',
-			name: '',
-			description: '',
-			product_type: 'Service',
-			category_id: null,
-			unit_id: null,
-			purchase_unit_id: null,
-			sales_unit_id: null,
-			preferred_vendor_id: null,
-			preferred_customer_id: null,
-			purchase_cost: 0,
-			selling_price: 0,
-			quantity_on_hand: 0,
-			reorder_level: 0,
-			asset_account_id: null,
-			income_account_id: null,
-			expense_account_id: null,
-			is_active: true,
-			default_wht_rate: 3
+			sku: '', name: '', description: '', product_type: 'Service', category_id: null,
+			unit_id: null, purchase_unit_id: null, sales_unit_id: null, preferred_vendor_id: null,
+			preferred_customer_id: null, purchase_cost: 0, selling_price: 0, quantity_on_hand: 0,
+			reorder_level: 0, asset_account_id: null, income_account_id: null, expense_account_id: null,
+			is_active: true, default_wht_rate: 3
 		};
 	}
 
@@ -288,7 +313,7 @@
 		}}
 	>
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-			<div class="relative z-50">
+			<div class="relative z-[60]">
 				<label for="document_type" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Document Type')} <span class="text-red-500">*</span></label
 				>
@@ -305,9 +330,9 @@
 				</select>
 			</div>
 
-			<div class="relative z-40">
+			<div class="relative z-50">
 				<label for="customer_id" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Customer')} <span class="text-red-500">*</span></label
+					>{$t('Company Name')} <span class="text-red-500">*</span></label
 				>
 				<Select
 					id="customer_id"
@@ -315,7 +340,7 @@
 					value={selectedCustomerObj}
 					on:change={(e) => onCustomerChange(e.detail)}
 					on:clear={() => onCustomerChange(null)}
-					placeholder={$t('Type to search customer...')}
+					placeholder={$t('Type to search company...')}
 					container={browser ? document.body : null}
 					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
 					--list="border-radius: 6px; font-size: 0.875rem;"
@@ -324,7 +349,30 @@
 				<input type="hidden" name="customer_id" value={selectedCustomerId} required />
 			</div>
 
-			<div class="relative z-30 grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+			<!-- เลือก Contact Person ด้วย Select ค้นหาได้ -->
+			<div class="relative z-40">
+				<label for="customer_contact_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Contact Person')}</label
+				>
+				<Select
+					items={contactOptions}
+					value={selectedContactObj}
+					on:change={(e) => onContactChange(e.detail)}
+					on:clear={() => onContactChange(null)}
+					placeholder={$t('-- Select Contact --')}
+					container={browser ? document.body : null}
+					disabled={!selectedCustomerId || filteredContacts.length === 0}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0f2fe;"
+				/>
+				<input type="hidden" name="customer_contact_id" value={selectedContactId} />
+				{#if selectedCustomerId && filteredContacts.length === 0}
+					<p class="mt-1 text-xs text-red-500">{$t('No Contact Person found for this customer')}</p>
+				{/if}
+			</div>
+
+			<div class="relative z-30 grid grid-cols-1 gap-4 md:grid-cols-3">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
@@ -371,32 +419,26 @@
 				</div>
 			</div>
 
+			<!-- เลือก Job Order ด้วย Select ค้นหาได้ -->
 			<div class="relative z-20">
 				<label for="job_order_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Reference Job Order')}</label
 				>
-				<select
-					id="job_order_id"
-					name="job_order_id"
-					bind:value={selectedJobOrderId}
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+				<Select
+					items={jobOrderOptions}
+					value={selectedJobOrderObj}
+					on:change={(e) => onJobOrderChange(e.detail)}
+					on:clear={() => onJobOrderChange(null)}
+					placeholder={$t('-- Select Job Order --')}
+					container={browser ? document.body : null}
 					disabled={!selectedCustomerId || filteredJobOrders.length === 0}
-				>
-					<option value="">{$t('-- Select Job Order --')}</option>
-					{#each filteredJobOrders as job}
-						<option value={job.id}
-							>{job.job_number} | BL: {job.bl_number !== '-' && job.bl_number
-								? job.bl_number
-								: 'N/A'}</option
-						>
-					{/each}
-				</select>
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0f2fe;"
+				/>
+				<input type="hidden" name="job_order_id" value={selectedJobOrderId} />
 				{#if selectedCustomerId && filteredJobOrders.length === 0}
 					<p class="mt-1 text-xs text-red-500">{$t('No Job Order found for this customer')}</p>
-				{:else if !selectedCustomerId}
-					<p class="mt-1 text-xs text-gray-500">
-						{$t('Please select a customer to view Job Orders')}
-					</p>
 				{/if}
 			</div>
 
@@ -470,7 +512,7 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="w-40 px-2 py-2" style="min-width: 200px; max-width: 250px;">
+								<td class="w-20 px-4 py-2" style="min-width: 200px; max-width: 250px;">
 									<Select
 										items={productOptions}
 										value={item.product_object}
@@ -485,16 +527,16 @@
 										--valueStyles="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 									/>
 								</td>
-								<td class="px-2 py-2">
-									<input
-										type="text"
+								<td class="w-80 px-2 py-2">
+									<textarea
 										bind:value={item.description}
 										title={item.description}
-										class="w-full overflow-hidden rounded-md border-gray-300 text-sm text-ellipsis whitespace-nowrap"
+										rows="2"
+										class="w-full rounded-md border-gray-300 text-sm min-h-[38px] resize-y"
 										required
-									/>
+									></textarea>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-5 px-2 py-2">
 									<input
 										type="number"
 										bind:value={item.quantity}
@@ -504,7 +546,7 @@
 										required
 									/>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-5 px-2 py-2">
 									<select
 										bind:value={item.unit_id}
 										class="w-full rounded-md border-gray-300 py-1.5 text-center text-sm"
@@ -513,7 +555,7 @@
 										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-5 px-2 py-2">
 									<input
 										type="number"
 										step="0.01"
@@ -523,13 +565,13 @@
 										required
 									/>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-15 px-1 py-1">
 									<select
 										bind:value={item.is_vat}
 										class="w-full rounded-md border-blue-200 bg-blue-50 py-1.5 text-center text-sm font-bold text-blue-700"
 									>
 										<option value={true}>VAT 7%</option>
-										<option value={false}>Non-VAT</option>
+										<option value={false}>-</option>
 									</select>
 								</td>
 								<td class="px-2 py-2">
@@ -727,7 +769,7 @@
 									id="name"
 									required
 									bind:value={newProduct.name}
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								/>
 							</div>
 						</div>
@@ -741,7 +783,7 @@
 								id="description"
 								rows="3"
 								bind:value={newProduct.description}
-								class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+								class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 							></textarea>
 						</div>
 
@@ -755,7 +797,7 @@
 									id="product_type"
 									required
 									bind:value={newProduct.product_type}
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								>
 									<option value="Stock">Stock</option>
 									<option value="NonStock">Non-Stock</option>
@@ -770,7 +812,7 @@
 									name="category_id"
 									id="category_id"
 									bind:value={newProduct.category_id}
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								>
 									<option value={null}>-- None --</option>
 									{#each data.categories || [] as category}
@@ -792,7 +834,7 @@
 										id="unit_id"
 										required
 										bind:value={newProduct.unit_id}
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									>
 										<option value={null} disabled>- {$t('Select Unit')} -</option>
 										{#each data.units as unit}
@@ -808,7 +850,7 @@
 										name="purchase_unit_id"
 										id="purchase_unit_id"
 										bind:value={newProduct.purchase_unit_id}
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									>
 										<option value={null}>-- Same as Base --</option>
 										{#each data.units as unit}
@@ -824,7 +866,7 @@
 										name="sales_unit_id"
 										id="sales_unit_id"
 										bind:value={newProduct.sales_unit_id}
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									>
 										<option value={null}>-- Same as Base --</option>
 										{#each data.units as unit}
@@ -847,7 +889,7 @@
 									id="purchase_cost"
 									bind:value={newProduct.purchase_cost}
 									placeholder="0.00"
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								/>
 							</div>
 							<div>
@@ -861,7 +903,7 @@
 									id="selling_price"
 									bind:value={newProduct.selling_price}
 									placeholder="0.00"
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								/>
 							</div>
 							<div>
@@ -872,7 +914,7 @@
 									id="default_wht_rate"
 									name="default_wht_rate"
 									bind:value={newProduct.default_wht_rate}
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								>
 									<option value="0">0%</option>
 									<option value="1">1%</option>
@@ -895,7 +937,7 @@
 										name="quantity_on_hand"
 										id="quantity_on_hand"
 										bind:value={newProduct.quantity_on_hand}
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									/>
 								</div>
 								<div>
@@ -909,7 +951,7 @@
 										id="reorder_level"
 										bind:value={newProduct.reorder_level}
 										placeholder="Optional"
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									/>
 								</div>
 							</div>
@@ -937,7 +979,7 @@
 										newProduct.preferred_vendor_id = null as any;
 										isVendorDropdownOpen = true;
 									}}
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								/>
 								{#if isVendorDropdownOpen}
 									<ul
@@ -946,7 +988,7 @@
 										<li>
 											<button
 												type="button"
-												class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+												class="w-full cursor-pointer px-3 py-2 text-left hover:bg-blue-600 hover:text-white"
 												on:click={() => {
 													newProduct.preferred_vendor_id = null as any;
 													vendorSearchText = '';
@@ -958,7 +1000,7 @@
 											<li>
 												<button
 													type="button"
-													class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+													class="w-full cursor-pointer px-3 py-2 text-left hover:bg-blue-600 hover:text-white"
 													on:click={() => {
 														newProduct.preferred_vendor_id = vendor.id;
 														vendorSearchText = vendor.name;
@@ -992,7 +1034,7 @@
 										newProduct.preferred_customer_id = null as any;
 										isCustomerDropdownOpen = true;
 									}}
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 								/>
 								{#if isCustomerDropdownOpen}
 									<ul
@@ -1001,7 +1043,7 @@
 										<li>
 											<button
 												type="button"
-												class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+												class="w-full cursor-pointer px-3 py-2 text-left hover:bg-blue-600 hover:text-white"
 												on:click={() => {
 													newProduct.preferred_customer_id = null as any;
 													customerSearchText = '';
@@ -1013,7 +1055,7 @@
 											<li>
 												<button
 													type="button"
-													class="w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
+													class="w-full cursor-pointer px-3 py-2 text-left hover:bg-blue-600 hover:text-white"
 													on:click={() => {
 														newProduct.preferred_customer_id = customer.id;
 														customerSearchText = customer.name;
@@ -1040,7 +1082,7 @@
 										name="asset_account_id"
 										id="asset_account_id"
 										bind:value={newProduct.asset_account_id}
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									>
 										<option value={null}>-- None --</option>
 										{#each data.accounts || [] as acc}
@@ -1058,7 +1100,7 @@
 										name="income_account_id"
 										id="income_account_id"
 										bind:value={newProduct.income_account_id}
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									>
 										<option value={null}>-- None --</option>
 										{#each data.accounts || [] as acc}
@@ -1076,7 +1118,7 @@
 										name="expense_account_id"
 										id="expense_account_id"
 										bind:value={newProduct.expense_account_id}
-										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500"
 									>
 										<option value={null}>-- None --</option>
 										{#each data.accounts || [] as acc}
@@ -1136,7 +1178,7 @@
 							id="image"
 							accept="image/png, image/jpeg, image/webp"
 							on:change={onFileSelected}
-							class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+							class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 						/>
 					</div>
 				</div>

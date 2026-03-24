@@ -85,7 +85,10 @@ export const load: PageServerLoad = async ({ url }) => {
 			}
 		}
 
-		const [customers] = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
+		const [customers] = await pool.query('SELECT id, name, company_name FROM customers ORDER BY COALESCE(company_name, name) ASC');
+		// โหลด Contact Persons
+		const [customerContacts] = await pool.query('SELECT id, customer_id, name, position, email, phone FROM customer_contacts ORDER BY name ASC');
+		
 		const [products] = await pool.query(
 			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
@@ -102,6 +105,7 @@ export const load: PageServerLoad = async ({ url }) => {
 
 		return {
 			customers: JSON.parse(JSON.stringify(customers)),
+			customerContacts: JSON.parse(JSON.stringify(customerContacts)), // ส่ง Contact ไปให้ Client
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
 			jobOrders: JSON.parse(JSON.stringify(jobOrders)),
@@ -114,6 +118,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		console.error('Load data error:', error);
 		return {
 			customers: [],
+			customerContacts: [],
 			products: [],
 			units: [],
 			jobOrders: [],
@@ -131,6 +136,7 @@ export const actions: Actions = {
 
 		const document_type = formData.get('document_type')?.toString() || 'INV';
 		const customer_id = formData.get('customer_id');
+		const customer_contact_id = formData.get('customer_contact_id')?.toString() || null; // รับค่า contact
 		const job_order_id = formData.get('job_order_id')?.toString() || null;
 
 		const document_date = formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
@@ -161,13 +167,13 @@ export const actions: Actions = {
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO sales_documents 
-                (document_type, document_number, document_date, credit_term, due_date, customer_id, job_order_id, reference_doc, notes, 
+                (document_type, document_number, document_date, credit_term, due_date, customer_id, customer_contact_id, job_order_id, reference_doc, notes, 
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, wht_amount, total_amount,
                  status, created_by_user_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`,
 				[
-					document_type, document_number, document_date, credit_term, due_date, customer_id, job_order_id, reference_doc, notes, 
+					document_type, document_number, document_date, credit_term, due_date, customer_id, customer_contact_id, job_order_id, reference_doc, notes, 
 					subtotal, discount_amount, total_after_discount, vat_rate, vat_amount, wht_rate, wht_amount, wht_amount, total_amount,
 					locals.user?.id || null
 				]

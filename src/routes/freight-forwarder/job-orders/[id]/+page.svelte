@@ -33,7 +33,11 @@
 	let expItemId = $state('');
 	let expRefDoc = $state('');
 	let expAmount = $state<number | ''>('');
-	let expTaxType = $state('None');
+	
+	// ใช้ Checkbox และ Select สำหรับ VAT และ WHT
+	let expHasVat = $state(false);
+	let expWhtRate = $state('None');
+	
 	let expRemarks = $state('');
 
 	// สำหรับ svelte-select ค้นหาหมวดหมู่และรายการ
@@ -76,13 +80,23 @@
 		}
 	});
 
-	// คำนวณ Total Amount ในฟอร์มแบบ Real-time
+	// คำนวณยอดแบบ Real-time ตาม VAT และ WH
+	let calculatedVatAmount = $derived.by(() => {
+		const amt = Number(expAmount) || 0;
+		if (expHasVat) return amt * 0.07;
+		return 0;
+	});
+
+	let calculatedWhtAmount = $derived.by(() => {
+		const amt = Number(expAmount) || 0;
+		if (expWhtRate === '3') return amt * 0.03;
+		if (expWhtRate === '1') return amt * 0.01;
+		return 0;
+	});
+
 	let calculatedExpTotal = $derived.by(() => {
 		const amt = Number(expAmount) || 0;
-		if (expTaxType === 'VAT 7%') return amt * 1.07;
-		if (expTaxType === 'WHT 3%') return amt * 0.97;
-		if (expTaxType === 'WHT 1%') return amt * 0.99;
-		return amt;
+		return amt + calculatedVatAmount - calculatedWhtAmount;
 	});
 
 	let isSaving = $state(false);
@@ -130,7 +144,7 @@
 
 	function openExpenseModal() {
 		expCategoryId = ''; expItemId = ''; expRefDoc = ''; 
-		expAmount = ''; expTaxType = 'None'; expRemarks = '';
+		expAmount = ''; expHasVat = false; expWhtRate = 'None'; expRemarks = '';
 		selectedCategory = null; selectedItem = null;
 		isExpenseModalOpen = true;
 	}
@@ -305,6 +319,7 @@
 			<thead class="bg-white text-xs text-gray-500 uppercase">
 				<tr>
 					<th class="px-6 py-3 text-left font-semibold">{$t('Document No.')}</th>
+					<th class="px-6 py-3 text-left font-semibold">{$t('Reference Doc')}</th>
 					<th class="px-6 py-3 text-left font-semibold">{$t('Type')}</th>
 					<th class="px-6 py-3 text-left font-semibold">{$t('Date')}</th>
 					<th class="px-6 py-3 text-center font-semibold">{$t('Status')}</th>
@@ -318,6 +333,7 @@
 							<!-- แก้ไขลิงก์เป็น /sales-documents/{doc.id} -->
 							<a href="/sales-documents/{doc.id}" class="font-bold text-blue-600 hover:underline">{doc.document_number}</a>
 						</td>
+						<td class="px-6 py-3 text-gray-600">{doc.reference_doc || '-'}</td>
 						<td class="px-6 py-3 text-gray-600">
 							<span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold">{doc.document_type}</span>
 						</td>
@@ -360,7 +376,8 @@
 					<th class="px-6 py-3 text-left font-semibold">{$t('Category / Item')}</th>
 					<th class="px-6 py-3 text-left font-semibold">{$t('Ref. Doc')}</th>
 					<th class="px-6 py-3 text-right font-semibold">{$t('Amount')}</th>
-					<th class="px-6 py-3 text-center font-semibold">{$t('Tax')}</th>
+					<th class="px-6 py-3 text-right font-semibold text-green-600">{$t('VAT')}</th>
+					<th class="px-6 py-3 text-right font-semibold text-orange-600">{$t('WH')}</th>
 					<th class="px-6 py-3 text-right font-semibold">{$t('Total Amount')}</th>
 					<th class="px-6 py-3 text-center font-semibold">{$t('Action')}</th>
 				</tr>
@@ -374,11 +391,8 @@
 						</td>
 						<td class="px-6 py-3 text-gray-600">{exp.ref_document || '-'}</td>
 						<td class="px-6 py-3 text-right font-mono text-gray-700">{formatCurrency(exp.amount)}</td>
-						<td class="px-6 py-3 text-center">
-							<span class="px-2 py-0.5 rounded text-xs {exp.tax_type === 'None' ? 'bg-gray-100 text-gray-600' : 'bg-purple-100 text-purple-700 font-bold'}">
-								{exp.tax_type === 'None' ? $t('None') : exp.tax_type}
-							</span>
-						</td>
+						<td class="px-6 py-3 text-right font-mono text-green-600">{formatCurrency(exp.vat_amount || 0)}</td>
+						<td class="px-6 py-3 text-right font-mono text-orange-600">{formatCurrency(exp.wht_amount || 0)}</td>
 						<td class="px-6 py-3 text-right font-mono font-bold text-red-600">{formatCurrency(exp.total_amount)}</td>
 						<td class="px-6 py-3 text-center">
 							<form method="POST" action="?/deleteExpense" use:enhance onsubmit={(e) => { if(!confirm($t('Confirm delete this expense?'))) e.preventDefault(); }}>
@@ -388,7 +402,7 @@
 						</td>
 					</tr>
 				{:else}
-					<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">{$t('No expenses recorded')}</td></tr>
+					<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400">{$t('No expenses recorded')}</td></tr>
 				{/each}
 			</tbody>
 		</table>
@@ -446,25 +460,48 @@
 					<input id="ref_document" type="text" name="ref_document" bind:value={expRefDoc} class="w-full rounded-md border-gray-300 py-2 focus:border-blue-500 focus:ring-blue-500" placeholder={$t('e.g. INV-2026-001')}>
 				</div>
 
-				<div class="grid grid-cols-2 gap-5">
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-5 border-t border-gray-100 pt-5">
 					<div>
 						<label for="amount" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('Amount (Pre-tax)')} <span class="text-red-500">*</span></label>
 						<input id="amount" type="number" step="0.01" name="amount" bind:value={expAmount} required class="w-full rounded-md border-gray-300 py-2 text-right focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
 					</div>
+					<div class="flex items-center pt-7 px-3">
+						<label class="flex items-center space-x-2 cursor-pointer">
+							<input type="checkbox" name="has_vat" value="true" bind:checked={expHasVat} class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+							<span class="text-sm font-semibold text-gray-700">{$t('Apply VAT 7%')}</span>
+						</label>
+					</div>
 					<div>
-						<label for="tax_type" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('Tax Type')}</label>
-						<select id="tax_type" name="tax_type" bind:value={expTaxType} class="w-full rounded-md border-gray-300 py-2 focus:border-blue-500 focus:ring-blue-500">
+						<label for="wht_rate" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('WH (WHT Rate)')}</label>
+						<select id="wht_rate" name="wht_rate" bind:value={expWhtRate} class="w-full rounded-md border-gray-300 py-2 focus:border-blue-500 focus:ring-blue-500">
 							<option value="None">{$t('None')}</option>
-							<option value="VAT 7%">VAT 7% (+)</option>
-							<option value="WHT 3%">WHT 3% (-)</option>
-							<option value="WHT 1%">WHT 1% (-)</option>
+							<option value="1">WHT 1%</option>
+							<option value="3">WHT 3%</option>
 						</select>
 					</div>
 				</div>
 
-				<div class="bg-blue-50/50 p-4 rounded-lg flex justify-between items-center border border-blue-100 mt-2">
-					<span class="text-sm font-semibold text-gray-700">{$t('Total Amount (Net)')}:</span>
-					<span class="text-xl font-bold text-red-600">{formatCurrency(calculatedExpTotal)}</span>
+				<div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100 mt-2 space-y-2">
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-semibold text-gray-600">{$t('Amount')}:</span>
+						<span class="text-sm font-mono text-gray-800">{formatCurrency(Number(expAmount) || 0)}</span>
+					</div>
+					{#if calculatedVatAmount > 0}
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-semibold text-gray-600">{$t('VAT (7%)')}:</span>
+						<span class="text-sm font-mono text-green-600">+{formatCurrency(calculatedVatAmount)}</span>
+					</div>
+					{/if}
+					{#if calculatedWhtAmount > 0}
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-semibold text-gray-600">{$t('WH')}:</span>
+						<span class="text-sm font-mono text-orange-600">-{formatCurrency(calculatedWhtAmount)}</span>
+					</div>
+					{/if}
+					<div class="flex items-center justify-between border-t border-blue-200 pt-2">
+						<span class="text-sm font-bold text-gray-800">{$t('Total Amount (Net)')}:</span>
+						<span class="text-xl font-bold text-red-600">{formatCurrency(calculatedExpTotal)}</span>
+					</div>
 				</div>
 
 				<div>

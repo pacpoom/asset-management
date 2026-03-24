@@ -56,7 +56,7 @@ export const load = async ({ params }) => {
 		// 4. ดึงข้อมูล Sales Documents (เอกสารขายที่เชื่อมกับ Job นี้)
 		const [salesDocs] = await pool.query<any[]>(
 			`
-			SELECT id, document_type, document_number, document_date, total_amount, status 
+			SELECT id, document_type, document_number, document_date, total_amount, status , reference_doc
 			FROM sales_documents 
 			WHERE job_order_id = ? AND status != 'Void'
 			ORDER BY document_date DESC, id DESC
@@ -117,30 +117,44 @@ export const actions = {
 		const expense_item_id = formData.get('expense_item_id');
 		const ref_document = formData.get('ref_document')?.toString().trim() || null;
 		const amount = parseFloat(formData.get('amount')?.toString() || '0');
-		const tax_type = formData.get('tax_type')?.toString() || 'None';
 		const remarks = formData.get('remarks')?.toString().trim() || null;
 		const created_by = locals.user?.id || null;
+
+		// รับค่า Checkbox VAT และ Select ของ WHT
+		const has_vat = formData.get('has_vat') === 'true';
+		const wht_rate = formData.get('wht_rate')?.toString() || 'None';
 
 		if (!expense_item_id || isNaN(amount) || amount <= 0) {
 			return fail(400, { message: 'กรุณาระบุรายการค่าใช้จ่ายและจำนวนเงินให้ถูกต้อง' });
 		}
 
-		// คำนวณ Total Amount ตาม Tax Type
-		let total_amount = amount;
-		if (tax_type === 'VAT 7%') {
-			total_amount = amount * 1.07;
-		} else if (tax_type === 'WHT 3%') {
-			total_amount = amount * 0.97;
-		} else if (tax_type === 'WHT 1%') {
-			total_amount = amount * 0.99;
+		// คำนวณยอดเงินตาม VAT และ WH ที่เลือก
+		let vat_amount = 0;
+		let wht_amount = 0;
+		let tax_types = [];
+
+		if (has_vat) {
+			vat_amount = amount * 0.07;
+			tax_types.push('VAT 7%');
 		}
+
+		if (wht_rate === '3') {
+			wht_amount = amount * 0.03;
+			tax_types.push('WHT 3%');
+		} else if (wht_rate === '1') {
+			wht_amount = amount * 0.01;
+			tax_types.push('WHT 1%');
+		}
+
+		let tax_type_str = tax_types.length > 0 ? tax_types.join(', ') : 'None';
+		let total_amount = amount + vat_amount - wht_amount;
 
 		try {
 			await pool.execute(
 				`INSERT INTO job_expenses 
-				(job_order_id, expense_item_id, ref_document, amount, tax_type, total_amount, remarks, created_by) 
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-				[job_order_id, expense_item_id, ref_document, amount, tax_type, total_amount, remarks, created_by]
+				(job_order_id, expense_item_id, ref_document, amount, tax_type, vat_amount, wht_amount, total_amount, remarks, created_by) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[job_order_id, expense_item_id, ref_document, amount, tax_type_str, vat_amount, wht_amount, total_amount, remarks, created_by]
 			);
 			return { success: true, action: 'addExpense' };
 		} catch (err: any) {

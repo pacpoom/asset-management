@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2';
-// import { checkPermission } from '$lib/server/auth';
+//import { checkPermission } from '$lib/server/auth';
 
 interface DashboardStats {
 	totalStockQty: number;
