@@ -319,7 +319,8 @@
 				{#each items as item}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-4 py-4 text-gray-700">
-							<div class="font-medium text-gray-900">{item.description}</div>
+							<!-- 🌟 ใช้ whitespace-pre-wrap เพื่อให้สามารถโชว์บรรทัดที่เคาะลงมาเหมือนตอนเป็น Textarea -->
+							<div class="font-medium text-gray-900 whitespace-pre-wrap leading-relaxed">{item.description}</div>
 						</td>
 						<td class="px-4 py-4 text-center text-gray-700">{item.quantity}</td>
 						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>

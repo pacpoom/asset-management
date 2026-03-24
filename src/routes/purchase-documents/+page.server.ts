@@ -7,7 +7,13 @@ export const load: PageServerLoad = async ({ url }) => {
 	const searchQuery = url.searchParams.get('search') || '';
 	const filterStatus = url.searchParams.get('status') || '';
 	const filterType = url.searchParams.get('type') || '';
-	const pageSize = 15;
+	
+	// รับค่าจาก URL หรือตั้งค่าเริ่มต้น (จะถูกจัดการหลักๆ ที่หน้าบ้าน แต่รับไว้เผื่อมีการส่งมา)
+	const fromDate = url.searchParams.get('fromDate') || '';
+	const toDate = url.searchParams.get('toDate') || '';
+	
+	// ตั้งค่า Paging: Default = 10
+	const pageSize = parseInt(url.searchParams.get('pageSize') || '10', 10);
 	const offset = (page - 1) * pageSize;
 
 	try {
@@ -15,7 +21,6 @@ export const load: PageServerLoad = async ({ url }) => {
 		const params: (string | number)[] = [];
 
 		if (searchQuery) {
-			// 🌟 ค้นหาจากเลขที่เอกสาร, ชื่อ vendor, company_name และ job_number
 			whereClause += ` AND (
                 pd.document_number LIKE ? OR
                 v.name LIKE ? OR
@@ -34,6 +39,17 @@ export const load: PageServerLoad = async ({ url }) => {
 		if (filterType) {
 			whereClause += ` AND pd.document_type = ? `;
 			params.push(filterType);
+		}
+
+		// เพิ่มเงื่อนไขค้นหาตามวันที่
+		if (fromDate) {
+			whereClause += ` AND pd.document_date >= ? `;
+			params.push(fromDate);
+		}
+
+		if (toDate) {
+			whereClause += ` AND pd.document_date <= ? `;
+			params.push(toDate);
 		}
 
 		const countSql = `
@@ -69,7 +85,11 @@ export const load: PageServerLoad = async ({ url }) => {
 			totalPages,
 			searchQuery,
 			filterStatus,
-			filterType
+			filterType,
+			fromDate,
+			toDate,
+			pageSize,
+			totalItems: total
 		};
 	} catch (err: any) {
 		console.error('Failed to load purchase documents:', err);
@@ -85,7 +105,6 @@ export const actions: Actions = {
 		if (!id) return fail(400, { message: 'ไม่พบรหัสเอกสาร' });
 
 		try {
-			// ลบข้อมูลรายการและไฟล์แนบก่อนลบหัวเอกสาร
 			await pool.execute('DELETE FROM purchase_document_items WHERE document_id = ?', [id]);
 			await pool.execute('DELETE FROM purchase_document_attachments WHERE document_id = ?', [id]);
 			await pool.execute('DELETE FROM purchase_documents WHERE id = ?', [id]);

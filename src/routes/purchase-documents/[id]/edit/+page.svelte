@@ -11,12 +11,12 @@
 		existingItems,
 		existingAttachments,
 		vendors,
+		vendorContacts, // 🌟 เพิ่ม vendorContacts จาก Server
 		products,
 		units,
 		jobOrders 
 	} = data);
 
-	// 🌟 ดึงข้อมูล Address มาไว้ใน local state เพื่ออัปเดตแบบเรียลไทม์ได้
 	let localAddresses = data.deliveryAddresses || [];
 	let localProducts = data.products || [];
 
@@ -26,7 +26,6 @@
 		vendor: v
 	}));
 
-	// 🌟 แก้ไขให้แสดงเฉพาะชื่อสินค้า
 	$: productOptions = localProducts.map((p: any) => ({
 		value: p.id,
 		label: p.name,
@@ -42,7 +41,7 @@
 		unit_price: number;
 		line_total: number;
 		wht_rate: number;
-		is_vat: boolean; // 🌟 เพิ่ม is_vat ใน Interface
+		is_vat: boolean; 
 	}
 
 	let documentDate = '';
@@ -52,34 +51,47 @@
 	let discountAmount = 0;
 	let vatRate = 7;
 
-	// 🌟 ใช้ Select เหมือนหน้า New สำหรับ Vendor
 	let selectedVendorObj: any = null;
 	let selectedVendorId: string | number = '';
+
+	// 🌟 เพิ่มตัวแปรสำหรับ Contact Person ให้เหมือนหน้า New
+	let selectedContactObj: any = null;
+	let selectedContactId: string | number = '';
 
 	let selectedDeliveryAddressId: string | number = '';
 
 	let selectedJobObj: any = null;
 	let selectedJobId: string | number = '';
 
-	$: availableJobOrders = (jobOrders || []).filter((j: any) => 
-		selectedVendorId ? j.vendor_id == selectedVendorId : false
-	);
+	// 🌟 กรอง Contact ตาม Vendor
+	$: filteredContacts = selectedVendorId
+		? vendorContacts?.filter((c: any) => c.vendor_id == selectedVendorId) || []
+		: [];
+
+	$: contactOptions = filteredContacts.map((c: any) => ({
+		value: c.id,
+		label: `${c.name} ${c.position ? `(${c.position})` : ''}`
+	}));
+
+	// 🌟 กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือก (เหมือนหน้า New)
+	$: availableJobOrders = selectedVendorId 
+		? (jobOrders || []).filter((j: any) => j.vendor_id == selectedVendorId)
+		: [];
 
 	$: jobOrderOptions = availableJobOrders.map((j: any) => ({
 		value: j.id,
-		label: j.job_number,
+		label: `${j.job_number} | BL: ${j.bl_number !== '-' && j.bl_number ? j.bl_number : 'N/A'}`,
 		job: j
 	}));
 
 	$: currentLoc = $locale === 'th' ? 'th-TH' : 'en-US';
-	// 🌟 ปรับให้ใช้ formatNumber เหมือนหน้า New
 	$: formatNumber = (amount: number) =>
 		new Intl.NumberFormat(currentLoc, {
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
 		}).format(amount || 0);
 
-	// ไฮเดรตข้อมูลหัวเอกสาร (ใช้ initializedDocId ป้องกัน Reactivity Loop)
+	// ไฮเดรตข้อมูลหัวเอกสาร
 	let initializedDocId: number | null = null;
 	$: if (document && document.id !== initializedDocId) {
 		initializedDocId = document.id;
@@ -94,13 +106,26 @@
 
 		selectedDeliveryAddressId = document.delivery_address_id || '';
 
+		// โหลดข้อมูล Contact
+		selectedContactId = document.vendor_contact_id || '';
+		if (selectedContactId && vendorContacts) {
+			const foundContact = vendorContacts.find((c: any) => c.id == selectedContactId);
+			if (foundContact) {
+				selectedContactObj = {
+					value: foundContact.id,
+					label: `${foundContact.name} ${foundContact.position ? `(${foundContact.position})` : ''}`
+				};
+			}
+		}
+
+		// โหลดข้อมูล Job Order
 		if (document.job_id) {
 			selectedJobId = document.job_id;
 			const foundJob = jobOrders.find((j: any) => j.id == document.job_id);
 			if (foundJob) {
 				selectedJobObj = {
 					value: foundJob.id,
-					label: foundJob.job_number,
+					label: `${foundJob.job_number} | BL: ${foundJob.bl_number !== '-' && foundJob.bl_number ? foundJob.bl_number : 'N/A'}`,
 					job: foundJob
 				};
 			}
@@ -110,7 +135,16 @@
 		}
 	}
 
-	// ไฮเดรตข้อมูลรายการสินค้า (ใช้ initializedItemsDocId ป้องกัน Reactivity Loop)
+	// อัพเดท Object Contact เมื่อมีการเปลี่ยน Option จาก Dropdown
+	$: if (selectedContactId && contactOptions.length > 0) {
+		if (!selectedContactObj || selectedContactObj.value !== selectedContactId) {
+			selectedContactObj = contactOptions.find((c: any) => c.value == selectedContactId) || null;
+		}
+	} else if (!selectedContactId) {
+		selectedContactObj = null;
+	}
+
+	// ไฮเดรตข้อมูลรายการสินค้า 
 	let initializedItemsDocId: number | null = null;
 	$: if (existingItems && document && document.id !== initializedItemsDocId) {
 		initializedItemsDocId = document.id;
@@ -119,7 +153,7 @@
 			const productObj = foundProduct
 				? {
 						value: foundProduct.id,
-						label: foundProduct.name, // 🌟 แก้ไขให้แสดงเฉพาะชื่อสินค้าสำหรับข้อมูลเก่า
+						label: foundProduct.name,
 						product: foundProduct
 					}
 				: null;
@@ -133,16 +167,13 @@
 				unit_price: parseFloat(item.unit_price || '0'),
 				line_total: parseFloat(item.line_total || '0'),
 				wht_rate: parseFloat(item.wht_rate || '0'),
-				is_vat: item.is_vat !== undefined ? !!item.is_vat : true // 🌟 ดึงค่า is_vat (default: true)
+				is_vat: item.is_vat !== undefined ? !!item.is_vat : true 
 			};
 		});
 	}
 
-	// 🌟 ตรรกะคำนวณแบบเดียวกับหน้า New เป๊ะๆ
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
-	
 	$: subtotalVatable = items.reduce((sum, item) => sum + (item.is_vat ? (item.line_total || 0) : 0), 0);
-	
 	$: vatableRatio = subtotal > 0 ? (subtotalVatable / subtotal) : 0;
 	$: vatableAfterDiscount = Math.max(0, subtotalVatable - (discountAmount * vatableRatio));
 	
@@ -167,7 +198,7 @@
 				unit_price: 0,
 				line_total: 0,
 				wht_rate: 0,
-				is_vat: true // 🌟 Default ให้คิด VAT
+				is_vat: true 
 			}
 		];
 	}
@@ -189,7 +220,7 @@
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
-			items[index].is_vat = true; // 🌟
+			items[index].is_vat = true; 
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
@@ -213,8 +244,13 @@
 	function onVendorChange(selected: any) {
 		selectedVendorObj = selected;
 		selectedVendorId = selected ? selected.value : '';
-		selectedJobObj = null;
+		
+		// 🌟 เคลียร์ค่า Contact และ Job Order เมื่อเปลี่ยน Vendor (เหมือนหน้า New)
+		selectedContactId = ''; 
+		selectedContactObj = null;
+
 		selectedJobId = '';
+		selectedJobObj = null;
 	}
 
 	function onJobChange(selected: any) {
@@ -224,7 +260,7 @@
 
 	let isSaving = false;
 
-	// 🌟 Address Management Modal State (เหมือนหน้า New)
+	// Address Management
 	let showAddressModal = false;
 	let addressModalMode: 'list' | 'form' = 'list';
 	let isSavingAddress = false;
@@ -279,7 +315,7 @@
 	<title>{$t('Edit')} {$t('DocType_' + document?.document_type)} {document?.document_number}</title>
 </svelte:head>
 
-<div class="mx-auto mb-10 max-w-7xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+<div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6 mb-10">
 	<div class="mb-6 flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-800">
 			{$t('Edit')}
@@ -304,9 +340,10 @@
 			};
 		}}
 	>
+		<!-- 🌟 จัดรูปแบบ Layout Grid ให้เหมือนหน้า New -->
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-			<div>
-				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-500"
+			<div class="relative z-[60]">
+				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Document Type (Cannot be changed)')}</label
 				>
 				<input
@@ -314,13 +351,13 @@
 					id="document_type_display"
 					value={$t('DocType_' + document?.document_type)}
 					disabled
-					class="w-full rounded-md border-gray-300 bg-gray-100 text-gray-500 shadow-sm"
+					class="w-full rounded-md border-gray-300 bg-gray-100 text-lg font-semibold text-gray-500 shadow-sm"
 				/>
 			</div>
 
-			<div class="relative z-[60]">
+			<div class="relative z-[50]">
 				<label for="vendor_id" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Vendor')} <span class="text-red-500">*</span></label
+					>{$t('Vendor Name')} <span class="text-red-500">*</span></label
 				>
 				<Select
 					id="vendor_id"
@@ -332,12 +369,61 @@
 					container={browser ? document.body : null}
 					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
 					--list="border-radius: 6px; font-size: 0.875rem;"
-					--itemIsActive="background: #e0e7ff;"
+					--itemIsActive="background: #e0f2fe;"
 				/>
 				<input type="hidden" name="vendor_id" value={selectedVendorId} required />
 			</div>
 
-			<div class="relative z-[50] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+			<!-- 🌟 เพิ่ม Contact Person -->
+			<div class="relative z-[45]">
+				<label for="vendor_contact_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Contact Person')}</label
+				>
+				<Select
+					items={contactOptions}
+					value={selectedContactObj}
+					on:change={(e) => {
+						selectedContactObj = e.detail;
+						selectedContactId = e.detail ? e.detail.value : '';
+					}}
+					on:clear={() => {
+						selectedContactObj = null;
+						selectedContactId = '';
+					}}
+					placeholder={$t('-- Select Contact --')}
+					container={browser ? document.body : null}
+					disabled={!selectedVendorId || filteredContacts.length === 0}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0f2fe;"
+				/>
+				<input type="hidden" name="vendor_contact_id" value={selectedContactId} />
+				{#if selectedVendorId && filteredContacts.length === 0}
+					<p class="mt-1 text-xs text-red-500">{$t('No Contact Person found for this vendor')}</p>
+				{/if}
+			</div>
+
+			<!-- Job Order -->
+			<div class="relative z-[40]">
+				<label for="job_id" class="mb-1 block text-sm font-medium text-gray-700">
+					{$t('Reference Job Order')}
+				</label>
+				<Select
+					id="job_id"
+					items={jobOrderOptions}
+					value={selectedJobObj}
+					on:change={(e) => onJobChange(e.detail)}
+					on:clear={() => onJobChange(null)}
+					placeholder={$t('-- Select Job Order --')}
+					container={browser ? document.body : null}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0f2fe;"
+				/>
+				<input type="hidden" name="job_id" value={selectedJobId} />
+			</div>
+
+			<div class="relative z-[30] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
@@ -384,7 +470,22 @@
 				</div>
 			</div>
 
-			<div class="relative z-[40] md:col-span-1">
+			<div class="relative z-[20] md:col-span-1">
+				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Other Reference (PO/Ref)')}</label
+				>
+				<input
+					type="text"
+					id="reference_doc"
+					name="reference_doc"
+					value={document?.reference_doc || ''}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
+					placeholder={$t('e.g. PR-2023...')}
+				/>
+			</div>
+
+			<!-- Delivery Address (คงไว้แต่ย้ายมาให้เข้า Grid) -->
+			<div class="relative z-[20] md:col-span-1">
 				<div class="mb-1 flex items-center justify-between">
 					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700"
 						>{$t('Delivery Address')}</label
@@ -411,74 +512,30 @@
 					{/each}
 				</select>
 			</div>
-
-			<div class="relative z-[35] md:col-span-1">
-				<label for="job_id" class="mb-1 block text-sm font-medium text-gray-700">
-					{$t('Job Order (Optional)')}
-				</label>
-				<Select
-					id="job_id"
-					items={jobOrderOptions}
-					value={selectedJobObj}
-					on:change={(e) => onJobChange(e.detail)}
-					on:clear={() => onJobChange(null)}
-					placeholder={selectedVendorId ? $t('Select Job Order...') : $t('Please select a vendor first')}
-					disabled={!selectedVendorId}
-					container={browser ? document.body : null}
-					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-					--list="border-radius: 6px; font-size: 0.875rem;"
-					--itemIsActive="background: #e0e7ff;"
-				/>
-				<input type="hidden" name="job_id" value={selectedJobId} />
-			</div>
-
-			<div class="relative z-[30] md:col-span-1">
-				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Supplier Reference Doc')}</label
-				>
-				<input
-					type="text"
-					id="reference_doc"
-					name="reference_doc"
-					value={document?.reference_doc || ''}
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
-					placeholder={$t('e.g. QT-Supplier-2026...')}
-				/>
-			</div>
 		</div>
 
+		<!-- 🌟 ตารางสินค้าเหมือนหน้า New แบบเป๊ะๆ -->
 		<div class="mb-6">
-			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Purchase/Service Items')}</h3>
-			<div class="relative z-10 overflow-x-visible rounded-lg border">
+			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Products/Items')}</h3>
+			<div class="relative z-0 overflow-x-visible rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<!-- <th class="w-40 px-4 py-2 text-left font-medium">{$t('Product/Service Code')}</th>
-							<th class="px-4 py-2 text-left font-bold">{$t('Description')}</th>
-							<th class="w-24 px-3 py-2 text-right">{$t('Quantity')}</th>
-							<th class="w-24 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-28 px-3 py-2 text-right">{$t('Unit Cost')}</th>
-							<th class="w-24 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
-							<th class="w-24 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
-							<th class="w-32 px-3 py-2 text-right">{$t('Total')}</th>
-							<th class="w-10 px-3 py-2"></th> -->
-
-							<th class="w-40 px-4 py-2 text-left font-medium">{$t('Product/Service Code')}</th>
-							<th class="px-4 py-2 text-left font-bold">{$t('Description')}</th>
+							<th class="w-32 px-4 py-2 text-left font-medium">{$t('Product/Service')}</th>
+							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
 							<th class="w-28 px-3 py-2 text-right">{$t('Quantity')}</th>
 							<th class="w-32 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-36 px-3 py-2 text-right">{$t('Unit Cost')}</th>
+							<th class="w-32 px-3 py-2 text-right">{$t('Unit Price')}</th>
 							<th class="w-32 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
 							<th class="w-28 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
-							<th class="w-30 px-3 py-2 text-right">{$t('Total')}</th>
-							<th class="w-2 px-3 py-2"></th>
-
+							<th class="w-32 px-3 py-2 text-right">{$t('Total')}</th>
+							<th class="w-10 px-3 py-2"></th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each items as item, index}
 							<tr>
-								<td class="w-40 px-2 py-2" style="min-width: 200px; max-width: 250px;">
+								<td class="w-20 px-4 py-2" style="min-width: 200px; max-width: 250px;">
 									<Select
 										items={productOptions}
 										value={item.product_object}
@@ -489,20 +546,21 @@
 										container={browser ? document.body : null}
 										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
 										--list="border-radius: 6px; font-size: 0.875rem;"
-										--itemIsActive="background: #e0e7ff;"
+										--itemIsActive="background: #e0f2fe;"
 										--valueStyles="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
 									/>
 								</td>
-								<td class="px-2 py-2">
-									<input
-										type="text"
+								<td class="w-80 px-2 py-2">
+									<!-- 🌟 เปลี่ยน Input เป็น Textarea เหมือนหน้า New -->
+									<textarea
 										bind:value={item.description}
 										title={item.description}
-										class="w-full overflow-hidden rounded-md border-gray-300 text-sm text-ellipsis whitespace-nowrap"
+										rows="2"
+										class="w-full rounded-md border-gray-300 text-sm min-h-[38px] resize-y"
 										required
-									/>
+									></textarea>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-5 px-2 py-2">
 									<input
 										type="number"
 										bind:value={item.quantity}
@@ -512,7 +570,7 @@
 										required
 									/>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-5 px-2 py-2">
 									<select
 										bind:value={item.unit_id}
 										class="w-full rounded-md border-gray-300 py-1.5 text-center text-sm"
@@ -521,7 +579,7 @@
 										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-5 px-2 py-2">
 									<input
 										type="number"
 										step="0.01"
@@ -531,13 +589,13 @@
 										required
 									/>
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-15 px-1 py-1">
 									<select
 										bind:value={item.is_vat}
 										class="w-full rounded-md border-blue-200 bg-blue-50 py-1.5 text-center text-sm font-bold text-blue-700"
 									>
 										<option value={true}>VAT 7%</option>
-										<option value={false}>Non-VAT</option>
+										<option value={false}>-</option>
 									</select>
 								</td>
 								<td class="px-2 py-2">
@@ -545,9 +603,11 @@
 										bind:value={item.wht_rate}
 										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 text-center text-sm font-bold text-red-700"
 									>
-										<option value={0}>0%</option><option value={1}>1%</option><option value={2}
-											>2%</option
-										><option value={3}>3%</option><option value={5}>5%</option>
+										<option value={0}>0%</option>
+										<option value={1}>1%</option>
+										<option value={2}>2%</option>
+										<option value={3}>3%</option>
+										<option value={5}>5%</option>
 									</select>
 								</td>
 								<td class="px-2 py-2 text-right font-bold text-gray-900">
@@ -555,11 +615,7 @@
 								</td>
 								<td class="px-2 py-2 text-center">
 									{#if items.length > 1}
-										<button
-											type="button"
-											on:click={() => removeItem(index)}
-											class="text-red-500 hover:text-red-700">❌</button
-										>
+										<button type="button" on:click={() => removeItem(index)} class="text-red-500 hover:text-red-700">❌</button>
 									{/if}
 								</td>
 							</tr>
@@ -567,20 +623,16 @@
 					</tbody>
 				</table>
 			</div>
-			<button
-				type="button"
-				on:click={addItem}
-				class="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+			<button type="button" on:click={addItem} class="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+				>{$t('Add Item')}</button
 			>
-				{$t('Add Item')}
-			</button>
 		</div>
 
 		<div class="mb-6 flex flex-col gap-6 md:flex-row">
 			<div class="w-full space-y-4 md:w-2/3">
 				<div>
 					<label for="notes" class="mb-1 block text-sm font-medium text-gray-700"
-						>{$t('Internal Notes')}</label
+						>{$t('Notes')}</label
 					>
 					<textarea
 						id="notes"
@@ -644,7 +696,7 @@
 					>
 				</div>
 				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">{$t('Discount Received')}</span><input
+					<span class="text-gray-600">{$t('Discount')}</span><input
 						type="number"
 						name="discount_amount"
 						bind:value={discountAmount}
@@ -659,7 +711,7 @@
 				</div>
 				<div class="mt-2 flex items-center justify-between text-sm">
 					<span class="text-gray-600">
-						{$t('Purchase VAT')} <span class="ml-1 text-xs text-gray-500">(Auto 7%)</span>
+						{$t('VAT')} <span class="ml-1 text-xs text-gray-500">(Auto 7%)</span>
 					</span>
 					<span class="font-medium text-green-600">+{formatNumber(vatAmount)}</span>
 					<input type="hidden" name="vat_rate" value={vatRate} />
@@ -668,13 +720,13 @@
 				<div
 					class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600"
 				>
-					<span class="font-medium">{$t('WHT (Deducted from vendor)')}</span><span class="font-bold"
+					<span class="font-medium">{$t('Total WHT')}</span><span class="font-bold"
 						>-{formatNumber(whtAmount)}</span
 					>
 					<input type="hidden" name="wht_amount" value={whtAmount} />
 				</div>
 				<div class="flex justify-between pt-2 text-lg font-black text-gray-900">
-					<span>{$t('Grand Total to Pay')}</span><span class="text-indigo-700"
+					<span>{$t('Grand Total')}</span><span class="text-indigo-700"
 						>{formatNumber(grandTotal)}</span
 					>
 				</div>
@@ -703,114 +755,59 @@
 	</form>
 </div>
 
-<!-- 🌟 Address Modal เหมือนหน้า New -->
+<!-- Modal Manage Delivery Addresses -->
 {#if showAddressModal}
-	<div
-		class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity"
-	>
+	<div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity">
 		<div class="fixed inset-0" on:click={closeAddressModal} role="presentation"></div>
-		<div
-			class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col overflow-hidden rounded-xl bg-white shadow-2xl transition-all"
-		>
+		<div class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col overflow-hidden rounded-xl bg-white shadow-2xl transition-all">
 			<div class="flex flex-shrink-0 items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{addressModalMode === 'list'
-						? $t('Select or Manage Delivery Address')
-						: addressFormData.id
-							? $t('Edit Delivery Address')
-							: $t('Add New Delivery Address')}
+					{addressModalMode === 'list' ? $t('Select or Manage Delivery Address') : addressFormData.id ? $t('Edit Delivery Address') : $t('Add New Delivery Address')}
 				</h2>
-				<button
-					type="button"
-					on:click={closeAddressModal}
-					class="text-xl font-bold text-gray-400 hover:text-gray-600">&times;</button
-				>
+				<button type="button" on:click={closeAddressModal} class="text-xl font-bold text-gray-400 hover:text-gray-600">&times;</button>
 			</div>
 
 			<div class="flex-1 overflow-y-auto p-6">
 				{#if addressModalMode === 'list'}
 					<div class="mb-4 flex justify-end">
-						<button
-							type="button"
-							on:click={startAddAddress}
-							class="rounded-md bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-100"
-							>{$t('+ Add New Address')}</button
-						>
+						<button type="button" on:click={startAddAddress} class="rounded-md bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-100">{$t('+ Add New Address')}</button>
 					</div>
 
 					{#if localAddresses.length === 0}
-						<div class="rounded-lg border border-dashed py-8 text-center text-gray-500">
-							{$t('No delivery address found')}
-						</div>
+						<div class="rounded-lg border border-dashed py-8 text-center text-gray-500">{$t('No delivery address found')}</div>
 					{:else}
 						<div class="space-y-3">
 							{#each localAddresses as addr}
-								<div
-									class="flex items-start justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
-								>
+								<div class="flex items-start justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50/30">
 									<div class="flex-1 pr-4">
 										<h4 class="font-bold text-gray-900">{addr.name}</h4>
-										<p class="mt-1 text-sm whitespace-pre-wrap text-gray-600">
-											{addr.address_line}
-										</p>
+										<p class="mt-1 text-sm whitespace-pre-wrap text-gray-600">{addr.address_line}</p>
 										<div class="mt-2 text-xs text-gray-500">
-											{#if addr.contact_name}
-												<span class="mr-3"
-													>{$t('Contact:')}
-													<span class="font-semibold">{addr.contact_name}</span></span
-												>
-											{/if}
-											{#if addr.contact_phone}
-												<span
-													>{$t('Tel:')}
-													<span class="font-semibold">{addr.contact_phone}</span></span
-												>
-											{/if}
+											{#if addr.contact_name}<span class="mr-3">{$t('Contact:')} <span class="font-semibold">{addr.contact_name}</span></span>{/if}
+											{#if addr.contact_phone}<span>{$t('Tel:')} <span class="font-semibold">{addr.contact_phone}</span></span>{/if}
 										</div>
 									</div>
 									<div class="flex shrink-0 flex-col gap-2 border-l pl-4">
-										<button
-											type="button"
-											on:click={() => selectAddress(addr.id)}
-											class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-											>{$t('Select')}</button
-										>
-										<button
-											type="button"
-											on:click={() => startEditAddress(addr)}
-											class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-											>{$t('Edit')}</button
-										>
+										<button type="button" on:click={() => selectAddress(addr.id)} class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">{$t('Select')}</button>
+										<button type="button" on:click={() => startEditAddress(addr)} class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">{$t('Edit')}</button>
 
-										<form
-											method="POST"
-											action="?/deleteAddress"
-											use:enhance={() => {
+										<form method="POST" action="?/deleteAddress" use:enhance={() => {
 												isDeletingAddressId = addr.id;
 												return async ({ result, update }) => {
 													isDeletingAddressId = null;
 													if (result.type === 'success') {
 														const actionData = result.data as Record<string, any>;
 														if (actionData && actionData.deletedId) {
-															localAddresses = localAddresses.filter(
-																(a: any) => a.id !== actionData.deletedId
-															);
-															if (selectedDeliveryAddressId == actionData.deletedId) {
-																selectedDeliveryAddressId = '';
-															}
+															localAddresses = localAddresses.filter((a: any) => a.id !== actionData.deletedId);
+															if (selectedDeliveryAddressId == actionData.deletedId) selectedDeliveryAddressId = '';
 															showToast($t('Address deleted successfully'));
 														}
 													}
 													await update({ reset: false });
 												};
-											}}
-										>
+											}}>
 											<input type="hidden" name="id" value={addr.id} />
-											<button
-												type="submit"
-												disabled={isDeletingAddressId === addr.id}
-												class="w-full rounded border border-red-200 px-3 py-1.5 text-center text-xs font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
-											>
+											<button type="submit" disabled={isDeletingAddressId === addr.id} class="w-full rounded border border-red-200 px-3 py-1.5 text-center text-xs font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 disabled:opacity-50">
 												{isDeletingAddressId === addr.id ? '...' : $t('Delete')}
 											</button>
 										</form>
@@ -820,10 +817,7 @@
 						</div>
 					{/if}
 				{:else}
-					<form
-						method="POST"
-						action={addressFormData.id ? '?/updateAddress' : '?/createAddress'}
-						use:enhance={() => {
+					<form method="POST" action={addressFormData.id ? '?/updateAddress' : '?/createAddress'} use:enhance={() => {
 							isSavingAddress = true;
 							return async ({ result, update }) => {
 								isSavingAddress = false;
@@ -848,86 +842,34 @@
 								}
 								await update({ reset: false });
 							};
-						}}
-					>
-						{#if addressFormData.id}
-							<input type="hidden" name="id" value={addressFormData.id} />
-						{/if}
+						}}>
+						{#if addressFormData.id}<input type="hidden" name="id" value={addressFormData.id} />{/if}
 
 						<div class="space-y-4">
 							<div>
-								<label for="addr_name" class="block text-sm font-medium text-gray-700"
-									>{$t('Location Name')} <span class="text-red-500">*</span></label
-								>
-								<input
-									type="text"
-									name="name"
-									id="addr_name"
-									bind:value={addressFormData.name}
-									placeholder={$t('e.g. HQ, Warehouse A')}
-									required
-									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-								/>
+								<label for="addr_name" class="block text-sm font-medium text-gray-700">{$t('Location Name')} <span class="text-red-500">*</span></label>
+								<input type="text" name="name" id="addr_name" bind:value={addressFormData.name} placeholder={$t('e.g. HQ, Warehouse A')} required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
 							</div>
 							<div>
-								<label for="addr_line" class="block text-sm font-medium text-gray-700"
-									>{$t('Address Details')} <span class="text-red-500">*</span></label
-								>
-								<textarea
-									name="address_line"
-									id="addr_line"
-									rows="3"
-									bind:value={addressFormData.address_line}
-									placeholder={$t('Address Format Placeholder')}
-									required
-									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-								></textarea>
+								<label for="addr_line" class="block text-sm font-medium text-gray-700">{$t('Address Details')} <span class="text-red-500">*</span></label>
+								<textarea name="address_line" id="addr_line" rows="3" bind:value={addressFormData.address_line} placeholder={$t('Address Format Placeholder')} required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
 							</div>
 							<div class="grid grid-cols-2 gap-4">
 								<div>
-									<label for="contact_name" class="block text-sm font-medium text-gray-700"
-										>{$t('Receiver Contact Name')}</label
-									>
-									<input
-										type="text"
-										name="contact_name"
-										id="contact_name"
-										bind:value={addressFormData.contact_name}
-										class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-									/>
+									<label for="contact_name" class="block text-sm font-medium text-gray-700">{$t('Receiver Contact Name')}</label>
+									<input type="text" name="contact_name" id="contact_name" bind:value={addressFormData.contact_name} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
 								</div>
 								<div>
-									<label for="contact_phone" class="block text-sm font-medium text-gray-700"
-										>{$t('Phone Number')}</label
-									>
-									<input
-										type="text"
-										name="contact_phone"
-										id="contact_phone"
-										bind:value={addressFormData.contact_phone}
-										class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-									/>
+									<label for="contact_phone" class="block text-sm font-medium text-gray-700">{$t('Phone Number')}</label>
+									<input type="text" name="contact_phone" id="contact_phone" bind:value={addressFormData.contact_phone} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
 								</div>
 							</div>
 						</div>
 
 						<div class="mt-6 flex justify-end gap-3 border-t pt-4">
-							<button
-								type="button"
-								on:click={() => (addressModalMode = 'list')}
-								class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-								>{$t('Back')}</button
-							>
-							<button
-								type="submit"
-								disabled={isSavingAddress}
-								class="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
-							>
-								{isSavingAddress
-									? $t('Saving...')
-									: addressFormData.id
-										? $t('Save Changes')
-										: $t('Add Address')}
+							<button type="button" on:click={() => (addressModalMode = 'list')} class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50">{$t('Back')}</button>
+							<button type="submit" disabled={isSavingAddress} class="rounded-md bg-indigo-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">
+								{isSavingAddress ? $t('Saving...') : addressFormData.id ? $t('Save Changes') : $t('Add Address')}
 							</button>
 						</div>
 					</form>
@@ -938,22 +880,8 @@
 {/if}
 
 {#if toastMessage}
-	<div
-		class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[200] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-xl"
-	>
-		<svg
-			xmlns="http://www.w3.org/2000/svg"
-			class="h-5 w-5"
-			fill="none"
-			viewBox="0 0 24 24"
-			stroke="currentColor"
-			stroke-width="2"
-			><path
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-			/></svg
-		>
+	<div class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[200] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-xl">
+		<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 		{toastMessage}
 	</div>
 {/if}

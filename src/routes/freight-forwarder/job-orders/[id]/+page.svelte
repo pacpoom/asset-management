@@ -465,12 +465,6 @@
 						<label for="amount" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('Amount (Pre-tax)')} <span class="text-red-500">*</span></label>
 						<input id="amount" type="number" step="0.01" name="amount" bind:value={expAmount} required class="w-full rounded-md border-gray-300 py-2 text-right focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
 					</div>
-					<div class="flex items-center pt-7 px-3">
-						<label class="flex items-center space-x-2 cursor-pointer">
-							<input type="checkbox" name="has_vat" value="true" bind:checked={expHasVat} class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-							<span class="text-sm font-semibold text-gray-700">{$t('Apply VAT 7%')}</span>
-						</label>
-					</div>
 					<div>
 						<label for="wht_rate" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('WH (WHT Rate)')}</label>
 						<select id="wht_rate" name="wht_rate" bind:value={expWhtRate} class="w-full rounded-md border-gray-300 py-2 focus:border-blue-500 focus:ring-blue-500">
@@ -478,6 +472,12 @@
 							<option value="1">WHT 1%</option>
 							<option value="3">WHT 3%</option>
 						</select>
+					</div>
+					<div class="flex items-center pt-7 px-3">
+						<label class="flex items-center space-x-2 cursor-pointer">
+							<input type="checkbox" name="has_vat" value="true" bind:checked={expHasVat} class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+							<span class="text-sm font-semibold text-gray-700">{$t('Apply VAT 7%')}</span>
+						</label>
 					</div>
 				</div>
 

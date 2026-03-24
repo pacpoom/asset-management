@@ -63,25 +63,27 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			url: `/uploads/purchase_documents/${f.file_system_name}`
 		}));
 
-		// 🌟 ดึงข้อมูล Vendor โดยใช้ logic เดียวกับหน้า New
 		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
 		
+		// 🌟 ดึงข้อมูล Vendor Contacts มาด้วยเหมือนหน้า New
+		const [vendorContacts] = await pool.query('SELECT id, vendor_id, name, position, email, phone FROM vendor_contacts ORDER BY name ASC');
+
 		const [products] = await pool.query(
 			'SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
 		
-		// โหลดรายการสถานที่จัดส่ง
 		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
 
-		// 🌟 โหลดรายการ Job Orders
-		const [jobOrders] = await pool.query('SELECT id, job_number, vendor_id FROM job_orders ORDER BY id DESC');
+		// 🌟 ดึงข้อมูล Job Orders โดยดึง vendor_id ด้วยเพื่อนำไป filter
+		const [jobOrders] = await pool.query('SELECT id, job_number, vendor_id, bl_number FROM job_orders ORDER BY id DESC');
 
 		return {
 			document: JSON.parse(JSON.stringify(document)),
 			existingItems: JSON.parse(JSON.stringify(itemRows)),
 			existingAttachments: JSON.parse(JSON.stringify(attachments)),
 			vendors: JSON.parse(JSON.stringify(vendors)),
+			vendorContacts: JSON.parse(JSON.stringify(vendorContacts)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
 			deliveryAddresses: JSON.parse(JSON.stringify(deliveryAddresses)),
@@ -99,6 +101,7 @@ export const actions: Actions = {
 		const formData = await request.formData();
 
 		const vendor_id = formData.get('vendor_id');
+		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null; // 🌟 เพิ่มมารับค่า contact
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
 		
 		const job_id = formData.get('job_id')?.toString() || null;
@@ -126,9 +129,10 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
+			// 🌟 อัพเดท vendor_contact_id เข้าไปใน Database
 			await connection.execute(
 				`UPDATE purchase_documents SET 
-                 document_date = ?, credit_term = ?, due_date = ?, vendor_id = ?, delivery_address_id = ?, job_id = ?, reference_doc = ?, notes = ?,
+                 document_date = ?, credit_term = ?, due_date = ?, vendor_id = ?, vendor_contact_id = ?, delivery_address_id = ?, job_id = ?, reference_doc = ?, notes = ?,
                  subtotal = ?, discount_amount = ?, total_after_discount = ?,
                  vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, wht_amount = ?, total_amount = ?
                  WHERE id = ?`,
@@ -137,6 +141,7 @@ export const actions: Actions = {
 					credit_term,
 					due_date,
 					vendor_id,
+					vendor_contact_id,
 					delivery_address_id,
 					job_id,
 					reference_doc,
@@ -164,7 +169,6 @@ export const actions: Actions = {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
 					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
-					// 🌟 เพิ่มการดึงค่า is_vat จากหน้าบ้านเพื่อมาบันทึก
 					const isVat = item.is_vat === false ? 0 : 1; 
 
 					await connection.execute(
@@ -240,7 +244,6 @@ export const actions: Actions = {
 		}
 	},
 
-	// 🌟 Action สำหรับจัดการที่อยู่จัดส่ง (ยกมาจากหน้า New)
 	createAddress: async ({ request }) => {
 		const formData = await request.formData();
 		const name = formData.get('name')?.toString()?.trim();

@@ -84,46 +84,30 @@ export const load: PageServerLoad = async ({ url }) => {
 			}
 		}
 
-		// 🌟 แก้ไข: ดึง company_name มาใช้แสดงแทน name (ถ้าไม่มี company_name ให้ใช้ name ปกติ)
 		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
-		
-		const [products] = await pool.query(
-			'SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
-		);
+		const [vendorContacts] = await pool.query('SELECT id, vendor_id, name, position, email, phone FROM vendor_contacts ORDER BY name ASC');
+		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, purchase_unit_id as unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC');
 		const [units] = await pool.query('SELECT id, symbol, name FROM units ORDER BY symbol ASC');
-		const [categories] = await pool.query('SELECT id, name FROM product_categories ORDER BY name');
-		const [accounts] = await pool.query(
-			'SELECT id, account_code, account_name FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code'
-		);
 		
-		// โหลดรายการสถานที่จัดส่ง (เฉพาะที่ยังใช้งานอยู่)
-		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
-
-		// 🌟 เพิ่ม vendor_id เข้าไปในคำสั่ง SELECT เพื่อให้ Filter ทำงานได้ถูกต้อง
-		const [jobOrders] = await pool.query('SELECT id, job_number, vendor_id FROM job_orders ORDER BY id DESC');
+		// 🌟 เพิ่ม vendor_id ใน Query เพื่อให้หน้าบ้านสามารถ Filter ได้
+		const [jobOrders] = await pool.query('SELECT id, job_number, customer_id, vendor_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC');
+		
+		const [categories] = await pool.query('SELECT id, name FROM product_categories ORDER BY name');
+		const [accounts] = await pool.query('SELECT id, account_code, account_name FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code');
 
 		return {
 			vendors: JSON.parse(JSON.stringify(vendors)),
+			vendorContacts: JSON.parse(JSON.stringify(vendorContacts)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
+			jobOrders: JSON.parse(JSON.stringify(jobOrders)),
 			categories: JSON.parse(JSON.stringify(categories)),
 			accounts: JSON.parse(JSON.stringify(accounts)),
-			deliveryAddresses: JSON.parse(JSON.stringify(deliveryAddresses)),
-			jobOrders: JSON.parse(JSON.stringify(jobOrders)), // ส่งข้อมูล Jobs ไปที่หน้า Svelte
 			prefillData: prefillData ? JSON.parse(JSON.stringify(prefillData)) : null 
 		};
 	} catch (error: any) {
 		console.error('Load data error:', error);
-		return {
-			vendors: [],
-			products: [],
-			units: [],
-			categories: [],
-			accounts: [],
-			deliveryAddresses: [],
-			jobOrders: [],
-			prefillData: null
-		};
+		return { vendors: [], vendorContacts: [], products: [], units: [], jobOrders: [], categories: [], accounts: [], prefillData: null };
 	}
 };
 
@@ -133,8 +117,10 @@ export const actions: Actions = {
 
 		const document_type = formData.get('document_type')?.toString() || 'PO';
 		const vendor_id = formData.get('vendor_id');
+		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null;
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
-		
+		const job_id = formData.get('job_id')?.toString() || null;
+
 		const document_date = formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
 		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
 		const due_date = formData.get('due_date')?.toString() || null;
@@ -142,9 +128,6 @@ export const actions: Actions = {
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
-		
-		// 🌟 รับค่า job_id จากฟอร์ม
-		const job_id = formData.get('job_id')?.toString() || null;
 
 		const subtotal = parseFloat(formData.get('subtotal')?.toString() || '0');
 		const discount_amount = parseFloat(formData.get('discount_amount')?.toString() || '0');
@@ -164,35 +147,17 @@ export const actions: Actions = {
 
 			const document_number = await generateDocumentNumber(document_type, document_date, connection);
 
-			// 🌟 เพิ่ม job_id ลงในคำสั่ง INSERT
 			const [result] = await connection.execute<any>(
 				`INSERT INTO purchase_documents 
-                (document_type, document_number, document_date, credit_term, due_date, vendor_id, delivery_address_id, reference_doc, notes, 
+                (document_type, document_number, document_date, credit_term, due_date, vendor_id, vendor_contact_id, delivery_address_id, reference_doc, notes, 
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, wht_amount, total_amount,
                  status, created_by_user_id, job_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?)`,
 				[
-					document_type,
-					document_number,
-					document_date,
-					credit_term,
-					due_date,
-					vendor_id,
-					delivery_address_id,
-					reference_doc,
-					notes,
-					subtotal,
-					discount_amount,
-					total_after_discount,
-					vat_rate,
-					vat_amount,
-					wht_rate,
-					wht_amount,
-					wht_amount,
-					total_amount,
-					locals.user?.id || null,
-					job_id
+					document_type, document_number, document_date, credit_term, due_date, vendor_id, vendor_contact_id, delivery_address_id, reference_doc, notes, 
+					subtotal, discount_amount, total_after_discount, vat_rate, vat_amount, wht_rate, wht_amount, wht_amount, total_amount,
+					locals.user?.id || null, job_id
 				]
 			);
 			const documentId = result.insertId;
@@ -210,17 +175,8 @@ export const actions: Actions = {
                         (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, is_vat) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
-							documentId,
-							item.product_id || null,
-							item.description,
-							item.quantity,
-							item.unit_id || null,
-							item.unit_price,
-							lineTotal,
-							lineWhtRate,
-							lineWhtAmount,
-							index,
-							isVat
+							documentId, item.product_id || null, item.description, item.quantity, item.unit_id || null,
+							item.unit_price, lineTotal, lineWhtRate, lineWhtAmount, index, isVat
 						]
 					);
 				}
@@ -235,12 +191,7 @@ export const actions: Actions = {
                         (document_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
                         VALUES (?, ?, ?, ?, ?, ?)`,
 						[
-							documentId,
-							savedFile.originalName,
-							savedFile.systemName,
-							savedFile.mimeType,
-							savedFile.size,
-							locals.user?.id
+							documentId, savedFile.originalName, savedFile.systemName, savedFile.mimeType, savedFile.size, locals.user?.id
 						]
 					);
 				}
@@ -251,88 +202,10 @@ export const actions: Actions = {
 		} catch (err: any) {
 			await connection.rollback();
 			if (err.status === 303) throw err;
-			console.error('Create purchase document error:', err);
+			console.error('Create document error:', err);
 			return fail(500, { message: 'Error: ' + err.message });
 		} finally {
 			connection.release();
-		}
-	},
-
-	// Action สำหรับสร้างที่อยู่จัดส่งใหม่
-	createAddress: async ({ request }) => {
-		const formData = await request.formData();
-		const name = formData.get('name')?.toString()?.trim();
-		const address_line = formData.get('address_line')?.toString()?.trim();
-		const contact_name = formData.get('contact_name')?.toString()?.trim();
-		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
-
-		if (!name || !address_line) {
-			return fail(400, { message: 'กรุณากรอกชื่อสถานที่และรายละเอียดที่อยู่' });
-		}
-
-		try {
-			const [result] = await pool.execute<any>(
-				`INSERT INTO delivery_addresses (name, address_line, contact_name, contact_phone, is_active) VALUES (?, ?, ?, ?, 1)`,
-				[name, address_line, contact_name || null, contact_phone || null]
-			);
-			
-			const [newAddress] = await pool.query<any[]>(
-				'SELECT * FROM delivery_addresses WHERE id = ?',
-				[result.insertId]
-			);
-			
-			return { success: true, address: newAddress[0] };
-		} catch (err: any) {
-			console.error('Create address error:', err);
-			return fail(500, { message: 'เกิดข้อผิดพลาดในการสร้างที่อยู่: ' + err.message });
-		}
-	},
-
-	// Action สำหรับแก้ไขที่อยู่จัดส่ง
-	updateAddress: async ({ request }) => {
-		const formData = await request.formData();
-		const id = formData.get('id');
-		const name = formData.get('name')?.toString()?.trim();
-		const address_line = formData.get('address_line')?.toString()?.trim();
-		const contact_name = formData.get('contact_name')?.toString()?.trim();
-		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
-
-		if (!id || !name || !address_line) {
-			return fail(400, { message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
-		}
-
-		try {
-			await pool.execute(
-				`UPDATE delivery_addresses SET name = ?, address_line = ?, contact_name = ?, contact_phone = ? WHERE id = ?`,
-				[name, address_line, contact_name || null, contact_phone || null, id]
-			);
-			
-			const [updatedAddress] = await pool.query<any[]>(
-				'SELECT * FROM delivery_addresses WHERE id = ?',
-				[id]
-			);
-			
-			return { success: true, address: updatedAddress[0] };
-		} catch (err: any) {
-			console.error('Update address error:', err);
-			return fail(500, { message: 'เกิดข้อผิดพลาดในการแก้ไขที่อยู่: ' + err.message });
-		}
-	},
-
-	// Action สำหรับลบที่อยู่จัดส่ง (Soft Delete)
-	deleteAddress: async ({ request }) => {
-		const formData = await request.formData();
-		const id = formData.get('id');
-
-		if (!id) return fail(400, { message: 'ไม่พบรหัสที่อยู่จัดส่ง' });
-
-		try {
-			// ใช้ Soft Delete เพื่อไม่ให้กระทบเอกสารเก่าที่เคยใช้ที่อยู่นี้
-			await pool.execute(`UPDATE delivery_addresses SET is_active = 0 WHERE id = ?`, [id]);
-			return { success: true, deletedId: Number(id) };
-		} catch (err: any) {
-			console.error('Delete address error:', err);
-			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบที่อยู่: ' + err.message });
 		}
 	}
 };

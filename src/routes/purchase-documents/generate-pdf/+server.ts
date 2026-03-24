@@ -31,13 +31,16 @@ interface DocumentData extends RowDataPacket {
 	vendor_name: string;
 	vendor_address: string | null;
 	vendor_tax_id: string | null;
+	contact_name: string | null;
+	contact_phone: string | null;
+	contact_email: string | null;
 	created_by_name: string;
 
 	delivery_location_name: string | null;
 	delivery_address_line: string | null;
 	delivery_contact_name: string | null;
 	delivery_contact_phone: string | null;
-
+	
 	job_number: string | null;
 
 	subtotal: number;
@@ -63,25 +66,25 @@ interface ItemData {
 const pdfSpecificDict: Record<string, Record<string, string>> = {
 	'th': {
 		'No': 'เลขที่ / No.', 'Date': 'วันที่ / Date', 'Term': 'เครดิต / Term', 'Due': 'ครบกำหนด / Due',
-		'Ref': 'อ้างอิง / Ref', 'PreparedBy': 'ผู้จัดทำ / Prepared By', 'Vendor': 'ผู้จำหน่าย (Vendor)',
-		'ShipTo': 'สถานที่จัดส่ง (Shipping Address)', 'Contact': 'ผู้ติดต่อ:', 'Tel': 'โทร:',
-		'Seq': 'ลำดับ', 'Desc': 'รายการ (Description)', 'Qty': 'จำนวน', 'UnitCost': 'ต้นทุน/หน่วย', 'Amount': 'จำนวนเงิน',
+		'Ref': 'อ้างอิง / Ref', 'Vendor': 'ผู้จำหน่าย (Vendor)', 'Issued By': 'ผู้ออกเอกสาร (Issued By)',
+		'Seq': 'ลำดับ', 'Description': 'รายการ (Description)', 'Qty': 'จำนวน', 'UnitPrice': 'ราคา/หน่วย', 'Amount': 'จำนวนเงิน',
 		'Notes': 'หมายเหตุ (Notes):', 'NetText': 'จำนวนเงินสุทธิเป็นตัวอักษร',
 		'Subtotal': 'รวมเป็นเงิน', 'Discount': 'ส่วนลด', 'AfterDiscount': 'หลังหักส่วนลด',
-		'VAT': 'VAT ซื้อ', 'WHT': 'หัก ณ ที่จ่าย', 'GrandTotal': 'ยอดต้องชำระ',
-		'Auth': 'ผู้อนุมัติ (Authorized Signature)', 'Page': 'หน้า', 'Carry': '-- ยอดยกไป (Carried Forward) --',
-		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)'
+		'VAT': 'VAT', 'WHT': 'หัก ณ ที่จ่ายรวม', 'GrandTotal': 'จำนวนเงินสุทธิ',
+		'PreparedBy': 'ผู้จัดทำ (Prepared by)', 'Auth': 'ผู้อนุมัติ (Authorized Signature)',
+		'Page': 'หน้า', 'Carry': '-- ยอดยกไป (Carried Forward) --',
+		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)', 'Contact': 'ผู้ติดต่อ (Attn):'
 	},
 	'en': {
 		'No': 'No.', 'Date': 'Date', 'Term': 'Term', 'Due': 'Due Date',
-		'Ref': 'Reference', 'PreparedBy': 'Prepared By', 'Vendor': 'Vendor',
-		'ShipTo': 'Shipping Address', 'Contact': 'Contact:', 'Tel': 'Tel:',
-		'Seq': 'Item', 'Desc': 'Description', 'Qty': 'Qty', 'UnitCost': 'Unit Cost', 'Amount': 'Amount',
+		'Ref': 'Reference', 'Vendor': 'Vendor', 'Issued By': 'Issued By',
+		'Seq': 'Item', 'Description': 'Description', 'Qty': 'Qty', 'UnitPrice': 'Unit Price', 'Amount': 'Amount',
 		'Notes': 'Notes:', 'NetText': 'Net Amount in Words',
 		'Subtotal': 'Subtotal', 'Discount': 'Discount', 'AfterDiscount': 'Total After Discount',
-		'VAT': 'VAT', 'WHT': 'Withholding Tax', 'GrandTotal': 'Grand Total',
-		'Auth': 'Authorized Signature', 'Page': 'Page', 'Carry': '-- Carried Forward --',
-		'Days': 'Days', 'Cash': 'Cash'
+		'VAT': 'VAT', 'WHT': 'Total WHT', 'GrandTotal': 'Grand Total',
+		'PreparedBy': 'Prepared by', 'Auth': 'Authorized Signature',
+		'Page': 'Page', 'Carry': '-- Carried Forward --',
+		'Days': 'Days', 'Cash': 'Cash', 'Contact': 'Attn:'
 	}
 };
 
@@ -168,18 +171,12 @@ function bahttext(input: number | string): string {
 
 function getDocumentTitle(type: string): { th: string; en: string } {
 	switch (type) {
-		case 'PR':
-			return { th: 'ใบเสนอซื้อ', en: 'PURCHASE REQUISITION' };
-		case 'PO':
-			return { th: 'ใบสั่งซื้อ', en: 'PURCHASE ORDER' };
-		case 'GR':
-			return { th: 'ใบรับของ', en: 'GOODS RECEIPT' };
-		case 'AP':
-			return { th: 'บันทึกตั้งหนี้', en: 'AP INVOICE' };
-		case 'PV':
-			return { th: 'ใบสำคัญจ่าย', en: 'PAYMENT VOUCHER' };
-		default:
-			return { th: 'เอกสารจัดซื้อ', en: 'PURCHASE DOCUMENT' };
+		case 'PR': return { th: 'ใบขอซื้อ', en: 'PURCHASE REQUEST' };
+		case 'PO': return { th: 'ใบสั่งซื้อ', en: 'PURCHASE ORDER' };
+		case 'GR': return { th: 'ใบรับสินค้า', en: 'GOODS RECEIPT' };
+		case 'AP': return { th: 'ใบตั้งหนี้', en: 'ACCOUNT PAYABLE' };
+		case 'PV': return { th: 'ใบสำคัญจ่าย', en: 'PAYMENT VOUCHER' };
+		default: return { th: 'เอกสารจัดซื้อ', en: 'PURCHASE DOCUMENT' };
 	}
 }
 
@@ -215,13 +212,9 @@ function getInvoiceHtml(
 	});
 
 	const ratesArray = Array.from(activeRates);
-	const whtRateText =
-		ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
+	const whtRateText = ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
 
-	const whtAmt =
-		calculatedWhtAmt > 0
-			? calculatedWhtAmt
-			: Number(docData.wht_amount || docData.withholding_tax_amount || 0);
+	const whtAmt = calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
 	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
 	const netAmountText = bahttext(netAmount);
@@ -270,16 +263,15 @@ function getInvoiceHtml(
                     </div>
                 </td>
                 <td style="width: 45%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
-                    <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0; color: #4f46e5;">${lang === 'en' ? docTitle.en : docTitle.th}</h1>
+                    <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0; color: #1e3a8a;">${lang === 'en' ? docTitle.en : docTitle.th}</h1>
                     <p style="font-size: 10pt; color: #666;">${lang === 'en' ? docTitle.th : docTitle.en}</p>
                     <div style="margin-top: 0.5rem; font-size: 8pt; line-height: 1.5;">
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('No', lang)}:</span> ${docData.document_number}</p>
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('Date', lang)}:</span> ${formatDateOnly(docData.document_date)}</p>
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('Term', lang)}:</span> ${creditTermDisplay}</p>
                         ${docData.due_date ? `<p style="margin:0; color: #b91c1c;"><span style="font-weight: 600;">${tPdf('Due', lang)}:</span> ${formatDateOnly(docData.due_date)}</p>` : ''}
-                        ${docData.job_number ? `<p style="margin:0; color: #4f46e5;"><span style="font-weight: 600;">Job Order:</span> ${docData.job_number}</p>` : ''}
+						${docData.job_number ? `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span> ${docData.job_number}</p>` : ''}
                         ${docData.reference_doc ? `<p style="margin:0;"><span style="font-weight: 600;">${tPdf('Ref', lang)}:</span> ${docData.reference_doc}</p>` : ''}
-                        <p style="margin:0;"><span style="font-weight: 600;">${tPdf('PreparedBy', lang)}:</span> ${docData.created_by_name}</p>
                     </div>
                 </td>
             </tr>
@@ -291,28 +283,11 @@ function getInvoiceHtml(
                         <p style="margin:0; white-space: pre-wrap;">${docData.vendor_address || '-'}</p>
                     </div>
                     <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${docData.vendor_tax_id || '-'}</p>
+                    ${docData.contact_name ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">${tPdf('Contact', lang)}</span> ${docData.contact_name} ${docData.contact_phone ? `(Tel: ${docData.contact_phone})` : ''}</p>` : ''}
                 </td>
-                <td style="padding-top: 1rem; vertical-align: top; width: 45%;">
-                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('ShipTo', lang)}</h3>
-                    ${
-											docData.delivery_location_name
-												? `
-                    <p style="font-weight: bold; margin: 0 0 4px 0;">${docData.delivery_location_name}</p>
-                    <div style="font-size: 8pt; line-height: 1.4;">
-                        <p style="margin:0; white-space: pre-wrap;">${docData.delivery_address_line || '-'}</p>
-                        ${
-													docData.delivery_contact_name || docData.delivery_contact_phone
-														? `
-                        <p style="margin:4px 0 0 0;">
-                            ${docData.delivery_contact_name ? `<span style="font-weight: 600;">${tPdf('Contact', lang)}</span> ${docData.delivery_contact_name}` : ''} 
-                            ${docData.delivery_contact_phone ? `<span style="font-weight: 600; ${docData.delivery_contact_name ? 'margin-left: 8px;' : ''}">${tPdf('Tel', lang)}</span> ${docData.delivery_contact_phone}` : ''}
-                        </p>`
-														: ''
-												}
-                    </div>
-                    `
-												: '<p style="font-size: 8pt; margin: 0;">-</p>'
-										}
+                <td style="padding-top: 1rem; vertical-align: top; width: 45%; text-align: right;">
+                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('Issued By', lang)}</h3>
+                    <p style="font-size: 8pt;">${docData.created_by_name}</p>
                 </td>
             </tr>
         </table>
@@ -325,7 +300,7 @@ function getInvoiceHtml(
             <th class="p-2 text-left">${tPdf('Description', lang)}</th>
             <th class="p-2 text-right w-16">${tPdf('Qty', lang)}</th>
             <th class="p-2 text-right w-24">${tPdf('UnitPrice', lang)}</th>
-            <th class="p-2 text-center w-24 whitespace-nowrap" style="color: #2563eb;">${tPdf('VAT', lang)}</th>
+            <th class="p-2 text-center w-16" style="color: #2563eb;">${tPdf('VAT', lang)}</th>
             <th class="p-2 text-center w-24 whitespace-nowrap" style="color: #ef4444;">${tPdf('WHT', lang)}</th>
             <th class="p-2 text-right w-28">${tPdf('Amount', lang)}</th>
         </tr>
@@ -336,7 +311,7 @@ function getInvoiceHtml(
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
                 <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
-                <col style="width: 120px;"> <col style="width: 120px;">
+                <col style="width: 140px;"> <col style="width: 110px;">
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
@@ -350,33 +325,33 @@ function getInvoiceHtml(
                         </div>
                     </td> 
                     
-                    <td class="font-bold p-2 text-right border-t border-gray-400">${tPdf('Subtotal', lang)}</td>
+                    <td class="font-bold p-2 text-right border-t border-gray-400 whitespace-nowrap">${tPdf('Subtotal', lang)}</td>
                     <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
                 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400">${tPdf('Discount', lang)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('Discount', lang)}</td>
                     <td class="p-2 text-right">${formatNumber(discount)}</td>
                 </tr>
                 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400">${tPdf('AfterDiscount', lang)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('AfterDiscount', lang)}</td>
                     <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400">${tPdf('VAT', lang)} (${vatRate}%)</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VAT', lang)} (${vatRate}%)</td>
                     <td class="p-2 text-right">${formatNumber(vatAmt)}</td>
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600">${tPdf('WHT', lang)} (${whtRateText}%)</td>
-                    <td class="p-2 text-right text-red-600">${formatNumber(whtAmt)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600 whitespace-nowrap" style="font-size: 7.5pt;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
+                    <td class="p-2 text-right text-red-600" style="font-size: 7.5pt;">${formatNumber(whtAmt)}</td>
                 </tr>
 
                 <tr style="background-color: #ffffff;">
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400" style="font-size: 9pt;">${tPdf('GrandTotal', lang)}</td>
-                    <td class="p-2 text-right border-t border-gray-400 text-indigo-700" style="font-size: 9pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 9pt;">${tPdf('GrandTotal', lang)}</td>
+                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 9pt; font-weight: bold;">${formatNumber(netAmount)}</td>
                 </tr>
             </tfoot>
         </table>
@@ -397,58 +372,86 @@ function getInvoiceHtml(
         </div>
     `;
 
-	const MAX_WITH_FOOTER = 10;
-	const MAX_WITHOUT_FOOTER = 18;
-	const itemPages: ItemData[][] = [];
-	let remaining = [...itemsData];
-
-	if (remaining.length === 0) itemPages.push([]);
-	else {
-		while (remaining.length > 0) {
-			if (remaining.length <= MAX_WITH_FOOTER) {
-				itemPages.push(remaining);
-				remaining = [];
-			} else if (remaining.length <= MAX_WITHOUT_FOOTER) {
-				itemPages.push(remaining);
-				remaining = [];
-				itemPages.push([]);
-			} else {
-				itemPages.push(remaining.slice(0, MAX_WITHOUT_FOOTER));
-				remaining = remaining.slice(MAX_WITHOUT_FOOTER);
-			}
+	// --- LOGIC ตัดหน้าโดยคำนวณจากบรรทัด (Textarea) ---
+	function countLines(text: string | null | undefined): number {
+		if (!text) return 1;
+		const lines = text.split('\n');
+		let total = 0;
+		for (const line of lines) {
+			total += Math.max(1, Math.ceil(line.length / 50));
 		}
+		return total;
 	}
-	const totalPages = itemPages.length;
 
-	const pagesHtml = itemPages
-		.map((pageItems, index) => {
+	const MAX_LINES_PER_PAGE = 22;  
+	const MAX_LINES_LAST_PAGE = 12; 
+
+	interface PageInfo {
+		items: ItemData[];
+		startIndex: number;
+	}
+
+	const pages: PageInfo[] = [];
+	let currentPageItems: ItemData[] = [];
+	let currentLineCount = 0;
+	let currentItemIndex = 0;
+	let pageStartIndex = 0;
+
+	for (const item of itemsData) {
+		const itemLines = countLines(item.description);
+
+		if (currentLineCount + itemLines > MAX_LINES_PER_PAGE && currentPageItems.length > 0) {
+			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
+			currentPageItems = [];
+			currentLineCount = 0;
+			pageStartIndex = currentItemIndex;
+		}
+
+		currentPageItems.push(item);
+		currentLineCount += itemLines;
+		currentItemIndex++;
+	}
+
+	if (currentPageItems.length > 0) {
+		if (currentLineCount > MAX_LINES_LAST_PAGE) {
+			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
+			pages.push({ items: [], startIndex: currentItemIndex });
+		} else {
+			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
+		}
+	} else if (pages.length === 0) {
+		pages.push({ items: [], startIndex: 0 });
+	}
+
+	const totalPages = pages.length;
+
+	const pagesHtml = pages
+		.map((pageInfo, index) => {
 			const isLastPage = index === totalPages - 1;
 			const pageNum = index + 1;
-			let startIndex = 0;
-			for (let i = 0; i < index; i++) startIndex += itemPages[i].length;
 
-			const rowsHtml = pageItems
+			const rowsHtml = pageInfo.items
 				.map(
 					(item, i) => `
     <tr style="border-bottom: 1px solid #eee;">
-        <td class="p-2 text-center">${startIndex + i + 1}</td>
-        <td class="p-2">${item.description}</td>
-        <td class="p-2 text-right">${formatNumber(item.quantity)}</td>
-        <td class="p-2 text-right">${formatNumber(item.unit_price)}</td>
-        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500;">
+        <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
+        <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
+        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500; vertical-align: top;">
             ${item.is_vat ? '7%' : '-'}
         </td>
-        <td class="p-2 text-center" style="color: #ef4444; font-weight: 500;">
+        <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
         </td>
-        <td class="p-2 text-right">${formatNumber(item.line_total)}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.line_total)}</td>
     </tr>
 `
 				)
 				.join('');
 
 			const tableHtml =
-				pageItems.length > 0
+				pageInfo.items.length > 0
 					? `
             <table style="width: 100%; border-collapse: collapse; font-size: 8pt;">
                 ${itemTableHead}
@@ -460,14 +463,18 @@ function getInvoiceHtml(
 			let footerHtml = '';
 			if (isLastPage) {
 				footerHtml = `
-                ${summaryBlock}
-                ${signatureBlock}
-                <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                <div style="width: 100%;">
+                    ${summaryBlock}
+                    ${signatureBlock}
+                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                </div>
             `;
 			} else {
 				footerHtml = `
-                <div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">${tPdf('Carry', lang)}</div>
-                <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                <div style="width: 100%;">
+                    <div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">${tPdf('Carry', lang)}</div>
+                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                </div>
             `;
 			}
 
@@ -489,9 +496,23 @@ function getInvoiceHtml(
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
                 body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #333; background: #fff !important; margin: 0; padding: 0; }
-                .document-page { padding: 40px; box-sizing: border-box; position: relative; height: 297mm; }
-                .footer-container { position: absolute; bottom: 40px; left: 40px; right: 40px; }
-                @media print { @page { size: A4; margin: 0; } body { -webkit-print-color-adjust: exact; } }
+				.document-page { 
+					padding: 40px; 
+					box-sizing: border-box; 
+					position: relative; 
+					height: 297mm; 
+					overflow: hidden; 
+				}
+				.footer-container { 
+					position: absolute; 
+					bottom: 40px; 
+					left: 40px; 
+					right: 40px; 
+				}
+				@media print { 
+					@page { size: A4; margin: 0; } 
+					body { -webkit-print-color-adjust: exact; } 
+				}
             </style>
         </head>
         <body>${pagesHtml}</body>
@@ -499,13 +520,11 @@ function getInvoiceHtml(
     `;
 }
 
-
 export const GET = async ({ url, fetch }) => {
 	const id = url.searchParams.get('id');
-	const lang = url.searchParams.get('lang') || 'th';
+	const lang = url.searchParams.get('lang') || 'th'; 
 
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });
-
 
 	let dbDict = { en: {} as Record<string, string>, th: {} as Record<string, string> };
 	try {
@@ -529,12 +548,14 @@ export const GET = async ({ url, fetch }) => {
 			`
             SELECT pd.*, 
                    v.name as vendor_name, v.address as vendor_address, v.tax_id as vendor_tax_id, 
+                   vc.name as contact_name, vc.phone as contact_phone, vc.email as contact_email,
                    u.full_name as created_by_name,
                    da.name as delivery_location_name, da.address_line as delivery_address_line,
                    da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone,
                    j.job_number
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
+            LEFT JOIN vendor_contacts vc ON pd.vendor_contact_id = vc.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
             LEFT JOIN delivery_addresses da ON pd.delivery_address_id = da.id
             LEFT JOIN job_orders j ON pd.job_id = j.id
@@ -561,7 +582,6 @@ export const GET = async ({ url, fetch }) => {
 
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		
 		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64, lang, dbDict);
 
 		const browser = await puppeteer.launch({
