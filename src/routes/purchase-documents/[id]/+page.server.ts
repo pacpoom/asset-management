@@ -7,16 +7,23 @@ export const load: PageServerLoad = async ({ params }) => {
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
 	try {
-		// ดึงข้อมูลเอกสารจัดซื้อ (Join กับ vendors และ job_orders)
+		// ดึงข้อมูลเอกสารจัดซื้อ (Join กับ vendors, contacts, contracts, addresses และ job_orders)
 		const [rows] = await pool.query<any[]>(
 			`
             SELECT pd.*, 
                    v.name as vendor_name, v.address as vendor_address, v.tax_id as vendor_tax_id,
+                   vc.name as contact_name, vc.phone as contact_phone, vc.email as contact_email,
+                   vco.title as contract_title, vco.contract_number,
                    u.full_name as created_by_name,
+                   da.name as delivery_location_name, da.address_line as delivery_address_line,
+                   da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone,
                    j.job_number
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
+            LEFT JOIN vendor_contacts vc ON pd.vendor_contact_id = vc.id
+            LEFT JOIN vendor_contracts vco ON pd.contract_id = vco.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
+            LEFT JOIN delivery_addresses da ON pd.delivery_address_id = da.id
             LEFT JOIN job_orders j ON pd.job_id = j.id
             WHERE pd.id = ?
         `,

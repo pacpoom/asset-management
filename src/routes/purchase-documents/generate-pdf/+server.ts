@@ -25,6 +25,7 @@ interface DocumentData extends RowDataPacket {
 	document_date: string;
 	credit_term: number | null;
 	due_date: string | null;
+	delivery_date: string | null;
 	reference_doc: string | null;
 	notes: string | null;
 
@@ -66,7 +67,9 @@ interface ItemData {
 const pdfSpecificDict: Record<string, Record<string, string>> = {
 	'th': {
 		'No': 'เลขที่ / No.', 'Date': 'วันที่ / Date', 'Term': 'เครดิต / Term', 'Due': 'ครบกำหนด / Due',
+		'DeliveryDate': 'วันส่งของ / Delivery',
 		'Ref': 'อ้างอิง / Ref', 'Vendor': 'ผู้จำหน่าย (Vendor)', 'Issued By': 'ผู้ออกเอกสาร (Issued By)',
+		'ShipTo': 'สถานที่จัดส่ง (Ship To)',
 		'Seq': 'ลำดับ', 'Description': 'รายการ (Description)', 'Qty': 'จำนวน', 'UnitPrice': 'ราคา/หน่วย', 'Amount': 'จำนวนเงิน',
 		'Notes': 'หมายเหตุ (Notes):', 'NetText': 'จำนวนเงินสุทธิเป็นตัวอักษร',
 		'Subtotal': 'รวมเป็นเงิน', 'Discount': 'ส่วนลด', 'AfterDiscount': 'หลังหักส่วนลด',
@@ -77,7 +80,9 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 	},
 	'en': {
 		'No': 'No.', 'Date': 'Date', 'Term': 'Term', 'Due': 'Due Date',
+		'DeliveryDate': 'Delivery Date',
 		'Ref': 'Reference', 'Vendor': 'Vendor', 'Issued By': 'Issued By',
+		'ShipTo': 'Ship To',
 		'Seq': 'Item', 'Description': 'Description', 'Qty': 'Qty', 'UnitPrice': 'Unit Price', 'Amount': 'Amount',
 		'Notes': 'Notes:', 'NetText': 'Net Amount in Words',
 		'Subtotal': 'Subtotal', 'Discount': 'Discount', 'AfterDiscount': 'Total After Discount',
@@ -270,6 +275,7 @@ function getInvoiceHtml(
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('Date', lang)}:</span> ${formatDateOnly(docData.document_date)}</p>
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('Term', lang)}:</span> ${creditTermDisplay}</p>
                         ${docData.due_date ? `<p style="margin:0; color: #b91c1c;"><span style="font-weight: 600;">${tPdf('Due', lang)}:</span> ${formatDateOnly(docData.due_date)}</p>` : ''}
+                        ${docData.delivery_date ? `<p style="margin:0; color: #047857;"><span style="font-weight: 600;">${tPdf('DeliveryDate', lang)}:</span> ${formatDateOnly(docData.delivery_date)}</p>` : ''}
 						${docData.job_number ? `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span> ${docData.job_number}</p>` : ''}
                         ${docData.reference_doc ? `<p style="margin:0;"><span style="font-weight: 600;">${tPdf('Ref', lang)}:</span> ${docData.reference_doc}</p>` : ''}
                     </div>
@@ -285,9 +291,18 @@ function getInvoiceHtml(
                     <p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">Tax ID:</span> ${docData.vendor_tax_id || '-'}</p>
                     ${docData.contact_name ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">${tPdf('Contact', lang)}</span> ${docData.contact_name} ${docData.contact_phone ? `(Tel: ${docData.contact_phone})` : ''}</p>` : ''}
                 </td>
-                <td style="padding-top: 1rem; vertical-align: top; width: 45%; text-align: right;">
-                    <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('Issued By', lang)}</h3>
+                <td style="padding-top: 1rem; vertical-align: top; width: 45%; text-align: left;">
+                    ${docData.delivery_address_line ? `
+					<h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('ShipTo', lang)}</h3>
+                    <p style="font-weight: bold; font-size: 8pt; margin: 0 0 4px 0;">${docData.delivery_location_name || ''}</p>
+					<div style="font-size: 8pt; line-height: 1.4;">
+                        <p style="margin:0; white-space: pre-wrap;">${docData.delivery_address_line}</p>
+                    </div>
+					${docData.delivery_contact_name ? `<p style="font-size: 8pt; margin:4px 0 0 0;"><span style="font-weight: 600;">${tPdf('Contact', lang)}</span> ${docData.delivery_contact_name} ${docData.delivery_contact_phone ? `(Tel: ${docData.delivery_contact_phone})` : ''}</p>` : ''}
+					` : `
+					<h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('Issued By', lang)}</h3>
                     <p style="font-size: 8pt;">${docData.created_by_name}</p>
+					`}
                 </td>
             </tr>
         </table>

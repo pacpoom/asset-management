@@ -202,7 +202,7 @@
 </div>
 
 <div class="mb-6 rounded-lg border bg-white p-6 shadow-sm">
-	<div class="flex flex-col justify-between gap-4 border-b pb-4 md:flex-row">
+	<div class="flex flex-col justify-between gap-4 pb-4 md:flex-row">
 		<div>
 			{#if companyData}
 				{#if companyData.logo_path}
@@ -268,8 +268,8 @@
 		</div>
 	</div>
 
-	<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-		<div class="md:col-span-2">
+	<div class="mt-4 grid grid-cols-1 gap-6 border-t pt-4 md:grid-cols-3">
+		<div class="md:col-span-1">
 			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Vendor')}</h3>
 			<p class="font-semibold text-gray-800">{document.vendor_name}</p>
 			<p class="text-sm whitespace-pre-wrap text-gray-600">{document.vendor_address || '-'}</p>
@@ -277,6 +277,34 @@
 				<span class="font-semibold text-gray-700">Tax ID:</span>
 				{document.vendor_tax_id || '-'}
 			</p>
+			{#if document.contact_name}
+				<p class="mt-2 text-sm text-gray-600">
+					<span class="font-semibold">{$t('Contact')}:</span> {document.contact_name}
+					{#if document.contact_phone} ({document.contact_phone}) {/if}
+				</p>
+			{/if}
+			{#if document.contract_title}
+				<div class="mt-2 inline-block rounded border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs text-indigo-800">
+					<span class="font-semibold">{$t('Contract')}:</span> {document.contract_title}
+					{#if document.contract_number} ({document.contract_number}) {/if}
+				</div>
+			{/if}
+		</div>
+
+		<div class="md:col-span-1">
+			<h3 class="text-sm font-semibold text-gray-500 uppercase">{$t('Ship To')}</h3>
+			{#if document.delivery_location_name}
+				<p class="font-semibold text-gray-800">{document.delivery_location_name}</p>
+				<p class="text-sm whitespace-pre-wrap text-gray-600">{document.delivery_address_line || '-'}</p>
+				{#if document.delivery_contact_name}
+					<p class="mt-2 text-sm text-gray-600">
+						<span class="font-semibold">{$t('Receiver')}:</span> {document.delivery_contact_name}
+						{#if document.delivery_contact_phone} ({document.delivery_contact_phone}) {/if}
+					</p>
+				{/if}
+			{:else}
+				<p class="text-sm text-gray-500">-</p>
+			{/if}
 		</div>
 
 		<div class="md:col-span-1">
@@ -285,6 +313,14 @@
 				<span class="font-semibold">{$t('Prepared By')}:</span>
 				{document.created_by_name}
 			</p>
+			{#if document.delivery_date}
+				<div class="mt-2">
+					<span class="text-xs font-semibold tracking-wider text-emerald-600 uppercase"
+						>{$t('Delivery Date')}</span
+					>
+					<p class="font-bold text-emerald-700">{formatDate(document.delivery_date)}</p>
+				</div>
+			{/if}
 			{#if document.due_date}
 				<div class="mt-2">
 					<span class="text-xs font-semibold tracking-wider text-red-600 uppercase"

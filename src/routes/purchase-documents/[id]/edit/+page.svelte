@@ -11,12 +11,15 @@
 		existingItems,
 		existingAttachments,
 		vendors,
-		vendorContacts, // 🌟 เพิ่ม vendorContacts จาก Server
+		vendorContacts,
+		vendorContractsData, // 🌟 เพิ่ม Data สำหรับ Contracts
 		products,
 		units,
-		jobOrders 
+		jobOrders,
+		deliveryAddresses
 	} = data);
 
+	// ✅ แก้ไข: ดึงข้อมูลจาก data.deliveryAddresses โดยตรงเพื่อป้องกันปัญหา undefined ในตอนเริ่มต้น (ทำให้ออปชันใน Select หาย)
 	let localAddresses = data.deliveryAddresses || [];
 	let localProducts = data.products || [];
 
@@ -46,6 +49,7 @@
 
 	let documentDate = '';
 	let dueDate = '';
+	let deliveryDate = ''; // 🌟 เพิ่มตัวแปร Delivery Date
 	let creditTerm: number | null = 0;
 	let items: DocumentItem[] = [];
 	let discountAmount = 0;
@@ -54,16 +58,18 @@
 	let selectedVendorObj: any = null;
 	let selectedVendorId: string | number = '';
 
-	// 🌟 เพิ่มตัวแปรสำหรับ Contact Person ให้เหมือนหน้า New
 	let selectedContactObj: any = null;
 	let selectedContactId: string | number = '';
+
+	let selectedContractObj: any = null;
+	let selectedContractId: string | number = ''; // 🌟 เพิ่มตัวแปรสำหรับ Contract
 
 	let selectedDeliveryAddressId: string | number = '';
 
 	let selectedJobObj: any = null;
 	let selectedJobId: string | number = '';
 
-	// 🌟 กรอง Contact ตาม Vendor
+	// กรอง Contact ตาม Vendor
 	$: filteredContacts = selectedVendorId
 		? vendorContacts?.filter((c: any) => c.vendor_id == selectedVendorId) || []
 		: [];
@@ -73,7 +79,17 @@
 		label: `${c.name} ${c.position ? `(${c.position})` : ''}`
 	}));
 
-	// 🌟 กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือก (เหมือนหน้า New)
+	// 🌟 กรอง Vendor Contracts ตาม Vendor
+	$: filteredContracts = selectedVendorId 
+		? (vendorContractsData || []).filter((c: any) => c.vendor_id == selectedVendorId)
+		: [];
+		
+	$: contractOptionsList = filteredContracts.map((c: any) => ({
+		value: c.id,
+		label: `${c.title} ${c.contract_number ? `(${c.contract_number})` : ''}`
+	}));
+
+	// กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือก
 	$: availableJobOrders = selectedVendorId 
 		? (jobOrders || []).filter((j: any) => j.vendor_id == selectedVendorId)
 		: [];
@@ -97,6 +113,7 @@
 		initializedDocId = document.id;
 		documentDate = new Date(document.document_date).toISOString().split('T')[0];
 		dueDate = document.due_date ? new Date(document.due_date).toISOString().split('T')[0] : '';
+		deliveryDate = document.delivery_date ? new Date(document.delivery_date).toISOString().split('T')[0] : ''; // 🌟 โหลด Delivery Date
 		creditTerm = document.credit_term !== null ? Number(document.credit_term) : 0;
 		discountAmount = parseFloat(document.discount_amount || '0');
 		vatRate = parseFloat(document.vat_rate || '7');
@@ -118,6 +135,18 @@
 			}
 		}
 
+		// โหลดข้อมูล Contract
+		selectedContractId = document.contract_id || '';
+		if (selectedContractId && vendorContractsData) {
+			const foundContract = vendorContractsData.find((c: any) => c.id == selectedContractId);
+			if (foundContract) {
+				selectedContractObj = {
+					value: foundContract.id,
+					label: `${foundContract.title} ${foundContract.contract_number ? `(${foundContract.contract_number})` : ''}`
+				};
+			}
+		}
+
 		// โหลดข้อมูล Job Order
 		if (document.job_id) {
 			selectedJobId = document.job_id;
@@ -135,13 +164,21 @@
 		}
 	}
 
-	// อัพเดท Object Contact เมื่อมีการเปลี่ยน Option จาก Dropdown
+	// อัพเดท Object เมื่อมีการเปลี่ยน Option จาก Dropdown
 	$: if (selectedContactId && contactOptions.length > 0) {
 		if (!selectedContactObj || selectedContactObj.value !== selectedContactId) {
 			selectedContactObj = contactOptions.find((c: any) => c.value == selectedContactId) || null;
 		}
 	} else if (!selectedContactId) {
 		selectedContactObj = null;
+	}
+
+	$: if (selectedContractId && contractOptionsList.length > 0) {
+		if (!selectedContractObj || selectedContractObj.value !== selectedContractId) {
+			selectedContractObj = contractOptionsList.find((c: any) => c.value == selectedContractId) || null;
+		}
+	} else if (!selectedContractId) {
+		selectedContractObj = null;
 	}
 
 	// ไฮเดรตข้อมูลรายการสินค้า 
@@ -245,9 +282,12 @@
 		selectedVendorObj = selected;
 		selectedVendorId = selected ? selected.value : '';
 		
-		// 🌟 เคลียร์ค่า Contact และ Job Order เมื่อเปลี่ยน Vendor (เหมือนหน้า New)
+		// 🌟 เคลียร์ค่า Contact, Contract และ Job Order เมื่อเปลี่ยน Vendor
 		selectedContactId = ''; 
 		selectedContactObj = null;
+
+		selectedContractId = '';
+		selectedContractObj = null;
 
 		selectedJobId = '';
 		selectedJobObj = null;
@@ -340,7 +380,6 @@
 			};
 		}}
 	>
-		<!-- 🌟 จัดรูปแบบ Layout Grid ให้เหมือนหน้า New -->
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div class="relative z-[60]">
 				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-700"
@@ -374,7 +413,7 @@
 				<input type="hidden" name="vendor_id" value={selectedVendorId} required />
 			</div>
 
-			<!-- 🌟 เพิ่ม Contact Person -->
+			<!-- Contact Person -->
 			<div class="relative z-[45]">
 				<label for="vendor_contact_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Contact Person')}</label
@@ -403,6 +442,32 @@
 				{/if}
 			</div>
 
+			<!-- Vendor Contract -->
+			<div class="relative z-[42]">
+				<label for="contract_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Vendor Contract')}</label
+				>
+				<Select
+					items={contractOptionsList}
+					value={selectedContractObj}
+					on:change={(e) => {
+						selectedContractObj = e.detail;
+						selectedContractId = e.detail ? e.detail.value : '';
+					}}
+					on:clear={() => {
+						selectedContractObj = null;
+						selectedContractId = '';
+					}}
+					placeholder={$t('-- Select Contract --')}
+					container={browser ? document.body : null}
+					disabled={!selectedVendorId || filteredContracts.length === 0}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0f2fe;"
+				/>
+				<input type="hidden" name="contract_id" value={selectedContractId} />
+			</div>
+
 			<!-- Job Order -->
 			<div class="relative z-[40]">
 				<label for="job_id" class="mb-1 block text-sm font-medium text-gray-700">
@@ -423,7 +488,37 @@
 				<input type="hidden" name="job_id" value={selectedJobId} />
 			</div>
 
-			<div class="relative z-[30] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+			<!-- Delivery Address -->
+			<div class="relative z-[20] md:col-span-1">
+				<div class="mb-1 flex items-center justify-between">
+					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700"
+						>{$t('Delivery Address')}</label
+					>
+					<button
+						type="button"
+						on:click={openAddressModal}
+						class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 focus:outline-none"
+					>
+						{$t('+ Manage Addresses')}
+					</button>
+				</div>
+				<select
+					id="delivery_address_id"
+					name="delivery_address_id"
+					bind:value={selectedDeliveryAddressId}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
+				>
+					<option value="">{$t('Not specified')}</option>
+					{#each localAddresses as address}
+						<option value={address.id}
+							>{address.name} {address.contact_name ? `(${address.contact_name})` : ''}</option
+						>
+					{/each}
+				</select>
+			</div>
+
+			<!-- 🌟 เพิ่ม Delivery Date และปรับเป็น 4 คอลัมน์ -->
+			<div class="relative z-[30] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-4">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
@@ -468,6 +563,18 @@
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
 					/>
 				</div>
+				<div>
+					<label for="delivery_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>{$t('Delivery Date')}</label
+					>
+					<input
+						type="date"
+						id="delivery_date"
+						name="delivery_date"
+						bind:value={deliveryDate}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
+					/>
+				</div>
 			</div>
 
 			<div class="relative z-[20] md:col-span-1">
@@ -483,38 +590,8 @@
 					placeholder={$t('e.g. PR-2023...')}
 				/>
 			</div>
-
-			<!-- Delivery Address (คงไว้แต่ย้ายมาให้เข้า Grid) -->
-			<div class="relative z-[20] md:col-span-1">
-				<div class="mb-1 flex items-center justify-between">
-					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700"
-						>{$t('Delivery Address')}</label
-					>
-					<button
-						type="button"
-						on:click={openAddressModal}
-						class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 focus:outline-none"
-					>
-						{$t('+ Manage Addresses')}
-					</button>
-				</div>
-				<select
-					id="delivery_address_id"
-					name="delivery_address_id"
-					bind:value={selectedDeliveryAddressId}
-					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
-				>
-					<option value="">{$t('Not specified')}</option>
-					{#each localAddresses as address}
-						<option value={address.id}
-							>{address.name} {address.contact_name ? `(${address.contact_name})` : ''}</option
-						>
-					{/each}
-				</select>
-			</div>
 		</div>
 
-		<!-- 🌟 ตารางสินค้าเหมือนหน้า New แบบเป๊ะๆ -->
 		<div class="mb-6">
 			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Products/Items')}</h3>
 			<div class="relative z-0 overflow-x-visible rounded-lg border">
@@ -551,7 +628,6 @@
 									/>
 								</td>
 								<td class="w-80 px-2 py-2">
-									<!-- 🌟 เปลี่ยน Input เป็น Textarea เหมือนหน้า New -->
 									<textarea
 										bind:value={item.description}
 										title={item.description}

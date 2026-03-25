@@ -24,7 +24,78 @@
 	// Barcode State
 	let inputBarcode = $state('');
 
-	// Modal State
+	// --- Modal Location Selection State ---
+	let showLocationModal = $state(false);
+	let filterZone = $state('');
+	let filterArea = $state('');
+	let filterBin = $state('');
+	
+	// State สำหรับควบคุม Custom Dropdown
+	let activeDropdown = $state<'zone' | 'area' | 'bin' | null>(null);
+
+	// --- Derived filters (แสดงผลการค้นหาแบบ Partial Match และจำกัดแค่ 5 รายการ) ---
+	const availableZones = $derived(
+		[...new Set(data.locations.map((l: any) => String(l.zone)).filter(Boolean))]
+			.filter((z: unknown): z is string => typeof z === 'string' && z.toLowerCase().includes(filterZone.toLowerCase()))
+			.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+			.slice(0, 5)
+	);
+
+	const availableAreas = $derived(
+		[
+			...new Set(
+				data.locations
+					.filter(
+						(l: any) =>
+							!filterZone || String(l.zone).toLowerCase().includes(filterZone.toLowerCase())
+					)
+					.map((l: any) => String(l.area))
+					.filter(Boolean)
+			)
+		]
+			.filter((a: unknown): a is string => typeof a === 'string' && a.toLowerCase().includes(filterArea.toLowerCase()))
+			.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+			.slice(0, 5)
+	);
+
+	const availableBins = $derived(
+		[
+			...new Set(
+				data.locations
+					.filter(
+						(l: any) =>
+							(!filterZone || String(l.zone).toLowerCase().includes(filterZone.toLowerCase())) &&
+							(!filterArea || String(l.area).toLowerCase().includes(filterArea.toLowerCase()))
+					)
+					.map((l: any) => String(l.bin))
+					.filter(Boolean)
+			)
+		]
+			.filter((b: unknown): b is string => typeof b === 'string' && b.toLowerCase().includes(filterBin.toLowerCase()))
+			.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+			.slice(0, 5)
+	);
+
+	const filteredLocations = $derived(
+		data.locations
+			.filter((l: any) => {
+				return (
+					(!filterZone || String(l.zone).toLowerCase().includes(filterZone.toLowerCase())) &&
+					(!filterArea || String(l.area).toLowerCase().includes(filterArea.toLowerCase())) &&
+					(!filterBin || String(l.bin).toLowerCase().includes(filterBin.toLowerCase()))
+				);
+			})
+			.sort((a: any, b: any) => {
+				const z = String(a.zone).localeCompare(String(b.zone), undefined, { numeric: true });
+				if (z !== 0) return z;
+				const ar = String(a.area).localeCompare(String(b.area), undefined, { numeric: true });
+				if (ar !== 0) return ar;
+				return String(a.bin).localeCompare(String(b.bin), undefined, { numeric: true });
+			})
+			.slice(0, 5) // แสดง 5 รายการล่าสุดในตารางตามคำค้นหา
+	);
+
+	// Modal State (Put-Away Confirm)
 	let showConfirmModal = $state(false);
 	let isSaving = $state(false);
 	let parsedData = $state<{
@@ -54,7 +125,7 @@
 				return;
 			}
 
-			// ค้นหาใน Location Master (ระบุ type เป็น any หรือ interface เพื่อแก้ error TS7006)
+			// ค้นหาใน Location Master
 			const foundLoc = data.locations.find((l: any) => l.location_code.toUpperCase() === locStr);
 
 			if (foundLoc) {
@@ -79,6 +150,24 @@
 		setTimeout(() => locationInputEl?.focus(), 100);
 	}
 
+	// Modal Location Actions
+	function openLocationModal() {
+		showLocationModal = true;
+		filterZone = '';
+		filterArea = '';
+		filterBin = '';
+		activeDropdown = null;
+	}
+
+	function selectLocationFromModal(loc: any) {
+		selectedLocationId = loc.id;
+		inputLocationCode = loc.location_code;
+		isLocationLocked = true;
+		showLocationModal = false;
+		showToast(`เลือก Location ปลายทาง: ${loc.location_code} สำเร็จ`, 'success');
+		setTimeout(() => barcodeInputEl?.focus(), 100);
+	}
+
 	// 2. ตรวจสอบ Barcode
 	function handleBarcodeKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter') {
@@ -97,7 +186,7 @@
 			const extractedItemCode = rawBarcode.substring(7, 14).trim();
 			const extractedSerial = rawBarcode.substring(14, 24).trim();
 
-			// ตรวจสอบ Item Code (ระบุ type เป็น any เพื่อแก้ error TS7006)
+			// ตรวจสอบ Item Code
 			const foundItem = data.items.find(
 				(i: any) => i.item_code.toUpperCase() === extractedItemCode.toUpperCase()
 			);
@@ -201,6 +290,32 @@
 						class="w-full rounded-lg border-gray-300 py-3 pr-4 pl-10 text-lg uppercase focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
 					/>
 				</div>
+
+				{#if !isLocationLocked}
+					<button
+						type="button"
+						onclick={openLocationModal}
+						class="flex h-[50px] items-center justify-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							class="text-gray-500"
+							><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle
+								cx="12"
+								cy="10"
+								r="3"
+							/></svg
+						>
+						{$t('เลือก')}
+					</button>
+				{/if}
+
 				{#if isLocationLocked}
 					<button
 						type="button"
@@ -245,6 +360,238 @@
 		</div>
 	</div>
 </div>
+
+<!-- Modal สำหรับเลือก Location แบบ List -->
+{#if showLocationModal}
+	<div
+		transition:slide
+		class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+	>
+		<div
+			class="fixed inset-0"
+			onclick={() => (showLocationModal = false)}
+			role="presentation"
+		></div>
+		<div
+			class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col rounded-xl bg-white shadow-2xl transition-all"
+		>
+			<div class="flex items-center justify-between border-b px-6 py-4">
+				<h2 class="text-lg font-bold text-gray-900">{$t('ค้นหาและเลือก Location ปลายทาง')}</h2>
+				<button
+					type="button"
+					onclick={() => (showLocationModal = false)}
+					class="rounded-full p-1 hover:bg-gray-100"
+					aria-label={$t('ปิด')}
+					title={$t('ปิด')}
+				>
+					<svg
+						class="h-5 w-5 text-gray-500"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"><path d="M18 6L6 18M6 6l12 12" /></svg
+					>
+				</button>
+			</div>
+
+			<div class="flex-1 overflow-y-auto p-6">
+				<!-- Filters (Custom Dropdown) -->
+				<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+					
+					<!-- Zone Filter -->
+					<div class="relative">
+						<label for="filterZone" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Zone')}</label
+						>
+						<input
+							type="search"
+							id="filterZone"
+							bind:value={filterZone}
+							oninput={() => {
+								filterArea = '';
+								filterBin = '';
+								activeDropdown = 'zone';
+							}}
+							onfocus={() => (activeDropdown = 'zone')}
+							onblur={() => setTimeout(() => (activeDropdown = null), 200)}
+							placeholder={$t('ทั้งหมด (พิมพ์ค้นหา)')}
+							class="w-full rounded-lg border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
+							autocomplete="off"
+						/>
+						{#if activeDropdown === 'zone'}
+							<ul class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+								<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+								<li
+									class="cursor-pointer px-4 py-2 text-sm text-gray-900 hover:bg-blue-600 hover:text-white"
+									onmousedown={() => {
+										filterZone = '';
+										filterArea = '';
+										filterBin = '';
+										activeDropdown = null;
+									}}
+								>
+									{$t('ทั้งหมด')}
+								</li>
+								{#each availableZones as z}
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<li
+										class="cursor-pointer px-4 py-2 text-sm text-gray-900 hover:bg-blue-600 hover:text-white"
+										onmousedown={() => {
+											filterZone = z;
+											filterArea = '';
+											filterBin = '';
+											activeDropdown = null;
+										}}
+									>
+										{z}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+
+					<!-- Area Filter -->
+					<div class="relative">
+						<label for="filterArea" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Area')}</label
+						>
+						<input
+							type="search"
+							id="filterArea"
+							bind:value={filterArea}
+							oninput={() => {
+								filterBin = '';
+								activeDropdown = 'area';
+							}}
+							onfocus={() => (activeDropdown = 'area')}
+							onblur={() => setTimeout(() => (activeDropdown = null), 200)}
+							disabled={!filterZone}
+							placeholder={$t('ทั้งหมด (พิมพ์ค้นหา)')}
+							class="w-full rounded-lg border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+							autocomplete="off"
+						/>
+						{#if activeDropdown === 'area' && filterZone}
+							<ul class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+								<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+								<li
+									class="cursor-pointer px-4 py-2 text-sm text-gray-900 hover:bg-blue-600 hover:text-white"
+									onmousedown={() => {
+										filterArea = '';
+										filterBin = '';
+										activeDropdown = null;
+									}}
+								>
+									{$t('ทั้งหมด')}
+								</li>
+								{#each availableAreas as a}
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<li
+										class="cursor-pointer px-4 py-2 text-sm text-gray-900 hover:bg-blue-600 hover:text-white"
+										onmousedown={() => {
+											filterArea = a;
+											filterBin = '';
+											activeDropdown = null;
+										}}
+									>
+										{a}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+
+					<!-- Bin Filter -->
+					<div class="relative">
+						<label for="filterBin" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Bin')}</label
+						>
+						<input
+							type="search"
+							id="filterBin"
+							bind:value={filterBin}
+							oninput={() => (activeDropdown = 'bin')}
+							onfocus={() => (activeDropdown = 'bin')}
+							onblur={() => setTimeout(() => (activeDropdown = null), 200)}
+							disabled={!filterArea}
+							placeholder={$t('ทั้งหมด (พิมพ์ค้นหา)')}
+							class="w-full rounded-lg border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+							autocomplete="off"
+						/>
+						{#if activeDropdown === 'bin' && filterArea}
+							<ul class="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+								<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+								<li
+									class="cursor-pointer px-4 py-2 text-sm text-gray-900 hover:bg-blue-600 hover:text-white"
+									onmousedown={() => {
+										filterBin = '';
+										activeDropdown = null;
+									}}
+								>
+									{$t('ทั้งหมด')}
+								</li>
+								{#each availableBins as b}
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<li
+										class="cursor-pointer px-4 py-2 text-sm text-gray-900 hover:bg-blue-600 hover:text-white"
+										onmousedown={() => {
+											filterBin = b;
+											activeDropdown = null;
+										}}
+									>
+										{b}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Location List Table -->
+				<div class="max-h-64 overflow-y-auto rounded-lg border border-gray-200">
+					<table class="min-w-full divide-y divide-gray-200 text-sm">
+						<thead class="sticky top-0 bg-gray-50 shadow-sm">
+							<tr>
+								<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Location Code')}</th
+								>
+								<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Zone')}</th>
+								<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Area')}</th>
+								<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Bin')}</th>
+								<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Action')}</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-200 bg-white">
+							{#each filteredLocations as loc}
+								<tr
+									class="cursor-pointer transition-colors hover:bg-blue-50"
+									onclick={() => selectLocationFromModal(loc)}
+								>
+									<td class="px-4 py-3 font-mono font-bold text-blue-700">{loc.location_code}</td>
+									<td class="px-4 py-3 text-center text-gray-600">{loc.zone}</td>
+									<td class="px-4 py-3 text-center text-gray-600">{loc.area}</td>
+									<td class="px-4 py-3 text-center text-gray-600">{loc.bin}</td>
+									<td class="px-4 py-3 text-right">
+										<button
+											type="button"
+											class="rounded bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200"
+										>
+											{$t('เลือก')}
+										</button>
+									</td>
+								</tr>
+							{:else}
+								<tr>
+									<td colspan="5" class="py-8 text-center text-gray-500">
+										{$t('ไม่พบ Location ที่ตรงกับเงื่อนไข')}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- Step 3: Confirm Modal -->
 {#if showConfirmModal && parsedData}

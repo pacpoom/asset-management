@@ -7,8 +7,12 @@
 	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
-	$: ({ vendors, vendorContacts, units, jobOrders, prefillData } = data);
+	// 🌟 รับข้อมูลจาก Server (เอา deliveryAddresses ออกจาก Reactive เพื่อป้องกันปัญหา undefined ตอนโหลด)
+	$: ({ vendors, vendorContacts, units, jobOrders, prefillData, vendorContractsData } = data);
+	
 	let localProducts = data.products || [];
+	// ✅ แก้ไข: ดึงข้อมูลจาก data.deliveryAddresses โดยตรงแบบเดียวกับ products
+	let localAddresses = data.deliveryAddresses || [];
 
 	$: vendorOptions = vendors.map((v: any) => ({
 		value: v.id,
@@ -26,15 +30,25 @@
 	let documentDate = new Date().toISOString().split('T')[0];
 	let creditTerm: number | null = 0;
 	let dueDate = new Date().toISOString().split('T')[0];
+	let deliveryDate = '';
 
 	let selectedVendorObj: any = null;
 	let selectedVendorId: string | number = '';
 	
+	// Vendor Contact
 	let selectedContactObj: any = null;
 	let selectedContactId: string | number = '';
 
+	// Job Order
 	let selectedJobObj: any = null;
 	let selectedJobId: string | number = '';
+	
+	// Vendor Contract
+	let selectedContractObj: any = null;
+	let selectedContractId: string | number = '';
+
+	// 🌟 สถานที่จัดส่ง
+	let selectedDeliveryAddressId: string | number = '';
 
 	let referenceDoc = '';
 	let notes = '';
@@ -55,6 +69,7 @@
 		}
 	];
 
+	// 🌟 กรอง Contact เฉพาะของ Vendor ที่เลือก
 	$: filteredContacts = selectedVendorId
 		? vendorContacts?.filter((c: any) => c.vendor_id == selectedVendorId) || []
 		: [];
@@ -64,7 +79,17 @@
 		label: `${c.name} ${c.position ? `(${c.position})` : ''}`
 	}));
 
-	// 🌟 กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือก
+	// 🌟 กรอง Vendor Contracts ให้แสดงเฉพาะของ Vendor ที่เลือก
+	$: filteredContracts = selectedVendorId 
+		? (vendorContractsData || []).filter((c: any) => c.vendor_id == selectedVendorId)
+		: [];
+		
+	$: contractOptions = filteredContracts.map((c: any) => ({
+		value: c.id,
+		label: `${c.title} ${c.contract_number ? `(${c.contract_number})` : ''}`
+	}));
+
+	// กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือก
 	$: availableJobOrders = selectedVendorId 
 		? (jobOrders || []).filter((j: any) => j.vendor_id == selectedVendorId)
 		: [];
@@ -82,6 +107,14 @@
 		selectedContactObj = null;
 	}
 
+	$: if (selectedContractId && contractOptions.length > 0) {
+		if (!selectedContractObj || selectedContractObj.value !== selectedContractId) {
+			selectedContractObj = contractOptions.find((c: any) => c.value == selectedContractId) || null;
+		}
+	} else if (!selectedContractId) {
+		selectedContractObj = null;
+	}
+
 	onMount(() => {
 		if (prefillData) {
 			documentType = prefillData.targetType;
@@ -91,6 +124,10 @@
 			selectedVendorObj = vendorOptions.find((v: any) => v.value == selectedVendorId) || null;
 			
 			selectedContactId = prefillData.document.vendor_contact_id || '';
+			selectedContractId = prefillData.document.contract_id || '';
+			
+			// โหลดที่อยู่จัดส่งเดิมถ้ามี
+			selectedDeliveryAddressId = prefillData.document.delivery_address_id || '';
 
 			setTimeout(() => {
 				selectedJobId = prefillData.document.job_id || '';
@@ -98,6 +135,7 @@
 			}, 50);
 
 			creditTerm = prefillData.document.credit_term;
+			deliveryDate = prefillData.document.delivery_date ? new Date(prefillData.document.delivery_date).toISOString().split('T')[0] : '';
 			discountAmount = parseFloat(prefillData.document.discount_amount || '0');
 			vatRate = parseFloat(prefillData.document.vat_rate || '7');
 
@@ -133,12 +171,15 @@
 		selectedVendorObj = selected;
 		selectedVendorId = selected ? selected.value : '';
 		
-		// 🌟 เคลียร์ค่า Contact และ Job Order เมื่อเปลี่ยน Vendor
+		// เคลียร์ค่า Contact, Job Order และ Contract เมื่อเปลี่ยน Vendor
 		selectedContactId = ''; 
 		selectedContactObj = null;
 
 		selectedJobId = '';
 		selectedJobObj = null;
+
+		selectedContractId = '';
+		selectedContractObj = null;
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
@@ -203,6 +244,56 @@
 		items = items;
 	}
 
+	// 🌟 ระบบ Address Management
+	let showAddressModal = false;
+	let addressModalMode: 'list' | 'form' = 'list';
+	let isSavingAddress = false;
+	let isDeletingAddressId: number | null = null;
+	let toastMessage = '';
+
+	let addressFormData = {
+		id: null as number | null,
+		name: '',
+		address_line: '',
+		contact_name: '',
+		contact_phone: ''
+	};
+
+	function showToast(msg: string) {
+		toastMessage = msg;
+		setTimeout(() => (toastMessage = ''), 3000);
+	}
+
+	function openAddressModal() {
+		showAddressModal = true;
+		addressModalMode = 'list';
+	}
+
+	function closeAddressModal() {
+		showAddressModal = false;
+		addressModalMode = 'list';
+		resetAddressForm();
+	}
+
+	function resetAddressForm() {
+		addressFormData = { id: null, name: '', address_line: '', contact_name: '', contact_phone: '' };
+	}
+
+	function startAddAddress() {
+		resetAddressForm();
+		addressModalMode = 'form';
+	}
+
+	function startEditAddress(address: any) {
+		addressFormData = { ...address };
+		addressModalMode = 'form';
+	}
+
+	function selectAddress(id: number) {
+		selectedDeliveryAddressId = id;
+		closeAddressModal();
+	}
+
 	let isSaving = false;
 	$: currentLoc = $locale === 'th' ? 'th-TH' : 'en-US';
 	$: formatNumber = (amount: number) =>
@@ -216,7 +307,7 @@
 	<title>{$t('Create Purchase Document')}</title>
 </svelte:head>
 
-<div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6">
+<div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6 mb-10">
 	<h1 class="mb-6 text-2xl font-bold text-gray-800">
 		{#if prefillData}
 			{$t('Create')} {prefillData.targetType} {$t('from')} {prefillData.document.document_number}
@@ -256,7 +347,7 @@
 				</select>
 			</div>
 
-			<div class="relative z-50">
+			<div class="relative z-[50]">
 				<label for="vendor_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Vendor Name')} <span class="text-red-500">*</span></label
 				>
@@ -276,7 +367,7 @@
 			</div>
 
 			<!-- Contact Person -->
-			<div class="relative z-40">
+			<div class="relative z-[45]">
 				<label for="vendor_contact_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Contact Person')}</label
 				>
@@ -304,8 +395,34 @@
 				{/if}
 			</div>
 
+			<!-- Vendor Contract -->
+			<div class="relative z-[42]">
+				<label for="contract_id" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Vendor Contract')}</label
+				>
+				<Select
+					items={contractOptions}
+					value={selectedContractObj}
+					on:change={(e) => {
+						selectedContractObj = e.detail;
+						selectedContractId = e.detail ? e.detail.value : '';
+					}}
+					on:clear={() => {
+						selectedContractObj = null;
+						selectedContractId = '';
+					}}
+					placeholder={$t('-- Select Contract --')}
+					container={browser ? document.body : null}
+					disabled={!selectedVendorId || filteredContracts.length === 0}
+					--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+					--list="border-radius: 6px; font-size: 0.875rem;"
+					--itemIsActive="background: #e0f2fe;"
+				/>
+				<input type="hidden" name="contract_id" value={selectedContractId} />
+			</div>
+
 			<!-- Job Order -->
-			<div class="relative z-30">
+			<div class="relative z-[40]">
 				<label for="job_id" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Reference Job Order')}</label
 				>
@@ -329,7 +446,36 @@
 				<input type="hidden" name="job_id" value={selectedJobId} />
 			</div>
 
-			<div class="relative z-20 grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+			<!-- 🌟 เพิ่ม Delivery Address Dropdown + Button Modal -->
+			<div class="relative z-[20] md:col-span-1">
+				<div class="mb-1 flex items-center justify-between">
+					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700"
+						>{$t('Delivery Address')}</label
+					>
+					<button
+						type="button"
+						on:click={openAddressModal}
+						class="text-xs font-semibold text-blue-600 hover:text-blue-800 focus:outline-none"
+					>
+						{$t('+ Manage Addresses')}
+					</button>
+				</div>
+				<select
+					id="delivery_address_id"
+					name="delivery_address_id"
+					bind:value={selectedDeliveryAddressId}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+				>
+					<option value="">{$t('Not specified')}</option>
+					{#each localAddresses as address}
+						<option value={address.id}
+							>{address.name} {address.contact_name ? `(${address.contact_name})` : ''}</option
+						>
+					{/each}
+				</select>
+			</div>
+
+			<div class="relative z-[30] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-4">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
@@ -374,9 +520,22 @@
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					/>
 				</div>
+				<div>
+					<label for="delivery_date" class="mb-1 block text-sm font-medium text-gray-700"
+						>{$t('Delivery Date')}</label
+					>
+					<input
+						type="date"
+						id="delivery_date"
+						name="delivery_date"
+						bind:value={deliveryDate}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+					/>
+				</div>
 			</div>
 
-			<div class="relative z-10 md:col-span-2">
+			<!-- 🌟 จัด Layout Reference Doc และ Delivery Address ให้เท่ากัน (1 col) -->
+			<div class="relative z-[20] md:col-span-1">
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Other Reference (PO/Ref)')}</label
 				>
@@ -578,22 +737,153 @@
 			></textarea>
 		</div>
 
-		<div class="flex justify-end gap-3">
+		<div class="flex justify-end gap-3 border-t border-gray-200 pt-6">
 			<a
 				href="/purchase-documents"
-				class="rounded-md border bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+				class="rounded-md border bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
 				>{$t('Cancel')}</a
 			>
 			<button
 				type="submit"
 				disabled={isSaving}
-				class="rounded-md bg-blue-600 px-6 py-2 text-sm text-white hover:bg-blue-700"
+				class="rounded-md bg-blue-600 px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
 			>
 				{isSaving ? $t('Saving...') : $t('Save Document')}
 			</button>
 		</div>
 	</form>
 </div>
+
+<!-- 🌟 Modal Manage Delivery Addresses -->
+{#if showAddressModal}
+	<div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity">
+		<div class="fixed inset-0" on:click={closeAddressModal} role="presentation"></div>
+		<div class="relative flex max-h-[90vh] w-full max-w-2xl transform flex-col overflow-hidden rounded-xl bg-white shadow-2xl transition-all">
+			<div class="flex flex-shrink-0 items-center justify-between border-b bg-gray-50 px-6 py-4">
+				<h2 class="text-lg font-bold text-gray-900">
+					{addressModalMode === 'list' ? $t('Select or Manage Delivery Address') : addressFormData.id ? $t('Edit Delivery Address') : $t('Add New Delivery Address')}
+				</h2>
+				<button type="button" on:click={closeAddressModal} class="text-xl font-bold text-gray-400 hover:text-gray-600">&times;</button>
+			</div>
+
+			<div class="flex-1 overflow-y-auto p-6">
+				{#if addressModalMode === 'list'}
+					<div class="mb-4 flex justify-end">
+						<button type="button" on:click={startAddAddress} class="rounded-md bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-600 hover:bg-blue-100">{$t('+ Add New Address')}</button>
+					</div>
+
+					{#if localAddresses.length === 0}
+						<div class="rounded-lg border border-dashed py-8 text-center text-gray-500">{$t('No delivery address found')}</div>
+					{:else}
+						<div class="space-y-3">
+							{#each localAddresses as addr}
+								<div class="flex items-start justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-300 hover:bg-blue-50/30">
+									<div class="flex-1 pr-4">
+										<h4 class="font-bold text-gray-900">{addr.name}</h4>
+										<p class="mt-1 text-sm whitespace-pre-wrap text-gray-600">{addr.address_line}</p>
+										<div class="mt-2 text-xs text-gray-500">
+											{#if addr.contact_name}<span class="mr-3">{$t('Contact:')} <span class="font-semibold">{addr.contact_name}</span></span>{/if}
+											{#if addr.contact_phone}<span>{$t('Tel:')} <span class="font-semibold">{addr.contact_phone}</span></span>{/if}
+										</div>
+									</div>
+									<div class="flex shrink-0 flex-col gap-2 border-l pl-4">
+										<button type="button" on:click={() => selectAddress(addr.id)} class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">{$t('Select')}</button>
+										<button type="button" on:click={() => startEditAddress(addr)} class="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">{$t('Edit')}</button>
+
+										<form method="POST" action="?/deleteAddress" use:enhance={() => {
+												isDeletingAddressId = addr.id;
+												return async ({ result, update }) => {
+													isDeletingAddressId = null;
+													if (result.type === 'success') {
+														const actionData = result.data as Record<string, any>;
+														if (actionData && actionData.deletedId) {
+															localAddresses = localAddresses.filter((a: any) => a.id !== actionData.deletedId);
+															if (selectedDeliveryAddressId == actionData.deletedId) selectedDeliveryAddressId = '';
+															showToast($t('Address deleted successfully'));
+														}
+													}
+													await update({ reset: false });
+												};
+											}}>
+											<input type="hidden" name="id" value={addr.id} />
+											<button type="submit" disabled={isDeletingAddressId === addr.id} class="w-full rounded border border-red-200 px-3 py-1.5 text-center text-xs font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 disabled:opacity-50">
+												{isDeletingAddressId === addr.id ? '...' : $t('Delete')}
+											</button>
+										</form>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{:else}
+					<form method="POST" action={addressFormData.id ? '?/updateAddress' : '?/createAddress'} use:enhance={() => {
+							isSavingAddress = true;
+							return async ({ result, update }) => {
+								isSavingAddress = false;
+								if (result.type === 'success') {
+									const actionData = result.data as Record<string, any>;
+									if (actionData && actionData.address) {
+										const savedAddress = actionData.address as any;
+										if (addressFormData.id) {
+											const idx = localAddresses.findIndex((a: any) => a.id === savedAddress.id);
+											if (idx !== -1) localAddresses[idx] = savedAddress;
+											showToast($t('Address updated successfully'));
+										} else {
+											localAddresses = [...localAddresses, savedAddress];
+											selectedDeliveryAddressId = savedAddress.id;
+											showToast($t('Address added successfully'));
+										}
+										addressModalMode = 'list';
+									}
+								} else if (result.type === 'failure') {
+									const actionData = result.data as Record<string, any>;
+									alert(actionData?.message || $t('Error'));
+								}
+								await update({ reset: false });
+							};
+						}}>
+						{#if addressFormData.id}<input type="hidden" name="id" value={addressFormData.id} />{/if}
+
+						<div class="space-y-4">
+							<div>
+								<label for="addr_name" class="block text-sm font-medium text-gray-700">{$t('Location Name')} <span class="text-red-500">*</span></label>
+								<input type="text" name="name" id="addr_name" bind:value={addressFormData.name} placeholder={$t('e.g. HQ, Warehouse A')} required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+							</div>
+							<div>
+								<label for="addr_line" class="block text-sm font-medium text-gray-700">{$t('Address Details')} <span class="text-red-500">*</span></label>
+								<textarea name="address_line" id="addr_line" rows="3" bind:value={addressFormData.address_line} placeholder={$t('Address Format Placeholder')} required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"></textarea>
+							</div>
+							<div class="grid grid-cols-2 gap-4">
+								<div>
+									<label for="contact_name" class="block text-sm font-medium text-gray-700">{$t('Receiver Contact Name')}</label>
+									<input type="text" name="contact_name" id="contact_name" bind:value={addressFormData.contact_name} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+								</div>
+								<div>
+									<label for="contact_phone" class="block text-sm font-medium text-gray-700">{$t('Phone Number')}</label>
+									<input type="text" name="contact_phone" id="contact_phone" bind:value={addressFormData.contact_phone} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+								</div>
+							</div>
+						</div>
+
+						<div class="mt-6 flex justify-end gap-3 border-t pt-4">
+							<button type="button" on:click={() => (addressModalMode = 'list')} class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50">{$t('Back')}</button>
+							<button type="submit" disabled={isSavingAddress} class="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50">
+								{isSavingAddress ? $t('Saving...') : addressFormData.id ? $t('Save Changes') : $t('Add Address')}
+							</button>
+						</div>
+					</form>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if toastMessage}
+	<div class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[200] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-xl">
+		<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+		{toastMessage}
+	</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {
@@ -609,5 +899,8 @@
 		border-color: #d1d5db;
 		z-index: 9999 !important;
 		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+	:global(.selectContainer) {
+		overflow: visible !important;
 	}
 </style>

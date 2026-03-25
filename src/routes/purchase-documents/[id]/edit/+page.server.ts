@@ -68,6 +68,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		// 🌟 ดึงข้อมูล Vendor Contacts มาด้วยเหมือนหน้า New
 		const [vendorContacts] = await pool.query('SELECT id, vendor_id, name, position, email, phone FROM vendor_contacts ORDER BY name ASC');
 
+		// 🌟 ดึงข้อมูลสัญญา Vendor Contracts
+		const [vendorContractsData] = await pool.query('SELECT id, vendor_id, title, contract_number FROM vendor_contracts WHERE status = "Active" ORDER BY title ASC');
+
 		const [products] = await pool.query(
 			'SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
@@ -84,6 +87,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			existingAttachments: JSON.parse(JSON.stringify(attachments)),
 			vendors: JSON.parse(JSON.stringify(vendors)),
 			vendorContacts: JSON.parse(JSON.stringify(vendorContacts)),
+			vendorContractsData: JSON.parse(JSON.stringify(vendorContractsData)),
 			products: JSON.parse(JSON.stringify(products)),
 			units: JSON.parse(JSON.stringify(units)),
 			deliveryAddresses: JSON.parse(JSON.stringify(deliveryAddresses)),
@@ -102,6 +106,7 @@ export const actions: Actions = {
 
 		const vendor_id = formData.get('vendor_id');
 		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null; // 🌟 เพิ่มมารับค่า contact
+		const contract_id = formData.get('contract_id')?.toString() || null;
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
 		
 		const job_id = formData.get('job_id')?.toString() || null;
@@ -109,6 +114,7 @@ export const actions: Actions = {
 		const document_date = formData.get('document_date')?.toString();
 		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
 		const due_date = formData.get('due_date')?.toString() || null;
+		const delivery_date = formData.get('delivery_date')?.toString() || null;
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
@@ -129,10 +135,10 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			// 🌟 อัพเดท vendor_contact_id เข้าไปใน Database
+			// 🌟 อัพเดท vendor_contact_id, contract_id และ delivery_date เข้าไปใน Database
 			await connection.execute(
 				`UPDATE purchase_documents SET 
-                 document_date = ?, credit_term = ?, due_date = ?, vendor_id = ?, vendor_contact_id = ?, delivery_address_id = ?, job_id = ?, reference_doc = ?, notes = ?,
+                 document_date = ?, credit_term = ?, due_date = ?, delivery_date = ?, vendor_id = ?, vendor_contact_id = ?, contract_id = ?, delivery_address_id = ?, job_id = ?, reference_doc = ?, notes = ?,
                  subtotal = ?, discount_amount = ?, total_after_discount = ?,
                  vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, wht_amount = ?, total_amount = ?
                  WHERE id = ?`,
@@ -140,8 +146,10 @@ export const actions: Actions = {
 					document_date,
 					credit_term,
 					due_date,
+					delivery_date,
 					vendor_id,
 					vendor_contact_id,
+					contract_id,
 					delivery_address_id,
 					job_id,
 					reference_doc,
