@@ -116,13 +116,22 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			'SELECT id, name, symbol FROM units ORDER BY name'
 		);
 
+		// ดึงชื่อและโลโก้บริษัทจากตาราง company (ดึง record แรก)
+		const [companyRows] = await pool.execute<RowDataPacket[]>(
+			'SELECT name, logo_path FROM company LIMIT 1'
+		);
+		const companyName = companyRows.length > 0 ? companyRows[0].name : '';
+		const companyLogo = companyRows.length > 0 ? companyRows[0].logo_path : null;
+
 		return {
 			items: itemRows,
 			units: unitRows,
 			currentPage: page,
 			totalPages,
 			limit,
-			searchQuery
+			searchQuery,
+			companyName,
+			companyLogo // ส่ง Logo Path ไปให้หน้าบ้าน
 		};
 	} catch (err: any) {
 		console.error('Failed to load items data:', err.message, err.stack);
