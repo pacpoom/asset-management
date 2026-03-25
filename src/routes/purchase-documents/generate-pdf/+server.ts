@@ -74,7 +74,7 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		'Notes': 'หมายเหตุ (Notes):', 'NetText': 'จำนวนเงินสุทธิเป็นตัวอักษร',
 		'Subtotal': 'รวมเป็นเงิน', 'Discount': 'ส่วนลด', 'AfterDiscount': 'หลังหักส่วนลด',
 		'VAT': 'VAT', 'WHT': 'หัก ณ ที่จ่ายรวม', 'GrandTotal': 'จำนวนเงินสุทธิ',
-		'PreparedBy': 'ผู้จัดทำ (Prepared by)', 'Auth': 'ผู้อนุมัติ (Authorized Signature)',
+		'PreparedBy': 'ผู้จัดทำ (Prepared by)', 'PurchasedBy': 'ผู้จัดซื้อ (Purchased by)', 'Auth': 'ผู้อนุมัติ (Authorized Signature)',
 		'Page': 'หน้า', 'Carry': '-- ยอดยกไป (Carried Forward) --',
 		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)', 'Contact': 'ผู้ติดต่อ (Attn):'
 	},
@@ -87,7 +87,7 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		'Notes': 'Notes:', 'NetText': 'Net Amount in Words',
 		'Subtotal': 'Subtotal', 'Discount': 'Discount', 'AfterDiscount': 'Total After Discount',
 		'VAT': 'VAT', 'WHT': 'Total WHT', 'GrandTotal': 'Grand Total',
-		'PreparedBy': 'Prepared by', 'Auth': 'Authorized Signature',
+		'PreparedBy': 'Prepared by', 'PurchasedBy': 'Purchased by', 'Auth': 'Authorized Signature',
 		'Page': 'Page', 'Carry': '-- Carried Forward --',
 		'Days': 'Days', 'Cash': 'Cash', 'Contact': 'Attn:'
 	}
@@ -372,11 +372,17 @@ function getInvoiceHtml(
         </table>
     `;
 
+	// เพิ่มลายเซ็น PurchasedBy เข้าไปตรงกลาง
 	const signatureBlock = `
         <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
             <div style="text-align: center; width: 30%;">
                 <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
                 <p style="margin-top: 5px;">${tPdf('PreparedBy', lang)}</p>
+                <p>${tPdf('Date', lang)} ...../...../.....</p>
+            </div>
+            <div style="text-align: center; width: 30%;">
+                <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
+                <p style="margin-top: 5px;">${tPdf('PurchasedBy', lang)}</p>
                 <p>${tPdf('Date', lang)} ...../...../.....</p>
             </div>
             <div style="text-align: center; width: 30%;">
