@@ -29,6 +29,23 @@
 	let isLangMenuDesktop = $state(false);
 	let isLangMenuMobile = $state(false);
 
+	// สถานะสำหรับควบคุมการแสดงผล Loading Screen แบบมี Delay
+	let showLoading = $state(false);
+	$effect(() => {
+		let timeout: ReturnType<typeof setTimeout>;
+		if ($navigating) {
+			// หน่วงเวลา 0.5 วินาที (500ms) ก่อนแสดง Loading Screen
+			timeout = setTimeout(() => {
+				showLoading = true;
+			}, 500);
+		} else {
+			// หากโหลดเสร็จก่อน 0.5 วินาที ระบบจะ clear timeout อัตโนมัติและไม่แสดง Loading
+			showLoading = false;
+		}
+		// คืนค่า cleanup function เพื่อ clear timeout ทุกครั้งที่มีการเปลี่ยนสถานะ
+		return () => clearTimeout(timeout);
+	});
+
 	function getInitials(nameOrEmail: string | null | undefined): string {
 		if (!nameOrEmail) return '??';
 		const nameParts = nameOrEmail.includes(' ') ? nameOrEmail.split(' ') : null;
@@ -760,4 +777,14 @@
 	</main>
 {/if}
 
+<!-- เพิ่มระบบ Loading Page เวลาเปลี่ยนหน้าด้วย showLoading ที่มีการ Delay 0.5s -->
+{#if showLoading}
+	<div 
+		class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm"
+		transition:fade={{ duration: 200 }}
+	>
+		<div class="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
+		<p class="mt-4 text-sm font-semibold text-gray-700 tracking-wide">Loading...</p>
+	</div>
+{/if}
 <Toaster richColors position="top-right" />
