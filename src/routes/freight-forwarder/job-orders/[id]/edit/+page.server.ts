@@ -119,11 +119,18 @@ export const actions = {
 				formData.get('service_type'),
 				formData.get('location'),
 				formData.get('bl_number'),
+				formData.get('mbl'),
 				formData.get('invoice_no'),
+				formData.get('ccl'),
 				formData.get('liner_name'),
 				formData.get('job_status'),
 				job_date,
+				formData.get('etd') || null,
+				formData.get('eta') || null,
 				formData.get('expire_date') || null,
+				formData.get('quantity') || 0,
+				formData.get('weight') || 0,
+				formData.get('kgs_volume') || 0,
 				formData.get('remarks'),
 				formData.get('amount') || 0,
 				formData.get('currency'),
@@ -134,8 +141,9 @@ export const actions = {
 			const sql = `
                 UPDATE job_orders SET
                     customer_id = ?, contract_id = ?, vendor_id = ?, vendor_contract_id = ?, 
-                    job_type = ?, service_type = ?, location = ?, bl_number = ?, invoice_no = ?, 
-                    liner_name = ?, job_status = ?, job_date = ?, expire_date = ?, remarks = ?, 
+                    job_type = ?, service_type = ?, location = ?, bl_number = ?, mbl = ?, invoice_no = ?, ccl = ?,
+                    liner_name = ?, job_status = ?, job_date = ?, etd = ?, eta = ?, expire_date = ?, 
+                    quantity = ?, weight = ?, kgs_volume = ?, remarks = ?, 
                     amount = ?, currency = ?, job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;

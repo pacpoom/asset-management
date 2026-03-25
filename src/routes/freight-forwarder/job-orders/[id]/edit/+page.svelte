@@ -95,13 +95,20 @@
 	let jobDate = job.job_date
 		? new Date(job.job_date).toISOString().split('T')[0]
 		: new Date().toISOString().split('T')[0];
+	let etdDate = job.etd ? new Date(job.etd).toISOString().split('T')[0] : '';
+	let etaDate = job.eta ? new Date(job.eta).toISOString().split('T')[0] : '';
 	let expireDate = job.expire_date
 		? new Date(job.expire_date).toISOString().split('T')[0]
 		: '';
 	let jobStatus = job.job_status || 'Pending';
 	let blNumber = job.bl_number || '';
+	let mblNumber = job.mbl || '';
 	let location = job.location || '';
 	let invoiceNo = job.invoice_no || '';
+	let cclInfo = job.ccl || '';
+	let qty = job.quantity || '';
+	let wgt = job.weight || '';
+	let kgsVol = job.kgs_volume || '';
 	let remarks = job.remarks || '';
 	let jobAmount: number | string = job.amount || '';
 
@@ -293,7 +300,7 @@
 		>
 			<input type="hidden" name="id" value={job.id} />
 			<div class="divide-y divide-gray-100">
-				<div class="grid grid-cols-1 gap-8 p-8 md:grid-cols-2">
+				<div class="grid grid-cols-1 gap-8 p-8 lg:grid-cols-2">
 					<div class="space-y-6">
 						<div class="rounded-lg border border-blue-100 bg-blue-50/30 p-4">
 							<h2 class="mb-4 text-xs font-bold tracking-wider text-blue-800 uppercase">
@@ -527,10 +534,11 @@
 					<h2 class="mb-4 border-b pb-1 text-xs font-bold tracking-wider text-gray-400 uppercase">
 						{$t('Shipment Information')}
 					</h2>
-					<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+					<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+						<!-- แถวที่ 1 -->
 						<div>
 							<label for="bl_number" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-                                {$t('B/L Number')} <span class="text-red-500">*</span>
+                                {$t('HBL Number')} <span class="text-red-500">*</span>
                             </label>
 							<input
 								id="bl_number"
@@ -543,29 +551,16 @@
 							/>
 						</div>
 						<div>
-							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								{$t('Liner / Carrier')}
-							</div>
-							<Select
-								items={linerOptions}
-								bind:value={selectedLiner}
-								placeholder={$t('Search or select liner...')}
-								container={browser ? document.body : null}
-								class="svelte-select-custom"
-							/>
-							<input type="hidden" name="liner_name" value={selectedLiner?.value || ''} />
-						</div>
-						<div>
-							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-                                {$t('Port / Location')}
+							<label for="mbl" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+                                {$t('MB/L')}
                             </label>
 							<input
-								id="location"
+								id="mbl"
 								type="text"
-								name="location"
-                                bind:value={location}
-								placeholder={$t('Port of Loading / Discharge')}
-								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+								name="mbl"
+                                bind:value={mblNumber}
+								placeholder="MBL-XXXXXXX"
+								class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 						<div>
@@ -582,7 +577,120 @@
 							/>
 						</div>
 
-						<div class="col-span-1 mt-4 md:col-span-2">
+						<!-- แถวที่ 2 -->
+						<div>
+							<label for="etd" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('ETD (Date)')}</label
+							>
+							<input
+								id="etd"
+								type="date"
+								name="etd"
+								bind:value={etdDate}
+								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div>
+							<label for="eta" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('ETA (Date)')}</label
+							>
+							<input
+								id="eta"
+								type="date"
+								name="eta"
+								bind:value={etaDate}
+								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div>
+							<label for="ccl" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('CCL (Customs Clearance)')}</label
+							>
+							<input
+								id="ccl"
+								type="text"
+								name="ccl"
+								bind:value={cclInfo}
+								placeholder={$t('Enter CCL info')}
+								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+
+						<!-- แถวที่ 3 -->
+						<div>
+							<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Quantity')}</label
+							>
+							<input
+								id="quantity"
+								type="number"
+								name="quantity"
+								bind:value={qty}
+								min="0"
+								placeholder="0"
+								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div>
+							<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Weight')}</label
+							>
+							<input
+								id="weight"
+								type="number"
+								name="weight"
+								bind:value={wgt}
+								step="0.01"
+								min="0"
+								placeholder="0.00"
+								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div>
+							<label for="kgs_volume" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('KGS. Volume')}</label
+							>
+							<input
+								id="kgs_volume"
+								type="number"
+								name="kgs_volume"
+								bind:value={kgsVol}
+								step="0.01"
+								min="0"
+								placeholder="0.00"
+								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+
+						<!-- แถวที่ 4 -->
+						<div>
+							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Liner / Carrier')}
+							</div>
+							<Select
+								items={linerOptions}
+								bind:value={selectedLiner}
+								placeholder={$t('Search or select liner...')}
+								container={browser ? document.body : null}
+								class="svelte-select-custom"
+							/>
+							<input type="hidden" name="liner_name" value={selectedLiner?.value || ''} />
+						</div>
+						<div class="md:col-span-2">
+							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+                                {$t('Port / Location')}
+                            </label>
+							<input
+								id="location"
+								type="text"
+								name="location"
+                                bind:value={location}
+								placeholder={$t('Port of Loading / Discharge')}
+								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+
+						<div class="col-span-1 mt-4 md:col-span-3">
 							<label for="attachments" class="mb-3 block text-sm font-bold text-gray-700">
 								{$t('Attachments')}
 							</label>

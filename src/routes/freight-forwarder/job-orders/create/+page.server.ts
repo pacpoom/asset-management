@@ -125,11 +125,18 @@ export const actions = {
 			service_type: formData.get('service_type'),
 			location: formData.get('location'),
 			bl_number: formData.get('bl_number'),
+			mbl: formData.get('mbl'),
 			invoice_no: formData.get('invoice_no'),
+			ccl: formData.get('ccl'),
 			liner_name: formData.get('liner_name'),
 			job_status: 'Pending',
 			job_date: job_date,
+			etd: formData.get('etd') || null,
+			eta: formData.get('eta') || null,
 			expire_date: formData.get('expire_date') || null,
+			quantity: formData.get('quantity') || 0,
+			weight: formData.get('weight') || 0,
+			kgs_volume: formData.get('kgs_volume') || 0,
 			remarks: formData.get('remarks'),
 			amount: formData.get('amount') || 0,
 			currency: formData.get('currency') || 'THB',
@@ -147,10 +154,11 @@ export const actions = {
 			const sql = `
                 INSERT INTO job_orders (
                     customer_id, contract_id, vendor_id, vendor_contract_id, 
-                    job_type, service_type, location, bl_number, invoice_no, 
-                    liner_name, job_status, job_date, expire_date, remarks, 
+                    job_type, service_type, location, bl_number, mbl, invoice_no, ccl,
+                    liner_name, job_status, job_date, etd, eta, expire_date, 
+                    quantity, weight, kgs_volume, remarks, 
                     amount, currency, job_number, created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
@@ -162,11 +170,18 @@ export const actions = {
 				data.service_type,
 				data.location,
 				data.bl_number,
+				data.mbl,
 				data.invoice_no,
+				data.ccl,
 				data.liner_name,
 				data.job_status,
 				data.job_date,
+				data.etd,
+				data.eta,
 				data.expire_date,
+				data.quantity,
+				data.weight,
+				data.kgs_volume,
 				data.remarks,
 				data.amount,
 				data.currency,

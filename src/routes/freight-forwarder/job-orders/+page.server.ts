@@ -39,9 +39,11 @@ export const load = async ({ url }) => {
 			OR c.company_name LIKE ? 
 			OR v.name LIKE ? 
 			OR v.company_name LIKE ?
+			OR j.invoice_no LIKE ?
+			OR j.ccl LIKE ?
 		)`;
 		const searchParam = `%${search}%`;
-		queryParams.push(searchParam, searchParam, searchParam, searchParam, searchParam);
+		queryParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
 	}
 
 	// Query สำหรับนับจำนวนข้อมูลทั้งหมดตามคำค้นหาและช่วงเวลา
