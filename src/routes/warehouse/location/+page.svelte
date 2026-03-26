@@ -96,14 +96,19 @@
 
 				try {
 					const imgRes = await fetch(data.company.logo_path);
-					const blob = await imgRes.blob();
-					logoBase64 = await new Promise((resolve) => {
-						const reader = new FileReader();
-						reader.onloadend = () => resolve(reader.result);
-						reader.readAsDataURL(blob);
-					});
+					if (imgRes.ok) {
+						const blob = await imgRes.blob();
+						if (blob.type.startsWith('image/')) {
+							logoBase64 = await new Promise((resolve) => {
+								const reader = new FileReader();
+								reader.onloadend = () => resolve(reader.result);
+								reader.readAsDataURL(blob);
+							});
+						}
+					}
 				} catch (e) {
-					console.error('Failed to load logo image', e);
+					console.warn('ไม่สามารถโหลดโลโก้ได้ ระบบจะแสดงแค่ชื่อบริษัทแทน', e);
+					logoBase64 = null;
 				}
 			}
 
@@ -126,33 +131,44 @@
 				doc.setLineWidth(0.02);
 
 				const marginX = 0.5;
-				const marginYTop = 0.3;
 				const contentWidth = pageWidth - marginX * 2;
 				const centerX = marginX + contentWidth / 2;
-
-				let gridTopY = marginYTop;
 				const rightEdge = pageWidth - marginX;
 
-				if (logoBase64 || companyName) {
-					if (logoBase64) {
-						const logoSize = 1.3;
+				const marginYTop = 0.25;
+				let gridTopY = marginYTop;
+
+				let renderedLogo = false;
+
+				if (logoBase64) {
+					try {
+						const logoSize = 1.8;
 						const logoX = rightEdge - logoSize;
 						const logoY = marginYTop;
 
 						doc.addImage(logoBase64, logoFormat, logoX, logoY, logoSize, logoSize);
 
-						doc.setFontSize(12);
-						doc.setFont('helvetica', 'bold');
-						doc.text(companyName, rightEdge, logoY + logoSize + 0.2, { align: 'right' });
-
-						gridTopY = logoY + logoSize + 0.35;
-					} else if (companyName) {
 						doc.setFontSize(14);
 						doc.setFont('helvetica', 'bold');
-						doc.text(companyName, rightEdge, marginYTop + 0.2, { align: 'right' });
-						gridTopY = marginYTop + 0.4;
+						doc.text(companyName, rightEdge, logoY + logoSize + 0.25, { align: 'right' });
+
+						gridTopY = logoY + logoSize + 0.45;
+						renderedLogo = true;
+					} catch (imgError) {
+						console.warn(
+							'ไฟล์รูปโลโก้มีปัญหา (Wrong Signature) ระบบจะข้ามไปแสดงแค่ชื่อบริษัท',
+							imgError
+						);
+						renderedLogo = false;
 					}
-				} else {
+				}
+
+				if (!renderedLogo && companyName) {
+					doc.setFontSize(16);
+					doc.setFont('helvetica', 'bold');
+					doc.text(companyName, rightEdge, marginYTop + 0.3, { align: 'right' });
+					gridTopY = marginYTop + 0.5;
+				} else if (!renderedLogo && !companyName) {
 					gridTopY = 0.5;
 				}
 
@@ -161,29 +177,31 @@
 
 				doc.rect(marginX, gridTopY, contentWidth, gridHeight);
 
-				const row1Height = 4.0;
-				const remainingHeight = gridHeight - row1Height;
-				const row2Height = remainingHeight / 2;
-				const row3Height = remainingHeight / 2;
+				const row1Height = gridHeight * 0.55;
+				const row2Height = gridHeight * 0.225;
+				const row3Height = gridHeight * 0.225;
 
 				const line1Y = gridTopY + row1Height;
 				const line2Y = gridTopY + row1Height + row2Height;
 
-				doc.line(marginX, line1Y, marginX + contentWidth, line1Y);
-				doc.line(marginX, line2Y, marginX + contentWidth, line2Y);
+				doc.line(marginX, line1Y, rightEdge, line1Y);
+				doc.line(marginX, line2Y, rightEdge, line2Y);
 
 				const colWidth = contentWidth / 3;
 				doc.line(marginX + colWidth, line1Y, marginX + colWidth, gridTopY + gridHeight);
 				doc.line(marginX + colWidth * 2, line1Y, marginX + colWidth * 2, gridTopY + gridHeight);
+
 				doc.setTextColor(0, 0, 0);
+
 				doc.setFont('helvetica', 'bold');
 				doc.setFontSize(22);
 				doc.text($t('Location Code'), centerX, gridTopY + 0.6, { align: 'center' });
+
 				doc.setFontSize(55);
 				doc.text(label.location_code, centerX, gridTopY + 1.6, { align: 'center' });
 
-				const separatorY = gridTopY + 1.9;
-				doc.line(marginX, separatorY, marginX + contentWidth, separatorY);
+				const separatorY = gridTopY + 2.0;
+				doc.line(marginX, separatorY, rightEdge, separatorY);
 
 				const qrSize = 1.9;
 				const qrDataUrl = await QRCode.toDataURL(label.qr_text, {
