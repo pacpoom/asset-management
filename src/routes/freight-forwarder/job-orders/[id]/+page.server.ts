@@ -10,14 +10,12 @@ export const load = async ({ params }) => {
 		const [jobs] = await pool.query<any[]>(
 			`
 			SELECT j.*, 
-                   un.name as unit_name, un.symbol as unit_symbol,
 			       c.name as customer_name, c.company_name, c.address as customer_address, c.tax_id as customer_tax_id,
 			       con.contract_number,
                    v.name as vendor_name, v.company_name as vendor_company_name, v.address as vendor_address, v.tax_id as vendor_tax_id,
                    vc.contract_number as vendor_contract_number,
 			       u.full_name as created_by_name
 			FROM job_orders j
-            LEFT JOIN units un ON j.unit_id = un.id
 			LEFT JOIN customers c ON j.customer_id = c.id
 			LEFT JOIN contracts con ON j.contract_id = con.id
             LEFT JOIN vendors v ON j.vendor_id = v.id

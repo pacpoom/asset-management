@@ -87,8 +87,7 @@
 		value: l.name,
 		label: l.code ? `${l.name} (${l.code})` : l.name
 	}));
-	let selectedLiner: any =
-		linerOptions.find((l: any) => l.value === job.liner_name) ||
+	let selectedLiner: any = linerOptions.find((l: any) => l.value === job.liner_name) || 
 		(job.liner_name ? { value: job.liner_name, label: job.liner_name } : null);
 
 	// --- ตัวแปรฟอร์มทั่วไป ---
@@ -96,11 +95,11 @@
 	let jobDate = job.job_date
 		? new Date(job.job_date).toISOString().split('T')[0]
 		: new Date().toISOString().split('T')[0];
-
 	let etdDate = job.etd ? new Date(job.etd).toISOString().split('T')[0] : '';
 	let etaDate = job.eta ? new Date(job.eta).toISOString().split('T')[0] : '';
-	let expireDate = job.expire_date ? new Date(job.expire_date).toISOString().split('T')[0] : '';
-
+	let expireDate = job.expire_date
+		? new Date(job.expire_date).toISOString().split('T')[0]
+		: '';
 	let jobStatus = job.job_status || 'Pending';
 	let blNumber = job.bl_number || '';
 	let mblNumber = job.mbl || '';
@@ -108,10 +107,6 @@
 	let invoiceNo = job.invoice_no || '';
 	let cclInfo = job.ccl || '';
 	let qty = job.quantity || '';
-	
-	// ปรับให้อ่านค่าเป็น Number เสมอ เพื่อให้ bind:value จับคู่ข้อมูลได้ถูกต้อง
-	let selectedUnit = job.unit_id ? Number(job.unit_id) : '';
-	
 	let wgt = job.weight || '';
 	let kgsVol = job.kgs_volume || '';
 	let remarks = job.remarks || '';
@@ -240,34 +235,12 @@
 			: 'bg-red-500 text-white'}"
 	>
 		{#if toastType === 'success'}
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-5 w-5"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-				/>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 			</svg>
 		{:else}
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-5 w-5"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-				/>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 			</svg>
 		{/if}
 		{toastMessage}
@@ -283,27 +256,14 @@
 				aria-label="Back to Job Orders"
 				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="2"
-					stroke="currentColor"
-					class="h-5 w-5"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-					/>
-				</svg>
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="h-5 w-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
 			</a>
 			<div>
 				<div class="flex items-center gap-2">
 					<h1 class="text-xl font-bold text-gray-800">{$t('Edit Job Order')}</h1>
-					<span
-						class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm"
-					>
+					<span class="rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-sm font-bold tracking-wider text-blue-700 shadow-sm">
 						{previewJobNumber}
 					</span>
 				</div>
@@ -311,22 +271,16 @@
 			</div>
 		</div>
 		<div
-			class="rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase
-			{jobStatus === 'Pending'
-				? 'bg-blue-100 text-blue-700'
-				: jobStatus === 'In Progress'
-					? 'bg-yellow-100 text-yellow-700'
-					: jobStatus === 'Completed'
-						? 'bg-green-100 text-green-700'
-						: 'bg-red-100 text-red-700'}"
+			class="rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase 
+			{jobStatus === 'Pending' ? 'bg-blue-100 text-blue-700' : 
+			jobStatus === 'In Progress' ? 'bg-yellow-100 text-yellow-700' : 
+			jobStatus === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}"
 		>
 			STATUS: {jobStatus}
 		</div>
 	</div>
 
-	<div
-		class="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
-	>
+	<div class="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
 		<div class="h-1.5 w-full bg-orange-500"></div>
 
 		<form
@@ -373,9 +327,7 @@
 								</div>
 
 								{#if selectedCustomer}
-									<div
-										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
-									>
+									<div class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm">
 										<p class="font-bold text-gray-800">{selectedCustomer.label}</p>
 										<p class="mt-1 text-xs">{selectedCustomer.address || '-'}</p>
 									</div>
@@ -419,9 +371,7 @@
 								</div>
 
 								{#if selectedVendor}
-									<div
-										class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm"
-									>
+									<div class="animate-in fade-in slide-in-from-top-1 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-600 shadow-sm">
 										<p class="font-bold text-gray-800">{selectedVendor.label}</p>
 										<p class="mt-1 text-xs">{selectedVendor.address || '-'}</p>
 									</div>
@@ -457,8 +407,8 @@
 						<div class="grid grid-cols-2 gap-4">
 							<div>
 								<label for="job_date" class="mb-1 block text-sm font-semibold text-gray-700">
-									{$t('Job Date')}
-								</label>
+                                    {$t('Job Date')}
+                                </label>
 								<input
 									id="job_date"
 									type="date"
@@ -469,13 +419,13 @@
 							</div>
 							<div>
 								<label for="expire_date" class="mb-1 block text-sm font-semibold text-gray-700">
-									{$t('Expire Date')}
-								</label>
+                                    {$t('Expire Date')}
+                                </label>
 								<input
 									id="expire_date"
 									type="date"
 									name="expire_date"
-									bind:value={expireDate}
+                                    bind:value={expireDate}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								/>
 							</div>
@@ -527,19 +477,8 @@
 										class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
 										title={$t('Manage Job Code options')}
 									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-											/>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
 										</svg>
 									</button>
 								</div>
@@ -553,7 +492,7 @@
 									<select
 										id="service_type"
 										name="service_type"
-										bind:value={selectedServiceType}
+                                        bind:value={selectedServiceType}
 										class="w-full flex-grow rounded-md border-gray-300 font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 										required
 									>
@@ -567,19 +506,8 @@
 										class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
 										title={$t('Manage Service Type options')}
 									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-											/>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
 										</svg>
 									</button>
 								</div>
@@ -588,13 +516,13 @@
 
 						<div>
 							<label for="remarks" class="mb-1 block text-sm font-semibold text-gray-700">
-								{$t('Remark')}
-							</label>
+                                {$t('Remark')}
+                            </label>
 							<textarea
 								id="remarks"
 								name="remarks"
 								rows="2"
-								bind:value={remarks}
+                                bind:value={remarks}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								placeholder={$t('Enter remark...')}
 							></textarea>
@@ -610,43 +538,27 @@
 						<!-- แถวที่ 1 -->
 						<div>
 							<label for="bl_number" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								{$t('HBL Number')} <span class="text-red-500">*</span>
-							</label>
+                                {$t('HBL Number')} <span class="text-red-500">*</span>
+                            </label>
 							<input
 								id="bl_number"
 								type="text"
 								name="bl_number"
-								bind:value={blNumber}
+                                bind:value={blNumber}
 								placeholder="HBL-XXXXXXX"
 								class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500"
 								required
 							/>
 						</div>
 						<div>
-							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								{$t('Liner / Carrier')}
-							</div>
-							<Select
-								items={linerOptions}
-								bind:value={selectedLiner}
-								placeholder={$t('Search or select liner...')}
-								container={browser ? document.body : null}
-								class="svelte-select-custom"
-							/>
-							<input type="hidden" name="liner_name" value={selectedLiner?.value || ''} />
-						</div>
-						<div>
-							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								{$t('Port / Location')}
-							</label>
 							<label for="mbl" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								{$t('MB/L')}
-							</label>
+                                {$t('MB/L')}
+                            </label>
 							<input
 								id="mbl"
 								type="text"
 								name="mbl"
-								bind:value={mblNumber}
+                                bind:value={mblNumber}
 								placeholder="MBL-XXXXXXX"
 								class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500"
 							/>
@@ -659,7 +571,7 @@
 								type="text"
 								id="invoice_no"
 								name="invoice_no"
-								bind:value={invoiceNo}
+                                bind:value={invoiceNo}
 								placeholder={$t('e.g. INV-001, INV-002')}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
@@ -709,28 +621,15 @@
 							<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 								>{$t('Quantity')}</label
 							>
-							<div class="flex gap-2">
-								<input
-									id="quantity"
-									type="number"
-									name="quantity"
-									bind:value={qty}
-									min="0"
-									placeholder="0"
-									class="w-2/3 rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								/>
-								<select
-									name="unit_id"
-									bind:value={selectedUnit}
-									class="w-1/3 rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								>
-									<option value="">{$t('Unit')}</option>
-									{#each data.units as unit}
-										<!-- บังคับให้ value เป็น Number เพื่อแก้ปัญหา Type Mismatch -->
-										<option value={Number(unit.id)}>{unit.symbol}</option>
-									{/each}
-								</select>
-							</div>
+							<input
+								id="quantity"
+								type="number"
+								name="quantity"
+								bind:value={qty}
+								min="0"
+								placeholder="0"
+								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
 						</div>
 						<div>
 							<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
@@ -779,13 +678,13 @@
 						</div>
 						<div class="md:col-span-2">
 							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-								{$t('Port / Location')}
-							</label>
+                                {$t('Port / Location')}
+                            </label>
 							<input
 								id="location"
 								type="text"
 								name="location"
-								bind:value={location}
+                                bind:value={location}
 								placeholder={$t('Port of Loading / Discharge')}
 								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
@@ -796,7 +695,7 @@
 								{$t('Attachments')}
 							</label>
 
-							{#if data.existingAttachments && data.existingAttachments.length > 0}
+                            {#if data.existingAttachments && data.existingAttachments.length > 0}
 								<ul class="mb-4 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
 									{#each data.existingAttachments as file}
 										<li
@@ -824,9 +723,7 @@
 								</ul>
 							{/if}
 
-							<div
-								class="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 transition-colors hover:bg-gray-100"
-							>
+							<div class="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 transition-colors hover:bg-gray-100">
 								<input
 									type="file"
 									name="attachments"
@@ -835,16 +732,14 @@
 									class="block w-full cursor-pointer text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-200"
 								/>
 								<p class="mt-2 text-xs text-gray-500">
-									{$t(
-										'* You can upload multiple files (e.g., B/L, Commercial Invoice, Packing List)'
-									)}
+									{$t('* You can upload multiple files (e.g., B/L, Commercial Invoice, Packing List)')}
 								</p>
 							</div>
 						</div>
 					</div>
 				</div>
 
-				<!-- <div class="flex flex-col items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6 md:flex-row">
+				<div class="flex flex-col items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6 md:flex-row">
 					<div class="flex items-center gap-3">
 						<label for="amount" class="text-sm font-semibold text-gray-700">
                             {$t('Initial Amount:')}
@@ -876,11 +771,9 @@
 							/>
 						</div>
 					</div>
-				</div> -->
+				</div>
 
-				<div
-					class="flex items-center justify-end gap-3 border-t border-gray-200 bg-white px-8 py-5"
-				>
+				<div class="flex items-center justify-end gap-3 border-t border-gray-200 bg-white px-8 py-5">
 					<a
 						href="/freight-forwarder/job-orders"
 						class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700"
@@ -893,24 +786,7 @@
 						class="flex items-center gap-2 rounded-lg bg-green-600 px-8 py-2.5 text-sm font-bold text-white shadow transition-all hover:bg-green-700 disabled:opacity-70"
 					>
 						{#if isSaving}
-							<svg
-								class="mr-2 -ml-1 h-4 w-4 animate-spin text-white"
-								xmlns="http://www.w3.org/2000/svg"
-								fill="none"
-								viewBox="0 0 24 24"
-								><circle
-									class="opacity-25"
-									cx="12"
-									cy="12"
-									r="10"
-									stroke="currentColor"
-									stroke-width="4"
-								></circle><path
-									class="opacity-75"
-									fill="currentColor"
-									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-								></path></svg
-							>
+							<svg class="mr-2 -ml-1 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
 							{$t('Saving...')}
 						{:else}
 							{$t('Save Changes')}
@@ -936,19 +812,8 @@
 					aria-label={$t('Close Modal')}
 					title={$t('Close Modal')}
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M6 18L18 6M6 6l12 12"
-						/>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
 				</button>
 			</div>
@@ -960,9 +825,7 @@
 					</h4>
 					<div class="mb-3 grid grid-cols-2 gap-3">
 						<div>
-							<label for="manage_value" class="mb-1 block text-xs font-medium text-gray-500"
-								>{$t('Value (e.g. SI)')}</label
-							>
+							<label for="manage_value" class="mb-1 block text-xs font-medium text-gray-500">{$t('Value (e.g. SI)')}</label>
 							<input
 								id="manage_value"
 								type="text"
@@ -972,9 +835,7 @@
 							/>
 						</div>
 						<div>
-							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500"
-								>{$t('Label (e.g. Sea Import)')}</label
-							>
+							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500">{$t('Label (e.g. Sea Import)')}</label>
 							<input
 								id="manage_label"
 								type="text"
@@ -1018,19 +879,8 @@
 										class="text-gray-400 hover:text-blue-600 focus:outline-none"
 										title={$t('Edit')}
 									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-											/>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
 										</svg>
 									</button>
 									<button
@@ -1038,19 +888,8 @@
 										class="text-gray-400 hover:text-red-600 focus:outline-none"
 										title={$t('Delete')}
 									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-											/>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
 										</svg>
 									</button>
 								</div>
@@ -1075,25 +914,12 @@
 {/if}
 
 {#if showDeleteConfirm}
-	<div
-		class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-	>
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
 		<div class="animate-in fade-in zoom-in-95 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
 			<div class="mb-4 flex items-center justify-center">
 				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-6 w-6 text-red-600"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-						/>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 					</svg>
 				</div>
 			</div>

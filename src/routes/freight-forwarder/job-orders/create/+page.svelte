@@ -31,20 +31,7 @@
 	let isSaving = false;
 	let selectedCustomer: any = null;
 	let selectedContract: any = null;
-	
 	let jobDate = new Date().toISOString().split('T')[0];
-
-	// ฟังก์ชันคำนวณวันหมดอายุ (+1 เดือน)
-	function getNextMonthDate(dateStr: string) {
-		if (!dateStr) return '';
-		const d = new Date(dateStr);
-		d.setMonth(d.getMonth() + 1);
-		return d.toISOString().split('T')[0];
-	}
-
-	// กำหนดค่าเริ่มต้นให้ Expire Date และตั้งให้เปลี่ยนตาม Job Date เสมอ
-	let expireDate = getNextMonthDate(jobDate);
-	$: expireDate = getNextMonthDate(jobDate);
 
 	let jobTypeOptions = [
 		{ value: 'SI', label: 'SI (Sea Import)' },
@@ -425,7 +412,6 @@
 									id="expire_date"
 									type="date"
 									name="expire_date"
-									bind:value={expireDate}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								/>
 							</div>
@@ -612,30 +598,19 @@
 							/>
 						</div>
 
-						<!-- แถวที่ 3: Quantity, Unit, Weight, KGS Volume -->
+						<!-- แถวที่ 3: Quantity, Weight, KGS Volume -->
 						<div>
 							<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 								>{$t('Quantity')}</label
 							>
-							<div class="flex gap-2">
-								<input
-									id="quantity"
-									type="number"
-									name="quantity"
-									min="0"
-									placeholder="0"
-									class="w-2/3 rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								/>
-								<select
-									name="unit_id"
-									class="w-1/3 rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								>
-									<option value="">{$t('Unit')}</option>
-									{#each data.units as unit}
-										<option value={unit.id}>{unit.symbol}</option>
-									{/each}
-								</select>
-							</div>
+							<input
+								id="quantity"
+								type="number"
+								name="quantity"
+								min="0"
+								placeholder="0"
+								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
 						</div>
 						<div>
 							<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
@@ -713,6 +688,44 @@
 									)}
 								</p>
 							</div>
+						</div>
+					</div>
+				</div>
+
+				<div
+					class="flex flex-col items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6 md:flex-row"
+				>
+					<div class="flex items-center gap-3">
+						<label for="amount" class="text-sm font-semibold text-gray-700"
+							>{$t('Initial Amount:')}</label
+						>
+
+						<div
+							class="flex rounded-md border border-gray-300 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+						>
+							<select
+								name="currency"
+								id="currency"
+								bind:value={selectedCurrency}
+								class="w-24 border-0 bg-transparent py-2 pr-8 pl-3 text-sm font-medium text-gray-700 outline-none focus:ring-0"
+							>
+								{#each activeCurrencies as curr}
+									<option value={curr.code} class="text-gray-900">
+										{curr.code}
+									</option>
+								{/each}
+							</select>
+
+							<div class="w-px bg-gray-300"></div>
+
+							<input
+								type="number"
+								name="amount"
+								step="0.01"
+								bind:value={jobAmount}
+								placeholder="0.00"
+								class="w-32 border-0 bg-transparent px-3 py-2 text-right text-sm font-bold text-blue-700 outline-none focus:ring-0"
+							/>
 						</div>
 					</div>
 				</div>

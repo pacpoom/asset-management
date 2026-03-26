@@ -68,11 +68,6 @@ export const load = async ({ params }) => {
 		'SELECT id, contract_number, title, vendor_id, contract_value FROM vendor_contracts WHERE status = "Active"'
 	);
 
-	// ดึงข้อมูลหน่วยนับ
-	const [units] = await pool.query(
-		'SELECT id, name, symbol FROM units ORDER BY name ASC'
-	);
-
 	const [attachmentRows] = await pool.query(
 		'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
 		[id]
@@ -91,7 +86,6 @@ export const load = async ({ params }) => {
 		salesDocs: JSON.parse(JSON.stringify(salesDocs)),
 		vendors: JSON.parse(JSON.stringify(vendors)),
 		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
-		units: JSON.parse(JSON.stringify(units)),
 		existingAttachments: JSON.parse(JSON.stringify(attachments))
 	};
 };
@@ -103,10 +97,6 @@ export const actions = {
 
 		const job_type = formData.get('job_type') as string;
 		const job_date = formData.get('job_date') as string;
-
-		// แปลงค่า unit_id ให้เป็นตัวเลขก่อนบันทึกอย่างชัดเจน
-		const rawUnit = formData.get('unit_id')?.toString();
-		const unit_id = rawUnit && rawUnit !== 'null' && rawUnit !== 'undefined' ? parseInt(rawUnit, 10) : null;
 
 		try {
 			const [existing] = await pool.query('SELECT job_number FROM job_orders WHERE id = ?', [id]);
@@ -139,7 +129,6 @@ export const actions = {
 				formData.get('eta') || null,
 				formData.get('expire_date') || null,
 				formData.get('quantity') || 0,
-				unit_id, // ใช้ตัวแปร unit_id ที่แปลงเป็นตัวเลขแล้ว
 				formData.get('weight') || 0,
 				formData.get('kgs_volume') || 0,
 				formData.get('remarks'),
@@ -154,7 +143,7 @@ export const actions = {
                     customer_id = ?, contract_id = ?, vendor_id = ?, vendor_contract_id = ?, 
                     job_type = ?, service_type = ?, location = ?, bl_number = ?, mbl = ?, invoice_no = ?, ccl = ?,
                     liner_name = ?, job_status = ?, job_date = ?, etd = ?, eta = ?, expire_date = ?, 
-                    quantity = ?, unit_id = ?, weight = ?, kgs_volume = ?, remarks = ?, 
+                    quantity = ?, weight = ?, kgs_volume = ?, remarks = ?, 
                     amount = ?, currency = ?, job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;
