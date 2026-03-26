@@ -87,6 +87,11 @@ export const load = async () => {
 		'SELECT id, contract_number, title, vendor_id, contract_value FROM vendor_contracts WHERE status = "Active"'
 	);
 
+	// ดึงข้อมูลหน่วยนับ
+	const [units] = await pool.query(
+		'SELECT id, name, symbol FROM units ORDER BY name ASC'
+	);
+
 	const date = new Date();
 	const [seqRows] = await pool.query(
 		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' LIMIT 1`
@@ -104,6 +109,7 @@ export const load = async () => {
 		salesDocs: JSON.parse(JSON.stringify(salesDocs)),
 		vendors: JSON.parse(JSON.stringify(vendors)),
 		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
+		units: JSON.parse(JSON.stringify(units)),
 		nextSequence,
 		paddingLength
 	};
@@ -135,6 +141,7 @@ export const actions = {
 			eta: formData.get('eta') || null,
 			expire_date: formData.get('expire_date') || null,
 			quantity: formData.get('quantity') || 0,
+			unit_id: formData.get('unit_id') || null, // รับค่า unit_id
 			weight: formData.get('weight') || 0,
 			kgs_volume: formData.get('kgs_volume') || 0,
 			remarks: formData.get('remarks'),
@@ -156,9 +163,9 @@ export const actions = {
                     customer_id, contract_id, vendor_id, vendor_contract_id, 
                     job_type, service_type, location, bl_number, mbl, invoice_no, ccl,
                     liner_name, job_status, job_date, etd, eta, expire_date, 
-                    quantity, weight, kgs_volume, remarks, 
+                    quantity, unit_id, weight, kgs_volume, remarks, 
                     amount, currency, job_number, created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
@@ -180,6 +187,7 @@ export const actions = {
 				data.eta,
 				data.expire_date,
 				data.quantity,
+				data.unit_id,
 				data.weight,
 				data.kgs_volume,
 				data.remarks,

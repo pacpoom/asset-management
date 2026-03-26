@@ -293,7 +293,14 @@
             <div class="space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
                     <span class="text-sm font-medium text-gray-600">{$t('Quantity')}</span>
-                    <span class="font-medium text-gray-900">{job.quantity || 0}</span>
+                    <span class="font-medium text-gray-900">
+                        {job.quantity || 0} 
+                        {#if job.unit_name || job.unit_symbol}
+                            <span class="ml-1 text-sm text-gray-500">
+                                {job.unit_symbol ? job.unit_symbol : job.unit_name}
+                            </span>
+                        {/if}
+                    </span>
                 </div>
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
                     <span class="text-sm font-medium text-gray-600">{$t('Weight')}</span>

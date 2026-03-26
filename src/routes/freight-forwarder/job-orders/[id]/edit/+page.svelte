@@ -108,6 +108,7 @@
 	let invoiceNo = job.invoice_no || '';
 	let cclInfo = job.ccl || '';
 	let qty = job.quantity || '';
+	let selectedUnit = job.unit_id || '';
 	let wgt = job.weight || '';
 	let kgsVol = job.kgs_volume || '';
 	let remarks = job.remarks || '';
@@ -705,15 +706,27 @@
 							<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 								>{$t('Quantity')}</label
 							>
-							<input
-								id="quantity"
-								type="number"
-								name="quantity"
-								bind:value={qty}
-								min="0"
-								placeholder="0"
-								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
+							<div class="flex gap-2">
+								<input
+									id="quantity"
+									type="number"
+									name="quantity"
+									bind:value={qty}
+									min="0"
+									placeholder="0"
+									class="w-2/3 rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+								<select
+									name="unit_id"
+									bind:value={selectedUnit}
+									class="w-1/3 rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value="">{$t('Unit')}</option>
+									{#each data.units as unit}
+										<option value={unit.id}>{unit.symbol}</option>
+									{/each}
+								</select>
+							</div>
 						</div>
 						<div>
 							<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
