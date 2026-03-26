@@ -135,8 +135,7 @@
 					<th class="px-6 py-3 text-left font-semibold tracking-wider text-gray-600 uppercase"
 						>{$t('Thai')}</th
 					>
-					<th
-						class="px-6 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600 uppercase"
+					<th class="px-6 py-3 text-center font-semibold tracking-wider text-gray-600 uppercase"
 						>{$t('Actions')}</th
 					>
 				</tr>
