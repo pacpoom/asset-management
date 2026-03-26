@@ -692,10 +692,10 @@
 					</div>
 				</div>
 
-				<div
+				<!-- <div
 					class="flex flex-col items-center justify-end gap-4 border-t border-gray-200 bg-gray-50 p-6 md:flex-row"
-				>
-					<div class="flex items-center gap-3">
+				> -->
+				<!-- <div class="flex items-center gap-3">
 						<label for="amount" class="text-sm font-semibold text-gray-700"
 							>{$t('Initial Amount:')}</label
 						>
@@ -727,8 +727,8 @@
 								class="w-32 border-0 bg-transparent px-3 py-2 text-right text-sm font-bold text-blue-700 outline-none focus:ring-0"
 							/>
 						</div>
-					</div>
-				</div>
+					</div> -->
+				<!-- </div> -->
 
 				<div
 					class="flex items-center justify-end gap-3 border-t border-gray-200 bg-white px-8 py-5"
