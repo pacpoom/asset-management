@@ -321,7 +321,7 @@ function getInvoiceHtml(
 	};
 
 	const logoHtml = logoBase64
-		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 120px; margin-bottom: 8px;" />`
 		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
 
 	const creditTermDisplay =
@@ -423,8 +423,8 @@ function getInvoiceHtml(
 		`;
 	} else {
 		notesOrJobHtml = `
-			<span style="font-weight: bold; text-decoration: underline;">${tPdf('Notes', lang)}</span>
-			<div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${docData.notes || '-'}</div>
+			<span style="font-weight: bold; text-decoration: underline; font-size: 10pt;">${tPdf('Notes', lang)}</span>
+			<div style="margin-top: 4px; white-space: pre-wrap; color: #000; font-weight: bold; font-size: 10pt;">${docData.notes || '-'}</div>
 		`;
 	}
 
