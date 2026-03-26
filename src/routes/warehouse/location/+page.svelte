@@ -588,8 +588,8 @@
 						onchange={toggleSelectAll}
 					/>
 				</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Location Code')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Sub Warehouse')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Location Code')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Sub Warehouse')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Zone')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Area')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Bin')}</th>
@@ -618,8 +618,10 @@
 								bind:group={selectedLocationIds}
 							/>
 						</td>
-						<td class="px-4 py-3 font-mono font-medium text-gray-800">{loc.location_code}</td>
-						<td class="px-4 py-3 text-gray-700">
+						<td class="px-4 py-3 text-center font-mono font-medium text-gray-800">
+							{loc.location_code}
+						</td>
+						<td class="px-4 py-3 text-center text-gray-700">
 							{#if loc.sub_warehouse_name}
 								<span
 									class="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"
