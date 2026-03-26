@@ -29,7 +29,7 @@ export const load = async ({ url }) => {
 
 	// บังคับกรองด้วยวันที่เสมอ
 	let whereClause = 'WHERE j.job_date >= ? AND j.job_date <= ?';
-	let queryParams: any[] = [startDate, endDate];
+	const queryParams: string[] = [startDate, endDate];
 
 	// ถ้ามีการค้นหา ให้เพิ่มเงื่อนไข AND
 	if (search) {
@@ -55,7 +55,7 @@ export const load = async ({ url }) => {
 		${whereClause}
 	`;
 	const [countRows] = await pool.query(countSql, queryParams);
-	const totalJobs = (countRows as any[])[0].total;
+	const totalJobs = (countRows as { total: number }[])[0].total;
 
 	// Query ดึงข้อมูลจริง 
 	const sql = `
