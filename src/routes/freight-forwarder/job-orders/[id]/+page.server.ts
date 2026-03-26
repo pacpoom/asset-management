@@ -1,5 +1,6 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect, isRedirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
+import type { RowDataPacket } from 'mysql2/promise';
 
 export const load = async ({ params }) => {
 	const id = parseInt(params.id);
@@ -7,7 +8,7 @@ export const load = async ({ params }) => {
 
 	try {
 		// 1. ดึงข้อมูล Job Order
-		const [jobs] = await pool.query<any[]>(
+		const [jobs] = await pool.query<RowDataPacket[]>(
 			`
 			SELECT j.*, 
 			       c.name as customer_name, c.company_name, c.address as customer_address, c.tax_id as customer_tax_id,
@@ -32,18 +33,18 @@ export const load = async ({ params }) => {
 		const job = jobs[0];
 
 		// 2. ดึงข้อมูลบริษัทและไฟล์แนบ
-		const [companyRows] = await pool.query<any[]>('SELECT * FROM company LIMIT 1');
-		const [attachments] = await pool.query<any[]>(
+		const [companyRows] = await pool.query<RowDataPacket[]>('SELECT * FROM company LIMIT 1');
+		const [attachments] = await pool.query<RowDataPacket[]>(
 			'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
 			[id]
 		);
-		const attachmentsWithUrl = attachments.map((f: any) => ({
+		const attachmentsWithUrl = attachments.map((f: RowDataPacket) => ({
 			...f,
 			url: `/uploads/job_orders/${f.file_system_name}`
 		}));
 
 		// 3. ดึงข้อมูล Job Expenses (ค่าใช้จ่ายของ Job นี้)
-		const [expenses] = await pool.query<any[]>(
+		const [expenses] = await pool.query<RowDataPacket[]>(
 			`
 			SELECT e.*, i.item_name, c.category_name 
 			FROM job_expenses e
@@ -56,7 +57,7 @@ export const load = async ({ params }) => {
 		);
 
 		// 4. ดึงข้อมูล Sales Documents (เอกสารขายที่เชื่อมกับ Job นี้)
-		const [salesDocs] = await pool.query<any[]>(
+		const [salesDocs] = await pool.query<RowDataPacket[]>(
 			`
 			SELECT id, document_type, document_number, document_date, total_amount, status , reference_doc
 			FROM sales_documents 
@@ -67,10 +68,10 @@ export const load = async ({ params }) => {
 		);
 
 		// 5. ดึงข้อมูล Master Data สำหรับฟอร์มเพิ่มค่าใช้จ่าย
-		const [expenseCategories] = await pool.query<any[]>(
+		const [expenseCategories] = await pool.query<RowDataPacket[]>(
 			'SELECT id, category_name FROM expense_categories WHERE is_active = 1 ORDER BY category_name ASC'
 		);
-		const [expenseItems] = await pool.query<any[]>(
+		const [expenseItems] = await pool.query<RowDataPacket[]>(
 			'SELECT id, expense_category_id, item_name FROM expense_items WHERE is_active = 1 ORDER BY item_name ASC'
 		);
 
@@ -84,10 +85,10 @@ export const load = async ({ params }) => {
 			expenseItems: JSON.parse(JSON.stringify(expenseItems)),
 			availableStatuses: ['Pending', 'In Progress', 'Completed', 'Cancelled']
 		};
-	} catch (err: any) {
+	} catch (err: unknown) {
 		console.error('Error loading job order:', err);
-		if (err.status === 302) throw err;
-		throw error(500, err.message);
+		if (isRedirect(err)) throw err;
+		throw error(500, err instanceof Error ? err.message : 'Unknown error');
 	}
 };
 
@@ -105,9 +106,9 @@ export const actions = {
 				id
 			]);
 			return { success: true };
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Update status error:', err);
-			return fail(500, { message: err.message });
+			return fail(500, { message: err instanceof Error ? err.message : 'Unknown error' });
 		}
 	},
 
@@ -133,7 +134,7 @@ export const actions = {
 		// คำนวณยอดเงินตาม VAT และ WH ที่เลือก
 		let vat_amount = 0;
 		let wht_amount = 0;
-		let tax_types = [];
+		const tax_types: string[] = [];
 
 		if (has_vat) {
 			vat_amount = amount * 0.07;
@@ -148,8 +149,8 @@ export const actions = {
 			tax_types.push('WHT 1%');
 		}
 
-		let tax_type_str = tax_types.length > 0 ? tax_types.join(', ') : 'None';
-		let total_amount = amount + vat_amount - wht_amount;
+		const tax_type_str = tax_types.length > 0 ? tax_types.join(', ') : 'None';
+		const total_amount = amount + vat_amount - wht_amount;
 
 		try {
 			await pool.execute(
@@ -159,7 +160,7 @@ export const actions = {
 				[job_order_id, expense_item_id, ref_document, amount, tax_type_str, vat_amount, wht_amount, total_amount, remarks, created_by]
 			);
 			return { success: true, action: 'addExpense' };
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Add expense error:', err);
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการบันทึกค่าใช้จ่าย' });
 		}
@@ -175,7 +176,7 @@ export const actions = {
 		try {
 			await pool.execute('DELETE FROM job_expenses WHERE id = ?', [expense_id]);
 			return { success: true, action: 'deleteExpense' };
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Delete expense error:', err);
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบค่าใช้จ่าย' });
 		}

@@ -1,3 +1,4 @@
+<!-- eslint-disable svelte/no-navigation-without-resolve -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { tick } from 'svelte';
@@ -6,21 +7,26 @@
 	import type { ActionData, PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
 
+	interface Expense { id: number; total_amount: number; amount: number; vat_amount?: number; wht_amount?: number; item_name?: string; category_name?: string; ref_document?: string; [key: string]: unknown }
+	interface SalesDoc { id: number; total_amount: number; document_number: string; reference_doc?: string; document_type: string; document_date: string; status: string; [key: string]: unknown }
+	interface Category { id: number; category_name: string; [key: string]: unknown }
+	interface Item { id: number; item_name: string; expense_category_id: number; [key: string]: unknown }
+	interface SelectOption { value: string | number; label: string }
+
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// ใช้ $derived เพื่อให้ข้อมูลอัปเดตตาม data จาก Server เสมอ
 	let job = $derived(data.job);
 	let attachments = $derived(data.attachments || []);
-	let companyData = $derived(data.company || null);
 	
-	let expenses = $derived(data.expenses || []);
-	let salesDocuments = $derived(data.salesDocuments || []);
-	let expenseCategories = $derived(data.expenseCategories || []);
-	let expenseItems = $derived(data.expenseItems || []);
+	let expenses = $derived((data.expenses || []) as Expense[]);
+	let salesDocuments = $derived((data.salesDocuments || []) as SalesDoc[]);
+	let expenseCategories = $derived((data.expenseCategories || []) as Category[]);
+	let expenseItems = $derived((data.expenseItems || []) as Item[]);
 
 	// คำนวณยอดเงินรวมและกำไร/ขาดทุน (Reactive)
-	let totalExpense = $derived(expenses.reduce((sum: number, exp: any) => sum + Number(exp.total_amount), 0));
-	let totalRevenue = $derived(salesDocuments.reduce((sum: number, doc: any) => sum + Number(doc.total_amount), 0));
+	let totalExpense = $derived(expenses.reduce((sum: number, exp: Expense) => sum + Number(exp.total_amount), 0));
+	let totalRevenue = $derived(salesDocuments.reduce((sum: number, doc: SalesDoc) => sum + Number(doc.total_amount), 0));
 	
 	// หากยังไม่มีเอกสารขาย ให้แสดงกำไรประเมินจากยอด Initial Amount แทน
 	let revenueToUse = $derived(totalRevenue > 0 ? totalRevenue : Number(job.amount || 0));
@@ -41,19 +47,19 @@
 	let expRemarks = $state('');
 
 	// สำหรับ svelte-select ค้นหาหมวดหมู่และรายการ
-	let selectedCategory = $state<any>(null);
-	let selectedItem = $state<any>(null);
+	let selectedCategory = $state<SelectOption | null>(null);
+	let selectedItem = $state<SelectOption | null>(null);
 
 	// กรอง options เพื่อใช้งานร่วมกับ svelte-select
-	let categoryOptions = $derived(expenseCategories.map((c: any) => ({
+	let categoryOptions = $derived(expenseCategories.map((c: Category) => ({
 		value: c.id,
 		label: c.category_name
 	})));
 
 	let filteredItemOptions = $derived(
 		expenseItems
-			.filter((i: any) => i.expense_category_id == (selectedCategory?.value || ''))
-			.map((i: any) => ({
+			.filter((i: Item) => i.expense_category_id == (selectedCategory?.value || ''))
+			.map((i: Item) => ({
 				value: i.id,
 				label: i.item_name
 			}))
@@ -62,7 +68,7 @@
 	// ผูกค่า selected จาก svelte-select เข้ากับตัวแปรหลัก
 	$effect(() => {
 		if (selectedCategory && selectedCategory.value !== expCategoryId) {
-			expCategoryId = selectedCategory.value;
+			expCategoryId = String(selectedCategory.value);
 			selectedItem = null; // รีเซ็ต Item เมื่อเปลี่ยน Category
 			expItemId = '';
 		} else if (!selectedCategory) {
@@ -74,7 +80,7 @@
 
 	$effect(() => {
 		if (selectedItem && selectedItem.value !== expItemId) {
-			expItemId = selectedItem.value;
+			expItemId = String(selectedItem.value);
 		} else if (!selectedItem) {
 			expItemId = '';
 		}
@@ -162,6 +168,7 @@
 
 <div class="mb-6 flex flex-col items-start justify-between gap-4 border-b pb-4 sm:flex-row sm:items-center">
 	<div class="flex items-center">
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 		<a href="/freight-forwarder/job-orders" aria-label={$t('Back to Job Orders')} title={$t('Back')} class="mr-3 text-gray-500 hover:text-gray-800">
 			<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><path d="m15 18-6-6 6-6"></path></svg>
 		</a>
@@ -173,13 +180,16 @@
 
 	<div class="flex flex-shrink-0 items-center gap-2">
 		<span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold {getStatusClass(job.job_status)}">{$t('Status_' + job.job_status) || job.job_status}</span>
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 		<a href="/sales-documents/new?job_id={job.id}&customer_id={job.customer_id}" class="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600 disabled:opacity-50">{$t('Create Invoice')}</a>
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 		<a href="/freight-forwarder/job-orders/generate-pdf?id={job.id}&locale={$locale}" target="_blank" class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50">{$t('Print PDF')}</a>
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 		<a href="/freight-forwarder/job-orders/{job.id}/edit" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50">{$t('Edit')}</a>
 		<div class="relative">
 			<select aria-label={$t('Change Status')} onchange={updateStatus} disabled={isSaving} class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:outline-none disabled:opacity-50 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2">
 				<option value="" disabled selected>{$t('Change Status')}</option>
-				{#each availableStatuses as status}
+				{#each availableStatuses as status (status)}
 					{#if status !== job.job_status}<option value={status} class="bg-white text-gray-800">{$t('Status_' + status) || status}</option>{/if}
 				{/each}
 			</select>
@@ -351,9 +361,9 @@
 	<div class="flex justify-between items-center border-b p-4 bg-gray-50">
 		<h2 class="text-lg font-semibold text-gray-700">{$t('Attachments')}</h2>
 	</div>
-	<div class="p-6">
+			<div class="p-6">
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-			{#each attachments as file}
+			{#each attachments as file (file.id)}
 				<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-blue-400 hover:shadow-md">
 					<div class="flex items-center gap-3 overflow-hidden">
 						<div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
@@ -367,12 +377,14 @@
 						</div>
 					</div>
 					<div class="flex flex-shrink-0 items-center gap-2 ml-4">
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
                         <a href={file.url} target="_blank" rel="noopener noreferrer" class="rounded-full bg-gray-50 p-2 text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors" title={$t('View File')}>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 								<path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
 							</svg>
 						</a>
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 						<a href={file.url} download={file.file_original_name} class="rounded-full bg-blue-50 p-2 text-blue-600 hover:bg-blue-100 transition-colors" title={$t('Download')}>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -407,10 +419,10 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-100 bg-white text-sm">
-				{#each salesDocuments as doc}
+				{#each salesDocuments as doc (doc.id)}
 					<tr class="hover:bg-gray-50">
 						<td class="px-6 py-3">
-							<!-- แก้ไขลิงก์เป็น /sales-documents/{doc.id} -->
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 							<a href="/sales-documents/{doc.id}" class="font-bold text-blue-600 hover:underline">{doc.document_number}</a>
 						</td>
 						<td class="px-6 py-3 text-gray-600">{doc.reference_doc || '-'}</td>
@@ -463,7 +475,7 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-100 bg-white text-sm">
-				{#each expenses as exp}
+				{#each expenses as exp (exp.id)}
 					<tr class="hover:bg-gray-50">
 						<td class="px-6 py-3">
 							<div class="font-bold text-gray-900">{exp.item_name}</div>

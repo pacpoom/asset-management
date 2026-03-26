@@ -81,7 +81,7 @@ function getLogoBase64(logoPath: string | null): string | null {
 				const ext = path.extname(p).replace('.', '');
 				return `data:image/${ext};base64,${fileData.toString('base64')}`;
 			}
-		} catch (e) {
+		} catch {
 			continue;
 		}
 	}
@@ -435,7 +435,7 @@ export const GET = async ({ url }) => {
 		const displayJobNumber =
 			jobData.job_number || formatJobNumber(jobData.job_type, jobData.job_date, jobData.id);
 
-		const pdfBlob = new Blob([pdfBuffer as any], { type: 'application/pdf' });
+		const pdfBlob = new Blob([pdfBuffer as BlobPart], { type: 'application/pdf' });
 		return new Response(pdfBlob, {
 			status: 200,
 			headers: {
@@ -443,9 +443,9 @@ export const GET = async ({ url }) => {
 				'Content-Disposition': `inline; filename="JOB-${displayJobNumber}.pdf"`
 			}
 		});
-	} catch (err: any) {
+	} catch (err: unknown) {
 		console.error('PDF Error:', err);
-		return json({ message: err.message }, { status: 500 });
+		return json({ message: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 });
 	} finally {
 		if (connection) connection.release();
 	}
