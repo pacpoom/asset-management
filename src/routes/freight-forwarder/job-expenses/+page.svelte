@@ -1,29 +1,30 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	// นำเข้า locale เพื่อส่งไปตอนกด Export
 	import { t, locale } from '$lib/i18n';
 
-	// กำหนด type เป็น any เพื่อแก้ปัญหา TypeScript error (property does not exist)
 	export let data: any;
 
-	$: categories = data.categories || [];
+	$: columns = data.columns || [];
 	$: pivotData = data.pivotData || [];
-	$: filters = data.filters || { startDate: '', endDate: '' };
+	$: filters = data.filters || { startDate: '', endDate: '', viewBy: 'category' };
 
 	let startDate = '';
 	let endDate = '';
+	let viewBy = 'category';
 
 	// Sync state
 	$: {
 		startDate = filters.startDate;
 		endDate = filters.endDate;
+		viewBy = filters.viewBy;
 	}
 
 	function applyFilter() {
 		const url = new URL($page.url);
 		if (startDate) url.searchParams.set('startDate', startDate);
 		if (endDate) url.searchParams.set('endDate', endDate);
+		if (viewBy) url.searchParams.set('viewBy', viewBy);
 		goto(url.toString(), { keepFocus: true, noScroll: true });
 	}
 
@@ -38,8 +39,8 @@
 	};
 
 	// คำนวณผลรวมรวมด้านล่างสุดของตาราง (Grand Total)
-	$: colTotals = categories.map((cat: any) => {
-		return pivotData.reduce((sum: number, job: any) => sum + (job.expenses[cat.id] || 0), 0);
+	$: colTotals = columns.map((col: any) => {
+		return pivotData.reduce((sum: number, job: any) => sum + (job.expenses[col.id] || 0), 0);
 	});
 	
 	$: grandTotal = pivotData.reduce((sum: number, job: any) => sum + job.total, 0);
@@ -53,10 +54,17 @@
 	<div class="mb-6 flex flex-col justify-between gap-4 border-b border-gray-200 pb-4 lg:flex-row lg:items-end">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-800">{$t('Job Expense Summary (Pivot)')}</h1>
-			<p class="text-sm text-gray-500">{$t('Summary report of expenses by category (based on job opening date)')}</p>
+			<p class="text-sm text-gray-500">{$t('Summary report of expenses by category or item (based on job opening date)')}</p>
 		</div>
 
 		<div class="flex flex-wrap items-end gap-3">
+			<div>
+				<label for="viewBy" class="mb-1 block text-xs font-semibold text-gray-600">{$t('View By')}</label>
+				<select id="viewBy" bind:value={viewBy} onchange={applyFilter} class="rounded-lg border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+					<option value="category">{$t('Category')}</option>
+					<option value="item">{$t('Item')}</option>
+				</select>
+			</div>
 			<div>
 				<label for="start" class="mb-1 block text-xs font-semibold text-gray-600">{$t('From Date')}</label>
 				<input type="date" id="start" bind:value={startDate} class="rounded-lg border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500" />
@@ -71,9 +79,8 @@
 					{$t('Search')}
 				</button>
 
-				<!-- ปุ่ม Export Excel ส่ง locale พ่วงไปที่ URL -->
 				<a
-					href={`/freight-forwarder/job-expenses/export-excel?startDate=${startDate}&endDate=${endDate}&locale=${$locale}`}
+					href={`/freight-forwarder/job-expenses/export-excel?startDate=${startDate}&endDate=${endDate}&viewBy=${viewBy}&locale=${$locale}`}
 					target="_blank"
 					class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-green-700"
 				>
@@ -87,21 +94,21 @@
 	</div>
 
 	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-		<div class="overflow-x-auto">
+		<div class="overflow-x-auto max-w-[calc(100vw-3rem)]">
 			<table class="min-w-full divide-y divide-gray-200 text-sm whitespace-nowrap">
 				<thead class="bg-gray-100 text-gray-700">
 					<tr>
-						<th class="sticky left-0 bg-gray-100 px-4 py-3 text-left font-semibold border-r border-gray-200 z-10 w-40">{$t('Job No.')}</th>
-						<th class="px-4 py-3 text-left font-semibold border-r border-gray-200">{$t('Date')}</th>
-						<th class="px-4 py-3 text-left font-semibold border-r border-gray-200 min-w-[200px]">{$t('Customer')}</th>
+						<th class="sticky left-0 bg-gray-100 px-4 py-3 text-left font-semibold border-r border-gray-200 z-10 min-w-[120px]">{$t('Job No.')}</th>
+						<th class="px-4 py-3 text-left font-semibold border-r border-gray-200 min-w-[100px]">{$t('Date')}</th>
+						<th class="px-4 py-3 text-left font-semibold border-r border-gray-200 min-w-[200px] max-w-[250px]">{$t('Customer')}</th>
 						
-						{#each categories as cat}
-							<th class="px-4 py-3 text-right font-semibold text-xs text-gray-600 border-r border-gray-200" title={cat.category_name}>
-								{cat.category_name}
+						{#each columns as col}
+							<th class="px-4 py-3 text-right font-semibold text-xs text-gray-600 border-r border-gray-200 min-w-[120px]" title={col.name}>
+								{col.name}
 							</th>
 						{/each}
 						
-						<th class="sticky right-0 bg-blue-50 px-4 py-3 text-right font-bold text-blue-800 border-l border-gray-200 z-10">{$t('Total Expense')}</th>
+						<th class="sticky right-0 bg-blue-50 px-4 py-3 text-right font-bold text-blue-800 border-l border-gray-200 z-10 min-w-[120px]">{$t('Total Expense')}</th>
 					</tr>
 				</thead>
 
@@ -112,11 +119,11 @@
 								<a href="/freight-forwarder/job-orders/{job.job_id}" class="hover:underline">{job.job_number}</a>
 							</td>
 							<td class="px-4 py-3 text-gray-600 border-r border-gray-200">{formatDate(job.job_date)}</td>
-							<td class="px-4 py-3 text-gray-800 border-r border-gray-200 truncate max-w-[250px]">{job.customer}</td>
+							<td class="px-4 py-3 text-gray-800 border-r border-gray-200 truncate max-w-[250px]" title={job.customer}>{job.customer}</td>
 
-							{#each categories as cat}
+							{#each columns as col}
 								<td class="px-4 py-3 text-right font-mono text-gray-600 border-r border-gray-100">
-									{formatAmt(job.expenses[cat.id])}
+									{formatAmt(job.expenses[col.id])}
 								</td>
 							{/each}
 
@@ -126,7 +133,7 @@
 						</tr>
 					{:else}
 						<tr>
-							<td colspan={categories.length + 4} class="px-6 py-12 text-center text-gray-500">
+							<td colspan={columns.length + 4} class="px-6 py-12 text-center text-gray-500">
 								{$t('No expense data found for the selected period')}
 							</td>
 						</tr>
@@ -156,14 +163,12 @@
 </div>
 
 <style>
-	/* เงาสำหรับคอลัมน์ที่ถูก Sticky เพื่อให้ดูมีมิติเวลา Scroll */
 	th.sticky.left-0, td.sticky.left-0 {
 		box-shadow: inset -2px 0 4px -2px rgba(0,0,0,0.1);
 	}
 	th.sticky.right-0, td.sticky.right-0 {
 		box-shadow: inset 2px 0 4px -2px rgba(0,0,0,0.1);
 	}
-    /* ให้คอลัมน์แรกที่ Sticky โปร่งแสงใน hover state จะได้เนียนๆ */
     tr:hover td.sticky.left-0 {
         background-color: #f8fafc;
     }

@@ -15,14 +15,25 @@ export const load = async ({ url }) => {
 
 	const startDate = url.searchParams.get('startDate') || formatYMD(firstDay);
 	const endDate = url.searchParams.get('endDate') || formatYMD(lastDay);
+	// รับค่า viewBy ว่าจะดูตามหมวดหมู่ หรือ รายการย่อย
+	const viewBy = url.searchParams.get('viewBy') || 'category'; 
 
-	// 2. ดึงหมวดหมู่ค่าใช้จ่ายทั้งหมดมาทำเป็นคอลัมน์ (Columns)
-	const [categoryRows] = await pool.query(
-		'SELECT id, category_name FROM expense_categories ORDER BY id ASC'
-	);
-	const categories = categoryRows as any[];
+	// 2. ดึงหมวดหมู่หรือรายการมาทำเป็นคอลัมน์ (Columns)
+	let columnsData = [];
+	if (viewBy === 'item') {
+		const [itemRows] = await pool.query(
+			'SELECT id, item_name as name FROM expense_items ORDER BY item_name ASC'
+		);
+		columnsData = itemRows as any[];
+	} else {
+		const [categoryRows] = await pool.query(
+			'SELECT id, category_name as name FROM expense_categories ORDER BY id ASC'
+		);
+		columnsData = categoryRows as any[];
+	}
 
 	// 3. ดึงข้อมูลค่าใช้จ่ายและ Join กับ Job, Items, Categories
+	const groupByCol = viewBy === 'item' ? 'ei.id' : 'ec.id';
 	const sql = `
 		SELECT 
 			j.id AS job_id, 
@@ -30,7 +41,7 @@ export const load = async ({ url }) => {
 			j.job_date, 
 			c.company_name, 
 			c.name AS customer_name,
-			ec.id AS category_id, 
+			${groupByCol} AS col_id, 
 			SUM(je.total_amount) AS total_amount
 		FROM job_expenses je
 		INNER JOIN job_orders j ON je.job_order_id = j.id
@@ -38,13 +49,13 @@ export const load = async ({ url }) => {
 		INNER JOIN expense_items ei ON je.expense_item_id = ei.id
 		INNER JOIN expense_categories ec ON ei.expense_category_id = ec.id
 		WHERE j.job_date >= ? AND j.job_date <= ?
-		GROUP BY j.id, ec.id
+		GROUP BY j.id, ${groupByCol}
 		ORDER BY j.job_date DESC, j.id DESC
 	`;
 
 	const [expenseRows] = await pool.query(sql, [startDate, endDate]);
 
-	// 4. ทำการแปลงข้อมูลให้อยู่ในรูปแบบ Pivot (1 Job = 1 Row, Categories = Columns)
+	// 4. ทำการแปลงข้อมูลให้อยู่ในรูปแบบ Pivot (1 Job = 1 Row, Columns ตามที่เลือก)
 	const pivotMap = new Map();
 
 	for (const row of (expenseRows as any[])) {
@@ -54,7 +65,7 @@ export const load = async ({ url }) => {
 				job_number: row.job_number || `JOB-${row.job_id}`,
 				job_date: row.job_date,
 				customer: row.company_name || row.customer_name || 'ไม่ระบุ',
-				expenses: {}, // เก็บแยกตาม category_id
+				expenses: {}, // เก็บแยกตาม col_id (category_id หรือ item_id)
 				total: 0 // ยอดรวมของ Job นั้น
 			});
 		}
@@ -62,13 +73,13 @@ export const load = async ({ url }) => {
 		const jobData = pivotMap.get(row.job_id);
 		const amount = Number(row.total_amount);
 
-		jobData.expenses[row.category_id] = amount;
+		jobData.expenses[row.col_id] = amount;
 		jobData.total += amount;
 	}
 
 	return {
-		categories: JSON.parse(JSON.stringify(categories)),
+		columns: JSON.parse(JSON.stringify(columnsData)),
 		pivotData: JSON.parse(JSON.stringify(Array.from(pivotMap.values()))),
-		filters: { startDate, endDate }
+		filters: { startDate, endDate, viewBy }
 	};
 };
