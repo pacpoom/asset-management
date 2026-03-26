@@ -760,8 +760,8 @@
 						/>
 						<input type="hidden" name="position" value={formPosition} required />
 					</div>
-					<div class="grid grid-cols-2 gap-4">
-						<div>
+					<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+						<div class="min-w-0">
 							<label for="defect_input" class="mb-1 block text-sm font-bold text-gray-700"
 								>ลักษณะปัญหา (Defect) <span class="text-red-500">*</span></label
 							>
@@ -784,10 +784,10 @@
 									required
 								/>
 							{/if}
-
 							<input type="hidden" name="defect" value={formDefectName} required />
 						</div>
-						<div>
+
+						<div class="min-w-0">
 							<label for="solution_input" class="mb-1 block text-sm font-bold text-gray-700"
 								>วิธีแก้ไข (Solution)</label
 							>
@@ -813,6 +813,7 @@
 								type="file"
 								bind:this={zoomFileInput}
 								accept="image/*"
+								capture="environment"
 								class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
 							/>
 						</div>
@@ -825,6 +826,7 @@
 								type="file"
 								bind:this={farFileInput}
 								accept="image/*"
+								capture="environment"
 								class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
 							/>
 						</div>
