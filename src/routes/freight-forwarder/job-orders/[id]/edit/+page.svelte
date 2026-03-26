@@ -108,7 +108,10 @@
 	let invoiceNo = job.invoice_no || '';
 	let cclInfo = job.ccl || '';
 	let qty = job.quantity || '';
-	let selectedUnit = job.unit_id || '';
+	
+	// ปรับให้อ่านค่าเป็น Number เสมอ เพื่อให้ bind:value จับคู่ข้อมูลได้ถูกต้อง
+	let selectedUnit = job.unit_id ? Number(job.unit_id) : '';
+	
 	let wgt = job.weight || '';
 	let kgsVol = job.kgs_volume || '';
 	let remarks = job.remarks || '';
@@ -723,7 +726,8 @@
 								>
 									<option value="">{$t('Unit')}</option>
 									{#each data.units as unit}
-										<option value={unit.id}>{unit.symbol}</option>
+										<!-- บังคับให้ value เป็น Number เพื่อแก้ปัญหา Type Mismatch -->
+										<option value={Number(unit.id)}>{unit.symbol}</option>
 									{/each}
 								</select>
 							</div>

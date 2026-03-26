@@ -141,12 +141,18 @@ export const actions = {
 			eta: formData.get('eta') || null,
 			expire_date: formData.get('expire_date') || null,
 			quantity: formData.get('quantity') || 0,
-			unit_id: formData.get('unit_id') || null, // รับค่า unit_id
+			unit_id: formData.get('unit_id') || null,
 			weight: formData.get('weight') || 0,
 			kgs_volume: formData.get('kgs_volume') || 0,
 			remarks: formData.get('remarks'),
 			amount: formData.get('amount') || 0,
 			currency: formData.get('currency') || 'THB',
+			// Vessel Information
+			booking_no: formData.get('booking_no'),
+			vessel: formData.get('vessel'),
+			feeder: formData.get('feeder'),
+			port_of_loading: formData.get('port_of_loading'),
+			port_of_discharge: formData.get('port_of_discharge'),
 			created_by: locals.user?.id || 1
 		};
 
@@ -164,8 +170,10 @@ export const actions = {
                     job_type, service_type, location, bl_number, mbl, invoice_no, ccl,
                     liner_name, job_status, job_date, etd, eta, expire_date, 
                     quantity, unit_id, weight, kgs_volume, remarks, 
-                    amount, currency, job_number, created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                    amount, currency, job_number,
+                    booking_no, vessel, feeder, port_of_loading, port_of_discharge,
+                    created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
@@ -194,6 +202,11 @@ export const actions = {
 				data.amount,
 				data.currency,
 				job_number,
+				data.booking_no,
+				data.vessel,
+				data.feeder,
+				data.port_of_loading,
+				data.port_of_discharge,
 				data.created_by
 			];
 

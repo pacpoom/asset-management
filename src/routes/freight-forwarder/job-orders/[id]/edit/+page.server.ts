@@ -104,6 +104,10 @@ export const actions = {
 		const job_type = formData.get('job_type') as string;
 		const job_date = formData.get('job_date') as string;
 
+		// แปลงค่า unit_id ให้เป็นตัวเลขก่อนบันทึกอย่างชัดเจน
+		const rawUnit = formData.get('unit_id')?.toString();
+		const unit_id = rawUnit && rawUnit !== 'null' && rawUnit !== 'undefined' ? parseInt(rawUnit, 10) : null;
+
 		try {
 			const [existing] = await pool.query('SELECT job_number FROM job_orders WHERE id = ?', [id]);
 			const oldJobNumber = (existing as any)[0]?.job_number || '';
@@ -135,7 +139,7 @@ export const actions = {
 				formData.get('eta') || null,
 				formData.get('expire_date') || null,
 				formData.get('quantity') || 0,
-				formData.get('unit_id') || null, // รับค่า unit_id
+				unit_id, // ใช้ตัวแปร unit_id ที่แปลงเป็นตัวเลขแล้ว
 				formData.get('weight') || 0,
 				formData.get('kgs_volume') || 0,
 				formData.get('remarks'),

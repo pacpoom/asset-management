@@ -31,7 +31,20 @@
 	let isSaving = false;
 	let selectedCustomer: any = null;
 	let selectedContract: any = null;
+	
 	let jobDate = new Date().toISOString().split('T')[0];
+
+	// ฟังก์ชันคำนวณวันหมดอายุ (+1 เดือน)
+	function getNextMonthDate(dateStr: string) {
+		if (!dateStr) return '';
+		const d = new Date(dateStr);
+		d.setMonth(d.getMonth() + 1);
+		return d.toISOString().split('T')[0];
+	}
+
+	// กำหนดค่าเริ่มต้นให้ Expire Date และตั้งให้เปลี่ยนตาม Job Date เสมอ
+	let expireDate = getNextMonthDate(jobDate);
+	$: expireDate = getNextMonthDate(jobDate);
 
 	let jobTypeOptions = [
 		{ value: 'SI', label: 'SI (Sea Import)' },
@@ -412,6 +425,7 @@
 									id="expire_date"
 									type="date"
 									name="expire_date"
+									bind:value={expireDate}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								/>
 							</div>
