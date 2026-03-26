@@ -333,6 +333,8 @@
 						<input
 							type="file"
 							bind:this={zoomInput}
+							accept="image/*"
+							capture="environment"
 							class="text-xs"
 							aria-label="อัปโหลดรูปภาพระยะใกล้"
 						/>
@@ -347,6 +349,8 @@
 						<input
 							type="file"
 							bind:this={farInput}
+							accept="image/*"
+							capture="environment"
 							class="text-xs"
 							aria-label="อัปโหลดรูปภาพระยะไกล"
 						/>

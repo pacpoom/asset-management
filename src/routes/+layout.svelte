@@ -8,7 +8,7 @@
 	import { Toaster } from 'svelte-sonner';
 	// นำเข้ารูป default-avatar จากโฟลเดอร์ profile
 	import defaultAvatar from './default-avatar.jpg';
-	
+
 	import { locale, t, loadTranslations } from '$lib/i18n';
 
 	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>();
@@ -779,12 +779,14 @@
 
 <!-- เพิ่มระบบ Loading Page เวลาเปลี่ยนหน้าด้วย showLoading ที่มีการ Delay 0.5s -->
 {#if showLoading}
-	<div 
+	<div
 		class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm"
 		transition:fade={{ duration: 200 }}
 	>
-		<div class="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
-		<p class="mt-4 text-sm font-semibold text-gray-700 tracking-wide">Loading...</p>
+		<div
+			class="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"
+		></div>
+		<p class="mt-4 text-sm font-semibold tracking-wide text-gray-700">Loading...</p>
 	</div>
 {/if}
 <Toaster richColors position="top-right" />
