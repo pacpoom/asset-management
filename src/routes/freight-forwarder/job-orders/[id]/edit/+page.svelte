@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import Select from 'svelte-select';
@@ -8,22 +9,75 @@
 	export let data;
 	let job = data.job;
 
+	// --- Interfaces ---
+	interface Customer {
+		id: number;
+		name: string;
+		company_name: string | null;
+		address: string | null;
+	}
+
+	interface Contract {
+		id: number;
+		customer_id: number;
+		contract_number: string;
+		title: string;
+	}
+
+	interface Vendor {
+		id: number;
+		name: string;
+		company_name: string | null;
+		address: string | null;
+	}
+
+	interface VendorContract {
+		id: number;
+		vendor_id: number;
+		contract_number: string;
+		title: string;
+		contract_value: number;
+	}
+
+	interface Liner {
+		name: string;
+		code: string | null;
+	}
+
+	interface SelectOption {
+		value: string | number;
+		label: string;
+		address?: string | null;
+		amount?: number;
+	}
+
+	interface JobTypeOption {
+		value: string;
+		label: string;
+	}
+
+	interface Currency {
+		code: string;
+		name?: string;
+		symbol?: string;
+	}
+
 	// คำนวณรันนิ่งนัมเบอร์ปัจจุบันเพื่อไว้พรีวิวรหัส
 	let currentRunningNumber = job.job_number
 		? job.job_number.slice(-4)
 		: String(job.id).padStart(4, '0');
 
 	// --- ข้อมูลลูกค้า (Customer) ---
-	let customerOptions = (data.customers || []).map((c: any) => ({
+	let customerOptions = (data.customers || []).map((c: Customer) => ({
 		value: c.id,
 		label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
 		address: c.address
 	}));
-	let allContracts = data.contracts || [];
+	let allContracts = (data.contracts || []) as Contract[];
 
-	let selectedCustomer: any = customerOptions.find((c: any) => c.value == job.customer_id) || null;
-	let initialContract = allContracts.find((c: any) => c.id == job.contract_id);
-	let selectedContract: any = initialContract
+	let selectedCustomer: SelectOption | null = customerOptions.find((c: SelectOption) => c.value == job.customer_id) || null;
+	let initialContract = allContracts.find((c: Contract) => c.id == job.contract_id);
+	let selectedContract: SelectOption | null = initialContract
 		? {
 				value: initialContract.id,
 				label: `${initialContract.contract_number} (${initialContract.title})`
@@ -31,21 +85,21 @@
 		: null;
 	$: filteredContracts = selectedCustomer
 		? allContracts
-				.filter((c: any) => c.customer_id == selectedCustomer.value)
-				.map((c: any) => ({ value: c.id, label: `${c.contract_number} (${c.title})` }))
+				.filter((c: Contract) => c.customer_id == selectedCustomer?.value)
+				.map((c: Contract) => ({ value: c.id, label: `${c.contract_number} (${c.title})` }))
 		: [];
 
 	// --- ข้อมูลผู้จำหน่าย (Vendor) ---
-	let vendorOptions = (data.vendors || []).map((v: any) => ({
+	let vendorOptions = (data.vendors || []).map((v: Vendor) => ({
 		value: v.id,
 		label: v.company_name ? `${v.company_name} (${v.name})` : v.name,
 		address: v.address
 	}));
-	let allVendorContracts = data.vendorContracts || [];
+	let allVendorContracts = (data.vendorContracts || []) as VendorContract[];
 
-	let selectedVendor: any = vendorOptions.find((v: any) => v.value == job.vendor_id) || null;
-	let initialVendorContract = allVendorContracts.find((c: any) => c.id == job.vendor_contract_id);
-	let selectedVendorContract: any = initialVendorContract
+	let selectedVendor: SelectOption | null = vendorOptions.find((v: SelectOption) => v.value == job.vendor_id) || null;
+	let initialVendorContract = allVendorContracts.find((c: VendorContract) => c.id == job.vendor_contract_id);
+	let selectedVendorContract: SelectOption | null = initialVendorContract
 		? {
 				value: initialVendorContract.id,
 				label: `${initialVendorContract.contract_number} (${initialVendorContract.title})`,
@@ -54,8 +108,8 @@
 		: null;
 	$: filteredVendorContracts = selectedVendor
 		? allVendorContracts
-				.filter((c: any) => c.vendor_id == selectedVendor.value)
-				.map((c: any) => ({
+				.filter((c: VendorContract) => c.vendor_id == selectedVendor?.value)
+				.map((c: VendorContract) => ({
 					value: c.id,
 					label: `${c.contract_number} (${c.title})`,
 					amount: c.contract_value
@@ -63,7 +117,7 @@
 		: [];
 
 	// --- Job Options (จัดการได้แบบหน้า Create) ---
-	let jobTypeOptions = [
+	let jobTypeOptions: JobTypeOption[] = [
 		{ value: 'SI', label: 'SI (Sea Import)' },
 		{ value: 'SE', label: 'SE (Sea Export)' },
 		{ value: 'AI', label: 'AI (Air Import)' },
@@ -71,7 +125,7 @@
 		{ value: 'SP', label: 'SP (Special Project)' }
 	];
 	// ตรวจสอบค่าเดิมถ้าไม่อยู่ใน list ให้แสดงค่าเริ่มต้น
-	let selectedJobType: any =
+	let selectedJobType: JobTypeOption =
 		jobTypeOptions.find((o) => o.value === job.job_type) ||
 		(job.job_type ? { value: job.job_type, label: job.job_type } : jobTypeOptions[0]);
 
@@ -83,11 +137,11 @@
 	let selectedServiceType = job.service_type || 'Import';
 
 	// --- Shipment & Liner ---
-	let linerOptions = (data.liners || []).map((l: any) => ({
+	let linerOptions = (data.liners || []).map((l: Liner) => ({
 		value: l.name,
 		label: l.code ? `${l.name} (${l.code})` : l.name
 	}));
-	let selectedLiner: any = linerOptions.find((l: any) => l.value === job.liner_name) || 
+	let selectedLiner: SelectOption | null = linerOptions.find((l: SelectOption) => l.value === job.liner_name) || 
 		(job.liner_name ? { value: job.liner_name, label: job.liner_name } : null);
 
 	// --- ตัวแปรฟอร์มทั่วไป ---
@@ -101,21 +155,32 @@
 		? new Date(job.expire_date).toISOString().split('T')[0]
 		: '';
 	let jobStatus = job.job_status || 'Pending';
+	
 	let blNumber = job.bl_number || '';
 	let mblNumber = job.mbl || '';
-	let location = job.location || '';
+	let bookingNo = job.booking_no || '';
+	
 	let invoiceNo = job.invoice_no || '';
 	let cclInfo = job.ccl || '';
+	let location = job.location || '';
+	
+	let vessel = job.vessel || '';
+	let feeder = job.feeder || '';
+	let portOfLoading = job.port_of_loading || '';
+	let portOfDischarge = job.port_of_discharge || '';
+	
 	let qty = job.quantity || '';
+	let unitId = job.unit_id || '';
 	let wgt = job.weight || '';
 	let kgsVol = job.kgs_volume || '';
 	let remarks = job.remarks || '';
 	let jobAmount: number | string = job.amount || '';
 
-	$: activeCurrencies =
+	$: activeCurrencies = (
 		data?.currencies && data.currencies.length > 0
 			? data.currencies
-			: [{ code: 'THB' }, { code: 'USD' }, { code: 'CNY' }];
+			: [{ code: 'THB' }, { code: 'USD' }, { code: 'CNY' }]
+	) as Currency[];
 	let selectedCurrency = job.currency || 'THB';
 
 	// คำนวณเลข Job ล่วงหน้า
@@ -250,6 +315,7 @@
 <div class="min-h-screen bg-gray-100 p-6 pb-20">
 	<div class="mx-auto mb-6 flex max-w-7xl items-center justify-between">
 		<div class="flex items-center gap-4">
+			<!-- eslint-disable svelte/no-navigation-without-resolve -->
 			<a
 				href="/freight-forwarder/job-orders"
 				title={$t('Back')}
@@ -473,7 +539,7 @@
 									</div>
 									<button
 										type="button"
-										on:click={() => openManageModal('jobCode')}
+										onclick={() => openManageModal('jobCode')}
 										class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
 										title={$t('Manage Job Code options')}
 									>
@@ -496,13 +562,13 @@
 										class="w-full flex-grow rounded-md border-gray-300 font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 										required
 									>
-										{#each serviceTypeOptions as option}
+										{#each serviceTypeOptions as option (option.value)}
 											<option value={option.value}>{option.label}</option>
 										{/each}
 									</select>
 									<button
 										type="button"
-										on:click={() => openManageModal('serviceType')}
+										onclick={() => openManageModal('serviceType')}
 										class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none"
 										title={$t('Manage Service Type options')}
 									>
@@ -531,11 +597,11 @@
 				</div>
 
 				<div class="p-8">
-					<h2 class="mb-4 border-b pb-1 text-xs font-bold tracking-wider text-gray-400 uppercase">
+					<h2 class="mb-4 border-b pb-2 text-sm font-bold tracking-wider text-gray-600 uppercase">
 						{$t('Shipment Information')}
 					</h2>
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-						<!-- แถวที่ 1 -->
+						<!-- แถวที่ 1: BL, MBL, Booking No. -->
 						<div>
 							<label for="bl_number" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
                                 {$t('HBL Number')} <span class="text-red-500">*</span>
@@ -564,6 +630,21 @@
 							/>
 						</div>
 						<div>
+							<label for="booking_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Booking No.')}
+							</label>
+							<input
+								id="booking_no"
+								type="text"
+								name="booking_no"
+								bind:value={bookingNo}
+								placeholder="BKG-XXXXXXX"
+								class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+
+						<!-- แถวที่ 2: Invoice, CCL, Location -->
+						<div>
 							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								{$t('Customer Invoice')}
 							</label>
@@ -576,36 +657,10 @@
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
-
-						<!-- แถวที่ 2 -->
 						<div>
-							<label for="etd" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('ETD (Date)')}</label
-							>
-							<input
-								id="etd"
-								type="date"
-								name="etd"
-								bind:value={etdDate}
-								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label for="eta" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('ETA (Date)')}</label
-							>
-							<input
-								id="eta"
-								type="date"
-								name="eta"
-								bind:value={etaDate}
-								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label for="ccl" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('CCL (Customs Clearance)')}</label
-							>
+							<label for="ccl" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Declaration No.')}
+							</label>
 							<input
 								id="ccl"
 								type="text"
@@ -615,54 +670,45 @@
 								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
-
-						<!-- แถวที่ 3 -->
 						<div>
-							<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('Quantity')}</label
-							>
+							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+                                {$t('Location')}
+                            </label>
 							<input
-								id="quantity"
-								type="number"
-								name="quantity"
-								bind:value={qty}
-								min="0"
-								placeholder="0"
-								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('Weight')}</label
-							>
-							<input
-								id="weight"
-								type="number"
-								name="weight"
-								bind:value={wgt}
-								step="0.01"
-								min="0"
-								placeholder="0.00"
-								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label for="kgs_volume" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('KGS. Volume')}</label
-							>
-							<input
-								id="kgs_volume"
-								type="number"
-								name="kgs_volume"
-								bind:value={kgsVol}
-								step="0.01"
-								min="0"
-								placeholder="0.00"
-								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								id="location"
+								type="text"
+								name="location"
+                                bind:value={location}
+								placeholder={$t('General Location')}
+								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
 
-						<!-- แถวที่ 4 -->
+						<!-- แถวที่ 3: ETD, ETA, Liner -->
+						<div>
+							<label for="etd" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('ETD (Date)')}
+							</label>
+							<input
+								id="etd"
+								type="date"
+								name="etd"
+								bind:value={etdDate}
+								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div>
+							<label for="eta" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('ETA (Date)')}
+							</label>
+							<input
+								id="eta"
+								type="date"
+								name="eta"
+								bind:value={etaDate}
+								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
 						<div>
 							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								{$t('Liner / Carrier')}
@@ -676,20 +722,65 @@
 							/>
 							<input type="hidden" name="liner_name" value={selectedLiner?.value || ''} />
 						</div>
-						<div class="md:col-span-2">
-							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-                                {$t('Port / Location')}
-                            </label>
-							<input
-								id="location"
-								type="text"
-								name="location"
-                                bind:value={location}
-								placeholder={$t('Port of Loading / Discharge')}
-								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
+
+						<!-- แถวที่ 4: Vessel, Feeder, Port of Loading -->
+						<div>
+							<label for="vessel" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Vessel')}
+							</label>
+							<input id="vessel" type="text" name="vessel" bind:value={vessel} placeholder={$t('Vessel Name')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+						<div>
+							<label for="feeder" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Feeder')}
+							</label>
+							<input id="feeder" type="text" name="feeder" bind:value={feeder} placeholder={$t('Feeder Name')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+						<div>
+							<label for="port_of_loading" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Port of Loading')}
+							</label>
+							<input id="port_of_loading" type="text" name="port_of_loading" bind:value={portOfLoading} placeholder={$t('POL')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
 						</div>
 
+						<!-- แถวที่ 5: Port of Discharge และ Quantity/Weight/Volume Group -->
+						<div>
+							<label for="port_of_discharge" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Port of Discharge')}
+							</label>
+							<input id="port_of_discharge" type="text" name="port_of_discharge" bind:value={portOfDischarge} placeholder={$t('POD')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+
+						<div class="col-span-1 md:col-span-2">
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
+								<div>
+									<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Quantity & Unit')}</label>
+									<div class="flex gap-2">
+										<input id="quantity" type="number" name="quantity" bind:value={qty} min="0" placeholder="0" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white" />
+										<select name="unit_id" bind:value={unitId} class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+											<option value="">{$t('Unit')}</option>
+											{#each data.units || [] as unit (unit.id)}
+												<option value={unit.id}>{unit.name} ({unit.symbol})</option>
+											{/each}
+										</select>
+									</div>
+								</div>
+								<div>
+									<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+										{$t('Weight')}
+									</label>
+									<input id="weight" type="number" name="weight" bind:value={wgt} step="0.01" min="0" placeholder="0.00" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white" />
+								</div>
+								<div>
+									<label for="kgs_volume" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+										{$t('KGS. Volume')}
+									</label>
+									<input id="kgs_volume" type="number" name="kgs_volume" bind:value={kgsVol} step="0.01" min="0" placeholder="0.00" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white" />
+								</div>
+							</div>
+						</div>
+
+						<!-- แถวที่ 6: Attachments -->
 						<div class="col-span-1 mt-4 md:col-span-3">
 							<label for="attachments" class="mb-3 block text-sm font-bold text-gray-700">
 								{$t('Attachments')}
@@ -697,10 +788,11 @@
 
                             {#if data.existingAttachments && data.existingAttachments.length > 0}
 								<ul class="mb-4 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
-									{#each data.existingAttachments as file}
+									{#each data.existingAttachments as file (file.id)}
 										<li
 											class="flex items-center justify-between rounded border bg-white p-2 text-sm shadow-sm"
 										>
+											<!-- eslint-disable svelte/no-navigation-without-resolve -->
 											<a
 												href={file.url}
 												target="_blank"
@@ -752,7 +844,7 @@
 								bind:value={selectedCurrency}
 								class="w-24 border-0 bg-transparent py-2 pr-8 pl-3 text-sm font-medium text-gray-700 outline-none focus:ring-0"
 							>
-								{#each activeCurrencies as curr}
+								{#each activeCurrencies as curr (curr.code)}
 									<option value={curr.code} class="text-gray-900">
 										{curr.code}
 									</option>
@@ -774,6 +866,7 @@
 				</div>
 
 				<div class="flex items-center justify-end gap-3 border-t border-gray-200 bg-white px-8 py-5">
+					<!-- eslint-disable svelte/no-navigation-without-resolve -->
 					<a
 						href="/freight-forwarder/job-orders"
 						class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700"
@@ -807,7 +900,7 @@
 					{manageModalType === 'jobCode' ? 'Job Code' : 'Service Type'}
 				</h3>
 				<button
-					on:click={closeManageModal}
+					onclick={closeManageModal}
 					class="text-gray-400 hover:text-gray-600 focus:outline-none"
 					aria-label={$t('Close Modal')}
 					title={$t('Close Modal')}
@@ -842,20 +935,20 @@
 								bind:value={manageLabel}
 								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 								placeholder="Label..."
-								on:keydown={(e) => e.key === 'Enter' && saveManageOption()}
+								onkeydown={(e) => e.key === 'Enter' && saveManageOption()}
 							/>
 						</div>
 					</div>
 					<div class="flex gap-2">
 						<button
-							on:click={saveManageOption}
+							onclick={saveManageOption}
 							class="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
 						>
 							{editingIndex !== null ? $t('Save Changes') : $t('Add to System')}
 						</button>
 						{#if editingIndex !== null}
 							<button
-								on:click={resetManageForm}
+								onclick={resetManageForm}
 								class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
 							>
 								{$t('Cancel')}
@@ -867,7 +960,7 @@
 				<h4 class="mb-2 text-sm font-semibold text-gray-700">{$t('Current Options')}</h4>
 				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
 					<ul class="divide-y divide-gray-100">
-						{#each manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions as option, index}
+						{#each manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions as option, index (option.value)}
 							<li class="flex items-center justify-between p-3 hover:bg-gray-50">
 								<div>
 									<span class="text-sm font-semibold text-gray-800">{option.label}</span>
@@ -875,7 +968,7 @@
 								</div>
 								<div class="flex items-center gap-2">
 									<button
-										on:click={() => editManageOption(index)}
+										onclick={() => editManageOption(index)}
 										class="text-gray-400 hover:text-blue-600 focus:outline-none"
 										title={$t('Edit')}
 									>
@@ -884,7 +977,7 @@
 										</svg>
 									</button>
 									<button
-										on:click={() => confirmDeleteOption(index)}
+										onclick={() => confirmDeleteOption(index)}
 										class="text-gray-400 hover:text-red-600 focus:outline-none"
 										title={$t('Delete')}
 									>
@@ -903,7 +996,7 @@
 			</div>
 			<div class="border-t bg-gray-50 px-5 py-3 text-right">
 				<button
-					on:click={closeManageModal}
+					onclick={closeManageModal}
 					class="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300"
 				>
 					{$t('Close Modal')}
@@ -933,13 +1026,13 @@
 
 			<div class="flex justify-center gap-3">
 				<button
-					on:click={cancelDeleteOption}
+					onclick={cancelDeleteOption}
 					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
 				>
 					{$t('Cancel')}
 				</button>
 				<button
-					on:click={executeDeleteOption}
+					onclick={executeDeleteOption}
 					class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
 				>
 					{$t('Delete')}

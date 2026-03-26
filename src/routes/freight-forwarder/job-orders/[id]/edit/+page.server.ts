@@ -27,20 +27,10 @@ async function saveFile(file: File) {
 	}
 }
 
-async function deleteFile(filename: string) {
-	if (!filename) return;
-	try {
-		const filePath = path.join(UPLOAD_DIR, filename);
-		await fs.unlink(filePath);
-	} catch (e) {
-		console.error('Delete file error:', e);
-	}
-}
-
 export const load = async ({ params }) => {
 	const id = params.id;
 	const [jobs] = await pool.query('SELECT * FROM job_orders WHERE id = ?', [id]);
-	const job = (jobs as any[])[0];
+	const job = (jobs as Record<string, unknown>[])[0];
 
 	if (!job) throw redirect(302, '/freight-forwarder/job-orders');
 
@@ -68,11 +58,15 @@ export const load = async ({ params }) => {
 		'SELECT id, contract_number, title, vendor_id, contract_value FROM vendor_contracts WHERE status = "Active"'
 	);
 
+	const [units] = await pool.query(
+		'SELECT id, name, symbol FROM units ORDER BY name ASC'
+	);
+
 	const [attachmentRows] = await pool.query(
 		'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
 		[id]
 	);
-	const attachments = (attachmentRows as any[]).map((f) => ({
+	const attachments = (attachmentRows as Record<string, unknown>[]).map((f) => ({
 		...f,
 		url: `/uploads/job_orders/${f.file_system_name}`
 	}));
@@ -86,6 +80,7 @@ export const load = async ({ params }) => {
 		salesDocs: JSON.parse(JSON.stringify(salesDocs)),
 		vendors: JSON.parse(JSON.stringify(vendors)),
 		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
+		units: JSON.parse(JSON.stringify(units)),
 		existingAttachments: JSON.parse(JSON.stringify(attachments))
 	};
 };
@@ -100,7 +95,7 @@ export const actions = {
 
 		try {
 			const [existing] = await pool.query('SELECT job_number FROM job_orders WHERE id = ?', [id]);
-			const oldJobNumber = (existing as any)[0]?.job_number || '';
+			const oldJobNumber = (existing as { job_number?: string }[])[0]?.job_number || '';
 
 			const runningNum =
 				oldJobNumber.length >= 4 ? oldJobNumber.slice(-4) : String(id).padStart(4, '0');
@@ -129,11 +124,17 @@ export const actions = {
 				formData.get('eta') || null,
 				formData.get('expire_date') || null,
 				formData.get('quantity') || 0,
+				formData.get('unit_id') || null,
 				formData.get('weight') || 0,
 				formData.get('kgs_volume') || 0,
 				formData.get('remarks'),
 				formData.get('amount') || 0,
 				formData.get('currency'),
+				formData.get('booking_no') || null,
+				formData.get('vessel') || null,
+				formData.get('feeder') || null,
+				formData.get('port_of_loading') || null,
+				formData.get('port_of_discharge') || null,
 				new_job_number,
 				id
 			];
@@ -143,8 +144,10 @@ export const actions = {
                     customer_id = ?, contract_id = ?, vendor_id = ?, vendor_contract_id = ?, 
                     job_type = ?, service_type = ?, location = ?, bl_number = ?, mbl = ?, invoice_no = ?, ccl = ?,
                     liner_name = ?, job_status = ?, job_date = ?, etd = ?, eta = ?, expire_date = ?, 
-                    quantity = ?, weight = ?, kgs_volume = ?, remarks = ?, 
-                    amount = ?, currency = ?, job_number = ?, updated_at = NOW()
+                    quantity = ?, unit_id = ?, weight = ?, kgs_volume = ?, remarks = ?, 
+                    amount = ?, currency = ?, 
+					booking_no = ?, vessel = ?, feeder = ?, port_of_loading = ?, port_of_discharge = ?,
+					job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;
 			await pool.execute(sql, data);
@@ -181,18 +184,20 @@ export const actions = {
 		const attachmentId = formData.get('attachment_id');
 
 		try {
-			const [rows] = await pool.query<any[]>(
+			const [rows] = await pool.query(
 				'SELECT file_system_name FROM job_order_attachments WHERE id = ?',
 				[attachmentId]
 			);
+			
+			const fileRows = rows as { file_system_name: string }[];
 
-			if (rows.length > 0) {
-				const filename = rows[0].file_system_name;
+			if (fileRows.length > 0) {
+				const filename = fileRows[0].file_system_name;
 				const filePath = path.join(UPLOAD_DIR, filename);
 
 				try {
 					await fs.unlink(filePath);
-				} catch (err) {
+				} catch {
 					console.warn(`ลบไฟล์ในโฟลเดอร์ไม่สำเร็จ (อาจไม่มีไฟล์อยู่แล้ว): ${filePath}`);
 				}
 			}

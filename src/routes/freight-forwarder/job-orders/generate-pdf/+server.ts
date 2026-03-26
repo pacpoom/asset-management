@@ -40,6 +40,12 @@ interface JobOrderData extends RowDataPacket {
 	amount: number;
 	currency: string;
 	job_status: string;
+    
+    booking_no: string | null;
+	vessel: string | null;
+	feeder: string | null;
+	port_of_loading: string | null;
+	port_of_discharge: string | null;
 
 	customer_name: string | null;
 	company_name: string | null;
@@ -55,6 +61,7 @@ interface JobOrderData extends RowDataPacket {
 	vendor_contract_number: string | null;
 
 	created_by_name: string | null;
+    unit_name: string | null;
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -280,10 +287,22 @@ function getJobOrderHtml(
                     <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.mbl || '-'}</td>
                 </tr>
                 <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Booking No.</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">${jobData.booking_no || '-'}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('liner')}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.liner_name || '-'}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('location')}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.location || '-'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Vessel</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.vessel || '-'}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Feeder</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.feeder || '-'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Port of Loading</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.port_of_loading || '-'}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Port of Discharge</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.port_of_discharge || '-'}</td>
                 </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('etd')}</td>
@@ -299,7 +318,7 @@ function getJobOrderHtml(
                 </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('quantity')}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.quantity || 0}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.quantity || 0} ${jobData.unit_name || ''}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('weightVol')}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.weight || '0.00'} / ${jobData.kgs_volume || '0.00'}</td>
                 </tr>
@@ -381,13 +400,15 @@ export const GET = async ({ url }) => {
                    con.contract_number,
                    v.name as vendor_name, v.company_name as vendor_company_name, v.address as vendor_address, v.tax_id as vendor_tax_id,
                    vc.contract_number as vendor_contract_number,
-                   u.full_name as created_by_name
+                   u.full_name as created_by_name,
+                   un.name as unit_name
             FROM job_orders j
             LEFT JOIN customers c ON j.customer_id = c.id
             LEFT JOIN contracts con ON j.contract_id = con.id
             LEFT JOIN vendors v ON j.vendor_id = v.id
             LEFT JOIN vendor_contracts vc ON j.vendor_contract_id = vc.id
             LEFT JOIN users u ON j.created_by = u.id
+            LEFT JOIN units un ON j.unit_id = un.id
             WHERE j.id = ?
         `,
 			[id]

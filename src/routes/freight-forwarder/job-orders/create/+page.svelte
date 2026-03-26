@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import Select from 'svelte-select';
@@ -7,7 +8,54 @@
 
 	export let data;
 
-	$: customerOptions = data.customers.map((c: any) => ({
+	interface Customer {
+		id: number;
+		name: string;
+		company_name: string | null;
+		address: string | null;
+	}
+
+	interface Contract {
+		id: number;
+		customer_id: number;
+		contract_number: string;
+		title: string;
+	}
+
+	interface Liner {
+		name: string;
+		code: string | null;
+	}
+
+	interface Vendor {
+		id: number;
+		name: string;
+		company_name: string | null;
+		address: string | null;
+	}
+
+	interface VendorContract {
+		id: number;
+		vendor_id: number;
+		contract_number: string;
+		title: string;
+		contract_value: number;
+	}
+
+	interface Currency {
+		code: string;
+		name?: string;
+		symbol?: string;
+	}
+
+	interface SelectOption {
+		value: string | number;
+		label: string;
+		address?: string | null;
+		amount?: number;
+	}
+
+	$: customerOptions = data.customers.map((c: Customer) => ({
 		value: c.id,
 		label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
 		address: c.address
@@ -15,25 +63,44 @@
 	$: allContracts = data.contracts || [];
 	$: filteredContracts = selectedCustomer
 		? allContracts
-				.filter((c: any) => c.customer_id == selectedCustomer.value)
-				.map((c: any) => ({ value: c.id, label: `${c.contract_number} (${c.title})` }))
+				.filter((c: Contract) => c.customer_id == selectedCustomer?.value)
+				.map((c: Contract) => ({ value: c.id, label: `${c.contract_number} (${c.title})` }))
 		: [];
 
-	$: linerOptions = data.liners.map((l: any) => ({
+	$: linerOptions = data.liners.map((l: Liner) => ({
 		value: l.name,
 		label: l.code ? `${l.name} (${l.code})` : l.name
 	}));
 
-	let selectedLiner: any = null;
+	let selectedLiner: SelectOption | null = null;
 
 	let jobAmount: number | string = '';
 
 	let isSaving = false;
-	let selectedCustomer: any = null;
-	let selectedContract: any = null;
+	let selectedCustomer: SelectOption | null = null;
+	let selectedContract: SelectOption | null = null;
+	
 	let jobDate = new Date().toISOString().split('T')[0];
+	let expireDate = '';
+	let isExpireDateManual = false;
 
-	let jobTypeOptions = [
+	// คำนวณ Expire Date ให้เป็น 1 เดือนหลังจาก Job Date อัตโนมัติ (หากผู้ใช้ยังไม่ได้เลือกเปลี่ยนเอง)
+	$: if (jobDate && !isExpireDateManual) {
+		const [year, month, day] = jobDate.split('-').map(Number);
+		// Date(year, monthIndex, day) โดยที่ monthIndex เริ่มจาก 0
+		// การใช้ month (1-12) ปกติใส่เข้าไปเป็นค่าเดือน จะถือเป็นการบวกไป 1 เดือนพอดี
+		const nextMonthDate = new Date(year, month, day);
+		
+		const yyyy = nextMonthDate.getFullYear();
+		const mm = String(nextMonthDate.getMonth() + 1).padStart(2, '0');
+		const dd = String(nextMonthDate.getDate()).padStart(2, '0');
+		
+		expireDate = `${yyyy}-${mm}-${dd}`;
+	}
+
+	type JobTypeOption = { value: string; label: string };
+
+	let jobTypeOptions: JobTypeOption[] = [
 		{ value: 'SI', label: 'SI (Sea Import)' },
 		{ value: 'SE', label: 'SE (Sea Export)' },
 		{ value: 'AI', label: 'AI (Air Import)' },
@@ -41,14 +108,15 @@
 		{ value: 'SP', label: 'SP (Special Project)' }
 	];
 
-	let selectedJobType: any = jobTypeOptions[0];
+	let selectedJobType: JobTypeOption = jobTypeOptions[0];
 	$: padding = data?.paddingLength ?? 4;
 	$: nextSeqNum = data?.nextSequence ?? 1;
 
-	$: activeCurrencies =
+	$: activeCurrencies = (
 		data?.currencies && data.currencies.length > 0
 			? data.currencies
-			: [{ code: 'THB' }, { code: 'USD' }, { code: 'CNY' }];
+			: [{ code: 'THB' }, { code: 'USD' }, { code: 'CNY' }]
+	) as Currency[];
 
 	let selectedCurrency = 'THB';
 	$: parsedDate = jobDate ? new Date(jobDate) : new Date();
@@ -160,20 +228,20 @@
 		showToast($t('Option deleted successfully'), 'success');
 	}
 
-	$: vendorOptions = (data.vendors || []).map((v: any) => ({
+	$: vendorOptions = (data.vendors || []).map((v: Vendor) => ({
 		value: v.id,
 		label: v.company_name ? `${v.company_name} (${v.name})` : v.name,
 		address: v.address
 	}));
 
 	let allVendorContracts = data.vendorContracts || [];
-	let selectedVendor: any = null;
-	let selectedVendorContract: any = null;
+	let selectedVendor: SelectOption | null = null;
+	let selectedVendorContract: SelectOption | null = null;
 
 	$: filteredVendorContracts = selectedVendor
 		? allVendorContracts
-				.filter((c: any) => c.vendor_id == selectedVendor.value)
-				.map((c: any) => ({
+				.filter((c: VendorContract) => c.vendor_id == selectedVendor?.value)
+				.map((c: VendorContract) => ({
 					value: c.id,
 					label: `${c.contract_number} (${c.title})`,
 					amount: c.contract_value
@@ -181,6 +249,7 @@
 		: [];
 </script>
 
+<!-- eslint-disable svelte/no-navigation-without-resolve -->
 {#if toastMessage}
 	<div
 		class="animate-in fade-in slide-in-from-top-4 fixed top-6 right-6 z-[70] flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-bold shadow-xl {toastType ===
@@ -278,12 +347,15 @@
 				return async ({ update, result }) => {
 					await update();
 					isSaving = false;
-					if (result.type === 'success') goto('/freight-forwarder/job-orders');
+					if (result.type === 'success') {
+						goto('/freight-forwarder/job-orders');
+					}
 				};
 			}}
 		>
 			<div class="divide-y divide-gray-100">
 				<div class="grid grid-cols-1 gap-8 p-8 lg:grid-cols-2">
+					<!-- คอลัมน์ซ้าย: ข้อมูลลูกค้าและผู้จำหน่าย -->
 					<div class="space-y-6">
 						<div class="rounded-lg border border-blue-100 bg-blue-50/30 p-4">
 							<h2 class="mb-4 text-xs font-bold tracking-wider text-blue-800 uppercase">
@@ -386,6 +458,7 @@
 						</div>
 					</div>
 
+					<!-- คอลัมน์ขวา: ข้อมูลประเภทและสถานะของ Job -->
 					<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50/50 p-5">
 						<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">
 							{$t('Job Details')}
@@ -412,6 +485,8 @@
 									id="expire_date"
 									type="date"
 									name="expire_date"
+									bind:value={expireDate}
+									on:change={() => (isExpireDateManual = true)}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								/>
 							</div>
@@ -474,7 +549,7 @@
 										class="w-full flex-grow rounded-md border-gray-300 font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 										required
 									>
-										{#each serviceTypeOptions as option}
+										{#each serviceTypeOptions as option (option.value)}
 											<option value={option.value}>{option.label}</option>
 										{/each}
 									</select>
@@ -518,157 +593,132 @@
 					</div>
 				</div>
 
-				<div class="p-8">
-					<h2 class="mb-4 border-b pb-1 text-xs font-bold tracking-wider text-gray-400 uppercase">
+				<div class="p-8 border-t border-gray-100">
+					<h2 class="mb-4 border-b pb-2 text-sm font-bold tracking-wider text-gray-600 uppercase">
 						{$t('Shipment Information')}
 					</h2>
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-						<!-- แถวที่ 1: BL, MBL, Invoice -->
+						
+						<!-- แถวที่ 1: BL, MBL, Booking No. -->
 						<div>
 							<label for="bl_number" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 								>{$t('HBL Number')} <span class="text-red-500">*</span></label
 							>
-							<input
-								id="bl_number"
-								type="text"
-								name="bl_number"
-								placeholder="HBL-XXXXXXX"
-								class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500"
-								required
-							/>
+							<input id="bl_number" type="text" name="bl_number" placeholder="HBL-XXXXXXX" class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500" required />
 						</div>
 						<div>
 							<label for="mbl" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 								>{$t('MB/L')}</label
 							>
-							<input
-								id="mbl"
-								type="text"
-								name="mbl"
-								placeholder="MBL-XXXXXXX"
-								class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500"
-							/>
+							<input id="mbl" type="text" name="mbl" placeholder="MBL-XXXXXXX" class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500" />
 						</div>
+						<div>
+							<label for="booking_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Booking No.')}</label
+							>
+							<input id="booking_no" type="text" name="booking_no" placeholder="BKG-XXXXXXX" class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+
+						<!-- แถวที่ 2: Invoice, CCL, Location (General) -->
 						<div>
 							<label for="invoice_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								{$t('Customer Invoice')}
 							</label>
-							<input
-								type="text"
-								id="invoice_no"
-								name="invoice_no"
-								placeholder={$t('e.g. INV-001, INV-002')}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
+							<input type="text" id="invoice_no" name="invoice_no" placeholder={$t('e.g. INV-001, INV-002')} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+						<div>
+							<label for="ccl" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Declaration No.')}</label
+							>
+							<input id="ccl" type="text" name="ccl" placeholder={$t('Enter CCL info')} class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+						<div>
+							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Location')}</label
+							>
+							<input id="location" type="text" name="location" placeholder={$t('General Location')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
 						</div>
 
-						<!-- แถวที่ 2: ETD, ETA, CCL -->
+						<!-- แถวที่ 3: ETD, ETA, Liner -->
 						<div>
 							<label for="etd" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 								>{$t('ETD (Date)')}</label
 							>
-							<input
-								id="etd"
-								type="date"
-								name="etd"
-								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
+							<input id="etd" type="date" name="etd" class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
 						</div>
 						<div>
 							<label for="eta" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 								>{$t('ETA (Date)')}</label
 							>
-							<input
-								id="eta"
-								type="date"
-								name="eta"
-								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
+							<input id="eta" type="date" name="eta" class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
 						</div>
-						<div>
-							<label for="ccl" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('CCL (Customs Clearance)')}</label
-							>
-							<input
-								id="ccl"
-								type="text"
-								name="ccl"
-								placeholder={$t('Enter CCL info')}
-								class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-
-						<!-- แถวที่ 3: Quantity, Weight, KGS Volume -->
-						<div>
-							<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('Quantity')}</label
-							>
-							<input
-								id="quantity"
-								type="number"
-								name="quantity"
-								min="0"
-								placeholder="0"
-								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('Weight')}</label
-							>
-							<input
-								id="weight"
-								type="number"
-								name="weight"
-								step="0.01"
-								min="0"
-								placeholder="0.00"
-								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label for="kgs_volume" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('KGS. Volume')}</label
-							>
-							<input
-								id="kgs_volume"
-								type="number"
-								name="kgs_volume"
-								step="0.01"
-								min="0"
-								placeholder="0.00"
-								class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-
-						<!-- แถวที่ 4: Liner, Location -->
 						<div>
 							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								{$t('Liner / Carrier')}
 							</div>
-							<Select
-								items={linerOptions}
-								bind:value={selectedLiner}
-								placeholder={$t('Search or select liner...')}
-								container={browser ? document.body : null}
-								class="svelte-select-custom"
-							/>
+							<Select items={linerOptions} bind:value={selectedLiner} placeholder={$t('Search or select liner...')} container={browser ? document.body : null} class="svelte-select-custom" />
 							<input type="hidden" name="liner_name" value={selectedLiner?.value || ''} />
 						</div>
-						<div class="md:col-span-2">
-							<label for="location" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-								>{$t('Port / Location')}</label
+
+						<!-- แถวที่ 4: Vessel, Feeder, Port of Loading -->
+						<div>
+							<label for="vessel" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Vessel')}</label
 							>
-							<input
-								id="location"
-								type="text"
-								name="location"
-								placeholder={$t('Port of Loading / Discharge')}
-								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
+							<input id="vessel" type="text" name="vessel" placeholder={$t('Vessel Name')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+						<div>
+							<label for="feeder" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Feeder')}</label
+							>
+							<input id="feeder" type="text" name="feeder" placeholder={$t('Feeder Name')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+						<div>
+							<label for="port_of_loading" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Port of Loading')}</label
+							>
+							<input id="port_of_loading" type="text" name="port_of_loading" placeholder={$t('POL')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
 						</div>
 
-						<div class="col-span-1 mt-4 md:col-span-3">
+						<!-- แถวที่ 5: Port of Discharge และ Quantity/Weight/Volume Group -->
+						<div>
+							<label for="port_of_discharge" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+								>{$t('Port of Discharge')}</label
+							>
+							<input id="port_of_discharge" type="text" name="port_of_discharge" placeholder={$t('POD')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+
+						<div class="col-span-1 md:col-span-2">
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
+								<div>
+									<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Quantity & Unit')}</label>
+									<div class="flex gap-2">
+										<input id="quantity" type="number" name="quantity" min="0" placeholder="0" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+										<select name="unit_id" class="w-full rounded-md border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+											<option value="">{$t('Unit')}</option>
+											{#each data.units as unit (unit.id)}
+												<option value={unit.id}>{unit.name} ({unit.symbol})</option>
+											{/each}
+										</select>
+									</div>
+								</div>
+								<div>
+									<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+										>{$t('Weight')}</label
+									>
+									<input id="weight" type="number" name="weight" step="0.01" min="0" placeholder="0.00" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white" />
+								</div>
+								<div>
+									<label for="kgs_volume" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+										>{$t('KGS. Volume')}</label
+									>
+									<input id="kgs_volume" type="number" name="kgs_volume" step="0.01" min="0" placeholder="0.00" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white" />
+								</div>
+							</div>
+						</div>
+
+						<!-- แถวที่ 6: Attachments -->
+						<div class="col-span-1 mt-2 md:col-span-3">
 							<label for="attachments" class="mb-1 block text-sm font-semibold text-gray-700">
 								{$t('Attachments')}
 							</label>
@@ -709,7 +759,7 @@
 								bind:value={selectedCurrency}
 								class="w-24 border-0 bg-transparent py-2 pr-8 pl-3 text-sm font-medium text-gray-700 outline-none focus:ring-0"
 							>
-								{#each activeCurrencies as curr}
+								{#each activeCurrencies as curr (curr.code)}
 									<option value={curr.code} class="text-gray-900">
 										{curr.code}
 									</option>
@@ -733,6 +783,7 @@
 				<div
 					class="flex items-center justify-end gap-3 border-t border-gray-200 bg-white px-8 py-5"
 				>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 					<a
 						href="/freight-forwarder/job-orders"
 						class="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700"
@@ -858,7 +909,7 @@
 				<h4 class="mb-2 text-sm font-semibold text-gray-700">{$t('Current Options')}</h4>
 				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
 					<ul class="divide-y divide-gray-100">
-						{#each manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions as option, index}
+						{#each manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions as option, index (option.value)}
 							<li class="flex items-center justify-between p-3 hover:bg-gray-50">
 								<div>
 									<span class="text-sm font-semibold text-gray-800">{option.label}</span>

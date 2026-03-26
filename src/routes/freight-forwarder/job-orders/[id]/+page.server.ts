@@ -14,13 +14,15 @@ export const load = async ({ params }) => {
 			       con.contract_number,
                    v.name as vendor_name, v.company_name as vendor_company_name, v.address as vendor_address, v.tax_id as vendor_tax_id,
                    vc.contract_number as vendor_contract_number,
-			       u.full_name as created_by_name
+			       u.full_name as created_by_name,
+                   un.name as unit_name, un.symbol as unit_symbol
 			FROM job_orders j
 			LEFT JOIN customers c ON j.customer_id = c.id
 			LEFT JOIN contracts con ON j.contract_id = con.id
             LEFT JOIN vendors v ON j.vendor_id = v.id
             LEFT JOIN vendor_contracts vc ON j.vendor_contract_id = vc.id
 			LEFT JOIN users u ON j.created_by = u.id
+            LEFT JOIN units un ON j.unit_id = un.id
 			WHERE j.id = ?
 		`,
 			[id]

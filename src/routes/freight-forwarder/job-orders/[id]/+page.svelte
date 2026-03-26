@@ -245,8 +245,8 @@
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">{$t('Shipment Details')}</h3>
 	<div class="p-6">
-		<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <!-- คอลัมน์ที่ 1 -->
+		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <!-- คอลัมน์ที่ 1: ข้อมูลหลัก และ เอกสาร -->
 			<div class="space-y-4">
 				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
 					<span class="text-sm font-medium text-gray-600">{$t('Job Type')}</span>
@@ -263,13 +263,21 @@
                     <span class="text-sm font-medium text-gray-600">{$t('MB/L')}</span>
                     <span class="font-mono font-medium text-gray-900">{job.mbl || '-'}</span>
                 </div>
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Booking No.')}</span>
+                    <span class="font-mono font-medium text-gray-900">{job.booking_no || '-'}</span>
+                </div>
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <span class="text-sm font-medium text-gray-600">{$t('Liner / Carrier')}</span>
-                    <span class="font-medium text-gray-900">{job.liner_name || '-'}</span>
+                    <span class="text-sm font-medium text-gray-600">{$t('Customer Invoice')}</span>
+                    <span class="font-medium text-gray-900">{job.invoice_no || '-'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Declaration No.')}</span>
+                    <span class="font-medium text-gray-900">{job.ccl || '-'}</span>
                 </div>
 			</div>
 
-            <!-- คอลัมน์ที่ 2 -->
+            <!-- คอลัมน์ที่ 2: ข้อมูลเส้นทางและเรือ -->
 			<div class="space-y-4">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
                     <span class="text-sm font-medium text-gray-600">{$t('ETD')}</span>
@@ -279,21 +287,37 @@
                     <span class="text-sm font-medium text-gray-600">{$t('ETA')}</span>
                     <span class="font-medium text-gray-900">{formatDate(job.eta)}</span>
                 </div>
-                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <span class="text-sm font-medium text-gray-600">{$t('Port / Location')}</span>
-                    <span class="font-medium text-gray-900">{job.location || '-'}</span>
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Liner / Carrier')}</span>
+                    <span class="font-medium text-gray-900">{job.liner_name || '-'}</span>
                 </div>
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <span class="text-sm font-medium text-gray-600">{$t('CCL')}</span>
-                    <span class="font-medium text-gray-900">{job.ccl || '-'}</span>
+                    <span class="text-sm font-medium text-gray-600">{$t('Vessel')}</span>
+                    <span class="font-medium text-gray-900">{job.vessel || '-'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Feeder')}</span>
+                    <span class="font-medium text-gray-900">{job.feeder || '-'}</span>
                 </div>
 			</div>
 
-            <!-- คอลัมน์ที่ 3 -->
+            <!-- คอลัมน์ที่ 3: ข้อมูลสถานที่และขนาด/น้ำหนัก -->
             <div class="space-y-4">
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Location')}</span>
+                    <span class="font-medium text-gray-900">{job.location || '-'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Port of Loading')}</span>
+                    <span class="font-medium text-gray-900">{job.port_of_loading || '-'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Port of Discharge')}</span>
+                    <span class="font-medium text-gray-900">{job.port_of_discharge || '-'}</span>
+                </div>
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
                     <span class="text-sm font-medium text-gray-600">{$t('Quantity')}</span>
-                    <span class="font-medium text-gray-900">{job.quantity || 0}</span>
+                    <span class="font-medium text-gray-900">{job.quantity || 0} {job.unit_name || ''}</span>
                 </div>
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
                     <span class="text-sm font-medium text-gray-600">{$t('Weight')}</span>
@@ -303,14 +327,21 @@
                     <span class="text-sm font-medium text-gray-600">{$t('KGS. Volume')}</span>
                     <span class="font-medium text-gray-900">{job.kgs_volume || '0.00'}</span>
                 </div>
-				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <span class="text-sm font-medium text-gray-600">{$t('Customer Invoice')}</span>
-                    <span class="font-medium text-gray-900">{job.invoice_no || '-'}</span>
-                </div>
             </div>
 		</div>
 	</div>
 </div>
+
+{#if job.remarks}
+<div class="mb-6 rounded-lg border bg-white shadow-sm overflow-hidden">
+	<div class="flex justify-between items-center border-b p-4 bg-gray-50">
+		<h2 class="text-lg font-semibold text-gray-700">{$t('Remarks')}</h2>
+	</div>
+	<div class="p-6">
+		<p class="whitespace-pre-wrap text-sm text-gray-700">{job.remarks}</p>
+	</div>
+</div>
+{/if}
 
 <!-- ======================= -->
 <!-- ATTACHMENTS             -->
