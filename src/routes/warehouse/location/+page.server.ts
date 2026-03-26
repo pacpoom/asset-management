@@ -4,6 +4,7 @@ import pool from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
 import type { RowDataPacket } from 'mysql2';
 
+// --- Types ---
 interface SubWarehouse extends RowDataPacket {
 	id: number;
 	code: string;
@@ -27,12 +28,14 @@ interface Location extends RowDataPacket {
 	updated_at: string;
 }
 
+// --- Helper Functions ---
 function parseFloatOrZero(value: FormDataEntryValue | null): number {
 	if (value === null || value === undefined || value === '') return 0;
 	const num = parseFloat(value.toString());
 	return isNaN(num) ? 0 : num;
 }
 
+// --- Load Function ---
 export const load: PageServerLoad = async ({ url, locals }) => {
 	checkPermission(locals, 'view locations');
 
@@ -47,13 +50,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	const offset = (page - 1) * limit;
 
 	try {
+		// Fetch Sub Warehouses for dropdowns and management
 		const [subWarehouses] = await pool.execute<SubWarehouse[]>(
 			'SELECT * FROM sub_warehouses ORDER BY name ASC'
 		);
 
 		let whereClause = ' WHERE 1=1 ';
 		const params: (string | number)[] = [];
-
+		
 		if (searchQuery) {
 			whereClause += ` AND (
                 l.location_code LIKE ? OR
@@ -83,14 +87,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             ${whereClause}
             ORDER BY l.zone ASC, l.area ASC, l.bin ASC
             LIMIT ${limit} OFFSET ${offset}
-        `;
-
+        `; 
+		
 		const [locationRows] = await pool.execute<Location[]>(locationsSql, params);
-
-		const [companyRows] = await pool.execute<RowDataPacket[]>(
-			'SELECT name, system_name, logo_path FROM company WHERE id = 1 LIMIT 1'
-		);
-		const company = companyRows.length > 0 ? companyRows[0] : null;
 
 		return {
 			locations: locationRows,
@@ -98,8 +97,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			currentPage: page,
 			totalPages,
 			limit,
-			searchQuery,
-			company
+			searchQuery
 		};
 	} catch (err: any) {
 		console.error('Failed to load locations data:', err.message, err.stack);
@@ -107,7 +105,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	}
 };
 
+// --- Actions ---
 export const actions: Actions = {
+	// ---------------- LOCATION ACTIONS ----------------
 	saveLocation: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const id = formData.get('id')?.toString();
@@ -147,7 +147,7 @@ export const actions: Actions = {
 			}
 
 			const [existingLocations] = await connection.execute<any[]>(codeCheckSql, codeCheckParams);
-
+			
 			if (existingLocations.length > 0) {
 				connection.release();
 				return fail(400, {
@@ -166,44 +166,23 @@ export const actions: Actions = {
                     sub_warehouse_id = ?, location_code = ?, zone = ?, area = ?, bin = ?, min_capacity = ?, max_capacity = ?
                     WHERE id = ?`;
 				await connection.execute(sql, [
-					swId,
-					location_code,
-					zone,
-					area,
-					bin,
-					min_capacity,
-					max_capacity,
-					parseInt(id)
+					swId, location_code, zone, area, bin, min_capacity, max_capacity, parseInt(id)
 				]);
 			} else {
 				const sql = `INSERT INTO locations (
                     sub_warehouse_id, location_code, zone, area, bin, min_capacity, max_capacity
                  ) VALUES (?, ?, ?, ?, ?, ?, ?)`;
 				await connection.execute(sql, [
-					swId,
-					location_code,
-					zone,
-					area,
-					bin,
-					min_capacity,
-					max_capacity
+					swId, location_code, zone, area, bin, min_capacity, max_capacity
 				]);
 			}
 
 			await connection.commit();
-			return {
-				action: 'saveLocation',
-				success: true,
-				message: `Location '${location_code}' saved successfully!`
-			};
+			return { action: 'saveLocation', success: true, message: `Location '${location_code}' saved successfully!` };
 		} catch (err: any) {
 			await connection.rollback();
 			console.error(`Database error on saving location: ${err.message}`, err.stack);
-			return fail(500, {
-				action: 'saveLocation',
-				success: false,
-				message: `Failed to save location. Error: ${err.message}`
-			});
+			return fail(500, { action: 'saveLocation', success: false, message: `Failed to save location. Error: ${err.message}` });
 		} finally {
 			connection.release();
 		}
@@ -217,38 +196,26 @@ export const actions: Actions = {
 		if (!id) return fail(400, { action: 'deleteLocation', success: false, message: 'Invalid ID.' });
 
 		try {
-			const [deleteResult] = await pool.execute('DELETE FROM locations WHERE id = ?', [
-				parseInt(id)
-			]);
+			const [deleteResult] = await pool.execute('DELETE FROM locations WHERE id = ?', [parseInt(id)]);
 			if ((deleteResult as any).affectedRows === 0) {
-				return fail(404, {
-					action: 'deleteLocation',
-					success: false,
-					message: 'Location not found.'
-				});
+				return fail(404, { action: 'deleteLocation', success: false, message: 'Location not found.' });
 			}
 			return { action: 'deleteLocation', success: true, message: 'Location deleted successfully.' };
 		} catch (error: any) {
 			if (error.code === 'ER_ROW_IS_REFERENCED_2') {
-				return fail(409, {
-					action: 'deleteLocation',
-					success: false,
-					message: 'Cannot delete location. It is currently in use by inventory items.'
-				});
+				return fail(409, { action: 'deleteLocation', success: false, message: 'Cannot delete location. It is currently in use by inventory items.' });
 			}
-			return fail(500, {
-				action: 'deleteLocation',
-				success: false,
-				message: `Failed to delete location. Error: ${error.message}`
-			});
+			return fail(500, { action: 'deleteLocation', success: false, message: `Failed to delete location. Error: ${error.message}` });
 		}
 	},
 
+	// ---------------- SUB WAREHOUSE ACTIONS ----------------
 	saveSubWarehouse: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const id = formData.get('id')?.toString();
 
-		checkPermission(locals, id ? 'edit locations' : 'create locations');
+		// You might want to create specific permissions like 'manage sub warehouses' later
+		checkPermission(locals, id ? 'edit locations' : 'create locations'); 
 
 		const code = formData.get('code')?.toString()?.trim() || '';
 		const name = formData.get('name')?.toString()?.trim() || '';
@@ -270,25 +237,13 @@ export const actions: Actions = {
 				const sql = `INSERT INTO sub_warehouses (code, name, description) VALUES (?, ?, ?)`;
 				await pool.execute(sql, [code, name, description]);
 			}
-			return {
-				action: 'saveSubWarehouse',
-				success: true,
-				message: `Sub Warehouse '${name}' saved successfully!`
-			};
+			return { action: 'saveSubWarehouse', success: true, message: `Sub Warehouse '${name}' saved successfully!` };
 		} catch (err: any) {
 			if (err.code === 'ER_DUP_ENTRY') {
-				return fail(400, {
-					action: 'saveSubWarehouse',
-					success: false,
-					message: `The code "${code}" is already in use.`
-				});
+				return fail(400, { action: 'saveSubWarehouse', success: false, message: `The code "${code}" is already in use.` });
 			}
 			console.error(`Database error on saving Sub Warehouse: ${err.message}`, err.stack);
-			return fail(500, {
-				action: 'saveSubWarehouse',
-				success: false,
-				message: `Failed to save Sub Warehouse. Error: ${err.message}`
-			});
+			return fail(500, { action: 'saveSubWarehouse', success: false, message: `Failed to save Sub Warehouse. Error: ${err.message}` });
 		}
 	},
 
@@ -297,39 +252,19 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 
-		if (!id)
-			return fail(400, { action: 'deleteSubWarehouse', success: false, message: 'Invalid ID.' });
+		if (!id) return fail(400, { action: 'deleteSubWarehouse', success: false, message: 'Invalid ID.' });
 
 		try {
-			const [deleteResult] = await pool.execute('DELETE FROM sub_warehouses WHERE id = ?', [
-				parseInt(id)
-			]);
+			const [deleteResult] = await pool.execute('DELETE FROM sub_warehouses WHERE id = ?', [parseInt(id)]);
 			if ((deleteResult as any).affectedRows === 0) {
-				return fail(404, {
-					action: 'deleteSubWarehouse',
-					success: false,
-					message: 'Sub Warehouse not found.'
-				});
+				return fail(404, { action: 'deleteSubWarehouse', success: false, message: 'Sub Warehouse not found.' });
 			}
-			return {
-				action: 'deleteSubWarehouse',
-				success: true,
-				message: 'Sub Warehouse deleted successfully.'
-			};
+			return { action: 'deleteSubWarehouse', success: true, message: 'Sub Warehouse deleted successfully.' };
 		} catch (error: any) {
 			if (error.code === 'ER_ROW_IS_REFERENCED_2') {
-				return fail(409, {
-					action: 'deleteSubWarehouse',
-					success: false,
-					message:
-						'Cannot delete this Sub Warehouse. It is currently linked to one or more Locations.'
-				});
+				return fail(409, { action: 'deleteSubWarehouse', success: false, message: 'Cannot delete this Sub Warehouse. It is currently linked to one or more Locations.' });
 			}
-			return fail(500, {
-				action: 'deleteSubWarehouse',
-				success: false,
-				message: `Failed to delete. Error: ${error.message}`
-			});
+			return fail(500, { action: 'deleteSubWarehouse', success: false, message: `Failed to delete. Error: ${error.message}` });
 		}
 	}
 };
