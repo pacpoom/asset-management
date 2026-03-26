@@ -37,11 +37,16 @@
 	let printCount = $state(1);
 	let qtyPerLabel = $state(100);
 	
-	// Paper, QR Size & Font Size State
+	// ค่าจาก Database
+	let companyName = $state(data.companyName || 'MY COMPANY CO., LTD.');
+	let companyLogo = $state(data.companyLogo);
+	
+	// Paper, QR Size, Logo Size & Font Size State
 	let paperWidth = $state(5);
 	let paperHeight = $state(3);
-	let qrSize = $state(1.6); // ขนาดเริ่มต้นของ QR Code (นิ้ว)
-	let fontSize = $state(12); // ขนาดตัวอักษรเริ่มต้น (pt)
+	let qrSize = $state(1.5);
+	let logoSize = $state(0.8); // ขนาดโลโก้เริ่มต้น (ความกว้างนิ้ว)
+	let fontSize = $state(12);
 	
 	// Default Lot = วันนี้ (YYYYMMDD)
 	const today = new Date();
@@ -50,16 +55,18 @@
 
 	const isAllSelected = $derived(data.items.length > 0 && selectedItemIds.length === data.items.length);
 
-	// โหลดค่าขนาดกระดาษ, QR Code และ Font จาก Local Storage เมื่อเปิดหน้าเว็บ
+	// โหลดค่าขนาดกระดาษ, QR Code, Logo และ Font จาก Local Storage
 	$effect(() => {
 		const savedWidth = localStorage.getItem('labelPaperWidth');
 		const savedHeight = localStorage.getItem('labelPaperHeight');
 		const savedQrSize = localStorage.getItem('labelQrSize');
+		const savedLogoSize = localStorage.getItem('labelLogoSize');
 		const savedFontSize = localStorage.getItem('labelFontSize');
 		
 		if (savedWidth) paperWidth = parseFloat(savedWidth);
 		if (savedHeight) paperHeight = parseFloat(savedHeight);
 		if (savedQrSize) qrSize = parseFloat(savedQrSize);
+		if (savedLogoSize) logoSize = parseFloat(savedLogoSize);
 		if (savedFontSize) fontSize = parseFloat(savedFontSize);
 	});
 
@@ -154,7 +161,30 @@
 			localStorage.setItem('labelPaperWidth', paperWidth.toString());
 			localStorage.setItem('labelPaperHeight', paperHeight.toString());
 			localStorage.setItem('labelQrSize', qrSize.toString());
+			localStorage.setItem('labelLogoSize', logoSize.toString());
 			localStorage.setItem('labelFontSize', fontSize.toString());
+
+			// 0. โหลด Logo เป็น Base64 ถ้ามี Logo Path
+			let loadedLogo: { base64: string, ratio: number } | null = null;
+			if (companyLogo) {
+				try {
+					const response = await fetch(companyLogo);
+					const blob = await response.blob();
+					loadedLogo = await new Promise((resolve, reject) => {
+						const reader = new FileReader();
+						reader.onload = () => {
+							const img = new Image();
+							img.onload = () => resolve({ base64: reader.result as string, ratio: img.height / img.width });
+							img.onerror = reject;
+							img.src = reader.result as string;
+						};
+						reader.onerror = reject;
+						reader.readAsDataURL(blob);
+					});
+				} catch (e) {
+					console.error('Failed to load company logo for PDF', e);
+				}
+			}
 
 			// 1. เรียก API เพื่อขอ Box ID และ Data ของ Label
 			const res = await fetch('/warehouse/items/generate-labels', {
@@ -191,63 +221,95 @@
 				doc.setLineWidth(0.02);
 				doc.rect(0.15, 0.15, paperWidth - 0.3, paperHeight - 0.3);
 
-				// --- ข้อความฝั่งซ้าย ---
-				doc.setFont('helvetica', 'bold');
-				doc.setFontSize(fontSize + 4); // Item Code ใหญ่กว่าปกติ 4pt
-				doc.text(`Item: ${label.item_code}`, 0.3, 0.5);
+				// ตำแหน่ง Margin เริ่มต้นของฝั่งซ้าย
+				const leftX = 0.3;
+				let currentY = 0.45; // เริ่มต้นที่ Y = 0.45 นิ้วจากขอบบน
 
-				doc.setFont('helvetica', 'normal');
-				doc.setFontSize(fontSize); // ขนาดปกติสำหรับ Item Name
+				// --- 1. Item Code (มุมซ้ายบน) ---
+				doc.setFont('helvetica', 'bold');
+				doc.setFontSize(fontSize + 4); 
+				doc.text(`${label.item_code}`, leftX, currentY);
+
+				// --- 2. QR Code (มุมขวาบน) ---
+				const qrXPos = paperWidth - qrSize - 0.25; // ห่างขอบขวาเล็กน้อย
+				const qrYPos = 0.25; // วางชิดมุมขวาบน
 				
-				// จำกัดข้อความชื่อสินค้าไม่เกิน 28 ตัวอักษร
-				const maxChars = 28;
+				const qrDataUrl = await QRCode.toDataURL(label.qr_text, {
+					errorCorrectionLevel: 'M',
+					margin: 1,
+					width: 250 
+				});
+				doc.addImage(qrDataUrl, 'PNG', qrXPos, qrYPos, qrSize, qrSize);
+				
+				// นำส่วนของข้อความใต้ QR Code ออกแล้ว
+
+				// --- 3. Item Name (ต่อจาก Item Code) ---
+				currentY += 0.35; // ขยับลงมาจาก Item Code
+				doc.setFont('helvetica', 'normal');
+				doc.setFontSize(fontSize); 
+				
+				const maxChars = 35; // เพิ่มจำนวนตัวอักษรเพราะเว้นพื้นที่ให้ฝั่งซ้ายได้มากขึ้น
 				const displayName = label.item_name.length > maxChars 
 					? label.item_name.substring(0, maxChars) + '...' 
 					: label.item_name;
 				
-				// ตัดคำตามความกว้างกระดาษ (เว้นที่ให้ QR Code ด้านขวา)
-				const textMaxWidth = paperWidth - qrSize - 0.6; // ระยะเผื่อ Margin ซ้าย/ขวา และขนาดของ QR Code
+				const textMaxWidth = paperWidth - qrSize - 0.5; // ไม่ให้ทับ QR Code
 				const splitName = doc.splitTextToSize(displayName, textMaxWidth > 1 ? textMaxWidth : 1);
-				doc.text(splitName, 0.3, 0.8);
+				doc.text(splitName, leftX, currentY);
 
-				doc.setFontSize(fontSize + 2); // Box ID ใหญ่กว่าปกติ 2pt
-				doc.setFont('helvetica', 'bold');
-				doc.text(`Box ID: ${label.box_id}`, 0.3, 1.7);
-				
-				doc.setFont('helvetica', 'normal');
-				doc.setFontSize(fontSize); // Lot ขนาดปกติ
-				doc.text(`Lot: ${label.lot}`, 0.3, 2.1);
-				
-				doc.setFontSize(fontSize + 2); // Qty ใหญ่กว่าปกติ 2pt
-				doc.setFont('helvetica', 'bold');
-				doc.text(`Qty: ${label.qty}`, 0.3, 2.5);
+				// คำนวณ Y ถัดไปตามจำนวนบรรทัดที่ Item Name ใช้
+				const lineHeightInches = (fontSize * 1.15) / 72; // แปลง Point เป็น นิ้ว คร่าวๆ
+				currentY += (splitName.length * lineHeightInches) + 0.25; 
 
-				// --- QR Code ฝั่งขวา ---
-				const qrDataUrl = await QRCode.toDataURL(label.qr_text, {
-					errorCorrectionLevel: 'M',
-					margin: 1,
-					width: 250 // เพิ่ม Resolution กันภาพแตกเวลาขยายขนาดใหญ่ๆ
-				});
+				// --- 4. Box ID, Lot, Qty (ต่อจาก Item Name) ---
+				doc.setFontSize(fontSize + 2); 
+				doc.setFont('helvetica', 'bold');
+				doc.text(`Box ID: ${label.box_id}`, leftX, currentY);
 				
-				// คำนวณตำแหน่ง X ของ QR Code ให้อยู่ชิดขวา
-				const qrXPos = paperWidth - qrSize - 0.3; // ระยะห่างขอบขวา 0.3 นิ้ว
-				doc.addImage(qrDataUrl, 'PNG', qrXPos, 0.7, qrSize, qrSize);
-				
-				// ข้อความใต้ QR Code วางปรับตามขนาดความสูง QR Code โดยอัตโนมัติ
-				// ป้องกันไม่ให้ตัวอักษรเล็กกว่า 6pt
-				doc.setFontSize(Math.max(fontSize - 4, 6)); 
+				currentY += 0.3;
 				doc.setFont('helvetica', 'normal');
-				const splitQrText = doc.splitTextToSize(label.qr_text, qrSize);
-				doc.text(splitQrText, qrXPos, 0.7 + qrSize + 0.15); 
+				doc.setFontSize(fontSize); 
+				doc.text(`Lot: ${label.lot}`, leftX, currentY);
+				
+				currentY += 0.35;
+				doc.setFontSize(fontSize + 2); 
+				doc.setFont('helvetica', 'bold');
+				doc.text(`Qty: ${label.qty}`, leftX, currentY);
+
+				// --- 5. Company Name & Logo (มุมขวาล่าง) ---
+				const companyY = paperHeight - 0.25; // ตำแหน่งบรรทัดของชื่อบริษัท
+				doc.setFontSize(fontSize - 2); 
+				doc.setFont('helvetica', 'bolditalic');
+				doc.setTextColor(100, 100, 100); // สีเทาเข้ม
+				
+				// วาดชื่อบริษัท ชิดขวา
+				doc.text(companyName, paperWidth - 0.25, companyY, { align: 'right' });
+				
+				// ถ้าระบบมี Logo ให้วาดเหนือชื่อบริษัท ชิดขวา
+				if (loadedLogo) {
+					const calcLogoHeight = logoSize * loadedLogo.ratio;
+					const logoX = paperWidth - 0.25 - logoSize; // คำนวณ X ให้ชิดขวาพอดีกับขอบข้อความ
+					
+					// คำนวณ Y: ความสูงบรรทัด (คร่าวๆ pt => inch) และลบด้วยความสูงของรูป
+					const textHeightInches = (fontSize - 2) * 0.014;
+					const logoY = companyY - textHeightInches - calcLogoHeight - 0.05; 
+					
+					// ตรวจสอบ format อย่างง่าย (ถ้ามี png ให้ใช้ PNG ไม่งั้น JPEG)
+					const imgFormat = loadedLogo.base64.includes('image/png') ? 'PNG' : 'JPEG';
+					
+					doc.addImage(loadedLogo.base64, imgFormat, logoX, logoY, logoSize, calcLogoHeight);
+				}
+
+				doc.setTextColor(0, 0, 0); // รีเซ็ตสีกลับเป็นสีดำ
 			}
 
-			// 4. สั่งเปิด PDF ในแท็บใหม่ (View in Browser) แทนการ Save ลงเครื่อง
+			// 4. สั่งเปิด PDF ในแท็บใหม่
 			const pdfUrl = doc.output('bloburl');
 			window.open(pdfUrl, '_blank');
 			
 			showGlobalMessage({ success: true, text: 'PDF Generated Successfully!', type: 'success' });
 			showPrintModal = false;
-			selectedItemIds = []; // เคลียร์ค่าที่เลือก
+			selectedItemIds = [];
 
 		} catch (error: any) {
 			console.error(error);
@@ -339,7 +401,7 @@
 		<p class="mt-1 text-sm text-gray-500">{$t('Manage warehouse item list and configurations')}</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<!-- ปุ่ม Print Labels (จะทำงานได้เมื่อมี Item ถูกเลือก) -->
+		<!-- ปุ่ม Print Labels -->
 		<button
 			onclick={() => showPrintModal = true}
 			disabled={selectedItemIds.length === 0}
@@ -460,7 +522,6 @@
 <!-- Pagination & Paging Size -->
 {#if data.items.length > 0 || data.searchQuery}
 	<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
-		<!-- ... (โค้ด Pagination เดิม ไม่เปลี่ยนแปลง) ... -->
 		<div class="flex items-center gap-4">
 			<div class="flex items-center gap-2">
 				<span class="text-sm text-gray-700">{$t('Show')}</span>
@@ -504,17 +565,17 @@
 {#if showPrintModal}
 	<div transition:fade class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
 		<div class="fixed inset-0" onclick={() => showPrintModal = false} role="presentation"></div>
-		<div class="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+		<div class="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
 			<h3 class="mb-2 text-lg font-bold text-gray-900">{$t('Print Item Labels')}</h3>
 			<p class="mb-6 text-sm text-gray-500">
 				สร้าง Label สำหรับสินค้าที่เลือกจำนวน <strong class="text-purple-600">{selectedItemIds.length}</strong> รายการ
 			</p>
 
 			<div class="space-y-4">
-				<div class="grid grid-cols-2 gap-4 rounded-lg bg-gray-50 p-3 border border-gray-100 sm:grid-cols-4">
-					<div class="col-span-full text-xs font-semibold text-gray-600">ตั้งค่าหน้ากระดาษ, QR Code และขนาดตัวอักษร</div>
+				<div class="grid grid-cols-2 gap-4 rounded-lg bg-gray-50 p-3 border border-gray-100 sm:grid-cols-5">
+					<div class="col-span-full text-xs font-semibold text-gray-600">ตั้งค่าหน้ากระดาษ, QR Code, ตัวอักษร และ Logo</div>
 					<div>
-						<label for="paperWidth" class="mb-1 block text-xs font-medium text-gray-700">ความกว้าง (นิ้ว)</label>
+						<label for="paperWidth" class="mb-1 block text-xs font-medium text-gray-700">กว้าง (นิ้ว)</label>
 						<input 
 							type="number" 
 							id="paperWidth" 
@@ -525,7 +586,7 @@
 						/>
 					</div>
 					<div>
-						<label for="paperHeight" class="mb-1 block text-xs font-medium text-gray-700">ความสูง (นิ้ว)</label>
+						<label for="paperHeight" class="mb-1 block text-xs font-medium text-gray-700">สูง (นิ้ว)</label>
 						<input 
 							type="number" 
 							id="paperHeight" 
@@ -536,7 +597,7 @@
 						/>
 					</div>
 					<div>
-						<label for="qrSize" class="mb-1 block text-xs font-medium text-gray-700">QR Code (นิ้ว)</label>
+						<label for="qrSize" class="mb-1 block text-xs font-medium text-gray-700">QR (นิ้ว)</label>
 						<input 
 							type="number" 
 							id="qrSize" 
@@ -547,7 +608,7 @@
 						/>
 					</div>
 					<div>
-						<label for="fontSize" class="mb-1 block text-xs font-medium text-gray-700">ตัวอักษร (pt)</label>
+						<label for="fontSize" class="mb-1 block text-xs font-medium text-gray-700">อักษร (pt)</label>
 						<input 
 							type="number" 
 							id="fontSize" 
@@ -557,28 +618,40 @@
 							class="w-full rounded-md border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500"
 						/>
 					</div>
+					<div>
+						<label for="logoSize" class="mb-1 block text-xs font-medium text-gray-700">Logo (นิ้ว)</label>
+						<input 
+							type="number" 
+							id="logoSize" 
+							step="0.1"
+							min="0.2"
+							bind:value={logoSize} 
+							class="w-full rounded-md border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500"
+						/>
+					</div>
 				</div>
 
-				<div>
-					<label for="printCount" class="mb-1 block text-sm font-medium text-gray-700">จำนวน Label ที่ต้องการปรินท์ (ต่อ 1 Item)</label>
-					<input 
-						type="number" 
-						id="printCount" 
-						min="1" 
-						bind:value={printCount} 
-						class="w-full rounded-md border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500"
-					/>
-				</div>
-
-				<div>
-					<label for="qtyPerLabel" class="mb-1 block text-sm font-medium text-gray-700">จำนวน (QTY) ที่บรรจุต่อ 1 Label</label>
-					<input 
-						type="number" 
-						id="qtyPerLabel" 
-						min="1" 
-						bind:value={qtyPerLabel} 
-						class="w-full rounded-md border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500"
-					/>
+				<div class="grid grid-cols-2 gap-4">
+					<div>
+						<label for="printCount" class="mb-1 block text-sm font-medium text-gray-700">จำนวน Print/Item</label>
+						<input 
+							type="number" 
+							id="printCount" 
+							min="1" 
+							bind:value={printCount} 
+							class="w-full rounded-md border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500"
+						/>
+					</div>
+					<div>
+						<label for="qtyPerLabel" class="mb-1 block text-sm font-medium text-gray-700">จำนวน (QTY)/Label</label>
+						<input 
+							type="number" 
+							id="qtyPerLabel" 
+							min="1" 
+							bind:value={qtyPerLabel} 
+							class="w-full rounded-md border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500"
+						/>
+					</div>
 				</div>
 
 				<div>
@@ -589,6 +662,17 @@
 						bind:value={lotNumber} 
 						class="w-full rounded-md border-gray-300 font-mono text-sm uppercase focus:border-purple-500 focus:ring-purple-500"
 						placeholder="20260325"
+					/>
+				</div>
+				
+				<div>
+					<label for="companyName" class="mb-1 block text-sm font-medium text-gray-700">Company Name (มุมขวาล่าง)</label>
+					<input 
+						type="text" 
+						id="companyName" 
+						bind:value={companyName} 
+						class="w-full rounded-md border-gray-300 text-sm uppercase focus:border-purple-500 focus:ring-purple-500"
+						placeholder="MY COMPANY CO., LTD."
 					/>
 				</div>
 			</div>

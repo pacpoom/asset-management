@@ -68,6 +68,11 @@ export const load: PageServerLoad = async ({ url }) => {
 	// รับ Parameter สำหรับทำ Auto-Generate (Pre-fill)
 	const sourceId = url.searchParams.get('source_id');
 	const targetType = url.searchParams.get('target_type') || 'INV';
+	
+	// รับ Parameter กรณีสร้างตรงจาก Job Order
+	const jobId = url.searchParams.get('job_id');
+	const customerId = url.searchParams.get('customer_id');
+
 	let prefillData = null;
 
 	try {
@@ -83,6 +88,15 @@ export const load: PageServerLoad = async ({ url }) => {
 					targetType: targetType
 				};
 			}
+		} else if (jobId || customerId) {
+			prefillData = {
+				document: {
+					job_order_id: jobId ? parseInt(jobId) : null,
+					customer_id: customerId && customerId !== 'null' ? parseInt(customerId) : null
+				},
+				items: [],
+				targetType: targetType
+			};
 		}
 
 		const [customers] = await pool.query('SELECT id, name, company_name FROM customers ORDER BY COALESCE(company_name, name) ASC');

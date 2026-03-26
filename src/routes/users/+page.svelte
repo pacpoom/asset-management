@@ -15,19 +15,60 @@
 	// --- Props & State ---
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
+	// --- Filter State ---
+	let inputSearchQuery = $state('');
+	let inputDepartment = $state<number | 'all'>('all');
+	let inputPosition = $state<number | 'all'>('all');
+
+	let appliedSearchQuery = $state('');
+	let appliedDepartment = $state<number | 'all'>('all');
+	let appliedPosition = $state<number | 'all'>('all');
+
+	function applyFilters() {
+		appliedSearchQuery = inputSearchQuery;
+		appliedDepartment = inputDepartment;
+		appliedPosition = inputPosition;
+		currentPage = 1; // กลับไปหน้าที่ 1 เสมอเมื่อค้นหาใหม่
+	}
+
+	function clearFilters() {
+		inputSearchQuery = '';
+		inputDepartment = 'all';
+		inputPosition = 'all';
+		applyFilters();
+	}
+
+	// กรองข้อมูลตาม Filter ที่ตั้งไว้
+	let filteredUsers = $derived(
+		data.users.filter((user: User) => {
+			const searchLower = appliedSearchQuery.toLowerCase();
+			const matchesSearch =
+				appliedSearchQuery === '' ||
+				(user.full_name?.toLowerCase().includes(searchLower)) ||
+				(user.email?.toLowerCase().includes(searchLower)) ||
+				(user.username?.toLowerCase().includes(searchLower)) ||
+				(user.emp_id?.toLowerCase().includes(searchLower));
+
+			const matchesDept = appliedDepartment === 'all' || user.department_id === appliedDepartment;
+			const matchesPos = appliedPosition === 'all' || user.position_id === appliedPosition;
+
+			return matchesSearch && matchesDept && matchesPos;
+		})
+	);
+
 	// --- Pagination State ---
 	let currentPage = $state(1);
 	let itemsPerPage = $state(10);
 	const pageSizeOptions = [10, 50, 100, 500];
 
-	// Derived Pagination Data
-	let totalItems = $derived(data.users.length);
+	// Derived Pagination Data (ใช้ filteredUsers แทน data.users)
+	let totalItems = $derived(filteredUsers.length);
 	let totalPages = $derived(Math.ceil(totalItems / itemsPerPage));
 	let startItem = $derived(totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1);
 	let endItem = $derived(Math.min(currentPage * itemsPerPage, totalItems));
 
 	let paginatedUsers = $derived(
-		data.users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+		filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 	);
 
 	// Reset page if data changes or is out of bounds
@@ -364,6 +405,75 @@
 	</div>
 </div>
 
+<!-- ส่วนตัวกรองข้อมูล (Filter Section) -->
+<div class="mb-6 flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end">
+	<!-- ค้นหาด้วยข้อความ -->
+	<div class="flex-1">
+		<label for="searchQuery" class="mb-1 block text-sm font-medium text-gray-700">{$t('Search')}</label>
+		<div class="relative">
+			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+				<svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+				</svg>
+			</div>
+			<input
+				type="text"
+				id="searchQuery"
+				bind:value={inputSearchQuery}
+				onkeydown={(e) => e.key === 'Enter' && applyFilters()}
+				placeholder={$t('Search by Name, Email, Username, Emp ID...')}
+				class="block w-full rounded-md border-gray-300 pl-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+			/>
+		</div>
+	</div>
+
+	<!-- ตัวกรองแผนก -->
+	<div class="w-full sm:w-48">
+		<label for="filterDepartment" class="mb-1 block text-sm font-medium text-gray-700">{$t('Department')}</label>
+		<select
+			id="filterDepartment"
+			bind:value={inputDepartment}
+			class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+		>
+			<option value="all">{$t('All Departments')}</option>
+			{#each data.departments as dept (dept.id)}
+				<option value={dept.id}>{dept.name}</option>
+			{/each}
+		</select>
+	</div>
+
+	<!-- ตัวกรองตำแหน่ง -->
+	<div class="w-full sm:w-48">
+		<label for="filterPosition" class="mb-1 block text-sm font-medium text-gray-700">{$t('Position')}</label>
+		<select
+			id="filterPosition"
+			bind:value={inputPosition}
+			class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+		>
+			<option value="all">{$t('All Positions')}</option>
+			{#each data.positions as pos (pos.id)}
+				<option value={pos.id}>{pos.name}</option>
+			{/each}
+		</select>
+	</div>
+
+	<!-- ปุ่ม Actions -->
+	<div class="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+		<button
+			onclick={applyFilters}
+			class="flex flex-1 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:flex-none"
+		>
+			{$t('Search')}
+		</button>
+		<button
+			onclick={clearFilters}
+			class="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:flex-none"
+		>
+			{$t('Clear')}
+		</button>
+	</div>
+</div>
+
 <div class="flex flex-col gap-4">
 	<div class="w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 		<div class="overflow-x-auto">
@@ -399,7 +509,9 @@
 				<tbody class="divide-y divide-gray-200 bg-white">
 					{#if paginatedUsers.length === 0}
 						<tr>
-							<td colspan="8" class="py-12 text-center text-gray-500"> {$t('No users found.')} </td>
+							<td colspan="8" class="py-12 text-center text-gray-500"> 
+								{appliedSearchQuery || appliedDepartment !== 'all' || appliedPosition !== 'all' ? $t('No users found matching the filters.') : $t('No users found.')} 
+							</td>
 						</tr>
 					{:else}
 						{#each paginatedUsers as user (user.id)}

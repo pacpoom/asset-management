@@ -374,8 +374,15 @@
 										</svg>
 									</a>
 
-									<a
+									<!-- <a
 										href="/freight-forwarder/job-orders/generate-pdf?id={job.id}"
+										target="_blank"
+										rel="noopener noreferrer"
+										class="text-gray-400 transition-colors hover:text-green-600"
+										title={$t('Print PDF')}
+									> -->
+									<a
+										href="/freight-forwarder/job-orders/generate-pdf?id={job.id}&locale={$locale}"
 										target="_blank"
 										rel="noopener noreferrer"
 										class="text-gray-400 transition-colors hover:text-green-600"

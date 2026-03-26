@@ -95,18 +95,24 @@
 	onMount(() => {
 		if (prefillData) {
 			documentType = prefillData.targetType;
-			referenceDoc = `${$locale === 'en' ? 'Ref:' : 'อ้างอิง:'} ${prefillData.document.document_number}`;
+			if (prefillData.document.document_number) {
+				referenceDoc = `${$locale === 'en' ? 'Ref:' : 'อ้างอิง:'} ${prefillData.document.document_number}`;
+			}
 
-			selectedCustomerId = prefillData.document.customer_id;
+			selectedCustomerId = prefillData.document.customer_id || '';
 			selectedCustomerObj = customerOptions.find((c: any) => c.value == selectedCustomerId) || null;
 			
 			selectedContactId = prefillData.document.customer_contact_id || '';
 
 			setTimeout(() => {
 				selectedJobOrderId = prefillData.document.job_order_id || '';
-			}, 50);
+				// ให้มันเลือก Dropdown ของ Job Order ให้เราเมื่อโหลดเสร็จ
+				if (selectedJobOrderId && jobOrderOptions.length > 0) {
+					selectedJobOrderObj = jobOrderOptions.find((j: any) => j.value == selectedJobOrderId) || null;
+				}
+			}, 150);
 
-			creditTerm = prefillData.document.credit_term;
+			creditTerm = prefillData.document.credit_term || 0;
 			discountAmount = parseFloat(prefillData.document.discount_amount || '0');
 			vatRate = parseFloat(prefillData.document.vat_rate || '7');
 
@@ -293,7 +299,7 @@
 
 <div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6">
 	<h1 class="mb-6 text-2xl font-bold text-gray-800">
-		{#if prefillData}
+		{#if prefillData && prefillData.document.document_number}
 			{$t('Create')} {prefillData.targetType} {$t('from')} {prefillData.document.document_number}
 		{:else}
 			{$t('Create Document Title')}

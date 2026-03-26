@@ -35,12 +35,23 @@ interface DocumentData extends RowDataPacket {
 	customer_tax_id: string | null;
 	created_by_name: string;
 
-    contact_name: string | null; 
-    contact_phone: string | null; 
-    contact_email: string | null; 
+	contact_name: string | null;
+	contact_phone: string | null;
+	contact_email: string | null;
 
+	job_number: string | null;
 	jo_job_type: string | null;
 	jo_bl_number: string | null;
+	jo_etd: string | null;
+	jo_eta: string | null;
+	jo_quantity: number | null;
+	jo_mbl: string | null;
+	jo_location: string | null;
+	jo_weight: number | null;
+	jo_kgs_volume: number | null;
+	jo_liner_name: string | null;
+	jo_ccl: string | null;
+	jo_invoice_note: string | null;
 
 	subtotal: number;
 	discount_amount: number;
@@ -63,27 +74,89 @@ interface ItemData {
 }
 
 const pdfSpecificDict: Record<string, Record<string, string>> = {
-	'th': {
-		'No': 'เลขที่ / No.', 'Date': 'วันที่ / Date', 'Term': 'เครดิต / Term', 'Due': 'ครบกำหนด / Due',
-		'Ref': 'อ้างอิง / Ref', 'Customer': 'ลูกค้า (Customer)', 'Issued By': 'ผู้ออกเอกสาร (Issued By)',
-		'Seq': 'ลำดับ', 'Description': 'รายการ (Description)', 'Qty': 'จำนวน', 'UnitPrice': 'ราคา/หน่วย', 'Amount': 'จำนวนเงิน',
-		'Notes': 'หมายเหตุ (Notes):', 'NetText': 'จำนวนเงินสุทธิเป็นตัวอักษร',
-		'Subtotal': 'รวมเป็นเงิน', 'Discount': 'ส่วนลด', 'AfterDiscount': 'หลังหักส่วนลด',
-		'VAT': 'VAT ชื้อ', 'WHT': 'หัก ณ ที่จ่ายรวม', 'GrandTotal': 'จำนวนเงินสุทธิ',
-		'ReceivedBy': 'ผู้รับเอกสาร (Received by)', 'Auth': 'ผู้มีอำนาจลงนาม (Authorized Signature)',
-		'Page': 'หน้า', 'Carry': '-- ยอดยกไป (Carried Forward) --',
-		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)', 'Attn': 'เรียน (Attn)'
+	th: {
+		No: 'เลขที่ / No.',
+		Date: 'วันที่ / Date',
+		Term: 'เครดิต / Term',
+		Due: 'ครบกำหนด / Due',
+		Ref: 'อ้างอิง / Ref',
+		Customer: 'ลูกค้า (Customer)',
+		'Issued By': 'ผู้ออกเอกสาร (Issued By)',
+		Seq: 'ลำดับ',
+		Description: 'รายการ (Description)',
+		Qty: 'จำนวน',
+		UnitPrice: 'ราคา/หน่วย',
+		Amount: 'จำนวนเงิน',
+		Notes: 'หมายเหตุ (Notes):',
+		NetText: 'จำนวนเงินสุทธิเป็นตัวอักษร',
+		Subtotal: 'รวมเป็นเงิน',
+		Discount: 'ส่วนลด',
+		AfterDiscount: 'หลังหักส่วนลด',
+		VAT: 'VAT ชื้อ',
+		WHT: 'หัก ณ ที่จ่ายรวม',
+		GrandTotal: 'จำนวนเงินสุทธิ',
+		ReceivedBy: 'ผู้รับเอกสาร (Received by)',
+		Auth: 'ผู้มีอำนาจลงนาม (Authorized Signature)',
+		Page: 'หน้า',
+		Carry: '-- ยอดยกไป (Carried Forward) --',
+		Days: 'วัน (Days)',
+		Cash: 'เงินสด (Cash)',
+		Attn: 'เรียน (Attn)',
+		// Job specific translations
+		ETD: 'ETD',
+		ETA: 'ETA',
+		Quantity: 'จำนวน',
+		HBL: 'HBL',
+		MBL: 'MB/L',
+		Port: 'ท่าเรือ / สถานที่',
+		Weight: 'น้ำหนัก (KGS)',
+		Vol: 'ปริมาตร (CBM)',
+		Liner: 'สายเรือ',
+		CCL: 'CCL',
+		InvoiceNote: 'หมายเหตุใบแจ้งหนี้',
+		JobRef: 'รายละเอียดใบสั่งงานขนส่ง (Job Reference)'
 	},
-	'en': {
-		'No': 'No.', 'Date': 'Date', 'Term': 'Term', 'Due': 'Due Date',
-		'Ref': 'Reference', 'Customer': 'Customer', 'Issued By': 'Issued By',
-		'Seq': 'Item', 'Description': 'Description', 'Qty': 'Qty', 'UnitPrice': 'Unit Price', 'Amount': 'Amount',
-		'Notes': 'Notes:', 'NetText': 'Net Amount in Words',
-		'Subtotal': 'Subtotal', 'Discount': 'Discount', 'AfterDiscount': 'Total After Discount',
-		'VAT': 'VAT', 'WHT': 'Total WHT', 'GrandTotal': 'Grand Total',
-		'ReceivedBy': 'Received by', 'Auth': 'Authorized Signature',
-		'Page': 'Page', 'Carry': '-- Carried Forward --',
-		'Days': 'Days', 'Cash': 'Cash', 'Attn': 'Attn'
+	en: {
+		No: 'No.',
+		Date: 'Date',
+		Term: 'Term',
+		Due: 'Due Date',
+		Ref: 'Reference',
+		Customer: 'Customer',
+		'Issued By': 'Issued By',
+		Seq: 'Item',
+		Description: 'Description',
+		Qty: 'Qty',
+		UnitPrice: 'Unit Price',
+		Amount: 'Amount',
+		Notes: 'Notes:',
+		NetText: 'Net Amount in Words',
+		Subtotal: 'Subtotal',
+		Discount: 'Discount',
+		AfterDiscount: 'Total After Discount',
+		VAT: 'VAT',
+		WHT: 'Total WHT',
+		GrandTotal: 'Grand Total',
+		ReceivedBy: 'Received by',
+		Auth: 'Authorized Signature',
+		Page: 'Page',
+		Carry: '-- Carried Forward --',
+		Days: 'Days',
+		Cash: 'Cash',
+		Attn: 'Attn',
+		// Job specific translations
+		ETD: 'ETD',
+		ETA: 'ETA',
+		Quantity: 'Quantity',
+		HBL: 'HBL Number',
+		MBL: 'MB/L',
+		Port: 'Port / Location',
+		Weight: 'Weight',
+		Vol: 'Volume',
+		Liner: 'Liner / Carrier',
+		CCL: 'CCL',
+		InvoiceNote: 'Invoice Note',
+		JobRef: 'Job Reference Details'
 	}
 };
 
@@ -170,11 +243,16 @@ function bahttext(input: number | string): string {
 
 function getDocumentTitle(type: string): { th: string; en: string } {
 	switch (type) {
-		case 'QT': return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
-		case 'BN': return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
-		case 'INV': return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
-		case 'RE': return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
-		default: return { th: 'เอกสาร', en: 'DOCUMENT' };
+		case 'QT':
+			return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
+		case 'BN':
+			return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
+		case 'INV':
+			return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
+		case 'RE':
+			return { th: 'ใบเสร็จรับเงิน / ใบกำกับภาษี', en: 'RECEIPT / TAX INVOICE' };
+		default:
+			return { th: 'เอกสาร', en: 'DOCUMENT' };
 	}
 }
 
@@ -183,10 +261,9 @@ function getInvoiceHtml(
 	docData: DocumentData,
 	itemsData: ItemData[],
 	logoBase64: string | null,
-	lang: string, 
-	dbDict: { en: Record<string, string>; th: Record<string, string> } 
+	lang: string,
+	dbDict: { en: Record<string, string>; th: Record<string, string> }
 ): string {
-
 	function tPdf(key: string, currentLang: string): string {
 		return dbDict[currentLang as 'en' | 'th']?.[key] || pdfSpecificDict[currentLang]?.[key] || key;
 	}
@@ -210,9 +287,13 @@ function getInvoiceHtml(
 	});
 
 	const ratesArray = Array.from(activeRates);
-	const whtRateText = ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
+	const whtRateText =
+		ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
 
-	const whtAmt = calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(docData.wht_amount || docData.withholding_tax_amount || 0);
+	const whtAmt =
+		calculatedWhtAmt > 0
+			? calculatedWhtAmt
+			: Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
 	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
 	const netAmountText = bahttext(netAmount);
@@ -240,7 +321,7 @@ function getInvoiceHtml(
 	};
 
 	const logoHtml = logoBase64
-		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 120px; margin-bottom: 8px;" />`
 		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
 
 	const creditTermDisplay =
@@ -311,6 +392,42 @@ function getInvoiceHtml(
     </thead>
 `;
 
+	// สร้าง HTML แสดงรายละเอียด Job หรือ Note อย่างใดอย่างหนึ่ง
+	let notesOrJobHtml = '';
+	if (docData.job_order_id) {
+		notesOrJobHtml = `
+		<div>
+			<div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px; font-size: 8pt;">${tPdf('JobRef', lang)}:</div>
+			<table style="width: 100%; font-size: 7.5pt; color: #374151; border-collapse: collapse;">
+				<tr>
+					<td style="width: 33.33%; padding: 2px 0;"><b>${tPdf('HBL', lang)}:</b> <span style="font-family: monospace;">${docData.jo_bl_number || '-'}</span></td>
+					<td style="width: 33.33%; padding: 2px 0;"><b>${tPdf('MBL', lang)}:</b> <span style="font-family: monospace;">${docData.jo_mbl || '-'}</span></td>
+					<td style="width: 33.33%; padding: 2px 0;"><b>${tPdf('Port', lang)}:</b> ${docData.jo_location || '-'}</td>
+				</tr>
+				<tr>
+					<td style="padding: 2px 0;"><b>${tPdf('ETD', lang)}:</b> ${formatDateOnly(docData.jo_etd)}</td>
+					<td style="padding: 2px 0;"><b>${tPdf('ETA', lang)}:</b> ${formatDateOnly(docData.jo_eta)}</td>
+					<td style="padding: 2px 0;"><b>${tPdf('Liner', lang)}:</b> ${docData.jo_liner_name || '-'}</td>
+				</tr>
+				<tr>
+					<td style="padding: 2px 0;"><b>${tPdf('Quantity', lang)}:</b> ${docData.jo_quantity || '0'}</td>
+					<td style="padding: 2px 0;"><b>${tPdf('Weight', lang)}:</b> ${docData.jo_weight || '0.00'}</td>
+					<td style="padding: 2px 0;"><b>${tPdf('Vol', lang)}:</b> ${docData.jo_kgs_volume || '0.00'}</td>
+				</tr>
+				<tr>
+					<td style="padding: 2px 0;"><b>${tPdf('CCL', lang)}:</b> ${docData.jo_ccl || '-'}</td>
+					<td style="padding: 2px 0;"colspan="2"><b>${tPdf('InvoiceNote', lang)}:</b> ${docData.jo_invoice_note || '-'}</td>
+				</tr>
+			</table>
+		</div>
+		`;
+	} else {
+		notesOrJobHtml = `
+			<span style="font-weight: bold; text-decoration: underline; font-size: 10pt;">${tPdf('Notes', lang)}</span>
+			<div style="margin-top: 4px; white-space: pre-wrap; color: #000; font-weight: bold; font-size: 10pt;">${docData.notes || '-'}</div>
+		`;
+	}
+
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
@@ -321,8 +438,7 @@ function getInvoiceHtml(
                 <tr>
                     <td colspan="5" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
                         <div>
-                            <span style="font-weight: bold; text-decoration: underline;">${tPdf('Notes', lang)}</span>
-                            <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${docData.notes || '-'}</div>
+							${notesOrJobHtml}
                         </div>
                         <div style="position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-weight: bold;">
                             (${tPdf('NetText', lang)}: ${netAmountText})
@@ -388,7 +504,7 @@ function getInvoiceHtml(
 		return total;
 	}
 
-	const MAX_LINES_PER_PAGE = 22;  // จำนวนบรรทัดสูงสุดต่อหน้าเนื้อหาปกติ
+	const MAX_LINES_PER_PAGE = 22; // จำนวนบรรทัดสูงสุดต่อหน้าเนื้อหาปกติ
 	const MAX_LINES_LAST_PAGE = 12; // จำนวนบรรทัดสูงสุดสำหรับหน้าที่มีสรุปยอด (Summary) เพื่อเผื่อพื้นที่
 
 	interface PageInfo {
@@ -537,7 +653,7 @@ function getInvoiceHtml(
 
 export const GET = async ({ url, fetch }) => {
 	const id = url.searchParams.get('id');
-	const lang = url.searchParams.get('lang') || 'th'; 
+	const lang = url.searchParams.get('lang') || 'th';
 
 	if (!id) return json({ message: 'Missing ID' }, { status: 400 });
 
@@ -565,7 +681,10 @@ export const GET = async ({ url, fetch }) => {
                    c.name as customer_name, c.company_name as customer_company_name, c.address as customer_address, c.tax_id as customer_tax_id, 
                    u.full_name as created_by_name,
                    cc.name as contact_name, cc.phone as contact_phone, cc.email as contact_email,
-                   jo.job_type as jo_job_type, jo.bl_number as jo_bl_number , jo.job_number as job_number
+                   jo.job_type as jo_job_type, jo.bl_number as jo_bl_number , jo.job_number as job_number,
+                   jo.etd as jo_etd, jo.eta as jo_eta, jo.quantity as jo_quantity, jo.mbl as jo_mbl,
+                   jo.location as jo_location, jo.weight as jo_weight, jo.kgs_volume as jo_kgs_volume,
+                   jo.liner_name as jo_liner_name, jo.ccl as jo_ccl , jo.invoice_no as jo_invoice_note
             FROM sales_documents sd
             LEFT JOIN customers c ON sd.customer_id = c.id
             LEFT JOIN customer_contacts cc ON sd.customer_contact_id = cc.id

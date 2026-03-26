@@ -173,7 +173,8 @@
 
 	<div class="flex flex-shrink-0 items-center gap-2">
 		<span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold {getStatusClass(job.job_status)}">{$t('Status_' + job.job_status) || job.job_status}</span>
-		<a href="/freight-forwarder/job-orders/generate-pdf?id={job.id}" target="_blank" class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50">{$t('Print PDF')}</a>
+		<a href="/sales-documents/new?job_id={job.id}&customer_id={job.customer_id}" class="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600 disabled:opacity-50">{$t('Create Invoice')}</a>
+		<a href="/freight-forwarder/job-orders/generate-pdf?id={job.id}&locale={$locale}" target="_blank" class="inline-flex items-center justify-center rounded-lg bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-gray-600 disabled:opacity-50">{$t('Print PDF')}</a>
 		<a href="/freight-forwarder/job-orders/{job.id}/edit" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50">{$t('Edit')}</a>
 		<div class="relative">
 			<select aria-label={$t('Change Status')} onchange={updateStatus} disabled={isSaving} class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-yellow-600 focus:outline-none disabled:opacity-50 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2">
@@ -195,7 +196,7 @@
 		<div class="flex items-center justify-between">
 			<div class="text-sm font-semibold text-gray-500">{$t('Total Revenue')}</div>
 			<div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-50">
-				<svg class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+				<svg class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 1v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 			</div>
 		</div>
 		<div class="mt-2 text-2xl font-bold {totalRevenue > 0 ? 'text-green-600' : 'text-gray-900'}">
@@ -244,7 +245,8 @@
 <div class="mb-6 rounded-lg border bg-white shadow-sm">
 	<h3 class="mb-3 border-b p-4 pb-2 text-lg font-semibold text-gray-700">{$t('Shipment Details')}</h3>
 	<div class="p-6">
-		<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+		<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <!-- คอลัมน์ที่ 1 -->
 			<div class="space-y-4">
 				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
 					<span class="text-sm font-medium text-gray-600">{$t('Job Type')}</span>
@@ -253,12 +255,59 @@
 						{#if job.service_type}<span class="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700 uppercase">{job.service_type}</span>{/if}
 					</div>
 				</div>
-				<div class="flex items-center justify-between border-b border-gray-100 pb-2"><span class="text-sm font-medium text-gray-600">{$t('B/L Number')}</span><span class="font-mono font-bold text-blue-600">{job.bl_number || '-'}</span></div>
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('HBL Number')}</span>
+                    <span class="font-mono font-bold text-blue-600">{job.bl_number || '-'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('MB/L')}</span>
+                    <span class="font-mono font-medium text-gray-900">{job.mbl || '-'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Liner / Carrier')}</span>
+                    <span class="font-medium text-gray-900">{job.liner_name || '-'}</span>
+                </div>
 			</div>
+
+            <!-- คอลัมน์ที่ 2 -->
 			<div class="space-y-4">
-				<div class="flex items-center justify-between border-b border-gray-100 pb-2"><span class="text-sm font-medium text-gray-600">{$t('Liner / Carrier')}</span><span class="font-medium text-gray-900">{job.liner_name || '-'}</span></div>
-				<div class="flex items-center justify-between border-b border-gray-100 pb-2"><span class="text-sm font-medium text-gray-600">{$t('Port / Location')}</span><span class="font-medium text-gray-900">{job.location || '-'}</span></div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('ETD')}</span>
+                    <span class="font-medium text-gray-900">{formatDate(job.etd)}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('ETA')}</span>
+                    <span class="font-medium text-gray-900">{formatDate(job.eta)}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Port / Location')}</span>
+                    <span class="font-medium text-gray-900">{job.location || '-'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('CCL')}</span>
+                    <span class="font-medium text-gray-900">{job.ccl || '-'}</span>
+                </div>
 			</div>
+
+            <!-- คอลัมน์ที่ 3 -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Quantity')}</span>
+                    <span class="font-medium text-gray-900">{job.quantity || 0}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Weight')}</span>
+                    <span class="font-medium text-gray-900">{job.weight || '0.00'}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('KGS. Volume')}</span>
+                    <span class="font-medium text-gray-900">{job.kgs_volume || '0.00'}</span>
+                </div>
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Customer Invoice')}</span>
+                    <span class="font-medium text-gray-900">{job.invoice_no || '-'}</span>
+                </div>
+            </div>
 		</div>
 	</div>
 </div>
