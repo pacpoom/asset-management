@@ -119,7 +119,12 @@ export const actions = {
 		
 		const expense_item_id = formData.get('expense_item_id');
 		const ref_document = formData.get('ref_document')?.toString().trim() || null;
-		const amount = parseFloat(formData.get('amount')?.toString() || '0');
+		
+		// รับค่า Price และ Qty จากฟอร์ม และคำนวณ Amount ฝั่ง Server
+		const price = parseFloat(formData.get('price')?.toString() || '0');
+		const qty = parseFloat(formData.get('qty')?.toString() || '1');
+		const amount = price * qty;
+		
 		const remarks = formData.get('remarks')?.toString().trim() || null;
 		const created_by = locals.user?.id || null;
 
@@ -127,8 +132,8 @@ export const actions = {
 		const has_vat = formData.get('has_vat') === 'true';
 		const wht_rate = formData.get('wht_rate')?.toString() || 'None';
 
-		if (!expense_item_id || isNaN(amount) || amount <= 0) {
-			return fail(400, { message: 'กรุณาระบุรายการค่าใช้จ่ายและจำนวนเงินให้ถูกต้อง' });
+		if (!expense_item_id || isNaN(price) || price < 0 || isNaN(qty) || qty <= 0) {
+			return fail(400, { message: 'กรุณาระบุรายการค่าใช้จ่ายและราคา/จำนวนให้ถูกต้อง' });
 		}
 
 		// คำนวณยอดเงินตาม VAT และ WH ที่เลือก
@@ -155,9 +160,9 @@ export const actions = {
 		try {
 			await pool.execute(
 				`INSERT INTO job_expenses 
-				(job_order_id, expense_item_id, ref_document, amount, tax_type, vat_amount, wht_amount, total_amount, remarks, created_by) 
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				[job_order_id, expense_item_id, ref_document, amount, tax_type_str, vat_amount, wht_amount, total_amount, remarks, created_by]
+				(job_order_id, expense_item_id, ref_document, price, qty, amount, tax_type, vat_amount, wht_amount, total_amount, remarks, created_by) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[job_order_id, expense_item_id, ref_document, price, qty, amount, tax_type_str, vat_amount, wht_amount, total_amount, remarks, created_by]
 			);
 			return { success: true, action: 'addExpense' };
 		} catch (err: unknown) {

@@ -7,7 +7,7 @@
 	import type { ActionData, PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
 
-	interface Expense { id: number; total_amount: number; amount: number; vat_amount?: number; wht_amount?: number; item_name?: string; category_name?: string; ref_document?: string; [key: string]: unknown }
+	interface Expense { id: number; total_amount: number; amount: number; price?: number; qty?: number; vat_amount?: number; wht_amount?: number; item_name?: string; category_name?: string; ref_document?: string; [key: string]: unknown }
 	interface SalesDoc { id: number; total_amount: number; document_number: string; reference_doc?: string; document_type: string; document_date: string; status: string; [key: string]: unknown }
 	interface Category { id: number; category_name: string; [key: string]: unknown }
 	interface Item { id: number; item_name: string; expense_category_id: number; [key: string]: unknown }
@@ -38,7 +38,10 @@
 	let expCategoryId = $state('');
 	let expItemId = $state('');
 	let expRefDoc = $state('');
-	let expAmount = $state<number | ''>('');
+	
+	let expPrice = $state<number | ''>('');
+	let expQty = $state<number | ''>(1);
+	let expAmount = $derived((Number(expPrice) || 0) * (Number(expQty) || 0));
 	
 	// ใช้ Checkbox และ Select สำหรับ VAT และ WHT
 	let expHasVat = $state(false);
@@ -88,20 +91,20 @@
 
 	// คำนวณยอดแบบ Real-time ตาม VAT และ WH
 	let calculatedVatAmount = $derived.by(() => {
-		const amt = Number(expAmount) || 0;
+		const amt = expAmount;
 		if (expHasVat) return amt * 0.07;
 		return 0;
 	});
 
 	let calculatedWhtAmount = $derived.by(() => {
-		const amt = Number(expAmount) || 0;
+		const amt = expAmount;
 		if (expWhtRate === '3') return amt * 0.03;
 		if (expWhtRate === '1') return amt * 0.01;
 		return 0;
 	});
 
 	let calculatedExpTotal = $derived.by(() => {
-		const amt = Number(expAmount) || 0;
+		const amt = expAmount;
 		return amt + calculatedVatAmount - calculatedWhtAmount;
 	});
 
@@ -150,7 +153,7 @@
 
 	function openExpenseModal() {
 		expCategoryId = ''; expItemId = ''; expRefDoc = ''; 
-		expAmount = ''; expHasVat = false; expWhtRate = 'None'; expRemarks = '';
+		expPrice = ''; expQty = 1; expHasVat = false; expWhtRate = 'None'; expRemarks = '';
 		selectedCategory = null; selectedItem = null;
 		isExpenseModalOpen = true;
 	}
@@ -467,6 +470,8 @@
 				<tr>
 					<th class="px-6 py-3 text-left font-semibold">{$t('Category / Item')}</th>
 					<th class="px-6 py-3 text-left font-semibold">{$t('Ref. Doc')}</th>
+					<th class="px-6 py-3 text-right font-semibold">{$t('Price')}</th>
+					<th class="px-6 py-3 text-right font-semibold">{$t('Qty')}</th>
 					<th class="px-6 py-3 text-right font-semibold">{$t('Amount')}</th>
 					<th class="px-6 py-3 text-right font-semibold text-green-600">{$t('VAT')}</th>
 					<th class="px-6 py-3 text-right font-semibold text-orange-600">{$t('WH')}</th>
@@ -482,6 +487,8 @@
 							<div class="text-xs text-gray-500">{exp.category_name}</div>
 						</td>
 						<td class="px-6 py-3 text-gray-600">{exp.ref_document || '-'}</td>
+						<td class="px-6 py-3 text-right font-mono text-gray-700">{formatCurrency(exp.price || 0)}</td>
+						<td class="px-6 py-3 text-right font-mono text-gray-700">{exp.qty || 1}</td>
 						<td class="px-6 py-3 text-right font-mono text-gray-700">{formatCurrency(exp.amount)}</td>
 						<td class="px-6 py-3 text-right font-mono text-green-600">{formatCurrency(exp.vat_amount || 0)}</td>
 						<td class="px-6 py-3 text-right font-mono text-orange-600">{formatCurrency(exp.wht_amount || 0)}</td>
@@ -494,7 +501,7 @@
 						</td>
 					</tr>
 				{:else}
-					<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400">{$t('No expenses recorded')}</td></tr>
+					<tr><td colspan="9" class="px-6 py-8 text-center text-gray-400">{$t('No expenses recorded')}</td></tr>
 				{/each}
 			</tbody>
 		</table>
@@ -552,10 +559,18 @@
 					<input id="ref_document" type="text" name="ref_document" bind:value={expRefDoc} class="w-full rounded-md border-gray-300 py-2 focus:border-blue-500 focus:ring-blue-500" placeholder={$t('e.g. INV-2026-001')}>
 				</div>
 
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-5 border-t border-gray-100 pt-5">
+				<div class="grid grid-cols-1 md:grid-cols-4 gap-5 border-t border-gray-100 pt-5">
 					<div>
-						<label for="amount" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('Amount (Pre-tax)')} <span class="text-red-500">*</span></label>
-						<input id="amount" type="number" step="0.01" name="amount" bind:value={expAmount} required class="w-full rounded-md border-gray-300 py-2 text-right focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
+						<label for="price" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('Unit Price')} <span class="text-red-500">*</span></label>
+						<input id="price" type="number" step="0.01" name="price" bind:value={expPrice} required class="w-full rounded-md border-gray-300 py-2 text-right focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
+					</div>
+					<div>
+						<label for="qty" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('Quantity')} <span class="text-red-500">*</span></label>
+						<input id="qty" type="number" step="0.01" name="qty" bind:value={expQty} required class="w-full rounded-md border-gray-300 py-2 text-right focus:border-blue-500 focus:ring-blue-500" placeholder="1">
+					</div>
+					<div>
+						<label class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('Amount')}</label>
+						<input type="text" value={formatCurrency(expAmount)} readonly class="w-full rounded-md border-gray-200 bg-gray-50 py-2 text-right text-gray-500 font-mono focus:ring-0">
 					</div>
 					<div>
 						<label for="wht_rate" class="block text-sm font-semibold text-gray-700 mb-1.5">{$t('WH (WHT Rate)')}</label>
@@ -565,18 +580,19 @@
 							<option value="3">WHT 3%</option>
 						</select>
 					</div>
-					<div class="flex items-center pt-7 px-3">
-						<label class="flex items-center space-x-2 cursor-pointer">
-							<input type="checkbox" name="has_vat" value="true" bind:checked={expHasVat} class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-							<span class="text-sm font-semibold text-gray-700">{$t('Apply VAT 7%')}</span>
-						</label>
-					</div>
+				</div>
+
+				<div class="flex items-center pt-2">
+					<label class="flex items-center space-x-2 cursor-pointer">
+						<input type="checkbox" name="has_vat" value="true" bind:checked={expHasVat} class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+						<span class="text-sm font-semibold text-gray-700">{$t('Apply VAT 7%')}</span>
+					</label>
 				</div>
 
 				<div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100 mt-2 space-y-2">
 					<div class="flex items-center justify-between">
 						<span class="text-sm font-semibold text-gray-600">{$t('Amount')}:</span>
-						<span class="text-sm font-mono text-gray-800">{formatCurrency(Number(expAmount) || 0)}</span>
+						<span class="text-sm font-mono text-gray-800">{formatCurrency(expAmount || 0)}</span>
 					</div>
 					{#if calculatedVatAmount > 0}
 					<div class="flex items-center justify-between">
@@ -604,7 +620,7 @@
 
 			<div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 rounded-b-xl">
 				<button type="button" onclick={() => isExpenseModalOpen = false} class="px-5 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-colors">{$t('Cancel')}</button>
-				<button type="submit" disabled={isSavingExpense || !expItemId || !expAmount} class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
+				<button type="submit" disabled={isSavingExpense || !expItemId || expAmount <= 0} class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
 					{isSavingExpense ? $t('Saving...') : $t('Save Expense')}
 				</button>
 			</div>
