@@ -982,7 +982,8 @@
 									<th class="px-4 py-3 text-left font-semibold text-gray-600"
 										>{$t('Description')}</th
 									>
-									<th class="w-24 px-4 py-3 text-center font-semibold text-gray-600"
+									<th
+										class="w-24 px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
 										>{$t('Actions')}</th
 									>
 								</tr>
@@ -1108,7 +1109,7 @@
 								type="button"
 								onclick={() => (swModalMode = 'list')}
 								class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
-								>{$t('Back to List')}</button
+								>{$t('Back to list')}</button
 							>
 							<button
 								type="submit"
