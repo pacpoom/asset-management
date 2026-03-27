@@ -44,10 +44,10 @@
 			const searchLower = appliedSearchQuery.toLowerCase();
 			const matchesSearch =
 				appliedSearchQuery === '' ||
-				(user.full_name?.toLowerCase().includes(searchLower)) ||
-				(user.email?.toLowerCase().includes(searchLower)) ||
-				(user.username?.toLowerCase().includes(searchLower)) ||
-				(user.emp_id?.toLowerCase().includes(searchLower));
+				user.full_name?.toLowerCase().includes(searchLower) ||
+				user.email?.toLowerCase().includes(searchLower) ||
+				user.username?.toLowerCase().includes(searchLower) ||
+				user.emp_id?.toLowerCase().includes(searchLower);
 
 			const matchesDept = appliedDepartment === 'all' || user.department_id === appliedDepartment;
 			const matchesPos = appliedPosition === 'all' || user.position_id === appliedPosition;
@@ -377,43 +377,61 @@
 	<div class="flex flex-wrap items-center gap-2">
 		<button
 			onclick={openDepartmentManager}
-			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
+			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
 		>
 			{$t('Manage Departments')}
 		</button>
+
 		<button
 			onclick={openPositionManager}
-			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
+			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-blue-600 focus:outline-none"
 		>
 			{$t('Manage Positions')}
 		</button>
+
 		<button
 			onclick={() => openUserModal('add')}
-			class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+			class="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold whitespace-nowrap text-white shadow-sm transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
-				viewBox="0 0 24 24"
+				class="h-5 w-5"
 				fill="none"
+				viewBox="0 0 24 24"
 				stroke="currentColor"
 				stroke-width="2"
-				class="h-4 w-4"
-				><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 			>
+				<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+			</svg>
 			{$t('Add New User')}
 		</button>
 	</div>
 </div>
 
 <!-- ส่วนตัวกรองข้อมูล (Filter Section) -->
-<div class="mb-6 flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end">
+<div
+	class="mb-6 flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end"
+>
 	<!-- ค้นหาด้วยข้อความ -->
 	<div class="flex-1">
-		<label for="searchQuery" class="mb-1 block text-sm font-medium text-gray-700">{$t('Search')}</label>
+		<label for="searchQuery" class="mb-1 block text-sm font-medium text-gray-700"
+			>{$t('Search')}</label
+		>
 		<div class="relative">
 			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-				<svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+				<svg
+					class="h-4 w-4 text-gray-400"
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+					/>
 				</svg>
 			</div>
 			<input
@@ -429,7 +447,9 @@
 
 	<!-- ตัวกรองแผนก -->
 	<div class="w-full sm:w-48">
-		<label for="filterDepartment" class="mb-1 block text-sm font-medium text-gray-700">{$t('Department')}</label>
+		<label for="filterDepartment" class="mb-1 block text-sm font-medium text-gray-700"
+			>{$t('Department')}</label
+		>
 		<select
 			id="filterDepartment"
 			bind:value={inputDepartment}
@@ -444,7 +464,9 @@
 
 	<!-- ตัวกรองตำแหน่ง -->
 	<div class="w-full sm:w-48">
-		<label for="filterPosition" class="mb-1 block text-sm font-medium text-gray-700">{$t('Position')}</label>
+		<label for="filterPosition" class="mb-1 block text-sm font-medium text-gray-700"
+			>{$t('Position')}</label
+		>
 		<select
 			id="filterPosition"
 			bind:value={inputPosition}
@@ -458,16 +480,16 @@
 	</div>
 
 	<!-- ปุ่ม Actions -->
-	<div class="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+	<div class="mt-2 flex w-full gap-2 sm:mt-0 sm:w-auto">
 		<button
 			onclick={applyFilters}
-			class="flex flex-1 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:flex-none"
+			class="flex flex-1 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none sm:flex-none"
 		>
 			{$t('Search')}
 		</button>
 		<button
 			onclick={clearFilters}
-			class="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:flex-none"
+			class="flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none sm:flex-none"
 		>
 			{$t('Clear')}
 		</button>
@@ -480,28 +502,36 @@
 			<table class="min-w-full divide-y divide-gray-200 text-sm">
 				<thead class="bg-gray-50">
 					<tr>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Full Name')}</th
 						>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Emp ID')}</th
 						>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Email')}</th
 						>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Username')}</th
 						>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Department')}</th
 						>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Position')}</th
 						>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Role')}</th
 						>
-						<th class="px-4 py-3 text-center font-semibold tracking-wider text-gray-600"
+						<th
+							class="px-4 py-3 text-center font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Actions')}</th
 						>
 					</tr>
@@ -509,30 +539,32 @@
 				<tbody class="divide-y divide-gray-200 bg-white">
 					{#if paginatedUsers.length === 0}
 						<tr>
-							<td colspan="8" class="py-12 text-center text-gray-500"> 
-								{appliedSearchQuery || appliedDepartment !== 'all' || appliedPosition !== 'all' ? $t('No users found matching the filters.') : $t('No users found.')} 
+							<td colspan="8" class="py-12 text-center text-gray-500">
+								{appliedSearchQuery || appliedDepartment !== 'all' || appliedPosition !== 'all'
+									? $t('No users found matching the filters.')
+									: $t('No users found.')}
 							</td>
 						</tr>
 					{:else}
 						{#each paginatedUsers as user (user.id)}
 							<tr class="transition-colors hover:bg-gray-50">
-								<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900"
+								<td class="px-4 py-3 text-center font-medium whitespace-nowrap text-gray-900"
 									>{user.full_name}</td
 								>
-								<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-700">
-									{user.emp_id ?? '-'}
-								</td>
-								<td class="px-4 py-3 whitespace-nowrap text-gray-600">{user.email}</td>
-								<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-700">
-									{user.username}
-								</td>
-								<td class="px-4 py-3 whitespace-nowrap text-gray-600">
-									{user.department_name ?? '-'}
-								</td>
-								<td class="px-4 py-3 whitespace-nowrap text-gray-600">
-									{user.position_name ?? '-'}
-								</td>
-								<td class="px-4 py-3 whitespace-nowrap">
+								<td class="px-4 py-3 text-center font-mono text-xs whitespace-nowrap text-gray-700"
+									>{user.emp_id ?? '-'}</td
+								>
+								<td class="px-4 py-3 text-center whitespace-nowrap text-gray-600">{user.email}</td>
+								<td class="px-4 py-3 text-center font-mono text-xs whitespace-nowrap text-gray-700"
+									>{user.username}</td
+								>
+								<td class="px-4 py-3 text-center whitespace-nowrap text-gray-600"
+									>{user.department_name ?? '-'}</td
+								>
+								<td class="px-4 py-3 text-center whitespace-nowrap text-gray-600"
+									>{user.position_name ?? '-'}</td
+								>
+								<td class="px-4 py-3 text-center whitespace-nowrap">
 									<span
 										class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium {user.role ===
 										'admin'
