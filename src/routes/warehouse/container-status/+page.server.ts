@@ -17,13 +17,25 @@ interface ContainerData extends RowDataPacket {
 	created_at: string;
 }
 
-export const load: PageServerLoad = async ({ url, locals }) => {
+export const load: PageServerLoad = async ({ url , locals }) => {
 	checkPermission(locals, 'view container status');
+
+	// สร้างตัวแปรเก็บวันที่ปัจจุบันในรูปแบบ YYYY-MM-DD
+	const now = new Date();
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, '0');
+	const day = String(now.getDate()).padStart(2, '0');
+	const defaultDate = `${year}-${month}-${day}`;
 
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';
-	const startDate = url.searchParams.get('startDate') || '';
-	const endDate = url.searchParams.get('endDate') || '';
+	
+	// ถ้าไม่มี Parameter (หน้าโหลดครั้งแรก) ให้ใช้วันที่ปัจจุบัน แต่ถ้าผู้ใช้เคลียร์ช่องว่างมา ให้รับค่าว่าง
+	const startDateParam = url.searchParams.get('startDate');
+	const startDate = startDateParam !== null ? startDateParam : defaultDate;
+
+	const endDateParam = url.searchParams.get('endDate');
+	const endDate = endDateParam !== null ? endDateParam : defaultDate;
 
 	let limit = parseInt(url.searchParams.get('limit') || '10', 10);
 	const allowedLimits = [10, 20, 50, 200];
