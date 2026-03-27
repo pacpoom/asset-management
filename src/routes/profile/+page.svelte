@@ -4,7 +4,8 @@
 	import { slide } from 'svelte/transition';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	
+	import { t, locale } from '$lib/i18n';
+
 	// นำเข้ารูปภาพจากโฟลเดอร์เดียวกัน
 	import defaultAvatar from './default-avatar.jpg';
 
@@ -60,7 +61,7 @@
 
 <div class="mx-auto max-w-4xl rounded-lg border border-gray-200 bg-white shadow-sm">
 	<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-		<h1 class="text-xl font-bold text-gray-800">My Profile</h1>
+		<h1 class="text-xl font-bold text-gray-800">{$t('My Profile')}</h1>
 		<form method="POST" action="/login?/logout">
 			<button
 				type="submit"
@@ -86,7 +87,7 @@
 		<div class="grid grid-cols-1 gap-8 p-6 md:grid-cols-3">
 			<div class="flex flex-col items-center md:items-start">
 				<label for="profile_image" class="mb-2 block text-sm font-medium text-gray-700"
-					>Profile Image</label
+					>{$t('Profile Image')}</label
 				>
 
 				<!-- เปลี่ยนการเรียกใช้ตรงนี้ ให้เป็นตัวแปรที่เรา import มา -->
@@ -99,7 +100,7 @@
 					type="file"
 					name="profile_image"
 					id="profile_image"
-					accept="image/png, image/jpeg, image/webp"
+					accept="image/png, image/jpeg, imagUsernameSe/webp"
 					onchange={handleFileChange}
 					class="w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
 				/>
@@ -109,26 +110,26 @@
 			<div class="space-y-6 md:col-span-2">
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<div>
-						<span class="block text-sm font-medium text-gray-500">Username</span>
+						<span class="block text-sm font-medium text-gray-500">{$t('Username')}</span>
 						<p class="mt-1 font-mono text-sm text-gray-800">{data.profile.username}</p>
 					</div>
 					<div>
-						<span class="block text-sm font-medium text-gray-500">Employee ID</span>
+						<span class="block text-sm font-medium text-gray-500">{$t('Employee ID')}</span>
 						<p class="mt-1 font-mono text-sm text-gray-800">{data.profile.emp_id || 'N/A'}</p>
 					</div>
 					<div>
-						<span class="block text-sm font-medium text-gray-500">Department</span>
+						<span class="block text-sm font-medium text-gray-500">{$t('Department')}</span>
 						<p class="mt-1 text-sm text-gray-800">{data.profile.department_name || 'N/A'}</p>
 					</div>
 					<div>
-						<span class="block text-sm font-medium text-gray-500">Position</span>
+						<span class="block text-sm font-medium text-gray-500">{$t('Position')}</span>
 						<p class="mt-1 text-sm text-gray-800">{data.profile.position_name || 'N/A'}</p>
 					</div>
 				</div>
 				<hr />
 				<div>
 					<label for="full_name" class="mb-1 block text-sm font-medium text-gray-700"
-						>Full Name *</label
+						>{$t('Full Name')}</label
 					>
 					<input
 						type="text"
@@ -141,7 +142,7 @@
 				</div>
 				<div>
 					<label for="email" class="mb-1 block text-sm font-medium text-gray-700"
-						>Email Address *</label
+						>{$t('Email Address')}</label
 					>
 					<input
 						type="email"
@@ -154,7 +155,7 @@
 				</div>
 				<div>
 					<label for="new_password" class="mb-1 block text-sm font-medium text-gray-700"
-						>New Password</label
+						>{$t('New Password')}</label
 					>
 					<input
 						type="password"
@@ -163,7 +164,9 @@
 						bind:value={new_password}
 						class="w-full rounded-md border-gray-300 shadow-sm"
 					/>
-					<p class="mt-1 text-xs text-gray-500">Leave blank to keep your current password.</p>
+					<p class="mt-1 text-xs text-gray-500">
+						{$t('Leave blank to keep your current password')}
+					</p>
 				</div>
 			</div>
 		</div>
@@ -177,7 +180,7 @@
 				{#if isSaving}
 					Saving...
 				{:else}
-					Save Changes
+					{$t('Save')}
 				{/if}
 			</button>
 		</div>

@@ -649,7 +649,7 @@
 							{/if}
 						</div>
 
-						<div class="text-right">
+						<div class="max-w-[120px] text-right md:max-w-[200px]">
 							<a
 								href="/profile"
 								class="block truncate text-sm font-semibold text-gray-800 hover:text-blue-600 hover:underline"
@@ -759,7 +759,25 @@
 						>{data.systemName || 'Core Business'}</span
 					>
 				</div>
-				<div class="w-10"></div>
+				{#if $page.data.user}
+					<a href="/profile" class="flex-shrink-0 transition-transform hover:scale-105">
+						{#if $page.data.user.profile_image_url}
+							<img
+								src={$page.data.user.profile_image_url}
+								alt="Profile"
+								class="h-9 w-9 rounded-full border border-gray-200 object-cover shadow-sm"
+							/>
+						{:else}
+							<img
+								src={defaultAvatar}
+								alt="Default Profile"
+								class="h-9 w-9 rounded-full border border-gray-200 object-cover shadow-sm"
+							/>
+						{/if}
+					</a>
+				{:else}
+					<div class="w-9"></div>
+				{/if}
 			</header>
 
 			<main class="flex-1 p-4 sm:p-6 lg:p-8">
