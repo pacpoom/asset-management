@@ -14,11 +14,19 @@
 	function buildQueryString(search: string, start: string, end: string, limitStr: string, pageStr: string) {
 		const query = [];
 		if (search) query.push(`search=${encodeURIComponent(search)}`);
-		if (start) query.push(`startDate=${encodeURIComponent(start)}`);
-		if (end) query.push(`endDate=${encodeURIComponent(end)}`);
+		query.push(`startDate=${encodeURIComponent(start)}`);
+		query.push(`endDate=${encodeURIComponent(end)}`);
 		query.push(`limit=${limitStr}`);
 		query.push(`page=${pageStr}`);
 		return `?${query.join('&')}`;
+	}
+
+	function getExportUrl() {
+		const query = [];
+		if (searchQuery) query.push(`search=${encodeURIComponent(searchQuery)}`);
+		query.push(`startDate=${encodeURIComponent(startDate)}`);
+		query.push(`endDate=${encodeURIComponent(endDate)}`);
+		return `/warehouse/container-status/export?${query.join('&')}`;
 	}
 
 	function handleSearchInput() {
@@ -107,18 +115,37 @@
 		</p>
 	</div>
     
-    <!-- กล่องแสดงจำนวนตู้ -->
-	<div class="flex items-center gap-4 rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 shadow-sm">
-        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
-                <path d="M6 8h12M6 12h12M6 16h12" />
-            </svg>
-        </div>
-        <div>
-            <p class="text-xs font-semibold uppercase text-blue-600">{$t('Total Containers')}</p>
-            <p class="text-xl font-bold text-gray-900">{data.totalCount.toLocaleString()} <span class="text-sm font-medium text-gray-500">{$t('ตู้')}</span></p>
-        </div>
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+		<!-- กล่องแสดงจำนวนตู้ -->
+		<div class="flex items-center gap-4 rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 shadow-sm">
+			<div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
+					<path d="M6 8h12M6 12h12M6 16h12" />
+				</svg>
+			</div>
+			<div>
+				<p class="text-xs font-semibold uppercase text-blue-600">{$t('Total Containers')}</p>
+				<p class="text-xl font-bold text-gray-900">{data.totalCount.toLocaleString()} <span class="text-sm font-medium text-gray-500">{$t('ตู้')}</span></p>
+			</div>
+		</div>
+
+		<!-- ปุ่ม Export to Excel -->
+		<a
+			href={getExportUrl()}
+			target="_blank"
+			class="flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+				<polyline points="14 2 14 8 20 8"></polyline>
+				<path d="M8 13h2"></path>
+				<path d="M8 17h2"></path>
+				<path d="M14 13h2"></path>
+				<path d="M14 17h2"></path>
+			</svg>
+			{$t('Export')}
+		</a>
 	</div>
 </div>
 
