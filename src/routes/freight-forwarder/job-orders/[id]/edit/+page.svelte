@@ -1,3 +1,4 @@
+<!-- eslint-disable svelte/no-navigation-without-resolve -->
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { enhance } from '$app/forms';
@@ -44,11 +45,17 @@
 		code: string | null;
 	}
 
+	interface Port {
+		id: number;
+		port_name: string;
+	}
+
 	interface SelectOption {
 		value: string | number;
 		label: string;
 		address?: string | null;
 		amount?: number;
+		id?: number;
 	}
 
 	interface JobTypeOption {
@@ -136,13 +143,17 @@
 	];
 	let selectedServiceType = job.service_type || 'Import';
 
-	// --- Shipment & Liner ---
+	// --- Shipment, Liner & Ports ---
 	let linerOptions = (data.liners || []).map((l: Liner) => ({
 		value: l.name,
 		label: l.code ? `${l.name} (${l.code})` : l.name
 	}));
 	let selectedLiner: SelectOption | null = linerOptions.find((l: SelectOption) => l.value === job.liner_name) || 
 		(job.liner_name ? { value: job.liner_name, label: job.liner_name } : null);
+
+	$: portOptions = (data.ports || []).map((p: Port) => ({ value: p.port_name, label: p.port_name, id: p.id }));
+	let selectedPol: SelectOption | null = job.port_of_loading ? { value: job.port_of_loading, label: job.port_of_loading } : null;
+	let selectedPod: SelectOption | null = job.port_of_discharge ? { value: job.port_of_discharge, label: job.port_of_discharge } : null;
 
 	// --- ตัวแปรฟอร์มทั่วไป ---
 	let isSaving = false;
@@ -166,8 +177,6 @@
 	
 	let vessel = job.vessel || '';
 	let feeder = job.feeder || '';
-	let portOfLoading = job.port_of_loading || '';
-	let portOfDischarge = job.port_of_discharge || '';
 	
 	let qty = job.quantity || '';
 	let unitId = job.unit_id || '';
@@ -192,10 +201,13 @@
 
 	// --- Manage Options Modal (เหมือนหน้า Create) ---
 	let isManageModalOpen = false;
-	let manageModalType: 'jobCode' | 'serviceType' | null = null;
+	let manageModalType: 'jobCode' | 'serviceType' | 'port' | null = null;
 	let manageValue = '';
 	let manageLabel = '';
 	let editingIndex: number | null = null;
+	let managePortId: number | null = null;
+	let portActionType = 'add';
+	let portForm: HTMLFormElement;
 
 	let toastMessage = '';
 	let toastType: 'success' | 'error' = 'success';
@@ -210,7 +222,7 @@
 		}, 3000);
 	}
 
-	function openManageModal(type: 'jobCode' | 'serviceType') {
+	function openManageModal(type: 'jobCode' | 'serviceType' | 'port') {
 		manageModalType = type;
 		isManageModalOpen = true;
 		resetManageForm();
@@ -225,11 +237,18 @@
 		manageValue = '';
 		manageLabel = '';
 		editingIndex = null;
+		managePortId = null;
 	}
 
 	function saveManageOption() {
 		if (!manageLabel) {
 			showToast($t('Please specify a Label to continue'), 'error');
+			return;
+		}
+
+		if (manageModalType === 'port') {
+			portActionType = editingIndex !== null ? 'edit' : 'add';
+			setTimeout(() => portForm.requestSubmit(), 0);
 			return;
 		}
 
@@ -258,6 +277,13 @@
 
 	function editManageOption(index: number) {
 		editingIndex = index;
+
+		if (manageModalType === 'port') {
+			manageLabel = portOptions[index].label;
+			managePortId = portOptions[index].id;
+			return;
+		}
+
 		const targetArray = manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions;
 		manageValue = targetArray[index].value;
 		manageLabel = targetArray[index].label;
@@ -275,6 +301,14 @@
 
 	function executeDeleteOption() {
 		if (deleteTargetIndex === null) return;
+
+		if (manageModalType === 'port') {
+			portActionType = 'delete';
+			managePortId = portOptions[deleteTargetIndex].id;
+			setTimeout(() => portForm.requestSubmit(), 0);
+			showDeleteConfirm = false;
+			return;
+		}
 
 		if (manageModalType === 'jobCode') {
 			jobTypeOptions = jobTypeOptions.filter((_, i) => i !== deleteTargetIndex);
@@ -348,6 +382,28 @@
 
 	<div class="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
 		<div class="h-1.5 w-full bg-orange-500"></div>
+
+		<!-- Form ซ่อนสำหรับจัดการ Master Data ของ Port ไปยัง Server Action -->
+		<form method="POST" action="?/managePort" bind:this={portForm} class="hidden" use:enhance={() => {
+			return async ({ update, result }) => {
+				await update();
+				if (result.type === 'success') {
+					if (portActionType === 'delete') {
+						showToast($t('Option deleted successfully'), 'success');
+						deleteTargetIndex = null;
+					} else {
+						showToast(editingIndex !== null ? $t('Data updated successfully') : $t('Added to system successfully'), 'success');
+						resetManageForm();
+					}
+				} else {
+					showToast($t('Error saving data'), 'error');
+				}
+			};
+		}}>
+			<input type="hidden" name="action_type" bind:value={portActionType} />
+			<input type="hidden" name="id" bind:value={managePortId} />
+			<input type="hidden" name="port_name" bind:value={manageLabel} />
+		</form>
 
 		<form
 			method="POST"
@@ -740,7 +796,15 @@
 							<label for="port_of_loading" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								{$t('Port of Loading')}
 							</label>
-							<input id="port_of_loading" type="text" name="port_of_loading" bind:value={portOfLoading} placeholder={$t('POL')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+							<div class="flex items-start gap-2">
+								<div class="min-w-0 flex-grow">
+									<Select items={portOptions} bind:value={selectedPol} placeholder={$t('Select or Type...')} container={browser ? document.body : null} class="svelte-select-custom" />
+									<input type="hidden" name="port_of_loading" value={selectedPol?.value || ''} />
+								</div>
+								<button type="button" onclick={() => openManageModal('port')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Ports')}>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+								</button>
+							</div>
 						</div>
 
 						<!-- แถวที่ 5: Port of Discharge และ Quantity/Weight/Volume Group -->
@@ -748,7 +812,15 @@
 							<label for="port_of_discharge" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								{$t('Port of Discharge')}
 							</label>
-							<input id="port_of_discharge" type="text" name="port_of_discharge" bind:value={portOfDischarge} placeholder={$t('POD')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+							<div class="flex items-start gap-2">
+								<div class="min-w-0 flex-grow">
+									<Select items={portOptions} bind:value={selectedPod} placeholder={$t('Select or Type...')} container={browser ? document.body : null} class="svelte-select-custom" />
+									<input type="hidden" name="port_of_discharge" value={selectedPod?.value || ''} />
+								</div>
+								<button type="button" onclick={() => openManageModal('port')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Ports')}>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+								</button>
+							</div>
 						</div>
 
 						<div class="col-span-1 md:col-span-2">
@@ -897,7 +969,7 @@
 			<div class="flex items-center justify-between border-b px-5 py-4">
 				<h3 class="font-bold text-gray-800">
 					{$t('Manage Options')}
-					{manageModalType === 'jobCode' ? 'Job Code' : 'Service Type'}
+					{manageModalType === 'jobCode' ? 'Job Code' : manageModalType === 'serviceType' ? 'Service Type' : 'Port'}
 				</h3>
 				<button
 					onclick={closeManageModal}
@@ -916,7 +988,8 @@
 					<h4 class="mb-3 text-sm font-semibold text-gray-600">
 						{editingIndex !== null ? $t('Edit Option') : $t('Add New Option')}
 					</h4>
-					<div class="mb-3 grid grid-cols-2 gap-3">
+					<div class="mb-3 grid {manageModalType === 'port' ? 'grid-cols-1' : 'grid-cols-2'} gap-3">
+						{#if manageModalType !== 'port'}
 						<div>
 							<label for="manage_value" class="mb-1 block text-xs font-medium text-gray-500">{$t('Value (e.g. SI)')}</label>
 							<input
@@ -927,8 +1000,9 @@
 								placeholder="Value..."
 							/>
 						</div>
+						{/if}
 						<div>
-							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500">{$t('Label (e.g. Sea Import)')}</label>
+							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500">{$t(manageModalType === 'port' ? 'Port Name' : 'Label (e.g. Sea Import)')}</label>
 							<input
 								id="manage_label"
 								type="text"
@@ -960,11 +1034,13 @@
 				<h4 class="mb-2 text-sm font-semibold text-gray-700">{$t('Current Options')}</h4>
 				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
 					<ul class="divide-y divide-gray-100">
-						{#each manageModalType === 'jobCode' ? jobTypeOptions : serviceTypeOptions as option, index (option.value)}
+						{#each manageModalType === 'jobCode' ? jobTypeOptions : manageModalType === 'serviceType' ? serviceTypeOptions : portOptions as option, index (option.value)}
 							<li class="flex items-center justify-between p-3 hover:bg-gray-50">
 								<div>
 									<span class="text-sm font-semibold text-gray-800">{option.label}</span>
+									{#if manageModalType !== 'port'}
 									<span class="ml-2 text-xs text-gray-500">[{option.value}]</span>
+									{/if}
 								</div>
 								<div class="flex items-center gap-2">
 									<button
@@ -988,7 +1064,7 @@
 								</div>
 							</li>
 						{/each}
-						{#if (manageModalType === 'jobCode' && jobTypeOptions.length === 0) || (manageModalType === 'serviceType' && serviceTypeOptions.length === 0)}
+						{#if (manageModalType === 'jobCode' && jobTypeOptions.length === 0) || (manageModalType === 'serviceType' && serviceTypeOptions.length === 0) || (manageModalType === 'port' && portOptions.length === 0)}
 							<li class="p-4 text-center text-sm text-gray-500">{$t('No data available')}</li>
 						{/if}
 					</ul>

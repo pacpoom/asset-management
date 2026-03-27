@@ -97,6 +97,11 @@ export const load = async () => {
 		'SELECT id, name, symbol FROM units ORDER BY name ASC'
 	);
 
+	// ดึงข้อมูล Port of Loading / Discharge
+	const [ports] = await pool.query(
+		'SELECT id, port_name FROM ports WHERE is_active = 1 ORDER BY port_name ASC'
+	);
+
 	//const date = new Date();
 	const [seqRows] = await pool.query(
 		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' LIMIT 1`
@@ -117,6 +122,7 @@ export const load = async () => {
 		vendors: JSON.parse(JSON.stringify(vendors)),
 		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
 		units: JSON.parse(JSON.stringify(units)),
+		ports: JSON.parse(JSON.stringify(ports)),
 		nextSequence,
 		paddingLength
 	};
@@ -250,6 +256,27 @@ export const actions = {
 
 		if (newJobId) {
 			throw redirect(303, `/freight-forwarder/job-orders/${newJobId}`);
+		}
+	},
+
+	managePort: async ({ request }) => {
+		const formData = await request.formData();
+		const action_type = formData.get('action_type')?.toString();
+		const id = formData.get('id')?.toString();
+		const port_name = formData.get('port_name')?.toString();
+
+		try {
+			if (action_type === 'add' && port_name) {
+				await pool.execute('INSERT INTO ports (port_name) VALUES (?)', [port_name]);
+			} else if (action_type === 'edit' && id && port_name) {
+				await pool.execute('UPDATE ports SET port_name = ? WHERE id = ?', [port_name, id]);
+			} else if (action_type === 'delete' && id) {
+				await pool.execute('DELETE FROM ports WHERE id = ?', [id]);
+			}
+			return { success: true };
+		} catch (err) {
+			console.error('Manage Port Error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการจัดการ Port' });
 		}
 	}
 };

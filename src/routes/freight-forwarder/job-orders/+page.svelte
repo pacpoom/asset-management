@@ -1,4 +1,6 @@
+<!-- eslint-disable svelte/no-navigation-without-resolve -->
 <script lang="ts">
+	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -59,7 +61,7 @@
 		goto(url.toString(), { keepFocus: true, noScroll: true });
 	}
 
-	let searchTimeout: any;
+	let searchTimeout: ReturnType<typeof setTimeout>;
 	function onSearchInput() {
 		clearTimeout(searchTimeout);
 		searchTimeout = setTimeout(() => {
@@ -116,9 +118,9 @@
 		return `${type}${yy}${mm}${paddedId}`;
 	}
 
-	function confirmDelete(job: any) {
-		jobToDeleteId = job.id;
-		jobToDeleteName = job.job_number || formatJobNumber(job.job_type, job.job_date, job.id);
+	function confirmDelete(job: Record<string, unknown>) {
+		jobToDeleteId = job.id as number;
+		jobToDeleteName = (job.job_number as string) || formatJobNumber(job.job_type as string, job.job_date as string, job.id as number);
 		showDeleteModal = true;
 	}
 
@@ -238,7 +240,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
-					{#each jobs as job}
+					{#each jobs as job (job.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 align-top">
 								<a

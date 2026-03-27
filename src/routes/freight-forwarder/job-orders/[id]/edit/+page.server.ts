@@ -62,6 +62,10 @@ export const load = async ({ params }) => {
 		'SELECT id, name, symbol FROM units ORDER BY name ASC'
 	);
 
+	const [ports] = await pool.query(
+		'SELECT id, port_name FROM ports WHERE is_active = 1 ORDER BY port_name ASC'
+	);
+
 	const [attachmentRows] = await pool.query(
 		'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
 		[id]
@@ -81,6 +85,7 @@ export const load = async ({ params }) => {
 		vendors: JSON.parse(JSON.stringify(vendors)),
 		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
 		units: JSON.parse(JSON.stringify(units)),
+		ports: JSON.parse(JSON.stringify(ports)),
 		existingAttachments: JSON.parse(JSON.stringify(attachments))
 	};
 };
@@ -208,6 +213,27 @@ export const actions = {
 		} catch (err) {
 			console.error(err);
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบข้อมูล' });
+		}
+	},
+
+	managePort: async ({ request }) => {
+		const formData = await request.formData();
+		const action_type = formData.get('action_type')?.toString();
+		const id = formData.get('id')?.toString();
+		const port_name = formData.get('port_name')?.toString();
+
+		try {
+			if (action_type === 'add' && port_name) {
+				await pool.execute('INSERT INTO ports (port_name) VALUES (?)', [port_name]);
+			} else if (action_type === 'edit' && id && port_name) {
+				await pool.execute('UPDATE ports SET port_name = ? WHERE id = ?', [port_name, id]);
+			} else if (action_type === 'delete' && id) {
+				await pool.execute('DELETE FROM ports WHERE id = ?', [id]);
+			}
+			return { success: true };
+		} catch (err) {
+			console.error('Manage Port Error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการจัดการ Port' });
 		}
 	}
 };

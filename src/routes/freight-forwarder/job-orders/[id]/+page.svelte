@@ -583,8 +583,8 @@
 				</div>
 
 				<div class="flex items-center pt-2">
-					<label class="flex items-center space-x-2 cursor-pointer">
-						<input type="checkbox" name="has_vat" value="true" bind:checked={expHasVat} class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+					<label for="has_vat" class="flex items-center space-x-2 cursor-pointer">
+						<input id="has_vat" type="checkbox" name="has_vat" value="true" bind:checked={expHasVat} class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
 						<span class="text-sm font-semibold text-gray-700">{$t('Apply VAT 7%')}</span>
 					</label>
 				</div>
