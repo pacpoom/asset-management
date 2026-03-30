@@ -11,7 +11,13 @@
 	let endDate = $state(data.endDate ?? '');
 	let searchTimer: NodeJS.Timeout;
 
-	function buildQueryString(search: string, start: string, end: string, limitStr: string, pageStr: string) {
+	function buildQueryString(
+		search: string,
+		start: string,
+		end: string,
+		limitStr: string,
+		pageStr: string
+	) {
 		const query = [];
 		if (search) query.push(`search=${encodeURIComponent(search)}`);
 		query.push(`startDate=${encodeURIComponent(start)}`);
@@ -32,7 +38,13 @@
 	function handleSearchInput() {
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(() => {
-			const queryString = buildQueryString(searchQuery, startDate, endDate, data.limit.toString(), '1');
+			const queryString = buildQueryString(
+				searchQuery,
+				startDate,
+				endDate,
+				data.limit.toString(),
+				'1'
+			);
 
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			goto(queryString, {
@@ -99,7 +111,13 @@
 	});
 
 	function getPageUrl(pageNum: number) {
-		return buildQueryString(searchQuery, startDate, endDate, data.limit.toString(), pageNum.toString());
+		return buildQueryString(
+			searchQuery,
+			startDate,
+			endDate,
+			data.limit.toString(),
+			pageNum.toString()
+		);
 	}
 </script>
 
@@ -114,19 +132,33 @@
 			{$t('ติดตามสถานะตู้คอนเทนเนอร์ (Plan, ETD, ATA, Check-in)')}
 		</p>
 	</div>
-    
+
 	<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
 		<!-- กล่องแสดงจำนวนตู้ -->
-		<div class="flex items-center gap-4 rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 shadow-sm">
-			<div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<div
+			class="flex items-center gap-4 rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 shadow-sm"
+		>
+			<div
+				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
 					<rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
 					<path d="M6 8h12M6 12h12M6 16h12" />
 				</svg>
 			</div>
 			<div>
-				<p class="text-xs font-semibold uppercase text-blue-600">{$t('Total Containers')}</p>
-				<p class="text-xl font-bold text-gray-900">{data.totalCount.toLocaleString()} <span class="text-sm font-medium text-gray-500">{$t('ตู้')}</span></p>
+				<p class="text-xs font-semibold text-blue-600 uppercase">{$t('Total Containers')}</p>
+				<p class="text-xl font-bold text-gray-900">
+					{data.totalCount.toLocaleString()}
+					<span class="text-sm font-medium text-gray-500">{$t('ตู้')}</span>
+				</p>
 			</div>
 		</div>
 
@@ -136,7 +168,16 @@
 			target="_blank"
 			class="flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
 		>
-			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-5 w-5"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
 				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
 				<polyline points="14 2 14 8 20 8"></polyline>
 				<path d="M8 13h2"></path>
@@ -160,7 +201,9 @@
 		<input type="hidden" name="limit" value={data.limit} />
 
 		<div class="flex-1">
-            <label for="search" class="mb-1 block text-xs font-semibold text-gray-700">{$t('Search')}</label>
+			<label for="search" class="mb-1 block text-xs font-semibold text-gray-700"
+				>{$t('Search')}</label
+			>
 			<div class="relative">
 				<input
 					type="search"
@@ -172,15 +215,26 @@
 					class="w-full rounded-lg border-gray-300 py-2.5 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 				/>
 				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-					<svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+					<svg
+						class="h-4 w-4 text-gray-400"
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 20 20"
+						fill="currentColor"
+					>
+						<path
+							fill-rule="evenodd"
+							d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+							clip-rule="evenodd"
+						/>
 					</svg>
 				</div>
 			</div>
 		</div>
 
 		<div>
-			<label for="startDate" class="mb-1 block text-xs font-semibold text-gray-700">{$t('Check-in Date From')}</label>
+			<label for="startDate" class="mb-1 block text-xs font-semibold text-gray-700"
+				>{$t('Check-in Date From')}</label
+			>
 			<input
 				type="date"
 				name="startDate"
@@ -192,7 +246,9 @@
 		</div>
 
 		<div>
-			<label for="endDate" class="mb-1 block text-xs font-semibold text-gray-700">{$t('Check-in Date To')}</label>
+			<label for="endDate" class="mb-1 block text-xs font-semibold text-gray-700"
+				>{$t('Check-in Date To')}</label
+			>
 			<input
 				type="date"
 				name="endDate"
@@ -218,6 +274,8 @@
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('ETD Date')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('ATA Date')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Check-in Date')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Stock Status')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -225,10 +283,10 @@
 				<tr>
 					<td colspan="8" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery || data.startDate || data.endDate}
-                            {$t('ไม่พบข้อมูลตู้คอนเทนเนอร์ที่ตรงกับเงื่อนไขการค้นหา')}
-                        {:else}
-                            {$t('ยังไม่มีข้อมูลตู้คอนเทนเนอร์ในระบบ')}
-                        {/if}
+							{$t('ไม่พบข้อมูลตู้คอนเทนเนอร์ที่ตรงกับเงื่อนไขการค้นหา')}
+						{:else}
+							{$t('ยังไม่มีข้อมูลตู้คอนเทนเนอร์ในระบบ')}
+						{/if}
 					</td>
 				</tr>
 			{:else}
@@ -237,11 +295,11 @@
 						<td class="px-4 py-3">
 							<span class="font-mono text-sm font-bold text-blue-700">{item.container_no}</span>
 						</td>
-						<td class="px-4 py-3 text-gray-800 font-medium">
-                            {item.plan_no || '-'}
+						<td class="px-4 py-3 font-medium text-gray-800">
+							{item.plan_no || '-'}
 						</td>
 						<td class="px-4 py-3 text-gray-600">
-                            {item.model || '-'}
+							{item.model || '-'}
 						</td>
 						<td class="px-4 py-3 text-center">
 							<span class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
@@ -250,13 +308,46 @@
 						</td>
 						<td class="px-4 py-3 font-mono text-xs text-gray-600">{item.house_bl || '-'}</td>
 						<td class="px-4 py-3 text-center text-xs text-gray-600">
-                            {formatDateOnly(item.etd_date)}
+							{formatDateOnly(item.etd_date)}
 						</td>
 						<td class="px-4 py-3 text-center text-xs text-gray-600">
-                            {formatDateOnly(item.ata_date)}
+							{formatDateOnly(item.ata_date)}
 						</td>
 						<td class="px-4 py-3 text-center text-xs font-semibold text-green-700">
-                            {formatDateTimeStr(item.checkin_date)}
+							{formatDateTimeStr(item.checkin_date)}
+						</td>
+						<td class="px-4 py-3 text-center">
+							<span
+								class="rounded-full px-2 py-1 text-xs font-semibold
+        {item.status == 2
+									? 'bg-blue-100 text-blue-800'
+									: item.status == 4
+										? 'bg-gray-100 text-gray-800'
+										: 'bg-green-100 text-green-800'}"
+							>
+								{item.status == 2
+									? $t('Received')
+									: item.status == 4
+										? $t('Returned')
+										: $t('Shipped Out')}
+							</span>
+						</td>
+
+						<td class="px-4 py-3 text-center">
+							<span
+								class="rounded-full px-2 py-1 text-xs font-semibold
+        {item.stock_status == 1
+									? 'bg-red-100 text-red-800'
+									: item.stock_status == 3
+										? 'bg-gray-200 text-gray-800'
+										: 'bg-orange-100 text-orange-800'}"
+							>
+								{item.stock_status == 1
+									? $t('Full')
+									: item.stock_status == 3
+										? $t('Empty')
+										: $t('Partial')}
+							</span>
 						</td>
 					</tr>
 				{/each}
@@ -297,27 +388,51 @@
 			<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
 				<a
 					href={data.currentPage > 1 ? getPageUrl(data.currentPage - 1) : '#'}
-					class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === 1 ? 'pointer-events-none opacity-50' : ''}"
+					class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+					1
+						? 'pointer-events-none opacity-50'
+						: ''}"
 				>
 					<span class="sr-only">{$t('Previous')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+						><path
+							fill-rule="evenodd"
+							d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+							clip-rule="evenodd"
+						/></svg
+					>
 				</a>
 				{#each paginationRange as pageNum, index (index)}
 					{#if typeof pageNum === 'string'}
-						<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset">...</span>
+						<span
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset"
+							>...</span
+						>
 					{:else}
 						<a
 							href={getPageUrl(pageNum)}
-							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum === data.currentPage ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600' : 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}"
-						>{pageNum}</a>
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum ===
+							data.currentPage
+								? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+								: 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}">{pageNum}</a
+						>
 					{/if}
 				{/each}
 				<a
 					href={data.currentPage < data.totalPages ? getPageUrl(data.currentPage + 1) : '#'}
-					class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage === data.totalPages ? 'pointer-events-none opacity-50' : ''}"
+					class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {data.currentPage ===
+					data.totalPages
+						? 'pointer-events-none opacity-50'
+						: ''}"
 				>
 					<span class="sr-only">{$t('Next')}</span>
-					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/></svg>
+					<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+						><path
+							fill-rule="evenodd"
+							d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+							clip-rule="evenodd"
+						/></svg
+					>
 				</a>
 			</nav>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->

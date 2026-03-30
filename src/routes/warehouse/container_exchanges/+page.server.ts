@@ -1,25 +1,9 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { cymspool } from '$lib/server/database';
-import { checkPermission } from '$lib/server/auth';
 import type { RowDataPacket } from 'mysql2';
 
-interface ContainerData extends RowDataPacket {
-	id: number;
-	plan_no: string | null;
-	container_no: string;
-	model: string | null;
-	type: string | null;
-	house_bl: string | null;
-	etd_date: string | null;
-	ata_date: string | null;
-	checkin_date: string | null;
-	created_at: string;
-}
-
 export const load: PageServerLoad = async ({ url, locals }) => {
-	checkPermission(locals, 'view container status');
-
 	const now = new Date();
 	const year = now.getFullYear();
 	const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -47,50 +31,52 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		if (searchQuery) {
 			whereClause += ` AND (
-                c.container_no LIKE ? OR
-                p.plan_no LIKE ? OR
-                p.house_bl LIKE ? OR
-                p.model LIKE ?
+                c1.container_no LIKE ? OR
+                c2.container_no LIKE ? OR
+                ce.remarks LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm);
 		}
 
 		if (startDate) {
-			whereClause += ` AND DATE(p.checkin_date) >= ? `;
+			whereClause += ` AND DATE(ce.exchange_date) >= ? `;
 			params.push(startDate);
 		}
 
 		if (endDate) {
-			whereClause += ` AND DATE(p.checkin_date) <= ? `;
+			whereClause += ` AND DATE(ce.exchange_date) <= ? `;
 			params.push(endDate);
 		}
 
 		const countSql = `
-			SELECT COUNT(p.id) as total 
-			FROM container_order_plans p
-			LEFT JOIN containers c ON p.container_id = c.id 
-			${whereClause}
-		`;
+            SELECT COUNT(ce.id) as total 
+            FROM container_exchanges ce
+            LEFT JOIN containers c1 ON ce.source_container_id = c1.id
+            LEFT JOIN containers c2 ON ce.destination_container_id = c2.id
+            ${whereClause}
+        `;
 		const [countResult] = await cymspool.query<any[]>(countSql, params);
 		const totalCount = countResult[0].total;
 		const totalPages = Math.ceil(totalCount / limit);
 
 		const dataSql = `
-            SELECT p.*, c.container_no, c.size, c.agent,
-            cs.status AS stock_status 
-            FROM container_order_plans p
-            LEFT JOIN containers c ON p.container_id = c.id
-            LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id 
+            SELECT 
+                ce.*, 
+                c1.container_no AS source_container_no,
+                c2.container_no AS dest_container_no
+            FROM container_exchanges ce
+            LEFT JOIN containers c1 ON ce.source_container_id = c1.id
+            LEFT JOIN containers c2 ON ce.destination_container_id = c2.id
             ${whereClause}
-            ORDER BY p.checkin_date DESC, p.id DESC
+            ORDER BY ce.exchange_date DESC, ce.id DESC
             LIMIT ${limit} OFFSET ${offset}
         `;
 
-		const [containerRows] = await cymspool.query<any[]>(dataSql, params);
+		const [exchangeRows] = await cymspool.query<any[]>(dataSql, params);
 
 		return {
-			containers: containerRows,
+			exchanges: exchangeRows,
 			totalCount,
 			currentPage: page,
 			totalPages,
@@ -100,8 +86,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			endDate
 		};
 	} catch (err) {
-		console.error('Failed to load container status:', err);
-		const errorMessage = err instanceof Error ? err.message : String(err);
-		throw error(500, `Failed to load data. Error: ${errorMessage}`);
+		console.error('Failed to load container exchanges:', err);
+		throw error(500, 'Failed to load container exchange data.');
 	}
 };
