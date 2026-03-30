@@ -98,10 +98,17 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
-            cs.status AS stock_status 
+                   c.container_owner, 
+                   cs.status AS stock_status,
+                   ct.latest_transaction_date 
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
             LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id 
+            LEFT JOIN (
+                SELECT container_order_plan_id, MAX(transaction_date) as latest_transaction_date
+                FROM container_transactions
+                GROUP BY container_order_plan_id
+            ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
             ORDER BY p.checkin_date DESC, p.id DESC
             LIMIT ${limit} OFFSET ${offset}

@@ -73,7 +73,8 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
-                   cs.status AS stock_status
+			c.container_owner,
+            cs.status AS stock_status
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
             LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id
@@ -91,10 +92,12 @@ export const GET: RequestHandler = async ({ url }) => {
 			{ header: 'Plan No', key: 'plan_no', width: 20 },
 			{ header: 'Model', key: 'model', width: 25 },
 			{ header: 'Type', key: 'type', width: 15 },
+			{ header: 'Owner', key: 'owner', width: 15 },
 			{ header: 'House BL', key: 'house_bl', width: 20 },
 			{ header: 'ETD Date', key: 'etd_date', width: 15 },
 			{ header: 'ATA Date', key: 'ata_date', width: 15 },
 			{ header: 'Check-in Date', key: 'checkin_date', width: 20 },
+			{ header: 'Transaction Date', key: 'transaction_date', width: 20 },
 			{ header: 'Status', key: 'status', width: 15 },
 			{ header: 'Stock Status', key: 'stock_status', width: 15 }
 		];
@@ -111,20 +114,37 @@ export const GET: RequestHandler = async ({ url }) => {
 			if (row.status == 2) statusText = 'Received';
 			else if (row.status == 4) statusText = 'Returned';
 
+			// 🌟 2. แปลง Stock Status (ให้ Partial เป็นค่าเริ่มต้น)
 			let stockStatusText = 'Partial';
 			if (row.stock_status == 1) stockStatusText = 'Full';
 			else if (row.stock_status == 3) stockStatusText = 'Empty';
 
+			// 🌟 3. แปลง Owner (1: Owner, 0: Rental)
+			let ownerText = '-';
+			if (row.container_owner == 1) ownerText = 'Owner';
+			else if (row.container_owner == 0) ownerText = 'Rental';
+
+			// 🌟 4. เพิ่มข้อมูลลงในแถวของ Excel
 			worksheet.addRow({
 				container_no: row.container_no || '-',
 				plan_no: row.plan_no || '-',
 				model: row.model || '-',
 				type: row.type || '-',
+				owner: ownerText, // 🌟 ข้อมูล Owner ที่เพิ่งเพิ่มมา
 				house_bl: row.house_bl || '-',
 				etd_date: row.etd_date ? new Date(row.etd_date).toLocaleDateString('en-GB') : '-',
 				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB') : '-',
 				checkin_date: row.checkin_date
 					? new Date(row.checkin_date).toLocaleString('en-GB', {
+							year: 'numeric',
+							month: '2-digit',
+							day: '2-digit',
+							hour: '2-digit',
+							minute: '2-digit'
+						})
+					: '-',
+				transaction_date: row.latest_transaction_date
+					? new Date(row.latest_transaction_date).toLocaleString('en-GB', {
 							year: 'numeric',
 							month: '2-digit',
 							day: '2-digit',

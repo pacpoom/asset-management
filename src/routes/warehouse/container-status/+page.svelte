@@ -386,10 +386,12 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Plan No')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Model')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Type')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Container Owner')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('House BL')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('ETD Date')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('ATA Date')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Check-in Date')}</th>
+				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Transaction Date')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Stock Status')}</th>
 			</tr>
@@ -422,6 +424,24 @@
 								{item.type || '-'}
 							</span>
 						</td>
+
+						<td class="px-4 py-3 text-center">
+							<span
+								class="rounded px-2 py-1 text-xs font-semibold
+								{item.container_owner == 1
+									? 'bg-purple-100 text-purple-800'
+									: item.container_owner == 0
+										? 'bg-sky-100 text-sky-800'
+										: 'bg-gray-100 text-gray-600'}"
+							>
+								{item.container_owner == 1
+									? $t('Owner')
+									: item.container_owner == 0
+										? $t('Rental')
+										: '-'}
+							</span>
+						</td>
+
 						<td class="px-4 py-3 font-mono text-xs text-gray-600">{item.house_bl || '-'}</td>
 						<td class="px-4 py-3 text-center text-xs text-gray-600">
 							{formatDateOnly(item.etd_date)}
@@ -432,10 +452,15 @@
 						<td class="px-4 py-3 text-center text-xs font-semibold text-green-700">
 							{formatDateTimeStr(item.checkin_date)}
 						</td>
+
+						<td class="px-4 py-3 text-center text-xs text-gray-600">
+							{formatDateTimeStr(item.latest_transaction_date)}
+						</td>
+
 						<td class="px-4 py-3 text-center">
 							<span
 								class="rounded-full px-2 py-1 text-xs font-semibold
-        {item.status == 2
+        							{item.status == 2
 									? 'bg-blue-100 text-blue-800'
 									: item.status == 4
 										? 'bg-gray-100 text-gray-800'
@@ -452,7 +477,7 @@
 						<td class="px-4 py-3 text-center">
 							<span
 								class="rounded-full px-2 py-1 text-xs font-semibold
-        {item.stock_status == 1
+        						{item.stock_status == 1
 									? 'bg-red-100 text-red-800'
 									: item.stock_status == 3
 										? 'bg-gray-200 text-gray-800'
