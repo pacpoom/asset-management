@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import type { PageData } from './$types';
 	// สมมติว่ามีการใช้ i18n ตามโค้ดตัวอย่างของคุณ
-	import { t } from '$lib/i18n'; 
+	import { t } from '$lib/i18n';
 
 	const { data } = $props<{ data: PageData }>();
 
@@ -17,7 +17,7 @@
 		const url = new URL($page.url);
 		url.searchParams.set('page', newPage.toString());
 		url.searchParams.set('limit', newLimit.toString());
-		
+
 		if (search) {
 			url.searchParams.set('search', search);
 		} else {
@@ -62,14 +62,19 @@
 		<div class="relative w-full max-w-md">
 			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 				<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+					></path>
 				</svg>
 			</div>
 			<input
 				type="text"
 				bind:value={searchQuery}
 				oninput={handleSearch}
-				placeholder="{$t('Search Plan No, Container No, B/L...')}"
+				placeholder={$t('Search Plan No, Container No, B/L...')}
 				class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
 		</div>
@@ -80,7 +85,7 @@
 				id="limit"
 				bind:value={currentLimit}
 				onchange={handleLimitChange}
-				class="rounded border-gray-300 py-1.5 pl-3 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
+				class="rounded border-gray-300 py-1.5 pr-8 pl-3 text-sm focus:border-blue-500 focus:ring-blue-500"
 			>
 				<option value={10}>10</option>
 				<option value={50}>50</option>
@@ -93,7 +98,7 @@
 	<!-- ตารางแสดงข้อมูล -->
 	<div class="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
 		<table class="w-full text-left text-sm text-gray-500">
-			<thead class="bg-gray-50 text-xs uppercase text-gray-700">
+			<thead class="bg-gray-50 text-xs text-gray-700 uppercase">
 				<tr>
 					<th scope="col" class="px-6 py-3">{$t('Plan No')}</th>
 					<th scope="col" class="px-6 py-3">{$t('Container No')}</th>
@@ -115,7 +120,7 @@
 
 				{#each data.plans as plan (plan.id)}
 					<tr class="border-b bg-white hover:bg-gray-50">
-						<td class="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
+						<td class="px-6 py-4 font-medium whitespace-nowrap text-gray-900">
 							{plan.plan_no}
 						</td>
 						<td class="px-6 py-4 font-mono text-blue-600">
@@ -147,12 +152,17 @@
 	<!-- Pagination Controls -->
 	<div class="mt-4 flex items-center justify-between">
 		<div class="text-sm text-gray-700">
-			{$t('Showing')} 
-			<span class="font-semibold">{(data.pagination.page - 1) * data.pagination.limit + (data.plans.length > 0 ? 1 : 0)}</span> 
-			{$t('to')} 
-			<span class="font-semibold">{Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)}</span> 
-			{$t('of')} 
-			<span class="font-semibold">{data.pagination.total}</span> 
+			{$t('Showing')}
+			<span class="font-semibold"
+				>{(data.pagination.page - 1) * data.pagination.limit +
+					(data.plans.length > 0 ? 1 : 0)}</span
+			>
+			{$t('to')}
+			<span class="font-semibold"
+				>{Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)}</span
+			>
+			{$t('of')}
+			<span class="font-semibold">{data.pagination.total}</span>
 			{$t('entries')}
 		</div>
 
@@ -164,7 +174,7 @@
 			>
 				{$t('Previous')}
 			</button>
-			
+
 			<!-- แสดงหน้าปัจจุบัน -->
 			<span class="flex items-center px-4 py-1 text-sm font-medium text-gray-700">
 				Page {data.pagination.page} of {data.pagination.totalPages || 1}
