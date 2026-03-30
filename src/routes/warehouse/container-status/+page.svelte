@@ -9,12 +9,14 @@
 	let searchQuery = $state(data.searchQuery ?? '');
 	let startDate = $state(data.startDate ?? '');
 	let endDate = $state(data.endDate ?? '');
+	let statusFilter = $state(data.statusFilter ?? '');
 	let searchTimer: NodeJS.Timeout;
 
 	function buildQueryString(
 		search: string,
 		start: string,
 		end: string,
+		status: string,
 		limitStr: string,
 		pageStr: string
 	) {
@@ -22,6 +24,7 @@
 		if (search) query.push(`search=${encodeURIComponent(search)}`);
 		query.push(`startDate=${encodeURIComponent(start)}`);
 		query.push(`endDate=${encodeURIComponent(end)}`);
+		if (status) query.push(`status=${encodeURIComponent(status)}`);
 		query.push(`limit=${limitStr}`);
 		query.push(`page=${pageStr}`);
 		return `?${query.join('&')}`;
@@ -32,6 +35,7 @@
 		if (searchQuery) query.push(`search=${encodeURIComponent(searchQuery)}`);
 		query.push(`startDate=${encodeURIComponent(startDate)}`);
 		query.push(`endDate=${encodeURIComponent(endDate)}`);
+		if (statusFilter) query.push(`status=${encodeURIComponent(statusFilter)}`); // 🌟 ให้ตอนโหลด Excel ส่ง status ไปด้วย
 		return `/warehouse/container-status/export?${query.join('&')}`;
 	}
 
@@ -42,11 +46,11 @@
 				searchQuery,
 				startDate,
 				endDate,
+				statusFilter,
 				data.limit.toString(),
 				'1'
 			);
 
-			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			goto(queryString, {
 				keepFocus: true,
 				noScroll: true,
@@ -56,9 +60,15 @@
 	}
 
 	function changeLimit(newLimit: string) {
-		const queryString = buildQueryString(searchQuery, startDate, endDate, newLimit, '1');
+		const queryString = buildQueryString(
+			searchQuery,
+			startDate,
+			endDate,
+			statusFilter,
+			newLimit,
+			'1'
+		);
 
-		// eslint-disable-next-line svelte/no-navigation-without-resolve
 		goto(queryString, {
 			keepFocus: true,
 			noScroll: true,
@@ -115,6 +125,7 @@
 			searchQuery,
 			startDate,
 			endDate,
+			statusFilter,
 			data.limit.toString(),
 			pageNum.toString()
 		);
@@ -133,10 +144,9 @@
 		</p>
 	</div>
 
-	<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-		<!-- กล่องแสดงจำนวนตู้ -->
+	<div class="flex flex-wrap items-center gap-3">
 		<div
-			class="flex items-center gap-4 rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 shadow-sm"
+			class="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 shadow-sm"
 		>
 			<div
 				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600"
@@ -154,19 +164,107 @@
 				</svg>
 			</div>
 			<div>
-				<p class="text-xs font-semibold text-blue-600 uppercase">{$t('Total Containers')}</p>
-				<p class="text-xl font-bold text-gray-900">
+				<p class="text-[10px] font-bold text-blue-600 uppercase">{$t('Total')}</p>
+				<p class="text-lg leading-none font-bold text-gray-900">
 					{data.totalCount.toLocaleString()}
-					<span class="text-sm font-medium text-gray-500">{$t('ตู้')}</span>
 				</p>
 			</div>
 		</div>
 
-		<!-- ปุ่ม Export to Excel -->
+		<div
+			class="flex items-center gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-2 shadow-sm"
+		>
+			<div
+				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+					></path>
+					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+					<line x1="12" y1="22.08" x2="12" y2="12"></line>
+				</svg>
+			</div>
+			<div>
+				<p class="text-[10px] font-bold text-red-600 uppercase">{$t('Full')}</p>
+				<p class="text-lg leading-none font-bold text-gray-900">
+					{data.fullCount.toLocaleString()}
+				</p>
+			</div>
+		</div>
+
+		<div
+			class="flex items-center gap-3 rounded-xl border border-orange-100 bg-orange-50 px-4 py-2 shadow-sm"
+		>
+			<div
+				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+					></path>
+					<polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
+					<polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
+					<polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
+					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+					<line x1="12" y1="22.08" x2="12" y2="12"></line>
+				</svg>
+			</div>
+			<div>
+				<p class="text-[10px] font-bold text-orange-600 uppercase">{$t('Partial')}</p>
+				<p class="text-lg leading-none font-bold text-gray-900">
+					{data.partialCount.toLocaleString()}
+				</p>
+			</div>
+		</div>
+
+		<div
+			class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 shadow-sm"
+		>
+			<div
+				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-600"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path
+						d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+					></path>
+					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+					<line x1="12" y1="22.08" x2="12" y2="12"></line>
+				</svg>
+			</div>
+			<div>
+				<p class="text-[10px] font-bold text-gray-600 uppercase">{$t('Empty')}</p>
+				<p class="text-lg leading-none font-bold text-gray-900">
+					{data.emptyCount.toLocaleString()}
+				</p>
+			</div>
+		</div>
+
 		<a
 			href={getExportUrl()}
 			target="_blank"
-			class="flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+			class="ml-auto flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -257,6 +355,24 @@
 				onchange={handleSearchInput}
 				class="w-full rounded-lg border-gray-300 py-2.5 text-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
+		</div>
+
+		<div>
+			<label for="statusFilter" class="mb-1 block text-xs font-semibold text-gray-700"
+				>{$t('Plan Status')}</label
+			>
+			<select
+				name="status"
+				id="statusFilter"
+				bind:value={statusFilter}
+				onchange={handleSearchInput}
+				class="w-full cursor-pointer rounded-lg border-gray-300 py-2.5 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
+			>
+				<option value="">{$t('All Status')}</option>
+				<option value="2">{$t('Received')}</option>
+				<option value="3">{$t('Shipped Out')}</option>
+				<option value="4">{$t('Returned')}</option>
+			</select>
 		</div>
 	</form>
 </div>

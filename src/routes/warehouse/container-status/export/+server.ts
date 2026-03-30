@@ -35,6 +35,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const endDateParam = url.searchParams.get('endDate');
 	const endDate = endDateParam !== null ? endDateParam : defaultDate;
+	const statusFilter = url.searchParams.get('status') || '';
 
 	try {
 		let whereClause = ' WHERE 1=1 ';
@@ -59,6 +60,15 @@ export const GET: RequestHandler = async ({ url }) => {
 		if (endDate) {
 			whereClause += ` AND DATE(p.checkin_date) <= ? `;
 			params.push(endDate);
+		}
+
+		if (statusFilter) {
+			if (statusFilter === '3') {
+				whereClause += ` AND (p.status = 3 OR p.status NOT IN (2, 4)) `;
+			} else {
+				whereClause += ` AND p.status = ? `;
+				params.push(statusFilter);
+			}
 		}
 
 		const dataSql = `

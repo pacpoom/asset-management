@@ -34,6 +34,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 	const endDateParam = url.searchParams.get('endDate');
 	const endDate = endDateParam !== null ? endDateParam : defaultDate;
+	const statusFilter = url.searchParams.get('status') || '';
 
 	let limit = parseInt(url.searchParams.get('limit') || '10', 10);
 	const allowedLimits = [10, 20, 50, 200];
@@ -66,14 +67,33 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(endDate);
 		}
 
+		if (statusFilter) {
+			if (statusFilter === '3') {
+				whereClause += ` AND (p.status = 3 OR p.status NOT IN (2, 4)) `;
+			} else {
+				whereClause += ` AND p.status = ? `;
+				params.push(statusFilter);
+			}
+		}
+
 		const countSql = `
-			SELECT COUNT(p.id) as total 
+			SELECT 
+                COUNT(p.id) as total,
+                SUM(CASE WHEN cs.status = 1 THEN 1 ELSE 0 END) as fullCount,
+                SUM(CASE WHEN cs.status = 3 THEN 1 ELSE 0 END) as emptyCount,
+                SUM(CASE WHEN cs.status = 1 OR cs.status = 3 THEN 0 ELSE 1 END) as partialCount
 			FROM container_order_plans p
 			LEFT JOIN containers c ON p.container_id = c.id 
+            LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id
 			${whereClause}
 		`;
+
 		const [countResult] = await cymspool.query<any[]>(countSql, params);
-		const totalCount = countResult[0].total;
+
+		const totalCount = countResult[0].total || 0;
+		const fullCount = countResult[0].fullCount || 0;
+		const partialCount = countResult[0].partialCount || 0;
+		const emptyCount = countResult[0].emptyCount || 0;
 		const totalPages = Math.ceil(totalCount / limit);
 
 		const dataSql = `
@@ -92,12 +112,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		return {
 			containers: containerRows,
 			totalCount,
+			fullCount,
+			partialCount,
+			emptyCount,
 			currentPage: page,
 			totalPages,
 			limit,
 			searchQuery,
 			startDate,
-			endDate
+			endDate,
+			statusFilter
 		};
 	} catch (err) {
 		console.error('Failed to load container status:', err);
