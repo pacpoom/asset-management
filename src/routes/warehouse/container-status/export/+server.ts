@@ -134,6 +134,8 @@ export const GET: RequestHandler = async ({ url }) => {
 				ownerText = 'Rental';
 			} else if (row.container_owner === 'LOG') {
 				ownerText = 'LOG';
+			} else if (row.container_owner) {
+				ownerText = row.container_owner;
 			}
 
 			worksheet.addRow({
@@ -141,7 +143,7 @@ export const GET: RequestHandler = async ({ url }) => {
 				plan_no: row.plan_no || '-',
 				model: row.model || '-',
 				type: row.type || '-',
-				owner: ownerText, 
+				owner: ownerText,
 				house_bl: row.house_bl || '-',
 				etd_date: row.etd_date ? new Date(row.etd_date).toLocaleDateString('en-GB') : '-',
 				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB') : '-',
