@@ -472,7 +472,7 @@
 							{formatDateOnly(item.ata_date)}
 						</td>
 						<td class="px-4 py-3 text-center text-xs font-semibold text-green-700">
-							{formatDateTimeStr(item.checkin_date)}
+							{formatDateOnly(item.checkin_date)}
 						</td>
 
 						<td class="px-4 py-3 text-center text-xs text-gray-600">

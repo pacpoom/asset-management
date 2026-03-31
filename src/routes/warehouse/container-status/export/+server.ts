@@ -71,10 +71,11 @@ export const GET: RequestHandler = async ({ url }) => {
 			}
 		}
 
+		// เพิ่ม GROUP BY p.id เพื่อป้องกันข้อมูลซ้ำตอนดึงออก Excel
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
                    c.container_owner, 
-                   cs.status AS stock_status,
+                   MAX(cs.status) AS stock_status,
                    ct.latest_transaction_date
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
@@ -86,6 +87,7 @@ export const GET: RequestHandler = async ({ url }) => {
                 GROUP BY container_order_plan_id
             ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
+            GROUP BY p.id
             ORDER BY p.checkin_date DESC, p.id DESC
         `;
 
@@ -121,28 +123,25 @@ export const GET: RequestHandler = async ({ url }) => {
 			if (row.status == 2) statusText = 'Received';
 			else if (row.status == 4) statusText = 'Returned';
 
-			// 🌟 2. แปลง Stock Status (ให้ Partial เป็นค่าเริ่มต้น)
 			let stockStatusText = 'Partial';
 			if (row.stock_status == 1) stockStatusText = 'Full';
 			else if (row.stock_status == 3) stockStatusText = 'Empty';
 
-			// 🌟 3. แปลง Owner (1: Owner, 0: Rental)
 			let ownerText = '-';
 			if (row.container_owner === 'Owner') {
 				ownerText = 'Owner';
 			} else if (row.container_owner === 'Rental') {
 				ownerText = 'Rental';
 			} else if (row.container_owner === 'LOG') {
-				ownerText = 'LOG'; // 🌟 เพิ่มบรรทัดนี้เพื่อรองรับ LOG
+				ownerText = 'LOG';
 			}
 
-			// 🌟 4. เพิ่มข้อมูลลงในแถวของ Excel
 			worksheet.addRow({
 				container_no: row.container_no || '-',
 				plan_no: row.plan_no || '-',
 				model: row.model || '-',
 				type: row.type || '-',
-				owner: ownerText, // 🌟 ข้อมูล Owner ที่เพิ่งเพิ่มมา
+				owner: ownerText, 
 				house_bl: row.house_bl || '-',
 				etd_date: row.etd_date ? new Date(row.etd_date).toLocaleDateString('en-GB') : '-',
 				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB') : '-',

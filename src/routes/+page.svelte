@@ -1,4 +1,4 @@
-<script module lang="ts">
+<!-- <script module lang="ts">
 	declare let Chart: any;
 </script>
 
@@ -315,4 +315,4 @@
 			</div>
 		</div>
 	{/if}
-</div>
+</div> -->

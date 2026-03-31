@@ -76,16 +76,21 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			}
 		}
 
+		// ใช้ Subquery สำหรับการนับ เพื่อให้ได้ผลลัพธ์ตรงกับจำนวนแถวหลังทำ GROUP BY แล้ว
 		const countSql = `
 			SELECT 
-                COUNT(p.id) as total,
-                SUM(CASE WHEN cs.status = 1 THEN 1 ELSE 0 END) as fullCount,
-                SUM(CASE WHEN cs.status = 3 THEN 1 ELSE 0 END) as emptyCount,
-                SUM(CASE WHEN cs.status = 1 OR cs.status = 3 THEN 0 ELSE 1 END) as partialCount
-			FROM container_order_plans p
-			LEFT JOIN containers c ON p.container_id = c.id 
-            LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id
-			${whereClause}
+                COUNT(*) as total,
+                SUM(CASE WHEN stock_status = 1 THEN 1 ELSE 0 END) as fullCount,
+                SUM(CASE WHEN stock_status = 3 THEN 1 ELSE 0 END) as emptyCount,
+                SUM(CASE WHEN stock_status = 1 OR stock_status = 3 THEN 0 ELSE 1 END) as partialCount
+			FROM (
+                SELECT p.id, MAX(cs.status) as stock_status
+                FROM container_order_plans p
+                LEFT JOIN containers c ON p.container_id = c.id 
+                LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id
+                ${whereClause}
+                GROUP BY p.id
+            ) as sub
 		`;
 
 		const [countResult] = await cymspool.query<any[]>(countSql, params);
@@ -96,10 +101,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const emptyCount = countResult[0].emptyCount || 0;
 		const totalPages = Math.ceil(totalCount / limit);
 
+		// เพิ่ม GROUP BY p.id เพื่อป้องกันข้อมูลซ้ำ และใช้ MAX(cs.status) เพื่อให้ผ่าน strict mode
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
                    c.container_owner, 
-                   cs.status AS stock_status,
+                   MAX(cs.status) AS stock_status,
                    ct.latest_transaction_date 
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
@@ -111,6 +117,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 GROUP BY container_order_plan_id
             ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
+            GROUP BY p.id
             ORDER BY p.checkin_date DESC, p.id DESC
             LIMIT ${limit} OFFSET ${offset}
         `;
