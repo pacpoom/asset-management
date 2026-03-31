@@ -76,22 +76,41 @@
 		});
 	}
 
-	function formatDateOnly(dateStr: string | null | undefined) {
-		if (!dateStr) return '-';
-		const dateObj = new Date(dateStr);
-		return dateObj.toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-GB');
+	function formatDateOnly(dateVal: any) {
+		if (!dateVal) return '-';
+
+		try {
+			// แปลงเป็น String ก่อนเพื่อเช็คค่า 0000-00-00
+			const strVal = String(dateVal);
+			if (strVal.startsWith('0000-00-00')) return '-';
+
+			const dateObj = new Date(dateVal);
+			if (isNaN(dateObj.getTime())) return '-';
+			return dateObj.toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-GB');
+		} catch (e) {
+			return '-';
+		}
 	}
 
-	function formatDateTimeStr(dateStr: string | null | undefined) {
-		if (!dateStr) return '-';
-		const dateObj = new Date(dateStr);
-		return dateObj.toLocaleString($locale === 'th' ? 'th-TH' : 'en-GB', {
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
+	function formatDateTimeStr(dateVal: any) {
+		if (!dateVal) return '-';
+
+		try {
+			const strVal = String(dateVal);
+			if (strVal.startsWith('0000-00-00')) return '-';
+
+			const dateObj = new Date(dateVal);
+			if (isNaN(dateObj.getTime())) return '-';
+			return dateObj.toLocaleString($locale === 'th' ? 'th-TH' : 'en-GB', {
+				year: 'numeric',
+				month: '2-digit',
+				day: '2-digit',
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+		} catch (e) {
+			return '-';
+		}
 	}
 
 	const paginationRange = $derived.by(() => {
@@ -426,20 +445,23 @@
 						</td>
 
 						<td class="px-4 py-3 text-center">
-							<span
-								class="rounded px-2 py-1 text-xs font-semibold
-								{item.container_owner == 1
-									? 'bg-purple-100 text-purple-800'
-									: item.container_owner == 0
-										? 'bg-sky-100 text-sky-800'
-										: 'bg-gray-100 text-gray-600'}"
-							>
-								{item.container_owner == 1
-									? $t('Owner')
-									: item.container_owner == 0
-										? $t('Rental')
-										: '-'}
-							</span>
+							{#if item.container_owner === 'Rental'}
+								<span class="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700"
+									>Rental</span
+								>
+							{:else if item.container_owner === 'Owner'}
+								<span
+									class="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700"
+									>Owner</span
+								>
+							{:else if item.container_owner === 'LOG'}
+								<span
+									class="rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-700"
+									>LOG</span
+								>
+							{:else}
+								<span class="text-gray-400">{item.container_owner || '-'}</span>
+							{/if}
 						</td>
 
 						<td class="px-4 py-3 font-mono text-xs text-gray-600">{item.house_bl || '-'}</td>

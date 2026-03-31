@@ -73,11 +73,18 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
-			c.container_owner,
-            cs.status AS stock_status
+                   c.container_owner, 
+                   cs.status AS stock_status,
+                   ct.latest_transaction_date
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
-            LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id
+            LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id 
+            LEFT JOIN (
+                SELECT container_order_plan_id, MAX(transaction_date) as latest_transaction_date
+                FROM container_transactions
+                WHERE activity_type = 'Receive' 
+                GROUP BY container_order_plan_id
+            ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
             ORDER BY p.checkin_date DESC, p.id DESC
         `;
@@ -121,8 +128,13 @@ export const GET: RequestHandler = async ({ url }) => {
 
 			// 🌟 3. แปลง Owner (1: Owner, 0: Rental)
 			let ownerText = '-';
-			if (row.container_owner == 1) ownerText = 'Owner';
-			else if (row.container_owner == 0) ownerText = 'Rental';
+			if (row.container_owner === 'Owner') {
+				ownerText = 'Owner';
+			} else if (row.container_owner === 'Rental') {
+				ownerText = 'Rental';
+			} else if (row.container_owner === 'LOG') {
+				ownerText = 'LOG'; // 🌟 เพิ่มบรรทัดนี้เพื่อรองรับ LOG
+			}
 
 			// 🌟 4. เพิ่มข้อมูลลงในแถวของ Excel
 			worksheet.addRow({

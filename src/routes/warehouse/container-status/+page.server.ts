@@ -107,6 +107,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             LEFT JOIN (
                 SELECT container_order_plan_id, MAX(transaction_date) as latest_transaction_date
                 FROM container_transactions
+				WHERE activity_type = 'Receive'
                 GROUP BY container_order_plan_id
             ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
