@@ -1010,7 +1010,7 @@
 								</div>
 								<div>
 									<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
-										{$t('Weight')}
+										{$t('WEIGHT KGS')}
 									</label>
 									<input
 										id="weight"
@@ -1028,7 +1028,7 @@
 										for="kgs_volume"
 										class="mb-1 block text-xs font-bold text-gray-500 uppercase"
 									>
-										{$t('KGS. Volume')}
+										{$t('VOLUME CBM')}
 									</label>
 									<input
 										id="kgs_volume"

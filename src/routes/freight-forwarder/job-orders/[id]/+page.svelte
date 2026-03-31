@@ -336,11 +336,11 @@
                     <span class="font-medium text-gray-900">{job.quantity || 0} {job.unit_name || ''}</span>
                 </div>
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <span class="text-sm font-medium text-gray-600">{$t('Weight')}</span>
+                    <span class="text-sm font-medium text-gray-600">{$t('WEIGHT KGS')}</span>
                     <span class="font-medium text-gray-900">{job.weight || '0.00'}</span>
                 </div>
                 <div class="flex items-center justify-between border-b border-gray-100 pb-2">
-                    <span class="text-sm font-medium text-gray-600">{$t('KGS. Volume')}</span>
+                    <span class="text-sm font-medium text-gray-600">{$t('VOLUME CBM')}</span>
                     <span class="font-medium text-gray-900">{job.kgs_volume || '0.00'}</span>
                 </div>
             </div>

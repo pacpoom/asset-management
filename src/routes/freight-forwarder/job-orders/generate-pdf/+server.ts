@@ -217,12 +217,18 @@ function getJobOrderHtml(
                     </div>
                 </td>
                 <td style="width: 40%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
-                    <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0; color: #1e3a8a;">${t('title')}</h1>
-                    <div style="margin-top: 0.5rem; font-size: 8pt; line-height: 1.5;">
-                        <p style="margin:0;"><span style="font-weight: 600;">${t('jobNo')}</span> ${displayJobNumber}</p>
+                    <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0 0 8px 0; color: #1e3a8a;">${t('title')}</h1>
+                    
+                    <!-- ส่วนแสดงเลข Job Order ที่ถูกปรับให้ใหญ่ขึ้น -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-weight: 600; font-size: 9pt; color: #6B7280; margin-bottom: 2px;">${t('jobNo')}</div>
+                        <div style="font-size: 18pt; font-weight: bold; color: #1d4ed8; letter-spacing: 0.5px;">${displayJobNumber}</div>
+                    </div>
+
+                    <div style="font-size: 9pt; line-height: 1.6;">
                         <p style="margin:0;"><span style="font-weight: 600;">${t('jobDate')}</span> ${formatDateOnly(jobData.job_date)}</p>
                         ${jobData.expire_date ? `<p style="margin:0;"><span style="font-weight: 600;">${t('expireDate')}</span> ${formatDateOnly(jobData.expire_date)}</p>` : ''}
-                        <p style="margin:0;"><span style="font-weight: 600;">${t('status')}</span> <span style="font-weight:bold;">${jobData.job_status}</span></p>
+                        <p style="margin:0;"><span style="font-weight: 600;">${t('status')}</span> <span style="font-weight:bold; padding: 2px 6px; background-color: #f3f4f6; border-radius: 4px;">${jobData.job_status}</span></p>
                     </div>
                 </td>
             </tr>

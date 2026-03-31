@@ -609,11 +609,11 @@
 									</div>
 								</div>
 								<div>
-									<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Weight')}</label>
+									<label for="weight" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('WEIGHT KGS')}</label>
 									<input id="weight" type="number" name="weight" step="0.01" min="0" placeholder="0.00" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white" />
 								</div>
 								<div>
-									<label for="kgs_volume" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('KGS. Volume')}</label>
+									<label for="kgs_volume" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('VOLUME CBM')}</label>
 									<input id="kgs_volume" type="number" name="kgs_volume" step="0.01" min="0" placeholder="0.00" class="w-full rounded-md border-gray-300 p-2 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white" />
 								</div>
 							</div>
