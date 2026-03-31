@@ -466,7 +466,7 @@
 							</div>
 							<div>
 								<label for="expire_date" class="mb-1 block text-sm font-semibold text-gray-700">{$t('Expire Date')}</label>
-								<input id="expire_date" type="date" name="expire_date" bind:value={expireDate} on:change={() => (isExpireDateManual = true)} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+								<input id="expire_date" type="date" name="expire_date" bind:value={expireDate} onchange={() => (isExpireDateManual = true)} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
 							</div>
 						</div>
 
@@ -480,7 +480,7 @@
 										<Select items={jobTypeOptions} bind:value={selectedJobType} placeholder={$t('Select...')} container={browser ? document.body : null} class="svelte-select-custom" clearable={false} />
 										<input type="hidden" name="job_type" value={selectedJobType?.value || ''} required />
 									</div>
-									<button type="button" on:click={() => openManageModal('jobCode')} class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none" title={$t('Manage Job Code options')}>
+									<button type="button" onclick={() => openManageModal('jobCode')} class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none" title={$t('Manage Job Code options')}>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
 										</svg>
@@ -498,7 +498,7 @@
 											<option value={option.value}>{option.label}</option>
 										{/each}
 									</select>
-									<button type="button" on:click={() => openManageModal('serviceType')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none" title={$t('Manage Service Type options')}>
+									<button type="button" onclick={() => openManageModal('serviceType')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none" title={$t('Manage Service Type options')}>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
 										</svg>
@@ -575,7 +575,7 @@
 									<Select items={portOptions} bind:value={selectedPol} placeholder={$t('Select or Type...')} container={browser ? document.body : null} class="svelte-select-custom" />
 									<input type="hidden" name="port_of_loading" value={selectedPol?.value || ''} />
 								</div>
-								<button type="button" on:click={() => openManageModal('port')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Ports')}>
+								<button type="button" onclick={() => openManageModal('port')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Ports')}>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
 								</button>
 							</div>
@@ -588,7 +588,7 @@
 									<Select items={portOptions} bind:value={selectedPod} placeholder={$t('Select or Type...')} container={browser ? document.body : null} class="svelte-select-custom" />
 									<input type="hidden" name="port_of_discharge" value={selectedPod?.value || ''} />
 								</div>
-								<button type="button" on:click={() => openManageModal('port')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Ports')}>
+								<button type="button" onclick={() => openManageModal('port')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Ports')}>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
 								</button>
 							</div>
@@ -672,7 +672,7 @@
 					{$t('Manage Options')} - 
 					{manageModalType === 'jobCode' ? 'Job Code' : manageModalType === 'serviceType' ? 'Service Type' : 'Port'}
 				</h3>
-				<button on:click={closeManageModal} class="text-gray-400 hover:text-gray-600 focus:outline-none" aria-label={$t('Close Modal')} title={$t('Close Modal')}>
+				<button onclick={closeManageModal} class="text-gray-400 hover:text-gray-600 focus:outline-none" aria-label={$t('Close Modal')} title={$t('Close Modal')}>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
 				</button>
 			</div>
@@ -691,15 +691,15 @@
 						{/if}
 						<div>
 							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500">{$t(manageModalType === 'port' ? 'Port Name' : 'Label (e.g. Sea Import)')}</label>
-							<input id="manage_label" type="text" bind:value={manageLabel} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Label..." on:keydown={(e) => e.key === 'Enter' && saveManageOption()} />
+							<input id="manage_label" type="text" bind:value={manageLabel} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Label..." onkeydown={(e) => e.key === 'Enter' && saveManageOption()} />
 						</div>
 					</div>
 					<div class="flex gap-2">
-						<button on:click={saveManageOption} class="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+						<button onclick={saveManageOption} class="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
 							{editingIndex !== null ? $t('Save Changes') : $t('Add to System')}
 						</button>
 						{#if editingIndex !== null}
-							<button on:click={resetManageForm} class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">{$t('Cancel')}</button>
+							<button onclick={resetManageForm} class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">{$t('Cancel')}</button>
 						{/if}
 					</div>
 				</div>
@@ -716,10 +716,10 @@
 									{/if}
 								</div>
 								<div class="flex items-center gap-2">
-									<button on:click={() => editManageOption(index)} class="text-gray-400 hover:text-blue-600 focus:outline-none" title={$t('Edit')}>
+									<button onclick={() => editManageOption(index)} class="text-gray-400 hover:text-blue-600 focus:outline-none" title={$t('Edit')}>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
 									</button>
-									<button on:click={() => confirmDeleteOption(index)} class="text-gray-400 hover:text-red-600 focus:outline-none" title={$t('Delete')}>
+									<button onclick={() => confirmDeleteOption(index)} class="text-gray-400 hover:text-red-600 focus:outline-none" title={$t('Delete')}>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
 									</button>
 								</div>
@@ -732,7 +732,7 @@
 				</div>
 			</div>
 			<div class="border-t bg-gray-50 px-5 py-3 text-right">
-				<button on:click={closeManageModal} class="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">{$t('Close Modal')}</button>
+				<button onclick={closeManageModal} class="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">{$t('Close Modal')}</button>
 			</div>
 		</div>
 	</div>
@@ -752,8 +752,8 @@
 				<span class="font-semibold text-red-600">{$t('This action cannot be undone')}</span>
 			</p>
 			<div class="flex justify-center gap-3">
-				<button on:click={cancelDeleteOption} class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
-				<button on:click={executeDeleteOption} class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500">{$t('Delete')}</button>
+				<button onclick={cancelDeleteOption} class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
+				<button onclick={executeDeleteOption} class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500">{$t('Delete')}</button>
 			</div>
 		</div>
 	</div>

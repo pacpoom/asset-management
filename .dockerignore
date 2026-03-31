@@ -1,6 +1,7 @@
 Ignore dependencies, build artifacts, and local environment files
 node_modules
 .svelte-kit
+build
 
 We must keep the output directory excluded so the COPY command from host to Docker does not fail.
 The build/ directory in the build stage is an artifact inside the container.
