@@ -432,7 +432,7 @@
 
 				<div class="flex-grow">
 					<nav>
-						<a
+						<!-- <a
 							href="/"
 							class="group mb-1 flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
     {isLinkActive('/')
@@ -454,7 +454,7 @@
 							>
 								{$t('Dashboard')}
 							</span>
-						</a>
+						</a> -->
 
 						{@render menuList(data.menus, 0)}
 
