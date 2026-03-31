@@ -64,10 +64,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             SELECT 
                 ce.*, 
                 c1.container_no AS source_container_no,
-                c2.container_no AS dest_container_no
+                c2.container_no AS dest_container_no,
+                u.name AS user_name
             FROM container_exchanges ce
             LEFT JOIN containers c1 ON ce.source_container_id = c1.id
             LEFT JOIN containers c2 ON ce.destination_container_id = c2.id
+            LEFT JOIN users u ON ce.user_id = u.id
             ${whereClause}
             ORDER BY ce.exchange_date DESC, ce.id DESC
             LIMIT ${limit} OFFSET ${offset}
