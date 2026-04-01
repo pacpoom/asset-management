@@ -11,7 +11,14 @@
 
 	$: jobs = data.job_orders || [];
 	// รับค่า Date filter มาจาก Server
-	$: pagination = data.pagination || { total: 0, page: 1, limit: 10, search: '', startDate: '', endDate: '' };
+	$: pagination = data.pagination || {
+		total: 0,
+		page: 1,
+		limit: 10,
+		search: '',
+		startDate: '',
+		endDate: ''
+	};
 
 	let showDeleteModal = false;
 	let jobToDeleteId: number | null = null;
@@ -39,7 +46,7 @@
 		const url = new URL($page.url);
 		url.searchParams.set('page', currentPage.toString());
 		url.searchParams.set('limit', itemsPerPage.toString());
-		
+
 		if (searchQuery) {
 			url.searchParams.set('search', searchQuery);
 		} else {
@@ -120,7 +127,9 @@
 
 	function confirmDelete(job: Record<string, unknown>) {
 		jobToDeleteId = job.id as number;
-		jobToDeleteName = (job.job_number as string) || formatJobNumber(job.job_type as string, job.job_date as string, job.id as number);
+		jobToDeleteName =
+			(job.job_number as string) ||
+			formatJobNumber(job.job_type as string, job.job_date as string, job.id as number);
 		showDeleteModal = true;
 	}
 
@@ -147,7 +156,7 @@
 						type="date"
 						bind:value={startDate}
 						onchange={onDateChange}
-						class="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 						title={$t('Start Date')}
 					/>
 				</div>
@@ -157,7 +166,7 @@
 						type="date"
 						bind:value={endDate}
 						onchange={onDateChange}
-						class="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 						title={$t('End Date')}
 					/>
 				</div>
@@ -179,7 +188,12 @@
 					viewBox="0 0 24 24"
 					stroke="currentColor"
 				>
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+					/>
 				</svg>
 			</div>
 
@@ -189,20 +203,38 @@
 				<a
 					href={`/freight-forwarder/job-orders/export-excel?search=${encodeURIComponent(searchQuery)}&startDate=${startDate}&endDate=${endDate}&locale=${$locale}`}
 					target="_blank"
-					class="flex flex-1 flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-green-700 sm:flex-none sm:w-auto"
+					class="flex flex-1 flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-green-700 sm:w-auto sm:flex-none"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+						/>
 					</svg>
 					<span class="hidden sm:inline">{$t('Export')}</span>
 				</a>
 
 				<a
 					href="/freight-forwarder/job-orders/create"
-					class="flex flex-1 flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-blue-700 sm:flex-none sm:w-auto"
+					class="flex flex-1 flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow transition-colors hover:bg-blue-700 sm:w-auto sm:flex-none"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
-						<path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 20 20"
+						fill="currentColor"
+						class="h-5 w-5"
+					>
+						<path
+							d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
+						/>
 					</svg>
 					<span class="hidden sm:inline">{$t('New Job')}</span>
 					<span class="sm:hidden">{$t('New')}</span>
@@ -219,7 +251,8 @@
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
 							>{$t('Job No. / Date')}</th
 						>
-						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
+						<th
+							class="px-6 py-3 text-left text-xs font-semibold tracking-wider whitespace-nowrap uppercase"
 							>{$t('Type / Service')}</th
 						>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
@@ -228,10 +261,12 @@
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
 							>{$t('Shipment Info')}</th
 						>
-						<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
+						<th
+							class="px-6 py-3 text-center text-xs font-semibold tracking-wider whitespace-nowrap uppercase"
 							>{$t('Status')}</th
 						>
-						<th class="px-6 py-3 text-right text-xs font-semibold tracking-wider uppercase"
+						<th
+							class="px-6 py-3 text-right text-xs font-semibold tracking-wider whitespace-nowrap uppercase"
 							>{$t('Amount')}</th
 						>
 						<th class="px-6 py-3 text-center text-xs font-semibold tracking-wider uppercase"
@@ -253,12 +288,26 @@
 									{new Date(job.job_date).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US')}
 								</div>
 								{#if job.created_by_name}
-								<div class="mt-1 flex items-center text-[11px] text-gray-500" title={$t('Created By')}>
-									<svg xmlns="http://www.w3.org/2000/svg" class="mr-1 h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-									</svg>
-									<span class="max-w-[120px] truncate">{job.created_by_name}</span>
-								</div>
+									<div
+										class="mt-1 flex items-center text-[11px] text-gray-500"
+										title={$t('Created By')}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="mr-1 h-3 w-3 text-gray-400"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+											/>
+										</svg>
+										<span class="max-w-[120px] truncate">{job.created_by_name}</span>
+									</div>
 								{/if}
 							</td>
 
@@ -282,7 +331,7 @@
 									<div class="mb-0.5 text-[10px] font-bold tracking-wider text-blue-500 uppercase">
 										{$t('Customer')}
 									</div>
-									<div class="font-medium leading-tight text-gray-900">
+									<div class="leading-tight font-medium text-gray-900">
 										{job.company_name || job.customer_name || $t('Not specified')}
 									</div>
 									{#if job.company_name && job.customer_name}
@@ -308,7 +357,7 @@
 										>
 											{$t('Vendor')}
 										</div>
-										<div class="font-medium leading-tight text-gray-900">
+										<div class="leading-tight font-medium text-gray-900">
 											{job.vendor_company_name || job.vendor_name || $t('Not specified')}
 										</div>
 										{#if job.vendor_company_name && job.vendor_name}
@@ -339,7 +388,7 @@
 
 							<td class="px-6 py-4 text-center align-top">
 								<span
-									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getStatusClass(
+									class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap {getStatusClass(
 										job.job_status
 									)}"
 								>
@@ -347,7 +396,7 @@
 								</span>
 							</td>
 
-							<td class="px-6 py-4 text-right align-top">
+							<td class="px-6 py-4 text-right align-top whitespace-nowrap">
 								<div class="font-mono font-bold text-gray-800">
 									{Number(job.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
 								</div>
