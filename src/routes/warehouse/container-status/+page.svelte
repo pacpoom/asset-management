@@ -401,18 +401,42 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Container No')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Plan No')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Model')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Type')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Container Owner')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('House BL')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('ETD Date')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('ATA Date')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Check-in Date')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Transaction Date')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Status')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Stock Status')}</th>
+				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Container No')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Plan No')}</th
+				>
+				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Model')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Type')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Container Owner')}</th
+				>
+				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600"
+					>{$t('House BL')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('ETD Date')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('ATA Date')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Check-in Date')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Transaction Date')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Status')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Stock Status')}</th
+				>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -432,10 +456,10 @@
 						<td class="px-4 py-3">
 							<span class="font-mono text-sm font-bold text-blue-700">{item.container_no}</span>
 						</td>
-						<td class="px-4 py-3 font-medium text-gray-800">
+						<td class="px-4 py-3 text-center font-medium text-gray-800">
 							{item.plan_no || '-'}
 						</td>
-						<td class="px-4 py-3 text-gray-600">
+						<td class="px-4 py-3 whitespace-nowrap text-gray-600">
 							{item.model || '-'}
 						</td>
 						<td class="px-4 py-3 text-center">
@@ -481,8 +505,8 @@
 
 						<td class="px-4 py-3 text-center">
 							<span
-								class="rounded-full px-2 py-1 text-xs font-semibold
-        							{item.status == 2
+								class="rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap
+            					{item.status == 2
 									? 'bg-blue-100 text-blue-800'
 									: item.status == 4
 										? 'bg-gray-100 text-gray-800'
@@ -498,7 +522,7 @@
 
 						<td class="px-4 py-3 text-center">
 							<span
-								class="rounded-full px-2 py-1 text-xs font-semibold
+								class="rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap
         						{item.stock_status == 1
 									? 'bg-red-100 text-red-800'
 									: item.stock_status == 3
