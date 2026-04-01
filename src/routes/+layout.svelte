@@ -134,18 +134,26 @@
 			return true;
 		}
 		if (currentPath.startsWith(targetHref + '/')) {
-			if (exactMenuExists(currentPath)) {
-				return false;
+			let hasMoreSpecificMenu = false;
+
+			function checkSpecific(menus: Menu[] | undefined) {
+				if (!menus) return;
+				for (const m of menus) {
+					if (m.route) {
+						const route = m.route.replace(/\/$/, '');
+						if (
+							route.length > targetHref.length &&
+							(currentPath === route || currentPath.startsWith(route + '/'))
+						) {
+							hasMoreSpecificMenu = true;
+						}
+					}
+					if (m.children) checkSpecific(m.children);
+				}
 			}
 
-			const subPath = currentPath.substring(targetHref.length + 1);
-			const isActionRoute =
-				/^(create|edit|new|generate-pdf|print|export|slip|\d+)/.test(subPath) ||
-				subPath.includes('edit');
-
-			if (isActionRoute) {
-				return true;
-			}
+			checkSpecific(data.menus);
+			return !hasMoreSpecificMenu;
 		}
 
 		return false;
