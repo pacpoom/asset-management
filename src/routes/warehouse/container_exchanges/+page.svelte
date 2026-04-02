@@ -142,7 +142,7 @@
 				d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
 			/>
 		</svg>
-		Export Excel
+		{$t('Export Excel')}
 	</a>
 </div>
 
@@ -220,14 +220,22 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Exchange Date')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Source Container')}</th>
-				<th class="px-4 py-3 text-center text-gray-400"></th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600"
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Exchange Date')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Source Container')}</th
+				>
+				<th class="w-10 px-2 py-3 text-center text-gray-400"></th>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
 					>{$t('Destination Container')}</th
 				>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('User')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Remarks')}</th>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('User')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Remarks')}</th
+				>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -243,12 +251,14 @@
 						<td class="px-4 py-3 text-center text-xs font-semibold text-gray-700">
 							{formatDateTimeStr(item.exchange_date)}
 						</td>
-						<td class="px-4 py-3">
-							<span class="rounded bg-red-50 px-2 py-1 font-mono text-sm font-bold text-red-700">
+						<td class="px-4 py-3 text-center">
+							<span
+								class="rounded bg-red-50 px-2 py-1 font-mono text-sm font-bold whitespace-nowrap text-red-700"
+							>
 								{item.source_container_no || `ID: ${item.source_container_id}`}
 							</span>
 						</td>
-						<td class="px-4 py-3 text-center text-gray-400">
+						<td class="w-10 px-2 py-3 text-center text-gray-400">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								class="mx-auto h-4 w-4"
@@ -264,17 +274,17 @@
 								/>
 							</svg>
 						</td>
-						<td class="px-4 py-3">
+						<td class="px-4 py-3 text-center">
 							<span
-								class="rounded bg-green-50 px-2 py-1 font-mono text-sm font-bold text-green-700"
+								class="rounded bg-green-50 px-2 py-1 font-mono text-sm font-bold whitespace-nowrap text-green-700"
 							>
 								{item.dest_container_no || `ID: ${item.destination_container_id}`}
 							</span>
 						</td>
-						<td class="px-4 py-3 font-medium text-gray-600">
+						<td class="px-4 py-3 text-center font-medium text-gray-600">
 							{item.user_name || '-'}
 						</td>
-						<td class="px-4 py-3 text-xs text-gray-500">
+						<td class="px-4 py-3 text-center text-xs text-gray-500">
 							{item.remarks || '-'}
 						</td>
 					</tr>
