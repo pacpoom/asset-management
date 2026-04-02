@@ -88,7 +88,7 @@ export const GET: RequestHandler = async ({ url }) => {
             ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
             GROUP BY p.id
-            ORDER BY p.checkin_date DESC, p.id DESC
+            ORDER BY p.checkin_date ASC, p.id ASC
         `;
 
 		const [containerRows] = await cymspool.query<any[]>(dataSql, params);
