@@ -102,20 +102,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const totalPages = Math.ceil(totalCount / limit);
 
 		// เพิ่ม GROUP BY p.id เพื่อป้องกันข้อมูลซ้ำ และใช้ MAX(cs.status) เพื่อให้ผ่าน strict mode
+		// นำ transaction_date ออกตามที่ต้องการ
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
                    c.container_owner, 
-                   MAX(cs.status) AS stock_status,
-                   ct.latest_transaction_date 
+                   MAX(cs.status) AS stock_status
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
             LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id 
-            LEFT JOIN (
-                SELECT container_order_plan_id, MAX(transaction_date) as latest_transaction_date
-                FROM container_transactions
-				WHERE activity_type = 'Receive'
-                GROUP BY container_order_plan_id
-            ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
             GROUP BY p.id
             ORDER BY p.checkin_date ASC, p.id ASC

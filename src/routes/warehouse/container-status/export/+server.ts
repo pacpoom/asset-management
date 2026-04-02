@@ -72,20 +72,14 @@ export const GET: RequestHandler = async ({ url }) => {
 		}
 
 		// เพิ่ม GROUP BY p.id เพื่อป้องกันข้อมูลซ้ำตอนดึงออก Excel
+		// นำการ JOIN transaction ออก
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
                    c.container_owner, 
-                   MAX(cs.status) AS stock_status,
-                   ct.latest_transaction_date
+                   MAX(cs.status) AS stock_status
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
             LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id 
-            LEFT JOIN (
-                SELECT container_order_plan_id, MAX(transaction_date) as latest_transaction_date
-                FROM container_transactions
-                WHERE activity_type = 'Receive' 
-                GROUP BY container_order_plan_id
-            ) ct ON p.id = ct.container_order_plan_id
             ${whereClause}
             GROUP BY p.id
             ORDER BY p.checkin_date ASC, p.id ASC
@@ -106,7 +100,6 @@ export const GET: RequestHandler = async ({ url }) => {
 			{ header: 'ETD Date', key: 'etd_date', width: 15 },
 			{ header: 'ATA Date', key: 'ata_date', width: 15 },
 			{ header: 'Check-in Date', key: 'checkin_date', width: 20 },
-			{ header: 'Transaction Date', key: 'transaction_date', width: 20 },
 			{ header: 'Status', key: 'status', width: 15 },
 			{ header: 'Stock Status', key: 'stock_status', width: 15 }
 		];
@@ -149,15 +142,6 @@ export const GET: RequestHandler = async ({ url }) => {
 				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB') : '-',
 				checkin_date: row.checkin_date
 					? new Date(row.checkin_date).toLocaleString('en-GB', {
-							year: 'numeric',
-							month: '2-digit',
-							day: '2-digit',
-							hour: '2-digit',
-							minute: '2-digit'
-						})
-					: '-',
-				transaction_date: row.latest_transaction_date
-					? new Date(row.latest_transaction_date).toLocaleString('en-GB', {
 							year: 'numeric',
 							month: '2-digit',
 							day: '2-digit',

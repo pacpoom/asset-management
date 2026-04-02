@@ -429,9 +429,6 @@
 					>{$t('Check-in Date')}</th
 				>
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
-					>{$t('Transaction Date')}</th
-				>
-				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
 					>{$t('Status')}</th
 				>
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
@@ -442,7 +439,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.containers.length === 0}
 				<tr>
-					<td colspan="8" class="py-12 text-center text-gray-500">
+					<td colspan="11" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery || data.startDate || data.endDate}
 							{$t('ไม่พบข้อมูลตู้คอนเทนเนอร์ที่ตรงกับเงื่อนไขการค้นหา')}
 						{:else}
@@ -495,12 +492,9 @@
 						<td class="px-4 py-3 text-center text-xs text-gray-600">
 							{formatDateOnly(item.ata_date)}
 						</td>
+						<!-- เปลี่ยนเป็น formatDateTimeStr เพื่อให้แสดงเวลาด้วย -->
 						<td class="px-4 py-3 text-center text-xs font-semibold text-green-700">
-							{formatDateOnly(item.checkin_date)}
-						</td>
-
-						<td class="px-4 py-3 text-center text-xs text-gray-600">
-							{formatDateTimeStr(item.latest_transaction_date)}
+							{formatDateTimeStr(item.checkin_date)}
 						</td>
 
 						<td class="px-4 py-3 text-center">
