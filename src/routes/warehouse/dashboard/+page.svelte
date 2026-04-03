@@ -207,8 +207,8 @@
 			>
 				<h2 class="text-lg font-bold text-gray-800">{$t('Recent Transactions')}</h2>
 				<a
-					href="/warehouse/transaction-logs"
-					class="text-sm font-medium text-blue-600 hover:text-blue-800">{$t('View All &rarr')}</a
+					href="/warehouse/transaction"
+					class="text-sm font-medium text-blue-600 hover:text-blue-800">{$t('View All &rarr;')}</a
 				>
 			</div>
 			<div class="flex-1 overflow-x-auto">
@@ -336,9 +336,7 @@
 			{/if}
 
 			<div class="mt-4 border-t border-gray-100 pt-4 text-center">
-				<a
-					href="/warehouse/inventory-stock"
-					class="text-xs font-semibold text-blue-600 hover:underline"
+				<a href="/warehouse/inventory" class="text-xs font-semibold text-blue-600 hover:underline"
 					>{$t('View Complete Inventory &rarr')}</a
 				>
 			</div>

@@ -110,6 +110,14 @@
 			pageNum.toString()
 		);
 	}
+
+	function getExportUrl() {
+		const query = [];
+		if (searchQuery) query.push(`search=${encodeURIComponent(searchQuery)}`);
+		if (startDate) query.push(`startDate=${encodeURIComponent(startDate)}`);
+		if (endDate) query.push(`endDate=${encodeURIComponent(endDate)}`);
+		return `/warehouse/container_exchanges/export?${query.join('&')}`;
+	}
 </script>
 
 <svelte:head>
@@ -123,8 +131,7 @@
 	</div>
 
 	<a
-		href={`/warehouse/container_exchanges/export?search=${encodeURIComponent(searchQuery)}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`}
-		data-sveltekit-reload
+		href={getExportUrl()}
 		target="_blank"
 		class="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none"
 	>
@@ -212,6 +219,21 @@
 				onchange={handleSearchInput}
 				class="w-full rounded-lg border-gray-300 py-2.5 text-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
+		</div>
+
+		<div class="flex items-end">
+			<button
+				type="button"
+				onclick={() => {
+					searchQuery = '';
+					startDate = '';
+					endDate = '';
+					handleSearchInput();
+				}}
+				class="h-[42px] rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+			>
+				{$t('Clear')}
+			</button>
 		</div>
 	</form>
 </div>
