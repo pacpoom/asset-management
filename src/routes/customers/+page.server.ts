@@ -14,13 +14,15 @@ interface Customer extends RowDataPacket {
 	phone: string | null;
 	address: string | null;
 	tax_id: string | null;
+	tax_id_2: string | null; // เพิ่ม tax_id_2
+	tax_id_3: string | null; // เพิ่ม tax_id_3
 	notes: string | null;
 	assigned_to_user_id: number | null;
 	assigned_user_name: string | null;
 	created_at: string;
 	updated_at: string;
 	documents: CustomerDocument[];
-	contacts: CustomerContact[]; // Added contacts array
+	contacts: CustomerContact[];
 }
 
 interface CustomerContact extends RowDataPacket {
@@ -140,10 +142,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 c.email LIKE ? OR
                 c.phone LIKE ? OR
                 c.tax_id LIKE ? OR
+                c.tax_id_2 LIKE ? OR
+                c.tax_id_3 LIKE ? OR
                 u.full_name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+			// เพิ่ม parameter สำหรับค้นหา tax_id_2 และ tax_id_3
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		const countSql = `SELECT COUNT(*) as total
@@ -155,7 +160,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const totalPages = Math.ceil(total / pageSize);
 
 		const fetchSql = `SELECT
-                c.id, c.name, c.company_name, c.email, c.phone, c.address, c.tax_id, c.notes,
+                c.id, c.name, c.company_name, c.email, c.phone, c.address, 
+                c.tax_id, c.tax_id_2, c.tax_id_3, c.notes,
                 c.assigned_to_user_id, u.full_name AS assigned_user_name,
                 c.created_at, c.updated_at
              FROM customers c
@@ -227,6 +233,8 @@ export const actions: Actions = {
 		const phone = data.get('phone')?.toString()?.trim() || null;
 		const address = data.get('address')?.toString()?.trim() || null;
 		const tax_id = data.get('tax_id')?.toString()?.trim() || null;
+		const tax_id_2 = data.get('tax_id_2')?.toString()?.trim() || null; // รับค่า tax_id_2
+		const tax_id_3 = data.get('tax_id_3')?.toString()?.trim() || null; // รับค่า tax_id_3
 		const notes = data.get('notes')?.toString()?.trim() || null;
 		const assigned_to_user_id = data.get('assigned_to_user_id')?.toString();
 
@@ -250,18 +258,20 @@ export const actions: Actions = {
 				checkPermission(locals, 'edit customers');
 				await pool.execute(
 					`UPDATE customers SET
-                        name = ?, company_name = ?, email = ?, phone = ?, address = ?, tax_id = ?, notes = ?, assigned_to_user_id = ?, updated_at = NOW()
+                        name = ?, company_name = ?, email = ?, phone = ?, address = ?, 
+                        tax_id = ?, tax_id_2 = ?, tax_id_3 = ?, 
+                        notes = ?, assigned_to_user_id = ?, updated_at = NOW()
                      WHERE id = ?`,
-					[name, company_name, email, phone, address, tax_id, notes, assignedUserId, parseInt(id)]
+					[name, company_name, email, phone, address, tax_id, tax_id_2, tax_id_3, notes, assignedUserId, parseInt(id)]
 				);
 				return { action: 'saveCustomer', success: true, message: 'Customer updated successfully!' };
 			} else {
 				checkPermission(locals, 'create customers');
 				const [result] = await pool.execute(
 					`INSERT INTO customers
-                        (name, company_name, email, phone, address, tax_id, notes, assigned_to_user_id, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-					[name, company_name, email, phone, address, tax_id, notes, assignedUserId]
+                        (name, company_name, email, phone, address, tax_id, tax_id_2, tax_id_3, notes, assigned_to_user_id, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+					[name, company_name, email, phone, address, tax_id, tax_id_2, tax_id_3, notes, assignedUserId]
 				);
 				const insertId = (result as any).insertId;
 				return {
@@ -277,7 +287,7 @@ export const actions: Actions = {
 				return fail(409, {
 					action: 'saveCustomer',
 					success: false,
-					message: 'Customer with this Tax ID or Email might already exist.'
+					message: 'Data already exists. (Duplicate Entry)'
 				});
 			}
 			return fail(500, {

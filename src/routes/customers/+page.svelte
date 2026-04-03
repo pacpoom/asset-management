@@ -236,7 +236,7 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Company Name')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Email')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Phone')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Tax ID')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Tax IDs')}</th> <!-- เปลี่ยนชื่อ Header -->
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Assigned To')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
@@ -251,7 +251,13 @@
 						<td class="px-4 py-3 text-gray-600">{customer.company_name ?? '-'}</td>
 						<td class="px-4 py-3 text-gray-600">{customer.email ?? '-'}</td>
 						<td class="px-4 py-3 text-gray-600">{customer.phone ?? '-'}</td>
-						<td class="px-4 py-3 text-gray-600">{customer.tax_id ?? '-'}</td>
+						<td class="px-4 py-3 text-gray-600">
+							<!-- แสดง Tax IDs ทั้ง 3 แบบเรียงบรรทัด -->
+							{#if customer.tax_id}<div class="mb-0.5">{customer.tax_id}</div>{/if}
+							{#if customer.tax_id_2}<div class="mb-0.5">{customer.tax_id_2}</div>{/if}
+							{#if customer.tax_id_3}<div>{customer.tax_id_3}</div>{/if}
+							{#if !customer.tax_id && !customer.tax_id_2 && !customer.tax_id_3}-{/if}
+						</td>
 						<td class="px-4 py-3 text-gray-600">{customer.assigned_user_name ?? '-'}</td>
 						<td class="px-4 py-3">
 							<div class="flex items-center gap-2">
@@ -320,10 +326,23 @@
                             <input type="tel" name="phone" id="phone" bind:value={selectedCustomer.phone} class="w-full rounded-md border-gray-300" />
 						</div>
 					</div>
-					<div>
-						<label for="tax_id" class="mb-1 block text-sm font-medium">{$t('Tax ID')}</label>
-                        <input type="text" name="tax_id" id="tax_id" bind:value={selectedCustomer.tax_id} class="w-full rounded-md border-gray-300" />
+					
+					<!-- ปรับแก้ให้มี 3 Tax IDs เรียงกัน 3 คอลัมน์ -->
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+						<div>
+							<label for="tax_id" class="mb-1 block text-sm font-medium">{$t('Tax ID 1')}</label>
+							<input type="text" name="tax_id" id="tax_id" bind:value={selectedCustomer.tax_id} class="w-full rounded-md border-gray-300" placeholder="Tax ID 1" />
+						</div>
+						<div>
+							<label for="tax_id_2" class="mb-1 block text-sm font-medium">{$t('Tax ID 2')}</label>
+							<input type="text" name="tax_id_2" id="tax_id_2" bind:value={selectedCustomer.tax_id_2} class="w-full rounded-md border-gray-300" placeholder="Tax ID 2" />
+						</div>
+						<div>
+							<label for="tax_id_3" class="mb-1 block text-sm font-medium">{$t('Tax ID 3')}</label>
+							<input type="text" name="tax_id_3" id="tax_id_3" bind:value={selectedCustomer.tax_id_3} class="w-full rounded-md border-gray-300" placeholder="Tax ID 3" />
+						</div>
 					</div>
+
 					<div>
 						<label for="address" class="mb-1 block text-sm font-medium text-gray-700">{$t('Address')}</label>
                         <textarea name="address" id="address" rows="3" bind:value={selectedCustomer.address} class="w-full rounded-md border-gray-300"></textarea>
