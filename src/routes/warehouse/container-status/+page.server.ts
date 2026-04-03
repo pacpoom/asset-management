@@ -51,10 +51,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 c.container_no LIKE ? OR
                 p.plan_no LIKE ? OR
                 p.house_bl LIKE ? OR
-                p.model LIKE ?
+                p.model LIKE ? OR
+                p.vessel LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		if (startDate) {

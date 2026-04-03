@@ -420,6 +420,9 @@
 					>{$t('House BL')}</th
 				>
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
+					>{$t('Vessel')}</th
+				>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
 					>{$t('ETD Date')}</th
 				>
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
@@ -439,7 +442,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.containers.length === 0}
 				<tr>
-					<td colspan="11" class="py-12 text-center text-gray-500">
+					<td colspan="12" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery || data.startDate || data.endDate}
 							{$t('ไม่พบข้อมูลตู้คอนเทนเนอร์ที่ตรงกับเงื่อนไขการค้นหา')}
 						{:else}
@@ -486,6 +489,7 @@
 						</td>
 
 						<td class="px-4 py-3 font-mono text-xs text-gray-600">{item.house_bl || '-'}</td>
+						<td class="px-4 py-3 text-xs whitespace-nowrap text-gray-700">{item.vessel || '-'}</td>
 						<td class="px-4 py-3 text-center text-xs text-gray-600">
 							{formatDateOnly(item.etd_date)}
 						</td>

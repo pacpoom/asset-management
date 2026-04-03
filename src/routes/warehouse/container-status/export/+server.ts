@@ -46,10 +46,11 @@ export const GET: RequestHandler = async ({ url }) => {
                 c.container_no LIKE ? OR
                 p.plan_no LIKE ? OR
                 p.house_bl LIKE ? OR
-                p.model LIKE ?
+                p.model LIKE ? OR
+                p.vessel LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 
 		if (startDate) {
@@ -97,6 +98,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			{ header: 'Type', key: 'type', width: 15 },
 			{ header: 'Owner', key: 'owner', width: 15 },
 			{ header: 'House BL', key: 'house_bl', width: 20 },
+			{ header: 'Vessel', key: 'vessel', width: 25 },
 			{ header: 'ETD Date', key: 'etd_date', width: 15 },
 			{ header: 'ATA Date', key: 'ata_date', width: 15 },
 			{ header: 'Check-in Date', key: 'checkin_date', width: 20 },
@@ -138,6 +140,7 @@ export const GET: RequestHandler = async ({ url }) => {
 				type: row.type || '-',
 				owner: ownerText,
 				house_bl: row.house_bl || '-',
+				vessel: row.vessel || '-',
 				etd_date: row.etd_date ? new Date(row.etd_date).toLocaleDateString('en-GB') : '-',
 				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB') : '-',
 				checkin_date: row.checkin_date
