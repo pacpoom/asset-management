@@ -145,6 +145,7 @@ export const GET: RequestHandler = async ({ url }) => {
 				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB') : '-',
 				checkin_date: row.checkin_date
 					? new Date(row.checkin_date).toLocaleString('en-GB', {
+							timeZone: 'Asia/Bangkok',
 							year: 'numeric',
 							month: '2-digit',
 							day: '2-digit',
