@@ -44,7 +44,6 @@ export const load: PageServerLoad = async ({ cookies }) => {
 export const actions: Actions = {
 	login: async ({ cookies, request }) => {
 		const data = await request.formData();
-		// เปลี่ยนชื่อตัวแปรจาก 'email' เป็น 'identifier'
 		const identifier = data.get('identifier')?.toString();
 		const password = data.get('password')?.toString();
 
@@ -58,20 +57,16 @@ export const actions: Actions = {
 
 		// --- ตรวจสอบข้อมูลกับฐานข้อมูลจริง ---
 		try {
-			// ดึงข้อมูลผู้ใช้จาก identifier (ซึ่งอาจเป็น email หรือ username)
-			// ค้นหาผู้ใช้โดยใช้ OR condition
 			const [rows]: any[] = await pool.execute(
 				'SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1',
 				[identifier, identifier]
 			);
 			const user = rows[0];
 
-			// ตรวจสอบว่ามีผู้ใช้นี้ในระบบหรือไม่
 			if (!user) {
 				return fail(401, { message: 'อีเมล/Username หรือรหัสผ่านไม่ถูกต้อง', identifier });
 			}
 
-			// เปรียบเทียบรหัสผ่านที่ผู้ใช้กรอกกับ hash ในฐานข้อมูล
 			const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
 			if (!passwordMatch) {
@@ -79,20 +74,40 @@ export const actions: Actions = {
 			}
 
 			// --- Login สำเร็จ ---
-			// สร้าง session และเก็บข้อมูลที่จำเป็นใน cookie
+			const sessionToken = crypto.randomUUID();
+
+			const isSuperAdmin =
+				(user.username === 'admin' || user.email === 'admin') && user.role === 'admin';
+
+			if (!isSuperAdmin) {
+				await pool.execute('UPDATE users SET current_session_token = ? WHERE id = ?', [
+					sessionToken,
+					user.id
+				]);
+			}
+
 			cookies.set('session_id', user.id, {
 				path: '/',
-				httpOnly: true, // ป้องกันการเข้าถึงจาก JavaScript ฝั่ง Client
+				httpOnly: true,
 				sameSite: 'strict',
-				secure: process.env.NODE_ENV === 'production', // ใช้ secure cookie เฉพาะตอน production
-				maxAge: 60 * 60 * 24 * 7 // อายุ cookie 1 สัปดาห์
+				secure: process.env.NODE_ENV === 'production',
+				maxAge: 60 * 60 * 24 * 7
 			});
+
+			cookies.set('session_token', sessionToken, {
+				path: '/',
+				httpOnly: true,
+				sameSite: 'strict',
+				secure: process.env.NODE_ENV === 'production',
+				maxAge: 60 * 60 * 24 * 7
+			});
+
+			throw redirect(303, '/');
 
 			// Redirect ไปยังหน้าหลัก
 			throw redirect(303, '/');
 		} catch (err) {
 			console.error(err);
-			// ในกรณีที่เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ โปรดลองใหม่อีกครั้ง' });
 			identifier: identifier;
 		}
@@ -100,9 +115,7 @@ export const actions: Actions = {
 
 	// Action สำหรับ Logout
 	logout: async ({ cookies }) => {
-		// ลบ Session Cookie
 		cookies.delete('session_id', { path: '/' });
-		// Redirect ไปยังหน้า Login
 		throw redirect(303, '/login');
 	}
 };

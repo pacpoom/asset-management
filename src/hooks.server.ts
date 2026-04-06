@@ -1,26 +1,33 @@
 import type { Handle } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
 import { getUserPermissions } from '$lib/server/auth';
 
-/**
- * This is the server 'handle' hook, which runs before every request to the server.
- * It's the ideal place to handle authentication and enrich the `event.locals` object.
- */
 export const handle: Handle = async ({ event, resolve }) => {
 	const sessionId = event.cookies.get('session_id');
+	const sessionToken = event.cookies.get('session_token');
 
 	if (sessionId) {
 		try {
 			const [rows]: any[] = await pool.execute(
-				`SELECT u.id, u.email, u.full_name, u.profile_image_url, r.name as role
-				 FROM users u
-				 JOIN roles r ON u.role_id = r.id
-				 WHERE u.id = ? LIMIT 1`,
+				`SELECT id, username, email, full_name, profile_image_url, current_session_token, role
+				 FROM users 
+				 WHERE id = ? LIMIT 1`,
 				[sessionId]
 			);
 			const userData = rows[0];
 
 			if (userData) {
+				const isSuperAdmin =
+					userData.role === 'admin' &&
+					(userData.username === 'admin' || userData.email === 'admin');
+
+				if (!isSuperAdmin && userData.current_session_token !== sessionToken) {
+					event.cookies.delete('session_id', { path: '/' });
+					event.cookies.delete('session_token', { path: '/' });
+					throw redirect(303, '/login?kicked_out=true');
+				}
+
 				const permissions = await getUserPermissions(userData.id);
 
 				event.locals.user = {
@@ -32,10 +39,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 					permissions: permissions
 				};
 			}
-		} catch (err) {
+		} catch (err: any) {
+			if (err?.status === 303 || err?.status === 302 || err?.location) {
+				throw err;
+			}
 			console.error('[hooks.server.ts] Database error during session check:', err);
 		}
 	}
-	const response = await resolve(event);
-	return response;
+
+	return await resolve(event);
 };

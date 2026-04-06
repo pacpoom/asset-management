@@ -2,7 +2,8 @@
 	import { navigating } from '$app/stores';
 	import type { ActionData, PageData } from './$types';
 	import { onMount } from 'svelte';
-	import { slide, fade } from 'svelte/transition';
+	import { slide, fade, scale } from 'svelte/transition';
+	import { page } from '$app/stores';
 
 	const { form, data } = $props<{ form: ActionData; data: PageData }>();
 
@@ -13,8 +14,16 @@
 		isMounted = true;
 	});
 
-	// 🔽🔽🔽 [เพิ่ม] State สำหรับสลับการแสดงรหัสผ่าน 🔽🔽🔽
 	let showPassword = $state(false);
+	let showKickedOutAlert = $state(false);
+
+	onMount(() => {
+		isMounted = true;
+		if ($page.url.searchParams.get('kicked_out') === 'true') {
+			showKickedOutAlert = true;
+			window.history.replaceState({}, '', '/login');
+		}
+	});
 </script>
 
 <div class="flex min-h-screen items-center justify-center bg-gray-50 p-4">
@@ -172,3 +181,54 @@
 <svelte:head>
 	<title>Login - Core Business</title>
 </svelte:head>
+{#if showKickedOutAlert}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md transition-all"
+		transition:fade={{ duration: 300 }}
+	>
+		<div
+			class="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/20 bg-white/95 p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl"
+			transition:scale={{ duration: 400, start: 0.8, opacity: 0 }}
+		>
+			<div class="absolute -top-20 -right-20 h-48 w-48 rounded-full bg-red-400/20 blur-3xl"></div>
+			<div
+				class="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-rose-400/20 blur-3xl"
+			></div>
+
+			<div class="relative z-10">
+				<div
+					class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-rose-600 shadow-lg ring-4 shadow-red-500/40 ring-red-50"
+				>
+					<svg class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2.5"
+							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+						/>
+					</svg>
+				</div>
+
+				<h3 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-900">เซสชั่นหมดอายุ!</h3>
+				<p class="mb-8 text-sm leading-relaxed text-gray-500">
+					บัญชีนี้ถูกเข้าสู่ระบบจากอุปกรณ์อื่น<br />
+					<span class="font-medium text-rose-600"
+						>ระบบจึงทำการออกจากระบบเครื่องนี้เพื่อความปลอดภัย
+						หากมีปัญหาในการใช้งานกรุณาติดต่อแผนกไอที</span
+					>
+				</p>
+
+				<button
+					type="button"
+					onclick={() => (showKickedOutAlert = false)}
+					class="group relative w-full overflow-hidden rounded-xl bg-gray-900 px-4 py-3.5 font-bold text-white transition-all hover:bg-gray-800 hover:shadow-lg hover:shadow-gray-900/30 active:scale-[0.98]"
+				>
+					<div
+						class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-500 group-hover:translate-x-full"
+					></div>
+					<span class="relative">รับทราบและเข้าสู่ระบบใหม่</span>
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

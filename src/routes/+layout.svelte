@@ -18,6 +18,22 @@
 		await loadTranslations();
 	});
 
+	onMount(() => {
+		const interval = setInterval(async () => {
+			if ($page.url.pathname === '/login') return;
+
+			try {
+				const res = await fetch('/api/ping');
+
+				if (res.redirected && res.url.includes('kicked_out=true')) {
+					window.location.href = '/login?kicked_out=true';
+				}
+			} catch (error) {}
+		}, 3000);
+
+		return () => clearInterval(interval);
+	});
+
 	let isSidebarOpen = $state(false);
 
 	let isSidebarPinned = $state(false);
