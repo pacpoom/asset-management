@@ -39,4 +39,16 @@ export const cymspool = mysql.createPool({
 	queueLimit: 0
 });
 
+// 4. BT DB Pool (เพิ่มเข้ามาใหม่)
+export const btpool = mysql.createPool({
+	host: env.KD_HOST || '192.168.111.52',
+	port: Number(env.KD_PORT) || 3308,
+	user: env.KD_USER || 'root',
+	password: env.KD_PASSWORD || 'Anji@12345',
+	database: env.KD_DATABASE || 'bt_db',
+	waitForConnections: true,
+	connectionLimit: 5,
+	queueLimit: 0
+});
+
 export default pool;
