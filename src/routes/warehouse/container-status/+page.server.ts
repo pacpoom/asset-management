@@ -3,6 +3,7 @@ import type { PageServerLoad } from './$types';
 import { cymspool } from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
 import type { RowDataPacket } from 'mysql2';
+import pool from '$lib/server/database';
 
 interface ContainerData extends RowDataPacket {
 	id: number;
@@ -35,6 +36,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	const endDateParam = url.searchParams.get('endDate');
 	const endDate = endDateParam !== null ? endDateParam : defaultDate;
 	const statusFilter = url.searchParams.get('status') || '';
+	const ownerFilter = url.searchParams.get('owner') || '';
 
 	let limit = parseInt(url.searchParams.get('limit') || '10', 10);
 	const allowedLimits = [10, 20, 50, 200];
@@ -75,6 +77,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				whereClause += ` AND p.status = ? `;
 				params.push(statusFilter);
 			}
+		}
+		if (ownerFilter) {
+			whereClause += ` AND c.container_owner = ? `;
+			params.push(ownerFilter);
 		}
 
 		// ใช้ Subquery สำหรับการนับ เพื่อให้ได้ผลลัพธ์ตรงกับจำนวนแถวหลังทำ GROUP BY แล้ว
@@ -118,6 +124,27 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         `;
 
 		const [containerRows] = await cymspool.query<any[]>(dataSql, params);
+		const [ownerRows]: any[] = await cymspool.execute(
+			`SELECT DISTINCT container_owner FROM containers WHERE container_owner IS NOT NULL AND container_owner != '' ORDER BY container_owner ASC`
+		);
+		const owners = ownerRows.map((r: any) => r.container_owner);
+
+		return {
+			containers: containerRows,
+			totalCount,
+			fullCount,
+			partialCount,
+			emptyCount,
+			currentPage: page,
+			totalPages,
+			limit,
+			searchQuery,
+			startDate,
+			endDate,
+			statusFilter,
+			ownerFilter,
+			owners
+		};
 
 		return {
 			containers: containerRows,

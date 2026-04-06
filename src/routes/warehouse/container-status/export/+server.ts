@@ -36,6 +36,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	const endDateParam = url.searchParams.get('endDate');
 	const endDate = endDateParam !== null ? endDateParam : defaultDate;
 	const statusFilter = url.searchParams.get('status') || '';
+	const ownerFilter = url.searchParams.get('owner') || '';
 
 	try {
 		let whereClause = ' WHERE 1=1 ';
@@ -70,6 +71,11 @@ export const GET: RequestHandler = async ({ url }) => {
 				whereClause += ` AND p.status = ? `;
 				params.push(statusFilter);
 			}
+		}
+
+		if (ownerFilter) {
+			whereClause += ` AND c.container_owner = ? `;
+			params.push(ownerFilter);
 		}
 
 		// เพิ่ม GROUP BY p.id เพื่อป้องกันข้อมูลซ้ำตอนดึงออก Excel

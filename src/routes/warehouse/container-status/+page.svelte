@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { t, locale } from '$lib/i18n';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 
 	const { data } = $props<{ data: PageData }>();
 
@@ -10,13 +12,32 @@
 	let startDate = $state(data.startDate ?? '');
 	let endDate = $state(data.endDate ?? '');
 	let statusFilter = $state(data.statusFilter ?? '');
+	let ownerFilter = $state(data.ownerFilter ?? '');
 	let searchTimer: NodeJS.Timeout;
+
+	let ownerOptions = $derived(
+		data.owners ? data.owners.map((owner: string) => ({ value: owner, label: owner })) : []
+	);
+
+	let selectedOwnerObject = $derived(
+		ownerOptions.find((opt: { value: string; label: string }) => opt.value === ownerFilter) || null
+	);
+	function onOwnerSelect(detail: any) {
+		ownerFilter = detail.value;
+		handleSearchInput();
+	}
+
+	function onOwnerClear() {
+		ownerFilter = '';
+		handleSearchInput();
+	}
 
 	function buildQueryString(
 		search: string,
 		start: string,
 		end: string,
 		status: string,
+		owner: string,
 		limitStr: string,
 		pageStr: string
 	) {
@@ -25,6 +46,7 @@
 		query.push(`startDate=${encodeURIComponent(start)}`);
 		query.push(`endDate=${encodeURIComponent(end)}`);
 		if (status) query.push(`status=${encodeURIComponent(status)}`);
+		if (owner) query.push(`owner=${encodeURIComponent(owner)}`);
 		query.push(`limit=${limitStr}`);
 		query.push(`page=${pageStr}`);
 		return `?${query.join('&')}`;
@@ -35,7 +57,8 @@
 		if (searchQuery) query.push(`search=${encodeURIComponent(searchQuery)}`);
 		query.push(`startDate=${encodeURIComponent(startDate)}`);
 		query.push(`endDate=${encodeURIComponent(endDate)}`);
-		if (statusFilter) query.push(`status=${encodeURIComponent(statusFilter)}`); // 🌟 ให้ตอนโหลด Excel ส่ง status ไปด้วย
+		if (statusFilter) query.push(`status=${encodeURIComponent(statusFilter)}`);
+		if (ownerFilter) query.push(`owner=${encodeURIComponent(ownerFilter)}`);
 		return `/warehouse/container-status/export?${query.join('&')}`;
 	}
 
@@ -47,6 +70,7 @@
 				startDate,
 				endDate,
 				statusFilter,
+				ownerFilter,
 				data.limit.toString(),
 				'1'
 			);
@@ -65,10 +89,10 @@
 			startDate,
 			endDate,
 			statusFilter,
+			ownerFilter,
 			newLimit,
 			'1'
 		);
-
 		goto(queryString, {
 			keepFocus: true,
 			noScroll: true,
@@ -145,6 +169,7 @@
 			startDate,
 			endDate,
 			statusFilter,
+			ownerFilter,
 			data.limit.toString(),
 			pageNum.toString()
 		);
@@ -392,6 +417,24 @@
 				<option value="3">{$t('Shipped Out')}</option>
 				<option value="4">{$t('Returned')}</option>
 			</select>
+		</div>
+
+		<div class="w-full sm:w-64">
+			<label for="ownerFilter" class="mb-1 block text-xs font-semibold text-gray-700"
+				>{$t('Container Owner')}</label
+			>
+			<div class="w-full">
+				<input
+					type="text"
+					id="ownerFilter"
+					bind:value={ownerFilter}
+					oninput={handleSearchInput}
+					placeholder="ค้นหา Container Owner..."
+					autocomplete="off"
+					class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+					style="height: 42px;"
+				/>
+			</div>
 		</div>
 	</form>
 </div>
