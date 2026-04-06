@@ -102,7 +102,6 @@ export const load = async () => {
 		'SELECT id, port_name FROM ports WHERE is_active = 1 ORDER BY port_name ASC'
 	);
 
-	//const date = new Date();
 	const [seqRows] = await pool.query(
 		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' LIMIT 1`
 	);
@@ -163,6 +162,7 @@ export const actions = {
 			booking_no: formData.get('booking_no') || null,
 			vessel: formData.get('vessel') || null,
 			feeder: formData.get('feeder') || null,
+			flight_no: formData.get('flight_no') || null, // รับค่า Flight No.
 			port_of_loading: formData.get('port_of_loading') || null,
 			port_of_discharge: formData.get('port_of_discharge') || null,
 			created_by: locals.user?.id || 1
@@ -176,6 +176,7 @@ export const actions = {
 
 			const job_number = await generateJobNumber(job_type, job_date, connection);
 
+			// เพิ่ม flight_no ในคำสั่ง SQL INSERT
 			const sql = `
                 INSERT INTO job_orders (
                     customer_id, contract_id, vendor_id, vendor_contract_id, 
@@ -183,9 +184,9 @@ export const actions = {
                     liner_name, job_status, job_date, etd, eta, expire_date, 
                     quantity, unit_id, weight, kgs_volume, remarks, 
                     amount, currency, job_number, 
-					booking_no, vessel, feeder, port_of_loading, port_of_discharge,
+					booking_no, vessel, feeder, flight_no, port_of_loading, port_of_discharge,
 					created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
@@ -217,6 +218,7 @@ export const actions = {
 				data.booking_no,
 				data.vessel,
 				data.feeder,
+				data.flight_no, // แมปค่า flight_no
 				data.port_of_loading,
 				data.port_of_discharge,
 				data.created_by

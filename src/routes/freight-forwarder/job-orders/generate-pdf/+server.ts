@@ -44,6 +44,7 @@ interface JobOrderData extends RowDataPacket {
     booking_no: string | null;
 	vessel: string | null;
 	feeder: string | null;
+	flight_no: string | null; // เพิ่ม Flight No. ใน interface
 	port_of_loading: string | null;
 	port_of_discharge: string | null;
 
@@ -133,7 +134,8 @@ function getJobOrderHtml(
 			financial: 'Financial Overview',
 			remarks: 'Remarks',
 			approvedBy: 'Approved By',
-			dateLabel: 'Date'
+			dateLabel: 'Date',
+			flightNo: 'Flight No.' // แปลภาษาสำหรับ Flight No
 		},
 		th: {
 			title: 'ใบสั่งงานขนส่ง (JOB ORDER)',
@@ -163,7 +165,8 @@ function getJobOrderHtml(
 			financial: 'ยอดเงินเบื้องต้น (Financial Overview)',
 			remarks: 'หมายเหตุ (Remarks)',
 			approvedBy: 'ผู้อนุมัติ (Approved By)',
-			dateLabel: 'วันที่'
+			dateLabel: 'วันที่',
+			flightNo: 'เที่ยวบิน (Flight No.)'
 		}
 	};
 
@@ -276,6 +279,7 @@ function getJobOrderHtml(
 				}
     `;
 
+	// เพิ่มการแสดงผล Flight No และตรวจสอบให้มั่นใจว่า Quantity แสดงร่วมกับ Unit Name เสมอ
 	const jobDetailsHtml = `
         <div>
             <h3 style="font-size: 9pt; font-weight: bold; color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px; text-transform: uppercase;">${t('shipmentDetails')}</h3>
@@ -304,6 +308,11 @@ function getJobOrderHtml(
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Feeder</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.feeder || '-'}</td>
                 </tr>
+				<!-- เพิ่มแถวสำหรับ Flight No. -->
+				<tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('flightNo')}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;" colspan="3">${jobData.flight_no || '-'}</td>
+                </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Port of Loading</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.port_of_loading || '-'}</td>
@@ -324,7 +333,7 @@ function getJobOrderHtml(
                 </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('quantity')}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.quantity || 0} ${jobData.unit_name || ''}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold; color: #1e3a8a;">${jobData.quantity || 0} ${jobData.unit_name || ''}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('weightVol')}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.weight || '0.00'} / ${jobData.kgs_volume || '0.00'}</td>
                 </tr>
