@@ -315,6 +315,11 @@
                     <span class="text-sm font-medium text-gray-600">{$t('Feeder')}</span>
                     <span class="font-medium text-gray-900">{job.feeder || '-'}</span>
                 </div>
+				<!-- เพิ่มส่วนแสดงข้อมูล Flight No. ตรงนี้ -->
+				<div class="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span class="text-sm font-medium text-gray-600">{$t('Flight No.')}</span>
+                    <span class="font-medium text-gray-900">{job.flight_no || '-'}</span>
+                </div>
 			</div>
 
             <!-- คอลัมน์ที่ 3: ข้อมูลสถานที่และขนาด/น้ำหนัก -->

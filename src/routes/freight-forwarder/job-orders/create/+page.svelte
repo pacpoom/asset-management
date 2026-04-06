@@ -518,6 +518,7 @@
 					<h2 class="mb-4 border-b pb-2 text-sm font-bold tracking-wider text-gray-600 uppercase">
 						{$t('Shipment Information')}
 					</h2>
+					<!-- เพิ่ม flight_no เข้าไปใน grid นี้ -->
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
 						
 						<div>
@@ -568,6 +569,12 @@
 							<label for="feeder" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Feeder')}</label>
 							<input id="feeder" type="text" name="feeder" placeholder={$t('Feeder Name')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
 						</div>
+						<!-- เพิ่มช่อง Flight No. ตรงนี้ให้ติดกับ Vessel/Feeder -->
+						<div>
+							<label for="flight_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Flight No.')}</label>
+							<input id="flight_no" type="text" name="flight_no" placeholder={$t('Flight Number')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+						</div>
+
 						<div>
 							<label for="port_of_loading" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Port of Loading')}</label>
 							<div class="flex items-start gap-2">
@@ -594,7 +601,7 @@
 							</div>
 						</div>
 
-						<div class="col-span-1 md:col-span-2">
+						<div class="col-span-1 md:col-span-3">
 							<div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
 								<div>
 									<label for="quantity" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Quantity & Unit')}</label>

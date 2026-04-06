@@ -138,6 +138,7 @@ export const actions = {
 				formData.get('booking_no') || null,
 				formData.get('vessel') || null,
 				formData.get('feeder') || null,
+				formData.get('flight_no') || null, // อัปเดต Flight No.
 				formData.get('port_of_loading') || null,
 				formData.get('port_of_discharge') || null,
 				new_job_number,
@@ -151,7 +152,7 @@ export const actions = {
                     liner_name = ?, job_status = ?, job_date = ?, etd = ?, eta = ?, expire_date = ?, 
                     quantity = ?, unit_id = ?, weight = ?, kgs_volume = ?, remarks = ?, 
                     amount = ?, currency = ?, 
-					booking_no = ?, vessel = ?, feeder = ?, port_of_loading = ?, port_of_discharge = ?,
+					booking_no = ?, vessel = ?, feeder = ?, flight_no = ?, port_of_loading = ?, port_of_discharge = ?,
 					job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;

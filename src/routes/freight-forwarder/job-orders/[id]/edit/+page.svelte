@@ -188,6 +188,7 @@
 
 	let vessel = job.vessel || '';
 	let feeder = job.feeder || '';
+	let flightNo = job.flight_no || ''; // รับค่าตัวแปร Flight No.
 
 	let qty = job.quantity || '';
 	let unitId = job.unit_id || '';
@@ -868,7 +869,7 @@
 							<input type="hidden" name="liner_name" value={selectedLiner?.value || ''} />
 						</div>
 
-						<!-- แถวที่ 4: Vessel, Feeder, Port of Loading -->
+						<!-- แถวที่ 4: Vessel, Feeder, Flight No -->
 						<div>
 							<label for="vessel" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
 								{$t('Vessel')}
@@ -895,6 +896,21 @@
 								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
+						<div>
+							<label for="flight_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">
+								{$t('Flight No.')}
+							</label>
+							<input
+								id="flight_no"
+								type="text"
+								name="flight_no"
+								bind:value={flightNo}
+								placeholder={$t('Flight Number')}
+								class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+
+						<!-- แถวที่ 5: Port of Loading / Discharge -->
 						<div>
 							<label
 								for="port_of_loading"
@@ -935,8 +951,6 @@
 								</button>
 							</div>
 						</div>
-
-						<!-- แถวที่ 5: Port of Discharge และ Quantity/Weight/Volume Group -->
 						<div>
 							<label
 								for="port_of_discharge"
