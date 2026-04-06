@@ -235,8 +235,9 @@
 			update: (options?: { reset: boolean }) => Promise<void>;
 		}) => {
 			userToDelete = null;
-			if (result.type === 'success') {
-				// Redirects handled by SvelteKit
+			if (result.type === 'success' && result.data?.success) {
+				showGlobalMessage({ success: true, text: result.data.message as string, type: 'success' });
+				invalidateAll();
 			} else if (result.type === 'failure') {
 				showGlobalMessage({
 					success: false,
