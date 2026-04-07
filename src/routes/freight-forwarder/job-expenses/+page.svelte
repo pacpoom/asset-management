@@ -8,6 +8,12 @@
 	$: columns = data.columns || [];
 	$: pivotData = data.pivotData || [];
 	$: filters = data.filters || { startDate: '', endDate: '', viewBy: 'category' };
+	
+	// Server calculated totals (for all pages)
+	$: overallTotals = data.overallTotals || { cols: {}, grand: 0 };
+	
+	// Pagination state
+	$: pagination = data.pagination || { currentPage: 1, totalPages: 0, limit: 10, totalItems: 0 };
 
 	let startDate = '';
 	let endDate = '';
@@ -25,7 +31,54 @@
 		if (startDate) url.searchParams.set('startDate', startDate);
 		if (endDate) url.searchParams.set('endDate', endDate);
 		if (viewBy) url.searchParams.set('viewBy', viewBy);
-		goto(url.toString(), { keepFocus: true, noScroll: true });
+		url.searchParams.set('page', '1'); // กลับไปหน้าแรกเมื่อค้นหาใหม่
+		goto(url.toString(), { keepFocus: true, noScroll: true, replaceState: true });
+	}
+
+	// --- Pagination Logic ---
+	$: paginationRange = (() => {
+		const delta = 1;
+		const left = pagination.currentPage - delta;
+		const right = pagination.currentPage + delta + 1;
+		const range: number[] = [];
+		const rangeWithDots: (number | string)[] = [];
+		let l: number | undefined;
+		
+		for (let i = 1; i <= pagination.totalPages; i++) {
+			if (i == 1 || i == pagination.totalPages || (i >= left && i < right)) {
+				range.push(i);
+			}
+		}
+		for (const i of range) {
+			if (l) {
+				if (i - l === 2) {
+					rangeWithDots.push(l + 1);
+				} else if (i - l !== 1) {
+					rangeWithDots.push('...');
+				}
+			}
+			rangeWithDots.push(i);
+			l = i;
+		}
+		return rangeWithDots;
+	})();
+
+	function getPageUrl(pageNum: number) {
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('page', pageNum.toString());
+		params.set('limit', pagination.limit.toString());
+		return `${$page.url.pathname}?${params.toString()}`;
+	}
+
+	function changeLimit(newLimit: string) {
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('limit', newLimit);
+		params.set('page', '1');
+		goto(`${$page.url.pathname}?${params.toString()}`, {
+			keepFocus: true,
+			noScroll: true,
+			replaceState: true
+		});
 	}
 
 	// ฟอร์แมตตัวเลข
@@ -37,13 +90,6 @@
 	const formatDate = (isoString: string) => {
 		return new Date(isoString).toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 	};
-
-	// คำนวณผลรวมรวมด้านล่างสุดของตาราง (Grand Total)
-	$: colTotals = columns.map((col: any) => {
-		return pivotData.reduce((sum: number, job: any) => sum + (job.expenses[col.id] || 0), 0);
-	});
-	
-	$: grandTotal = pivotData.reduce((sum: number, job: any) => sum + job.total, 0);
 </script>
 
 <svelte:head>
@@ -93,6 +139,7 @@
 		</div>
 	</div>
 
+	<!-- Data Table -->
 	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
 		<div class="overflow-x-auto max-w-[calc(100vw-3rem)]">
 			<table class="min-w-full divide-y divide-gray-200 text-sm whitespace-nowrap">
@@ -140,19 +187,20 @@
 					{/each}
 				</tbody>
 
+				<!-- Grand Total Footer (คำนวณจาก Server รวมทุกหน้า) -->
 				{#if pivotData.length > 0}
 				<tfoot class="bg-gray-100 font-bold border-t-2 border-gray-300">
 					<tr>
-						<td class="sticky left-0 bg-gray-100 px-4 py-3 text-right border-r border-gray-200 z-10" colspan="3">{$t('Grand Total:')}</td>
+						<td class="sticky left-0 bg-gray-100 px-4 py-3 text-right border-r border-gray-200 z-10" colspan="3">{$t('Grand Total (All Pages):')}</td>
 						
-						{#each colTotals as colTotal}
+						{#each columns as col}
 							<td class="px-4 py-3 text-right font-mono text-gray-800 border-r border-gray-200">
-								{formatAmt(colTotal)}
+								{formatAmt(overallTotals.cols[col.id])}
 							</td>
 						{/each}
 
 						<td class="sticky right-0 bg-blue-100 px-4 py-3 text-right font-mono text-red-700 text-lg border-l border-gray-200 z-10">
-							{formatAmt(grandTotal)}
+							{formatAmt(overallTotals.grand)}
 						</td>
 					</tr>
 				</tfoot>
@@ -160,6 +208,85 @@
 			</table>
 		</div>
 	</div>
+
+	<!-- Pagination & Paging Size -->
+	{#if pagination.totalItems > 0}
+		<div class="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
+			<div class="flex items-center gap-4">
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-gray-700">{$t('Show')}</span>
+					<select
+						class="rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm focus:border-blue-500 focus:ring-blue-500"
+						value={pagination.limit.toString()}
+						onchange={(e) => changeLimit(e.currentTarget.value)}
+					>
+						<option value="10">10</option>
+						<option value="20">20</option>
+						<option value="50">50</option>
+						<option value="200">200</option>
+					</select>
+					<span class="text-sm text-gray-700">{$t('entries')}</span>
+				</div>
+				{#if pagination.totalPages > 0}
+					<p class="hidden text-sm text-gray-700 sm:block">
+						{$t('Showing page')} <span class="font-medium">{pagination.currentPage}</span>
+						{$t('of')} <span class="font-medium">{pagination.totalPages}</span>
+						<span class="text-gray-400">({pagination.totalItems} {$t('Jobs')})</span>
+					</p>
+				{/if}
+			</div>
+
+			{#if pagination.totalPages > 1}
+				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+					<a
+						href={pagination.currentPage > 1 ? getPageUrl(pagination.currentPage - 1) : '#'}
+						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {pagination.currentPage ===
+						1
+							? 'pointer-events-none opacity-50'
+							: ''}"
+					>
+						<span class="sr-only">{$t('Previous')}</span>
+						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+							><path
+								fill-rule="evenodd"
+								d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+								clip-rule="evenodd"
+							/></svg
+						>
+					</a>
+					{#each paginationRange as pageNum}
+						{#if typeof pageNum === 'string'}
+							<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset">...</span>
+						{:else}
+							<a
+								href={getPageUrl(pageNum)}
+								class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pageNum ===
+								pagination.currentPage
+									? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+									: 'text-gray-900 ring-1 ring-gray-300 ring-inset hover:bg-gray-50'}">{pageNum}</a
+							>
+						{/if}
+					{/each}
+					<a
+						href={pagination.currentPage < pagination.totalPages ? getPageUrl(pagination.currentPage + 1) : '#'}
+						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 {pagination.currentPage ===
+						pagination.totalPages
+							? 'pointer-events-none opacity-50'
+							: ''}"
+					>
+						<span class="sr-only">{$t('Next')}</span>
+						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
+							><path
+								fill-rule="evenodd"
+								d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+								clip-rule="evenodd"
+							/></svg
+						>
+					</a>
+				</nav>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
