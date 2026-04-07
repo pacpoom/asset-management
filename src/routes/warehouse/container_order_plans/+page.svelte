@@ -20,10 +20,16 @@
     let modalData: any[] = [];
     let isLoadingModal = false;
 
-    // ตัวแปรสำหรับจัดการ Modal Add Plan และ Import
+    // ตัวแปรสำหรับจัดการ Modal Add/Edit Plan และ Import
     let showAddModal = false;
+    let showEditModal = false;
     let isAdding = false;
+    let isEditing = false;
     let isImporting = false;
+    let deletingId: number | null = null;
+    
+    // เก็บข้อมูลของ Plan ที่กำลังจะแก้ไข
+    let editData: any = {};
 
     // ฟังก์ชันเปิด Modal และโหลดข้อมูล
     async function openPackingListModal(cNo: string) {
@@ -34,7 +40,6 @@
         modalData = [];
 
         try {
-            // เรียก API endpoint ที่สร้างขึ้นใหม่ โดยอ้างอิงจาก path ปัจจุบัน
             const res = await fetch(`${$page.url.pathname}/api-packing-list?container_no=${encodeURIComponent(cNo)}`);
             if (res.ok) {
                 modalData = await res.json();
@@ -48,14 +53,28 @@
         }
     }
 
-    // ฟังก์ชันปิด Modal
+    // ฟังก์ชันสำหรับเปิด Modal แก้ไขข้อมูล
+    function openEditModal(item: any) {
+        // คัดลอกข้อมูลและแปลงวันที่ให้อยู่ในฟอร์แมต YYYY-MM-DD เพื่อแสดงใน input type="date"
+        editData = { ...item };
+        
+        if (editData.eta_date) {
+            editData.eta_date = new Date(editData.eta_date).toISOString().split('T')[0];
+        }
+        if (editData.checkin_date) {
+            editData.checkin_date = new Date(editData.checkin_date).toISOString().split('T')[0];
+        }
+
+        showEditModal = true;
+    }
+
     function closeModal() {
         showModal = false;
         selectedContainer = '';
         modalData = [];
     }
 
-    // ฟังก์ชันค้นหา (ทำงานเมื่อกดปุ่มเท่านั้น)
+    // ฟังก์ชันค้นหา
     function search() {
         const url = new URL($page.url);
         
@@ -94,7 +113,7 @@
         search();
     }
 
-    // ฟังก์ชันจัดรูปแบบวันที่เวลาให้ออกมาเป็น yyyy-MM-dd HH:mm:ss
+    // ฟังก์ชันจัดรูปแบบวันที่เวลา
     function formatDateTime(val: any) {
         if (!val) return '-';
         const d = new Date(val);
@@ -174,7 +193,7 @@
                         alert('นำเข้าข้อมูลสำเร็จ');
                         update();
                     } else {
-                        alert('เกิดข้อผิดพลาดในการนำเข้าข้อมูล');
+                        alert(result.data?.message || 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล');
                     }
                 };
             }}>
@@ -247,14 +266,11 @@
             </div>
         </div>
         
-        <!-- ปรับแต่งส่วนปุ่มให้ชิดขวาด้วย justify-end -->
         <div class="mt-5 pt-4 border-t border-gray-100 flex flex-wrap gap-3 items-center justify-end">
-            <!-- ปุ่มล้างข้อมูล -->
             <button on:click={clearSearch} class="bg-white text-gray-700 px-5 py-2 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors border border-gray-300 shadow-sm">
                 {$t('Clear Filter')}
             </button>
             
-            <!-- ปุ่มค้นหา (ทำงานแบบ On Click) -->
             <button on:click={search} class="bg-blue-600 text-white px-5 py-2 text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
@@ -262,7 +278,6 @@
                 {$t('Search')}
             </button>
 
-            <!-- ปุ่ม Download Template -->
             <a 
                 href="{$page.url.pathname}/export-template"
                 target="_blank"
@@ -274,7 +289,6 @@
                 {$t('Download Template')}
             </a>
 
-            <!-- ปุ่ม Export Excel -->
             <a 
                 href="{$page.url.pathname}/export{$page.url.search ? $page.url.search + '&' : '?'}locale={$locale}"
                 target="_blank"
@@ -302,7 +316,8 @@
                         <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Vessel')}</th>
                         <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Model')}</th>
                         <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Type')}</th>
-                        <th class="px-4 py-3 font-semibold">{$t('Create Date')}</th>
+                        <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Create Date')}</th>
+                        <th class="px-4 py-3 font-semibold text-center">{$t('Action')}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -323,7 +338,7 @@
                             </td>
                             <td class="px-4 py-3 text-gray-800 font-medium border-r border-gray-100">{item.plan_no || '-'}</td>
                             
-                            <!-- เปลี่ยน Container No เป็นปุ่มที่กดเปิด Modal ได้ -->
+                            <!-- Container No กดเปิด Modal ได้ -->
                             <td class="px-4 py-3 font-medium border-r border-gray-100">
                                 {#if item.container_no}
                                     <button 
@@ -345,11 +360,63 @@
                             <td class="px-4 py-3 text-gray-800 border-r border-gray-100 truncate max-w-[200px]" title={item.vessel}>{item.vessel || '-'}</td>
                             <td class="px-4 py-3 text-gray-800 border-r border-gray-100">{item.model || '-'}</td>
                             <td class="px-4 py-3 text-gray-800 border-r border-gray-100">{item.type || '-'}</td>
-                            <td class="px-4 py-3 text-gray-600">{formatDateTime(item.created_at)}</td>
+                            <td class="px-4 py-3 text-gray-600 border-r border-gray-100">{formatDateTime(item.created_at)}</td>
+                            
+                            <!-- คอลัมน์ Action แก้ไขและลบข้อมูล -->
+                            <td class="px-4 py-3 text-center whitespace-nowrap">
+                                <div class="flex items-center justify-center gap-2">
+                                    <!-- ปุ่มแก้ไข -->
+                                    <button 
+                                        on:click={() => openEditModal(item)}
+                                        class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-md transition-colors" 
+                                        title="{$t('Edit')}"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                    </button>
+
+                                    <!-- ปุ่มลบ -->
+                                    {#if item.status === 1}
+                                        <form method="POST" action="?/delete" class="inline" use:enhance={(e) => {
+                                            if (!confirm('คุณต้องการลบ Order Plan นี้ใช่หรือไม่?')) {
+                                                e.cancel();
+                                                return;
+                                            }
+                                            deletingId = item.id;
+                                            return async ({ result, update }) => {
+                                                deletingId = null;
+                                                if (result.type === 'success') {
+                                                    update();
+                                                } else {
+                                                    alert(result.data?.message || 'เกิดข้อผิดพลาดในการลบข้อมูล');
+                                                }
+                                            };
+                                        }}>
+                                            <input type="hidden" name="id" value={item.id} />
+                                            <button type="submit" disabled={deletingId === item.id} class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors disabled:opacity-50" title="{$t('Delete')}">
+                                                {#if deletingId === item.id}
+                                                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                                                {:else}
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                {/if}
+                                            </button>
+                                        </form>
+                                    {:else}
+                                        <button type="button" class="text-gray-300 bg-gray-50 p-1.5 rounded-md cursor-not-allowed" title="{$t('Cannot delete (Status is not Pending)')}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    {/if}
+                                </div>
+                            </td>
                         </tr>
                     {:else}
                         <tr>
-                            <td colspan="9" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="10" class="px-6 py-12 text-center text-gray-500">
                                 {$t('No data found matching the search criteria')}
                             </td>
                         </tr>
@@ -460,7 +527,7 @@
                                         <th class="px-4 py-3 font-semibold border-r border-gray-200 text-center">{$t('Status')}</th>
                                         <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Delivery Order')}</th>
                                         <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Item Number')}</th>
-                                        <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Material ID')}</th>
+                                        <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Material No')}</th>
                                         <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Case Number')}</th>
                                         <th class="px-4 py-3 font-semibold border-r border-gray-200">{$t('Box ID')}</th>
                                         <th class="px-4 py-3 font-semibold border-r border-gray-200 text-right">{$t('Qty')}</th>
@@ -478,7 +545,7 @@
                                             </td>
                                             <td class="px-4 py-3 border-r border-gray-100 text-gray-800">{row.delivery_order || '-'}</td>
                                             <td class="px-4 py-3 border-r border-gray-100 text-gray-800">{row.item_number || '-'}</td>
-                                            <td class="px-4 py-3 border-r border-gray-100 text-gray-800">{row.material_id || '-'}</td>
+                                            <td class="px-4 py-3 border-r border-gray-100 text-gray-800">{row.temp_material || '-'}</td>
                                             <td class="px-4 py-3 border-r border-gray-100 text-gray-800">{row.case_number || '-'}</td>
                                             <td class="px-4 py-3 border-r border-gray-100 text-gray-800">{row.box_id || '-'}</td>
                                             <td class="px-4 py-3 border-r border-gray-100 text-gray-800 font-medium text-right">{row.quantity ?? '-'}</td>
@@ -537,52 +604,52 @@
                     }}>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Container No')} <span class="text-red-500">*</span></label>
-                                <input type="text" name="container_no" required class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_container_no" class="block text-sm font-medium text-gray-700 mb-1">{$t('Container No')} <span class="text-red-500">*</span></label>
+                                <input id="add_container_no" type="text" name="container_no" maxlength="255" required class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('House B/L')} <span class="text-red-500">*</span></label>
-                                <input type="text" name="house_bl" required class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_house_bl" class="block text-sm font-medium text-gray-700 mb-1">{$t('House B/L')} <span class="text-red-500">*</span></label>
+                                <input id="add_house_bl" type="text" name="house_bl" maxlength="255" required class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Model')}</label>
-                                <input type="text" name="model" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_model" class="block text-sm font-medium text-gray-700 mb-1">{$t('Model')}</label>
+                                <input id="add_model" type="text" name="model" maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Type')}</label>
-                                <input type="text" name="type" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_type" class="block text-sm font-medium text-gray-700 mb-1">{$t('Type')}</label>
+                                <input id="add_type" type="text" name="type" maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('ETA Date')}</label>
-                                <input type="date" name="eta_date" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_eta_date" class="block text-sm font-medium text-gray-700 mb-1">{$t('ETA Date')}</label>
+                                <input id="add_eta_date" type="date" name="eta_date" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Check-in Date')}</label>
-                                <input type="date" name="checkin_date" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_checkin_date" class="block text-sm font-medium text-gray-700 mb-1">{$t('Check-in Date')}</label>
+                                <input id="add_checkin_date" type="date" name="checkin_date" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Free Time')}</label>
-                                <input type="text" name="free_time" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_free_time" class="block text-sm font-medium text-gray-700 mb-1">{$t('Free Time')}</label>
+                                <input id="add_free_time" type="number" name="free_time" min="0" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Depot')}</label>
-                                <input type="text" name="depot" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_depot" class="block text-sm font-medium text-gray-700 mb-1">{$t('Depot')}</label>
+                                <input id="add_depot" type="text" name="depot" maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Week Lot')}</label>
-                                <input type="text" name="week_lot" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_week_lot" class="block text-sm font-medium text-gray-700 mb-1">{$t('Week Lot')}</label>
+                                <input id="add_week_lot" type="number" name="week_lot" min="0" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Vessel')}</label>
-                                <input type="text" name="vessel" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_vessel" class="block text-sm font-medium text-gray-700 mb-1">{$t('Vessel')}</label>
+                                <input id="add_vessel" type="text" name="vessel" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Agent')}</label>
-                                <input type="text" name="agent" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_agent" class="block text-sm font-medium text-gray-700 mb-1">{$t('Agent')}</label>
+                                <input id="add_agent" type="text" name="agent" maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">{$t('Container Owner')}</label>
-                                <input type="text" name="container_owner" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                                <label for="add_container_owner" class="block text-sm font-medium text-gray-700 mb-1">{$t('Container Owner')}</label>
+                                <input id="add_container_owner" type="text" name="container_owner" maxlength="50" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                             </div>
                         </div>
                         
@@ -599,6 +666,116 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     {$t('Save')}
+                                {/if}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {/if}
+
+    <!-- ==================== Modal Edit Container Plan ==================== -->
+    {#if showEditModal}
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity duration-300">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                        {$t('Edit Container Plan')}
+                    </h2>
+                    <button on:click={() => showEditModal = false} aria-label={$t('Close')} class="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-1 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="p-6 overflow-y-auto flex-1 bg-white">
+                    <form method="POST" action="?/update" use:enhance={() => {
+                        isEditing = true;
+                        return async ({ result, update }) => {
+                            isEditing = false;
+                            if (result.type === 'success') {
+                                showEditModal = false;
+                                alert('แก้ไขข้อมูลเรียบร้อยแล้ว');
+                                update();
+                            } else {
+                                alert(result.data?.message || 'เกิดข้อผิดพลาดในการแก้ไขข้อมูล');
+                            }
+                        };
+                    }}>
+                        <!-- ส่ง ID ไปด้วยเสมอเพื่อนำไปใช้อัปเดต -->
+                        <input type="hidden" name="id" value={editData.id} />
+                        <input type="hidden" name="container_id" value={editData.container_id} />
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            <div>
+                                <label for="edit_container_no" class="block text-sm font-medium text-gray-700 mb-1">{$t('Container No')}</label>
+                                <!-- กล่อง Container No เป็น Readonly ป้องกันการแก้ไข -->
+                                <input id="edit_container_no" type="text" value={editData.container_no} readonly class="w-full border border-gray-300 rounded-md py-2 px-3 bg-gray-100 text-gray-500 cursor-not-allowed text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_house_bl" class="block text-sm font-medium text-gray-700 mb-1">{$t('House B/L')} <span class="text-red-500">*</span></label>
+                                <input id="edit_house_bl" type="text" name="house_bl" value={editData.house_bl || ''} maxlength="255" required class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_model" class="block text-sm font-medium text-gray-700 mb-1">{$t('Model')}</label>
+                                <input id="edit_model" type="text" name="model" value={editData.model || ''} maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_type" class="block text-sm font-medium text-gray-700 mb-1">{$t('Type')}</label>
+                                <input id="edit_type" type="text" name="type" value={editData.type || ''} maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_eta_date" class="block text-sm font-medium text-gray-700 mb-1">{$t('ETA Date')}</label>
+                                <input id="edit_eta_date" type="date" name="eta_date" value={editData.eta_date || ''} class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_checkin_date" class="block text-sm font-medium text-gray-700 mb-1">{$t('Check-in Date')}</label>
+                                <input id="edit_checkin_date" type="date" name="checkin_date" value={editData.checkin_date || ''} class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_free_time" class="block text-sm font-medium text-gray-700 mb-1">{$t('Free Time')}</label>
+                                <input id="edit_free_time" type="number" name="free_time" value={editData.free_time ?? ''} min="0" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_depot" class="block text-sm font-medium text-gray-700 mb-1">{$t('Depot')}</label>
+                                <input id="edit_depot" type="text" name="depot" value={editData.depot || ''} maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_week_lot" class="block text-sm font-medium text-gray-700 mb-1">{$t('Week Lot')}</label>
+                                <input id="edit_week_lot" type="number" name="week_lot" value={editData.week_lot ?? ''} min="0" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_vessel" class="block text-sm font-medium text-gray-700 mb-1">{$t('Vessel')}</label>
+                                <input id="edit_vessel" type="text" name="vessel" value={editData.vessel || ''} class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_agent" class="block text-sm font-medium text-gray-700 mb-1">{$t('Agent')}</label>
+                                <input id="edit_agent" type="text" name="agent" value={editData.agent || ''} maxlength="255" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                            <div>
+                                <label for="edit_container_owner" class="block text-sm font-medium text-gray-700 mb-1">{$t('Container Owner')}</label>
+                                <input id="edit_container_owner" type="text" name="container_owner" value={editData.container_owner || ''} maxlength="50" class="w-full border border-gray-300 rounded-md py-2 px-3 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8 pt-5 border-t border-gray-100 flex justify-end gap-3">
+                            <button type="button" on:click={() => showEditModal = false} class="px-5 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                                {$t('Cancel')}
+                            </button>
+                            <button type="submit" disabled={isEditing} class="px-5 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:bg-blue-400">
+                                {#if isEditing}
+                                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    {$t('Updating...')}
+                                {:else}
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    {$t('Update')}
                                 {/if}
                             </button>
                         </div>
