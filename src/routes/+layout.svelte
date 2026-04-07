@@ -10,6 +10,8 @@
 	import defaultAvatar from './default-avatar.jpg';
 
 	import { locale, t, loadTranslations } from '$lib/i18n';
+	import { canManageUsers, userHasAdminRole } from '$lib/userRole';
+	import { canAccessApplicationEnvConfig } from '$lib/envConfigAccess';
 
 	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>();
 	type Menu = LayoutServerData['menus'][0];
@@ -35,6 +37,7 @@
 	});
 
 	let isSidebarOpen = $state(false);
+	let isCompanyLogoBroken = $state(false);
 
 	let isSidebarPinned = $state(false);
 	let isSidebarHovering = $state(false);
@@ -198,8 +201,69 @@
 	}
 
 	const isAdminSectionActive = $derived(
-		isLinkActive('/roles') || isLinkActive('/permissions') || isLinkActive('/menus')
+		isLinkActive('/users') ||
+			isLinkActive('/roles') ||
+			isLinkActive('/permissions') ||
+			isLinkActive('/menus') ||
+			isLinkActive('/settings/env-config')
 	);
+
+	function canSeeRolesPage(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		if (userHasAdminRole(user)) return true;
+		return user.permissions?.includes('view roles') ?? false;
+	}
+
+	function canSeePermissionsPage(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		if (userHasAdminRole(user)) return true;
+		return user.permissions?.includes('manage settings') ?? false;
+	}
+
+	function canSeeMenuManagementPage(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		if (userHasAdminRole(user)) return true;
+		return user.permissions?.includes('manage settings') ?? false;
+	}
+
+	function canSeeUsersControl(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		return canManageUsers(user);
+	}
+
+	function canSeeEnvConfig(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		return canAccessApplicationEnvConfig(user);
+	}
+
+	function canSeeSystemManagement(user: LayoutServerData['user']): boolean {
+		return (
+			canSeeUsersControl(user) ||
+			canSeeRolesPage(user) ||
+			canSeePermissionsPage(user) ||
+			canSeeMenuManagementPage(user) ||
+			canSeeEnvConfig(user)
+		);
+	}
+
+	function shouldHideTopLevelMenu(menu: Menu, level: number): boolean {
+		if (level !== 0) return false;
+		if (!canSeeSystemManagement(data.user)) return false;
+		const title = menu.title.trim().toLowerCase();
+		const route = menu.route?.trim().toLowerCase() ?? '';
+		return title === 'settings' || title.includes('setting') || route.startsWith('/settings');
+	}
+
+	const companyLogoSrc = $derived(isCompanyLogoBroken ? favicon : '/logo/company-logo.png');
+
+	function onCompanyLogoError() {
+		isCompanyLogoBroken = true;
+	}
+
+	$effect(() => {
+		// Keep trying custom static logo on each navigation/update.
+		isCompanyLogoBroken = false;
+	});
 </script>
 
 {#snippet menuList(menus: Menu[] | undefined, level: number, isFlyout: boolean = false)}
@@ -212,6 +276,7 @@
 				: ''} {isFlyout ? 'min-w-[200px]' : ''}"
 		>
 			{#each menus as menu}
+				{#if !shouldHideTopLevelMenu(menu, level)}
 				<li>
 					{#if menu.route}
 						{#if menu.children && menu.children.length > 0}
@@ -265,6 +330,12 @@
 							{:else}
 								<a
 									href={menu.route}
+									onclick={() => {
+										// When sidebar is collapsed on desktop, clicking a parent menu should expand it
+										// so the user can see its submenus immediately.
+										isSidebarPinned = true;
+										toggleMenu(menu.id);
+									}}
 									class="group flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
 										menu.route
 									)
@@ -382,13 +453,14 @@
 						</div>
 					{/if}
 				</li>
+				{/if}
 			{/each}
 		</ul>
 	{/if}
 {/snippet}
 
 <svelte:head>
-	<link rel="icon" href="/logo.png" />
+	<link rel="icon" href={favicon} />
 	<title>{data.systemName || 'Core Business'}</title>
 	<style>
 		.material-symbols-outlined {
@@ -432,15 +504,12 @@
 							? 'h-24 w-24'
 							: 'h-10 w-10'} flex flex-shrink-0 items-center justify-center rounded-lg transition-all duration-300"
 					>
-						{#if data.companyLogoPath}
-							<img
-								src={data.companyLogoPath}
-								alt="Company Logo"
-								class="h-full w-full object-contain"
-							/>
-						{:else}
-							<img src="/logo.png" alt="Default Logo" class="h-full w-full object-contain" />
-						{/if}
+						<img
+							src={companyLogoSrc}
+							alt="Company Logo"
+							class="h-full w-full object-contain"
+							onerror={onCompanyLogoError}
+						/>
 					</div>
 
 					<span
@@ -482,7 +551,7 @@
 
 						{@render menuList(data.menus, 0)}
 
-						{#if data.user.role === 'admin'}
+						{#if canSeeSystemManagement(data.user)}
 							<li class="relative mt-4 list-none space-y-1 border-t border-gray-200 pt-4">
 								<button
 									type="button"
@@ -528,53 +597,95 @@
 
 								{#if isSidebarExpanded && isAdminMenuOpen}
 									<ul class="space-y-1 pt-1 pl-5" transition:slide>
-										<li>
-											<a
-												href="/roles"
-												class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
-													'/roles'
-												)
-													? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-													: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-												title={$t('Roles & Permissions')}
-												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
-													>shield_person</span
-												><span class="text-sm leading-snug font-medium whitespace-normal"
-													>{$t('Roles & Permissions')}</span
-												></a
-											>
-										</li>
-										<li>
-											<a
-												href="/permissions"
-												class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
-													'/permissions'
-												)
-													? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-													: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-												title={$t('Permissions')}
-												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
-													>verified_user</span
-												><span class="text-sm leading-snug font-medium whitespace-normal"
-													>{$t('Permissions')}</span
-												></a
-											>
-										</li>
-										<li>
-											<a
-												href="/menus"
-												class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
-													'/menus'
-												)
-													? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-													: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-												title={$t('Menu Management')}
-												><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span
-												><span class="text-sm leading-snug font-medium whitespace-normal"
-													>{$t('Menu Management')}</span
-												></a
-											>
-										</li>
+										{#if canSeeUsersControl(data.user)}
+											<li>
+												<a
+													href="/users"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/users'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Users Control')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+														>manage_accounts</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Users Control')}</span
+													></a
+												>
+											</li>
+										{/if}
+										{#if canSeeRolesPage(data.user)}
+											<li>
+												<a
+													href="/roles"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/roles'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Roles & Permissions')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+														>shield_person</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Roles & Permissions')}</span
+													></a
+												>
+											</li>
+										{/if}
+										{#if canSeePermissionsPage(data.user)}
+											<li>
+												<a
+													href="/permissions"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/permissions'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Permissions')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+														>verified_user</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Permissions')}</span
+													></a
+												>
+											</li>
+										{/if}
+										{#if canSeeMenuManagementPage(data.user)}
+											<li>
+												<a
+													href="/menus"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/menus'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Menu Management')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Menu Management')}</span
+													></a
+												>
+											</li>
+										{/if}
+										{#if canSeeEnvConfig(data.user)}
+											<li>
+												<a
+													href="/settings/env-config"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/settings/env-config'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Environment (.env)')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+														>tune</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Environment (.env)')}</span
+													></a
+												>
+											</li>
+										{/if}
 									</ul>
 								{/if}
 							</li>
@@ -774,11 +885,12 @@
 						{/if}
 					</div>
 
-					{#if data.companyLogoPath}
-						<img src={data.companyLogoPath} alt="Company Logo" class="h-10 w-10 object-contain" />
-					{:else}
-						<img src="/logo.png" alt="Default Logo" class="h-10 w-10 object-contain" />
-					{/if}
+					<img
+						src={companyLogoSrc}
+						alt="Company Logo"
+						class="h-10 w-10 object-contain"
+						onerror={onCompanyLogoError}
+					/>
 					<span class="text-sm leading-tight font-bold text-gray-800"
 						>{data.systemName || 'Core Business'}</span
 					>

@@ -1,5 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
+import { expandPermissionsForMenuInClause } from '$lib/isodocsDarPermissions';
+import { userHasAdminRole } from '$lib/userRole';
+import { safeInternalRedirect } from '$lib/safeRedirect';
 import pool from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2';
 
@@ -81,7 +84,10 @@ function buildMenuTree(menus: Menu[]): Menu[] {
  */
 export const load: LayoutServerLoad = async ({ url, locals }) => {
 	if (!locals.user && url.pathname !== '/login') {
-		throw redirect(303, '/login');
+		const next = `${url.pathname}${url.search}`;
+		const dest = safeInternalRedirect(next);
+		const loginUrl = dest ? `/login?redirect=${encodeURIComponent(dest)}` : '/login';
+		throw redirect(303, loginUrl);
 	}
 
 	let menus: Menu[] = [];
@@ -96,26 +102,29 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 			let isDynamicInClause = false;
 
 			// Admin gets all menus
-			if (locals.user.role === 'admin') {
+			if (userHasAdminRole(locals.user)) {
 				query = `
                     SELECT id, title, icon, route, parent_id, permission_name, \`order\`
                     FROM menus
                     ORDER BY parent_id ASC, \`order\` ASC, title ASC
                 `;
 			} else {
-				const userPermissions = locals.user.permissions;
+				const userPermissions = expandPermissionsForMenuInClause(locals.user.permissions);
 				if (userPermissions && userPermissions.length > 0) {
+					// Include parents only when the user matches a child by explicit permission.
+					// Treating NULL child permission as a match for "pull parent in" used to expose entire
+					// branches (e.g. Workforce) to every logged-in user.
 					query = `
 						SELECT id, title, icon, route, parent_id, permission_name, \`order\`
 						FROM menus
 						WHERE
 							permission_name IS NULL OR
 							permission_name IN (?) OR
-                            id IN (
-                                SELECT DISTINCT parent_id
-                                FROM menus
-                                WHERE parent_id IS NOT NULL AND (permission_name IS NULL OR permission_name IN (?))
-                            )
+							id IN (
+								SELECT DISTINCT parent_id
+								FROM menus
+								WHERE parent_id IS NOT NULL AND permission_name IN (?)
+							)
 						ORDER BY parent_id ASC, \`order\` ASC, title ASC
 					`;
 					params = [userPermissions, userPermissions];
@@ -136,7 +145,19 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 			} else {
 				[menuRows] = await pool.execute<Menu[]>(query, params);
 			}
-			menus = buildMenuTree(menuRows as Menu[]);
+			let flat = menuRows as Menu[];
+			// Drop NULL-permission items when their parent was not loaded (stops "Workforce" branch
+			// showing via a free child). Keep rows with explicit permission even if an ancestor is
+			// missing so deep trees still work with the single-level parent subquery.
+			const selectedIds = new Set(flat.map((m) => m.id));
+			flat = flat.filter((m) => {
+				if (m.parent_id == null) return true;
+				if (selectedIds.has(m.parent_id)) return true;
+				const pn = m.permission_name;
+				const inherits = pn == null || String(pn).trim() === '';
+				return !inherits;
+			});
+			menus = buildMenuTree(flat);
 
 			// --- Fetch Company Info (Name & Logo) ---
 			const [companyRows] = await pool.execute<CompanyData[]>(

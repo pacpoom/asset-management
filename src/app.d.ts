@@ -11,7 +11,11 @@ declare global {
 			full_name: string | null; // ชื่อเต็ม
 			profile_image_url: string | null; // URL รูปโปรไฟล์
 			role: string;
+			/** All assigned role names (from `user_roles` and primary); use for multi-role checks. */
+			roleNames: string[];
 			permissions: string[];
+			/** ISO section code (e.g. QM) for DAR Document Controller rule */
+			iso_section?: string | null;
 		}
 
 		// interface Error {}

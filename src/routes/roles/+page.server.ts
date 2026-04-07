@@ -75,8 +75,10 @@ export const actions: Actions = {
      */
     saveRole: async ({ request, locals }) => {
         const data = await request.formData();
+        const modeRaw = data.get('mode')?.toString();
+        const mode = modeRaw === 'edit' ? 'edit' : 'add';
         const id = data.get('id')?.toString();
-        const name = data.get('name')?.toString();
+        const name = data.get('name')?.toString()?.trim();
         const permissionIds = data.getAll('permission_ids').map(String);
         
         if (!name) {
@@ -89,9 +91,20 @@ export const actions: Actions = {
             await connection.beginTransaction();
             let roleId: number;
 
-            if (id) { // Editing existing role
+            if (mode === 'edit') { // Editing existing role
                 checkPermission(locals, 'edit roles');
+                if (!id) return fail(400, { success: false, message: 'Invalid role ID.' });
                 roleId = parseInt(id, 10);
+                if (!Number.isInteger(roleId) || roleId <= 0) {
+                    return fail(400, { success: false, message: 'Invalid role ID.' });
+                }
+                const [existsRows] = await connection.execute<RowDataPacket[]>(
+                    `SELECT id FROM roles WHERE id = ? LIMIT 1`,
+                    [roleId]
+                );
+                if (existsRows.length === 0) {
+                    return fail(404, { success: false, message: 'Role not found.' });
+                }
 
                 if (roleId <= 2) { // Prevent editing of default admin/user roles
                      // For default roles, only permissions can be changed.
@@ -105,6 +118,14 @@ export const actions: Actions = {
 
             } else { // Adding new role
                 checkPermission(locals, 'create roles');
+                // Defensive: never "save over" an existing role during create.
+                const [dupRows] = await connection.execute<RowDataPacket[]>(
+                    `SELECT id FROM roles WHERE name = ? LIMIT 1`,
+                    [name]
+                );
+                if (dupRows.length > 0) {
+                    return fail(409, { success: false, message: 'A role with this name already exists.' });
+                }
                 const [result] = await connection.execute<any>(`INSERT INTO roles (name, guard_name) VALUES (?, 'web')`, [name]);
                 roleId = result.insertId;
             }

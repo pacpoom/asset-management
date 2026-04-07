@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import type { ActionData, PageData } from './$types';
 	import { slide, fade } from 'svelte/transition';
 	import { t } from '$lib/i18n';
@@ -221,13 +222,17 @@
 				action="?/saveRole"
 				use:enhance={() => {
 					isLoading = true;
-					return async ({ update }) => {
+					return async ({ result, update }) => {
 						await update();
+						if (result.type === 'success') {
+							await invalidateAll();
+						}
 						isLoading = false;
 					};
 				}}
 			>
 				<div class="max-h-[60vh] space-y-6 overflow-y-auto p-6">
+					<input type="hidden" name="mode" value={modalMode} />
 					{#if modalMode === 'edit'}
 						<input type="hidden" name="id" value={selectedRole.id} />
 					{/if}
@@ -250,6 +255,10 @@
 					</div>
 					<div>
 						<h3 class="mb-3 text-sm font-semibold text-gray-700">{$t('Assign Permissions')}</h3>
+						<!-- Always POST the full selected set; filtered-out rows are not in the DOM. -->
+						{#each selectedRole.permission_ids ?? [] as pid (pid)}
+							<input type="hidden" name="permission_ids" value={pid} />
+						{/each}
 
 						<div class="relative mb-4">
 							<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -284,7 +293,6 @@
 										>
 											<input
 												type="checkbox"
-												name="permission_ids"
 												value={permission.id}
 												checked={selectedRole.permission_ids?.includes(permission.id)}
 												onchange={() => togglePermission(permission.id)}

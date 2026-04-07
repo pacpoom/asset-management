@@ -16,6 +16,17 @@
 
 	let showPassword = $state(false);
 	let showKickedOutAlert = $state(false);
+	let isLoginLogoBroken = $state(false);
+
+	const loginLogoSrc = $derived(
+		!isLoginLogoBroken && data.companyLogoPath ? data.companyLogoPath : '/logo/company-logo.png'
+	);
+
+	function onLoginLogoError() {
+		if (!isLoginLogoBroken) {
+			isLoginLogoBroken = true;
+		}
+	}
 
 	onMount(() => {
 		isMounted = true;
@@ -34,17 +45,19 @@
 		>
 			<div class="text-center">
 				<div class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-					{#if data.companyLogoPath}
-						<img src={data.companyLogoPath} alt="Company Logo" class="h-20 w-20 object-contain" />
-					{:else}
-						<img src="/logo.png" alt="Default Logo" class="h-20 w-20 object-contain" />
-					{/if}
+					<img
+						src={loginLogoSrc}
+						alt="Company Logo"
+						class="h-20 w-20 object-contain"
+						onerror={onLoginLogoError}
+					/>
 				</div>
 				<h1 class="text-3xl font-bold text-gray-900">Welcome Back</h1>
 				<p class="mt-2 text-gray-500">Login to your Core Business System</p>
 			</div>
 
 			<form method="POST" action="?/login" class="space-y-6">
+				<input type="hidden" name="redirect" value={data.redirectTarget} />
 				<div>
 					<label for="identifier" class="mb-2 block text-sm font-medium text-gray-700"
 						>Email or Username</label

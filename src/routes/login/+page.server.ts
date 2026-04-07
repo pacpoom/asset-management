@@ -1,53 +1,48 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import pool from '$lib/server/database'; // Import connection pool
-import bcrypt from 'bcrypt'; // Import bcrypt for password hashing
-import type { RowDataPacket } from 'mysql2'; // Import RowDataPacket
+import pool from '$lib/server/database';
+import bcrypt from 'bcrypt';
+import type { RowDataPacket } from 'mysql2';
+import { safeInternalRedirect } from '$lib/safeRedirect';
 
-// Type for company logo data
 interface CompanyLogo extends RowDataPacket {
 	logo_path: string | null;
 }
 
-/**
- * PageServerLoad: ตรวจสอบว่าผู้ใช้ล็อกอินอยู่หรือไม่ และโหลด logo path
- * หากล็อกอินแล้ว (มี session_id) จะถูก Redirect ไปยังหน้าหลัก (/) ทันที
- */
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, url }) => {
 	const sessionId = cookies.get('session_id');
 	if (sessionId) {
-		// ถ้ามี session cookie อยู่, Redirect ไปยังหน้าหลัก
-		throw redirect(303, '/');
+		const next = safeInternalRedirect(url.searchParams.get('redirect'));
+		throw redirect(303, next || '/');
 	}
 
 	let companyLogoPath: string | null = null;
 	try {
-		// Fetch Company Logo
 		const [companyRows] = await pool.execute<CompanyLogo[]>(
 			`SELECT logo_path FROM company WHERE id = ? LIMIT 1`,
-			[1] // Assuming company ID is always 1
+			[1]
 		);
 		if (companyRows.length > 0) {
 			companyLogoPath = companyRows[0].logo_path;
 		}
 	} catch (err) {
 		console.error('[login/+page.server.ts] Failed to load company logo:', err);
-		// Don't prevent login page from loading, just log the error
 	}
 
-	// ถ้าไม่มี session ให้แสดงหน้า login ต่อไป พร้อมส่ง logo path
+	const redirectTarget = safeInternalRedirect(url.searchParams.get('redirect')) || '';
+
 	return {
-		companyLogoPath // Pass logo path to the page
+		companyLogoPath,
+		redirectTarget
 	};
 };
 
 export const actions: Actions = {
-	login: async ({ cookies, request }) => {
+	login: async ({ cookies, request, url }) => {
 		const data = await request.formData();
 		const identifier = data.get('identifier')?.toString();
 		const password = data.get('password')?.toString();
 
-		// --- ตรวจสอบข้อมูลเบื้องต้น ---
 		if (!identifier || !password) {
 			return fail(400, {
 				message: 'กรุณากรอกอีเมล/Username และรหัสผ่าน',
@@ -55,10 +50,9 @@ export const actions: Actions = {
 			});
 		}
 
-		// --- ตรวจสอบข้อมูลกับฐานข้อมูลจริง ---
 		try {
 			const [rows]: any[] = await pool.execute(
-				'SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1',
+				'SELECT u.*, r.name AS role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.email = ? OR u.username = ? LIMIT 1',
 				[identifier, identifier]
 			);
 			const user = rows[0];
@@ -73,7 +67,6 @@ export const actions: Actions = {
 				return fail(401, { message: 'อีเมล/Username หรือรหัสผ่านไม่ถูกต้อง', identifier });
 			}
 
-			// --- Login สำเร็จ ---
 			const sessionToken = crypto.randomUUID();
 
 			const isSuperAdmin =
@@ -86,7 +79,7 @@ export const actions: Actions = {
 				]);
 			}
 
-			cookies.set('session_id', user.id, {
+			cookies.set('session_id', String(user.id), {
 				path: '/',
 				httpOnly: true,
 				sameSite: 'strict',
@@ -102,20 +95,23 @@ export const actions: Actions = {
 				maxAge: 60 * 60 * 24 * 7
 			});
 
-			throw redirect(303, '/');
-
-			// Redirect ไปยังหน้าหลัก
-			throw redirect(303, '/');
+			const next =
+				safeInternalRedirect(data.get('redirect')?.toString()) ||
+				safeInternalRedirect(url.searchParams.get('redirect'));
+			throw redirect(303, next || '/');
 		} catch (err) {
+			if (isRedirect(err)) throw err;
 			console.error(err);
-			return fail(500, { message: 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ โปรดลองใหม่อีกครั้ง' });
-			identifier: identifier;
+			return fail(500, {
+				message: 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ โปรดลองใหม่อีกครั้ง',
+				identifier: identifier as string
+			});
 		}
 	},
 
-	// Action สำหรับ Logout
 	logout: async ({ cookies }) => {
 		cookies.delete('session_id', { path: '/' });
+		cookies.delete('session_token', { path: '/' });
 		throw redirect(303, '/login');
 	}
 };
