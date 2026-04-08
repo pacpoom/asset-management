@@ -205,6 +205,7 @@
 			isLinkActive('/roles') ||
 			isLinkActive('/permissions') ||
 			isLinkActive('/menus') ||
+			isLinkActive('/settings/company-announcements') ||
 			isLinkActive('/settings/env-config')
 	);
 
@@ -226,6 +227,12 @@
 		return user.permissions?.includes('manage settings') ?? false;
 	}
 
+	function canSeeCompanyAnnouncementsPage(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		if (userHasAdminRole(user)) return true;
+		return user.permissions?.includes('manage settings') ?? false;
+	}
+
 	function canSeeUsersControl(user: LayoutServerData['user']): boolean {
 		if (!user) return false;
 		return canManageUsers(user);
@@ -242,6 +249,7 @@
 			canSeeRolesPage(user) ||
 			canSeePermissionsPage(user) ||
 			canSeeMenuManagementPage(user) ||
+			canSeeCompanyAnnouncementsPage(user) ||
 			canSeeEnvConfig(user)
 		);
 	}
@@ -525,7 +533,7 @@
 
 				<div class="flex-grow">
 					<nav>
-						<!-- <a
+						<a
 							href="/"
 							class="group mb-1 flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
     {isLinkActive('/')
@@ -547,7 +555,7 @@
 							>
 								{$t('Dashboard')}
 							</span>
-						</a> -->
+						</a>
 
 						{@render menuList(data.menus, 0)}
 
@@ -664,6 +672,24 @@
 													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">menu</span
 													><span class="text-sm leading-snug font-medium whitespace-normal"
 														>{$t('Menu Management')}</span
+													></a
+												>
+											</li>
+										{/if}
+										{#if canSeeCompanyAnnouncementsPage(data.user)}
+											<li>
+												<a
+													href="/settings/company-announcements"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/settings/company-announcements'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Company Announcements')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+														>campaign</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Company Announcements')}</span
 													></a
 												>
 											</li>

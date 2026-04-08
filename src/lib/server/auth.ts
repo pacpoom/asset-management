@@ -84,3 +84,18 @@ export function checkPermission(locals: App.Locals, requiredPermission: string) 
 	}
 	throw error(403, `Forbidden: You do not have the '${requiredPermission}' permission.`);
 }
+
+/**
+ * Like checkPermission, but allows any one of several permission names (admin still bypasses).
+ */
+export function checkAnyPermission(locals: App.Locals, requiredPermissions: string[]) {
+	if (!locals.user) {
+		throw error(401, 'Unauthorized: You must be logged in to perform this action.');
+	}
+	if (userHasAdminRole(locals.user)) return;
+	for (const req of requiredPermissions) {
+		if (locals.user.permissions.includes(req)) return;
+	}
+	const list = requiredPermissions.map((p) => `'${p}'`).join(', ');
+	throw error(403, `Forbidden: You do not have any of the required permissions: ${list}.`);
+}
