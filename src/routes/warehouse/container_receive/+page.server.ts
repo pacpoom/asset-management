@@ -92,6 +92,14 @@ export const actions = {
                 [plan_id, user_id, yard_location_id, remarks]
             );
 
+            // 4. อัปเดตสถานะและวันที่รับเข้าใน container_order_plans
+            await connection.query(
+                `UPDATE container_order_plans 
+                SET status = 2, checkin_date = NOW(), updated_at = NOW() 
+                WHERE id = ?`,
+                [plan_id]
+            );
+
             // ยืนยันการบันทึก
             await connection.commit();
 
