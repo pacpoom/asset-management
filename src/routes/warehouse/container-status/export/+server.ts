@@ -35,7 +35,6 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const endDateParam = url.searchParams.get('endDate');
 	const endDate = endDateParam !== null ? endDateParam : defaultDate;
-	const statusFilter = url.searchParams.get('status') || '';
 	const ownerFilter = url.searchParams.get('owner') || '';
 
 	try {
@@ -64,31 +63,20 @@ export const GET: RequestHandler = async ({ url }) => {
 			params.push(endDate);
 		}
 
-		if (statusFilter) {
-			if (statusFilter === '3') {
-				whereClause += ` AND (p.status = 3 OR p.status NOT IN (2, 4)) `;
-			} else {
-				whereClause += ` AND p.status = ? `;
-				params.push(statusFilter);
-			}
-		}
+		whereClause += ` AND p.status >= 2 `;
 
 		if (ownerFilter) {
 			whereClause += ` AND c.container_owner = ? `;
 			params.push(ownerFilter);
 		}
 
-		// เพิ่ม GROUP BY p.id เพื่อป้องกันข้อมูลซ้ำตอนดึงออก Excel
-		// นำการ JOIN transaction ออก
+		// ลบการ join กับ container_stocks และ GROUP BY ออก
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
-                   c.container_owner, 
-                   MAX(cs.status) AS stock_status
+                   c.container_owner
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
-            LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id 
             ${whereClause}
-            GROUP BY p.id
             ORDER BY p.checkin_date ASC, p.id ASC
         `;
 
@@ -108,8 +96,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			{ header: 'ETD Date', key: 'etd_date', width: 15 },
 			{ header: 'ATA Date', key: 'ata_date', width: 15 },
 			{ header: 'Check-in Date', key: 'checkin_date', width: 20 },
-			{ header: 'Status', key: 'status', width: 15 },
-			{ header: 'Stock Status', key: 'stock_status', width: 15 }
+			{ header: 'Status', key: 'status', width: 15 }
 		];
 
 		worksheet.getRow(1).font = { bold: true };
@@ -123,10 +110,6 @@ export const GET: RequestHandler = async ({ url }) => {
 			let statusText = 'Shipped Out';
 			if (row.status == 2) statusText = 'Received';
 			else if (row.status == 4) statusText = 'Returned';
-
-			let stockStatusText = 'Partial';
-			if (row.stock_status == 1) stockStatusText = 'Full';
-			else if (row.stock_status == 3) stockStatusText = 'Empty';
 
 			let ownerText = '-';
 			if (row.container_owner === 'Owner') {
@@ -159,8 +142,7 @@ export const GET: RequestHandler = async ({ url }) => {
 							minute: '2-digit'
 						})
 					: '-',
-				status: statusText,
-				stock_status: stockStatusText
+				status: statusText
 			});
 		});
 
