@@ -35,7 +35,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 	const endDateParam = url.searchParams.get('endDate');
 	const endDate = endDateParam !== null ? endDateParam : defaultDate;
-	const statusFilter = url.searchParams.get('status') || '';
 	const ownerFilter = url.searchParams.get('owner') || '';
 
 	let limit = parseInt(url.searchParams.get('limit') || '10', 10);
@@ -70,55 +69,33 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(endDate);
 		}
 
-		if (statusFilter) {
-			if (statusFilter === '3') {
-				whereClause += ` AND (p.status = 3 OR p.status NOT IN (2, 4)) `;
-			} else {
-				whereClause += ` AND p.status = ? `;
-				params.push(statusFilter);
-			}
-		}
+		whereClause += ` AND p.status >= 2 `;
+
 		if (ownerFilter) {
 			whereClause += ` AND c.container_owner = ? `;
 			params.push(ownerFilter);
 		}
 
-		// ใช้ Subquery สำหรับการนับ เพื่อให้ได้ผลลัพธ์ตรงกับจำนวนแถวหลังทำ GROUP BY แล้ว
+		// ใช้การนับจำนวนปกติ ลบการ join กับ container_stocks ออก
 		const countSql = `
-			SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN stock_status = 1 THEN 1 ELSE 0 END) as fullCount,
-                SUM(CASE WHEN stock_status = 3 THEN 1 ELSE 0 END) as emptyCount,
-                SUM(CASE WHEN stock_status = 1 OR stock_status = 3 THEN 0 ELSE 1 END) as partialCount
-			FROM (
-                SELECT p.id, MAX(cs.status) as stock_status
-                FROM container_order_plans p
-                LEFT JOIN containers c ON p.container_id = c.id 
-                LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id
-                ${whereClause}
-                GROUP BY p.id
-            ) as sub
+			SELECT COUNT(*) as total
+            FROM container_order_plans p
+            LEFT JOIN containers c ON p.container_id = c.id 
+            ${whereClause}
 		`;
 
 		const [countResult] = await cymspool.query<any[]>(countSql, params);
 
 		const totalCount = countResult[0].total || 0;
-		const fullCount = countResult[0].fullCount || 0;
-		const partialCount = countResult[0].partialCount || 0;
-		const emptyCount = countResult[0].emptyCount || 0;
 		const totalPages = Math.ceil(totalCount / limit);
 
-		// เพิ่ม GROUP BY p.id เพื่อป้องกันข้อมูลซ้ำ และใช้ MAX(cs.status) เพื่อให้ผ่าน strict mode
-		// นำ transaction_date ออกตามที่ต้องการ
+		// ลบการ join กับ container_stocks และ GROUP BY ออก
 		const dataSql = `
             SELECT p.*, c.container_no, c.size, c.agent,
-                   c.container_owner, 
-                   MAX(cs.status) AS stock_status
+                   c.container_owner
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id
-            LEFT JOIN container_stocks cs ON p.id = cs.container_order_plan_id 
             ${whereClause}
-            GROUP BY p.id
             ORDER BY p.checkin_date ASC, p.id ASC
             LIMIT ${limit} OFFSET ${offset}
         `;
@@ -132,33 +109,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		return {
 			containers: containerRows,
 			totalCount,
-			fullCount,
-			partialCount,
-			emptyCount,
 			currentPage: page,
 			totalPages,
 			limit,
 			searchQuery,
 			startDate,
 			endDate,
-			statusFilter,
 			ownerFilter,
 			owners
-		};
-
-		return {
-			containers: containerRows,
-			totalCount,
-			fullCount,
-			partialCount,
-			emptyCount,
-			currentPage: page,
-			totalPages,
-			limit,
-			searchQuery,
-			startDate,
-			endDate,
-			statusFilter
 		};
 	} catch (err) {
 		console.error('Failed to load container status:', err);
