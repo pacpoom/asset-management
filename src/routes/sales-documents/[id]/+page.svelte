@@ -56,7 +56,7 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📎';
+		return '📁';
 	}
 
 	async function updateStatus(e: Event) {
@@ -310,13 +310,15 @@
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Qty')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Unit Price')}</th>
-					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">{$t('VAT')}</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">Inc. VAT</th>
+					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Amount') || 'Amount'}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
 					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">{$t('Total')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#each items as item}
+					{@const amount = item.is_vat ? item.line_total * 100 / (100 + Number(document.vat_rate || 7)) : item.line_total}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-4 py-4 text-gray-700"
 							><div class="font-medium text-gray-900">{item.description}</div></td
@@ -325,16 +327,19 @@
 						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>
 						<td class="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
 						<td class="px-4 py-4 text-center font-bold text-blue-600">
-							{item.is_vat ? '7%' : '-'}
+							{item.is_vat ? '✓' : '-'}
+						</td>
+						<td class="px-4 py-4 text-right text-gray-700 font-medium">
+							{formatCurrency(amount)}
 						</td>
 						<td class="px-4 py-4 text-center font-bold text-red-600">
 							{parseFloat(item.wht_rate || '0') > 0 ? `${parseFloat(item.wht_rate)}%` : '-'}
 						</td>
 						<td class="px-4 py-4 text-right">
-							<div class="font-medium text-gray-900">{formatCurrency(item.line_total)}</div>
+							<div class="font-bold text-gray-900">{formatCurrency(item.line_total)}</div>
 							{#if parseFloat(item.wht_rate || '0') > 0}
-								<div class="mt-0.5 text-[10px] text-red-500">
-									(-{formatCurrency((item.line_total * parseFloat(item.wht_rate)) / 100)})
+								<div class="mt-0.5 text-[10px] text-red-500 font-medium">
+									(-{formatCurrency((amount * parseFloat(item.wht_rate)) / 100)})
 								</div>
 							{/if}
 						</td>
@@ -349,7 +354,7 @@
 	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">{$t('Financial Summary')}</h2>
 	<div class="mt-3 w-full space-y-2 text-sm">
 		<div class="flex items-center justify-between">
-			<span class="font-medium text-gray-600">{$t('Subtotal')}:</span>
+			<span class="font-medium text-gray-600">{$t('Subtotal')} <span class="text-xs text-gray-400">({$t('Before VAT') || 'Before VAT'})</span>:</span>
 			<span class="font-medium text-gray-800">{formatCurrency(document.subtotal)}</span>
 		</div>
 

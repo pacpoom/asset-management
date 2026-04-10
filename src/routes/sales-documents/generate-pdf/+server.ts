@@ -71,6 +71,7 @@ interface ItemData {
 	line_total: number;
 	wht_rate?: number;
 	is_vat?: number | boolean;
+    amount?: number; // Added optional property for calculation
 }
 
 const pdfSpecificDict: Record<string, Record<string, string>> = {
@@ -92,7 +93,7 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		Subtotal: 'รวมเป็นเงิน',
 		Discount: 'ส่วนลด',
 		AfterDiscount: 'หลังหักส่วนลด',
-		VAT: 'VAT ชื้อ',
+		VAT: 'VAT',
 		WHT: 'หัก ณ ที่จ่ายรวม',
 		GrandTotal: 'จำนวนเงินสุทธิ',
 		ReceivedBy: 'ผู้รับเอกสาร (Received by)',
@@ -102,7 +103,6 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		Days: 'วัน (Days)',
 		Cash: 'เงินสด (Cash)',
 		Attn: 'เรียน (Attn)',
-		// Job specific translations
 		ETD: 'ETD',
 		ETA: 'ETA',
 		Quantity: 'จำนวน',
@@ -144,7 +144,6 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		Days: 'Days',
 		Cash: 'Cash',
 		Attn: 'Attn',
-		// Job specific translations
 		ETD: 'ETD',
 		ETA: 'ETA',
 		Quantity: 'Quantity',
@@ -279,11 +278,22 @@ function getInvoiceHtml(
 	const activeRates = new Set<number>();
 
 	itemsData.forEach((item) => {
+        // Calculate amount mapping with Svelte logic
+        const rawLineTotal = Number(item.line_total) || 0;
+        let amount = rawLineTotal;
+
+        if (item.is_vat) {
+            amount = rawLineTotal * 100 / (100 + vatRate);
+        }
+
 		const rate = Number(item.wht_rate || 0);
 		if (rate > 0) {
 			activeRates.add(rate);
-			calculatedWhtAmt += (Number(item.line_total) * rate) / 100;
+			calculatedWhtAmt += amount * (rate / 100);
 		}
+        
+        // Attach amount for HTML rendering
+        item.amount = amount;
 	});
 
 	const ratesArray = Array.from(activeRates);
@@ -385,14 +395,14 @@ function getInvoiceHtml(
             <th class="p-2 text-left">${tPdf('Description', lang)}</th>
             <th class="p-2 text-right w-16">${tPdf('Qty', lang)}</th>
             <th class="p-2 text-right w-24">${tPdf('UnitPrice', lang)}</th>
-            <th class="p-2 text-center w-16" style="color: #2563eb;">${tPdf('VAT', lang)}</th>
-            <th class="p-2 text-center w-24 whitespace-nowrap" style="color: #ef4444;">${tPdf('WHT', lang)}</th>
-            <th class="p-2 text-right w-28">${tPdf('Amount', lang)}</th>
+            <th class="p-2 text-center w-16" style="color: #2563eb;">Inc. VAT</th>
+            <th class="p-2 text-right w-24">${tPdf('Amount', lang)}</th>
+            <th class="p-2 text-center w-20 whitespace-nowrap" style="color: #ef4444;">${tPdf('WHT', lang)}</th>
+            <th class="p-2 text-right w-24">${tPdf('Total', lang)}</th>
         </tr>
     </thead>
 `;
 
-	// สร้าง HTML แสดงรายละเอียด Job หรือ Note อย่างใดอย่างหนึ่ง
 	let notesOrJobHtml = '';
 	if (docData.job_order_id) {
 		notesOrJobHtml = `
@@ -431,12 +441,12 @@ function getInvoiceHtml(
 	const summaryBlock = `
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
-                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
                 <col style="width: 140px;"> <col style="width: 110px;">
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="5" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+                    <td colspan="4" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
                         <div>
 							${notesOrJobHtml}
                         </div>
@@ -492,20 +502,18 @@ function getInvoiceHtml(
         </div>
     `;
 
-	// --- LOGIC ตัดคำนวณแบ่งหน้าโดยใช้บรรทัดเป็นตัวอ้างอิง ---
 	function countLines(text: string | null | undefined): number {
 		if (!text) return 1;
 		const lines = text.split('\n');
 		let total = 0;
 		for (const line of lines) {
-			// ให้ 1 บรรทัด หรือถ้าตัวอักษรยาวเกิน 50 ตัว ให้ตีเป็นหลายบรรทัด
 			total += Math.max(1, Math.ceil(line.length / 50));
 		}
 		return total;
 	}
 
-	const MAX_LINES_PER_PAGE = 22; // จำนวนบรรทัดสูงสุดต่อหน้าเนื้อหาปกติ
-	const MAX_LINES_LAST_PAGE = 12; // จำนวนบรรทัดสูงสุดสำหรับหน้าที่มีสรุปยอด (Summary) เพื่อเผื่อพื้นที่
+	const MAX_LINES_PER_PAGE = 22; 
+	const MAX_LINES_LAST_PAGE = 12; 
 
 	interface PageInfo {
 		items: ItemData[];
@@ -521,7 +529,6 @@ function getInvoiceHtml(
 	for (const item of itemsData) {
 		const itemLines = countLines(item.description);
 
-		// ถ้าเพิ่ม item นี้แล้วบรรทัดจะเกินหน้า ให้ดันขึ้นหน้าใหม่
 		if (currentLineCount + itemLines > MAX_LINES_PER_PAGE && currentPageItems.length > 0) {
 			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
 			currentPageItems = [];
@@ -534,19 +541,15 @@ function getInvoiceHtml(
 		currentItemIndex++;
 	}
 
-	// จัดการหน้าสุดท้าย (เหลือเศษมาในลูป)
 	if (currentPageItems.length > 0) {
-		// ตรวจสอบว่าหน้าสุดท้ายมีพื้นที่เหลือพอสำหรับ Summary หรือไม่
 		if (currentLineCount > MAX_LINES_LAST_PAGE) {
-			// พื้นที่ไม่พอ ใส่ items ในหน้าปัจจุบันให้หมด แล้วสร้างหน้าว่าง 1 หน้าสำหรับ Summary Block
 			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
 			pages.push({ items: [], startIndex: currentItemIndex });
 		} else {
-			// พื้นที่พอ วางลงหน้าปัจจุบันได้เลย
 			pages.push({ items: currentPageItems, startIndex: pageStartIndex });
 		}
 	} else if (pages.length === 0) {
-		pages.push({ items: [], startIndex: 0 }); // กรณีไม่มี Item เลย
+		pages.push({ items: [], startIndex: 0 }); 
 	}
 
 	const totalPages = pages.length;
@@ -565,12 +568,13 @@ function getInvoiceHtml(
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
         <td class="p-2 text-center" style="color: #2563eb; font-weight: 500; vertical-align: top;">
-            ${item.is_vat ? '7%' : '-'}
+            ${item.is_vat ? '✓' : '-'}
         </td>
+        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.amount || 0)}</td>
         <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
         </td>
-        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.line_total)}</td>
+        <td class="p-2 text-right" style="vertical-align: top; font-weight: bold;">${formatNumber(item.line_total)}</td>
     </tr>
 `
 				)
@@ -604,7 +608,6 @@ function getInvoiceHtml(
             `;
 			}
 
-			// ใส่ page-break ให้ถูกต้อง และครอบเนื้อหาให้อยู่ในหน้าเดียวเสมอ
 			return `
             <div class="document-page" style="${index > 0 ? 'page-break-before: always;' : ''}">
                 ${headerContent}
@@ -624,7 +627,6 @@ function getInvoiceHtml(
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
                 body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #333; background: #fff !important; margin: 0; padding: 0; }
                 
-				/* ปรับปรุงโครงสร้าง document-page ให้อิงความสูงชัดเจนเพื่อป้องกัน footer ทับ */
 				.document-page { 
 					padding: 40px; 
 					box-sizing: border-box; 

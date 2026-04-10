@@ -199,8 +199,13 @@ export const actions: Actions = {
 				for (const [index, item] of items.entries()) {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
-					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
 					const isVat = item.is_vat === false ? 0 : 1;
+					
+					let baseAmount = lineTotal;
+					if (isVat === 1 && vat_rate > 0) {
+						baseAmount = lineTotal * 100 / (100 + vat_rate);
+					}
+					const lineWhtAmount = baseAmount * (lineWhtRate / 100);
 
 					await connection.execute(
 						`INSERT INTO sales_document_items 
