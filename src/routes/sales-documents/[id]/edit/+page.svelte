@@ -171,17 +171,22 @@
 		};
 	});
 
+	// --- FIX: VAT Calculation Logic ---
+	// คิด Subtotal จาก Amount ก่อนภาษี
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + item.amount, 0);
-	$: vatableAmountBeforeDiscount = calculatedItems.reduce((sum, item) => sum + (item.is_vat ? item.amount : 0), 0);
-	$: vatableRatio = subtotalBeforeVat > 0 ? (vatableAmountBeforeDiscount / subtotalBeforeVat) : 0;
 	
+	// นำยอดรวมมาหักส่วนลดก่อน
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
-	$: vatableAfterDiscount = Math.max(0, vatableAmountBeforeDiscount - (discountAmount * vatableRatio));
 	
-	$: vatAmount = (vatableAfterDiscount * vatRate) / 100;
+	// คำนวณ VAT จากยอดทั้งหมดเสมอ (ไม่ขึ้นอยู่กับว่าติ๊กหรือไม่ติ๊กแล้ว)
+	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
+	
+	// คำนวณ WHT รวม
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
 	
+	// ยอดสรุปสุดท้าย
 	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+	
 	$: itemsJson = JSON.stringify(calculatedItems);
 
 	function addItem() {

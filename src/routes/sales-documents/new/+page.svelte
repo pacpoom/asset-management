@@ -51,7 +51,7 @@
 			unit_price: 0,
 			line_total: 0,
 			wht_rate: 0,
-			is_vat: true // Now implies "Include VAT"
+			is_vat: true // Checkbox Include VAT
 		}
 	];
 
@@ -185,19 +185,20 @@
 		};
 	});
 
-	// Subtotals and VAT logic
+	// --- FIX: VAT Calculation Logic ---
+	// คิด Subtotal จาก Amount ก่อนภาษี
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + item.amount, 0);
-	$: vatableAmountBeforeDiscount = calculatedItems.reduce((sum, item) => sum + (item.is_vat ? item.amount : 0), 0);
-	$: vatableRatio = subtotalBeforeVat > 0 ? (vatableAmountBeforeDiscount / subtotalBeforeVat) : 0;
 	
-	// Apply discount before calculating final VAT
+	// นำยอดรวมมาหักส่วนลดก่อน
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
-	$: vatableAfterDiscount = Math.max(0, vatableAmountBeforeDiscount - (discountAmount * vatableRatio));
 	
-	$: vatAmount = (vatableAfterDiscount * vatRate) / 100;
+	// คำนวณ VAT จากยอดทั้งหมดเสมอ (ไม่ขึ้นอยู่กับว่าติ๊กหรือไม่ติ๊กแล้ว)
+	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
+	
+	// คำนวณ WHT รวม
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
 	
-	// Final calculation
+	// ยอดสรุปสุดท้าย
 	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
 	
 	// Save JSON to be submitted
@@ -655,10 +656,17 @@
 				</div>
 				<div class="mt-2 flex items-center justify-between text-sm">
 					<span class="text-gray-600">
-						{$t('Sales VAT')} <span class="ml-1 text-xs text-gray-500">(Auto 7%)</span>
+						{$t('Sales VAT')} 
+						<select
+							name="vat_rate"
+							bind:value={vatRate}
+							class="ml-2 w-20 rounded-md border-gray-300 py-1 pr-8 pl-3 text-sm shadow-sm focus:border-blue-500"
+						>
+							<option value={0}>0%</option>
+							<option value={7}>7%</option>
+						</select>
 					</span>
 					<span class="font-medium text-green-600">+{formatNumber(vatAmount)}</span>
-					<input type="hidden" name="vat_rate" value={vatRate} />
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 				<div class="flex justify-between border-b pb-2 text-sm text-red-600">
@@ -677,7 +685,6 @@
 		<input type="hidden" name="items_json" value={itemsJson} />
 		<input type="hidden" name="subtotal" value={subtotalBeforeVat} />
 		<input type="hidden" name="total_after_discount" value={totalAfterDiscount} />
-		<input type="hidden" name="vat_amount" value={vatAmount} />
 		<input type="hidden" name="wht_amount" value={whtAmount} />
 		<input type="hidden" name="total_amount" value={grandTotal} />
 
@@ -757,7 +764,6 @@
 				}}
 				class="flex-1 overflow-y-auto"
 			>
-				<!-- The contents of the modal remain unchanged to keep the response focused -->
 				<div class="grid grid-cols-1 gap-6 p-6 lg:grid-cols-3">
 					<div class="space-y-4 lg:col-span-2">
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
