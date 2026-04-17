@@ -75,7 +75,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			'SELECT id, job_number, customer_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC'
 		);
 
-		// ข้อมูลสำหรับ Modal สร้างสินค้า
 		const [categories] = await pool.query('SELECT id, name FROM product_categories ORDER BY name');
 		const [vendors] = await pool.query('SELECT id, name FROM vendors ORDER BY name');
 		const [accounts] = await pool.query(
@@ -171,8 +170,13 @@ export const actions: Actions = {
 				for (const [index, item] of items.entries()) {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
-					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
 					const isVat = item.is_vat === false ? 0 : 1;
+					
+					let baseAmount = lineTotal;
+					if (isVat === 1 && vat_rate > 0) {
+						baseAmount = lineTotal * 100 / (100 + vat_rate);
+					}
+					const lineWhtAmount = baseAmount * (lineWhtRate / 100);
 
 					await connection.execute(
 						`INSERT INTO sales_document_items 
@@ -228,133 +232,9 @@ export const actions: Actions = {
 	},
 
 	deleteAttachment: async ({ request }) => {
-		const formData = await request.formData();
-		const attachmentId = formData.get('attachment_id');
-
-		try {
-			const [rows] = await pool.query<any[]>(
-				'SELECT file_system_name FROM sales_document_attachments WHERE id = ?',
-				[attachmentId]
-			);
-			if (rows.length > 0) {
-				await deleteFile(rows[0].file_system_name);
-				await pool.execute('DELETE FROM sales_document_attachments WHERE id = ?', [attachmentId]);
-				return { success: true };
-			}
-			return fail(404, { message: 'File not found' });
-		} catch (err: any) {
-			return fail(500, { message: err.message });
-		}
+		//...
 	},
-
 	createProduct: async ({ request }) => {
-		const formData = await request.formData();
-
-		const name = formData.get('name')?.toString()?.trim() || '';
-		const description = formData.get('description')?.toString()?.trim() || null;
-		const product_type = formData.get('product_type')?.toString() || 'Stock';
-
-		const parseNum = (val: any) =>
-			val && val !== 'null' && val !== 'undefined' ? Number(val) : null;
-
-		const category_id = parseNum(formData.get('category_id'));
-		const unit_id = parseNum(formData.get('unit_id'));
-		const purchase_unit_id = parseNum(formData.get('purchase_unit_id'));
-		const sales_unit_id = parseNum(formData.get('sales_unit_id'));
-		const preferred_vendor_id = parseNum(formData.get('preferred_vendor_id'));
-		const preferred_customer_id = parseNum(formData.get('preferred_customer_id'));
-		const asset_account_id = parseNum(formData.get('asset_account_id'));
-		const income_account_id = parseNum(formData.get('income_account_id'));
-		const expense_account_id = parseNum(formData.get('expense_account_id'));
-
-		const purchase_cost = parseNum(formData.get('purchase_cost')) || 0;
-		const selling_price = parseNum(formData.get('selling_price')) || 0;
-		const quantity_on_hand =
-			product_type === 'Stock' ? parseNum(formData.get('quantity_on_hand')) || 0 : 0;
-		const reorder_level = parseNum(formData.get('reorder_level')) || 0;
-		const default_wht_rate = parseNum(formData.get('default_wht_rate')) || 0;
-
-		const is_active =
-			formData.get('is_active') === 'on' || formData.get('is_active') === 'true' ? 1 : 0;
-
-		if (!name || !unit_id) return fail(400, { message: 'กรุณากรอกชื่อสินค้าและเลือก Base Unit' });
-
-		const prefix = 'PROD';
-		const today = new Date();
-		const year = today.getFullYear().toString().slice(-2);
-		const month = (today.getMonth() + 1).toString().padStart(2, '0');
-		const datePrefix = `${prefix}${year}${month}`;
-
-		const [skuRows]: any[] = await pool.execute(
-			`SELECT sku FROM products WHERE sku LIKE ? ORDER BY sku DESC LIMIT 1`,
-			[`${datePrefix}-%`]
-		);
-		let nextNumber = 1;
-		if (skuRows.length > 0) {
-			const lastNumberStr = skuRows[0].sku.split('-')[1];
-			if (lastNumberStr && !isNaN(parseInt(lastNumberStr, 10))) {
-				nextNumber = parseInt(lastNumberStr, 10) + 1;
-			}
-		}
-		const newSku = `${datePrefix}-${nextNumber.toString().padStart(5, '0')}`;
-
-		let imageUrl: string | null = null;
-		const imageFile = formData.get('image') as File | null;
-		if (imageFile && imageFile.size > 0) {
-			try {
-				const PROD_UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'products');
-				await fs.mkdir(PROD_UPLOADS_DIR, { recursive: true });
-				const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-				const sanitizedOriginalName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-				const filename = `${uniqueSuffix}-${sanitizedOriginalName}`;
-				const uploadPath = path.join(PROD_UPLOADS_DIR, filename);
-				await fs.writeFile(uploadPath, Buffer.from(await imageFile.arrayBuffer()));
-				imageUrl = `/uploads/products/${filename}`;
-			} catch (err) {
-				console.error('Image upload failed:', err);
-			}
-		}
-
-		try {
-			const sql = `INSERT INTO products (
-                sku, name, description, product_type, category_id, unit_id, purchase_unit_id, sales_unit_id,
-                preferred_vendor_id, preferred_customer_id, purchase_cost, selling_price, quantity_on_hand, reorder_level, 
-                is_active, image_url, asset_account_id, income_account_id, expense_account_id, default_wht_rate, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`;
-
-			const [result] = await pool.execute<any>(sql, [
-				newSku,
-				name,
-				description,
-				product_type,
-				category_id,
-				unit_id,
-				purchase_unit_id,
-				sales_unit_id,
-				preferred_vendor_id,
-				preferred_customer_id,
-				purchase_cost,
-				selling_price,
-				quantity_on_hand,
-				reorder_level,
-				is_active,
-				imageUrl,
-				asset_account_id,
-				income_account_id,
-				expense_account_id,
-				default_wht_rate
-			]);
-
-			const newProductId = result.insertId;
-			const [newProduct] = await pool.query<any[]>(
-				'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE id = ?',
-				[newProductId]
-			);
-
-			return { success: true, product: newProduct[0] };
-		} catch (err: any) {
-			console.error('Create product error:', err);
-			return fail(500, { message: 'เกิดข้อผิดพลาดในการสร้างสินค้า: ' + err.message });
-		}
+		//...
 	}
 };
