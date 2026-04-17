@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+
 	let { data, form }: { data: any; form: any } = $props();
 
 	let logs = $derived(data.logs || []);
@@ -31,25 +32,22 @@
 		}))
 	]);
 
-	let initialEmpLabel = `-- ${$t('พนักงานทั้งหมด')} --`;
-	if (data.empFilter && data.empFilter !== 'All') {
-		const found = (data.employees || []).find((e: any) => e.emp_id === data.empFilter);
-		if (found) {
-			initialEmpLabel = `${found.emp_id} : ${found.emp_name}`;
-		}
-	}
+	let selectedEmp = $state(
+		data.empFilter && data.empFilter !== 'All'
+			? {
+					value: data.empFilter,
+					label: `${data.empFilter} : ${data.employees?.find((e: any) => e.emp_id === data.empFilter)?.emp_name || ''}`
+				}
+			: { value: 'All', label: `-- ${$t('พนักงานทั้งหมด')} --` }
+	);
 
-	let selectedEmp = $state({
-		value: data.empFilter || 'All',
-		label: initialEmpLabel
-	});
-
+	// 🌟 ระบบ Pagination 10, 50, 100, 200
 	let currentPage = $state(1);
-	let itemsPerPage = $state(20);
+	let itemsPerPage = $state(10);
 	let totalPages = $derived(Math.ceil(logs.length / itemsPerPage) || 1);
-
+	let validPage = $derived(Math.min(currentPage, totalPages) || 1);
 	let paginatedLogs = $derived(
-		logs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+		logs.slice((validPage - 1) * itemsPerPage, validPage * itemsPerPage)
 	);
 </script>
 
@@ -150,7 +148,7 @@
 				type="text"
 				name="search"
 				value={data.searchQuery}
-				placeholder="พิมพ์รหัส แผนก..."
+				placeholder={$t('พิมพ์รหัส แผนก...')}
 				class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
 			/>
 		</div>
@@ -197,22 +195,23 @@
 	</div>
 </div>
 
-<div class="overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
-	<div class="overflow-x-auto">
+<div class="flex flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
+	<div class="flex-1 overflow-x-auto">
 		<table class="w-full min-w-[1000px] text-left text-sm text-gray-600">
 			<thead class="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase">
 				<tr>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Date')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Emp_ID')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Name')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('(Dis/Sec)')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Section')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Shift')}</th>
-					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Entry time')}</th>
-					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Departure time')}</th>
-					<th class="px-4 py-3 text-center font-bold whitespace-nowrap text-blue-600">{$t('OT')}</th
+					<th class="px-4 py-3 whitespace-nowrap">{$t('วันที่')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('รหัสพนักงาน')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('ชื่อ-นามสกุล')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('แผนก (Dis/Sec)')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('ตำแหน่ง')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('กะ')}</th>
+					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('เวลาเข้า')}</th>
+					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('เวลาออก')}</th>
+					<th class="px-4 py-3 text-center font-bold whitespace-nowrap text-blue-600"
+						>{$t('ชั่วโมง OT')}</th
 					>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Status')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('สถานะ')}</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -223,7 +222,7 @@
 						>
 					</tr>
 				{/if}
-				{#each logs as log}
+				{#each paginatedLogs as log}
 					<tr class="border-b border-gray-50 transition-colors hover:bg-gray-50">
 						<td class="px-4 py-3 whitespace-nowrap"
 							>{new Date(log.work_date).toLocaleDateString('th-TH')}</td
@@ -270,6 +269,61 @@
 			</tbody>
 		</table>
 	</div>
+
+	{#if logs.length > 0}
+		<div
+			class="mt-auto flex items-center justify-between border-t border-gray-100 bg-gray-50 px-4 py-3 sm:px-6"
+		>
+			<div class="flex flex-col gap-4 sm:flex-1 sm:flex-row sm:items-center sm:justify-between">
+				<div class="flex flex-wrap items-center gap-4">
+					<div class="flex items-center gap-2 text-sm text-gray-700">
+						<span>{$t('แสดงหน้าละ')}:</span>
+						<select
+							aria-label="Items per page"
+							bind:value={itemsPerPage}
+							onchange={() => (currentPage = 1)}
+							class="w-20 cursor-pointer rounded border border-gray-300 bg-white py-1 pr-8 pl-3 text-sm font-medium focus:border-blue-500 focus:outline-none"
+						>
+							<option value={10}>10</option>
+							<option value={50}>50</option>
+							<option value={100}>100</option>
+							<option value={200}>200</option>
+						</select>
+					</div>
+					<p class="hidden text-sm text-gray-700 md:block">
+						{$t('แสดง')} <span class="font-medium">{(validPage - 1) * itemsPerPage + 1}</span>
+						{$t('ถึง')}
+						<span class="font-medium">{Math.min(validPage * itemsPerPage, logs.length)}</span>
+						{$t('จากทั้งหมด')}
+						<span class="font-medium">{logs.length}</span>
+						{$t('รายการ')}
+					</p>
+				</div>
+				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+					<button
+						aria-label="ก่อนหน้า"
+						onclick={() => (currentPage = validPage - 1)}
+						disabled={validPage === 1}
+						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+					>
+						<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+					</button>
+					<span
+						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 ring-inset"
+						>{validPage} / {totalPages}</span
+					>
+					<button
+						aria-label="ถัดไป"
+						onclick={() => (currentPage = validPage + 1)}
+						disabled={validPage === totalPages}
+						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+					>
+						<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+					</button>
+				</nav>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>

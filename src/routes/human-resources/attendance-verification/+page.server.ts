@@ -1,33 +1,21 @@
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 import { fail } from '@sveltejs/kit';
+import ExcelJS from 'exceljs';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-	// 🌟 1. จำลองสิทธิ์เป็น Admin ไว้ก่อน เพื่อให้คุณทดสอบเปลี่ยนแผนกดูข้อมูลได้
-	// (ถ้าเปลี่ยน role เป็น 'leader' มันจะล็อกให้ดูได้แค่ section ตัวเองทันที)
-	const user: any = locals.user || {
-		role: 'admin',
-		section: 'Loc inbound',
-		name: 'Admin Tester'
-	};
+	const user: any = locals.user || { role: 'staff' };
 
 	let displayDate = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
 
-	// ถ้าเป็น admin ให้เลือกแผนกได้ ถ้าเป็น leader จะถูกบังคับใช้แผนกตัวเอง
-	let filterSection =
-		url.searchParams.get('section') || (user.role === 'admin' ? 'All' : user.section);
+	let filterSection = url.searchParams.get('section') || 'All';
 	let filterGroup = url.searchParams.get('group') || 'All';
 
 	try {
 		let whereClause = `1=1`;
 		let params: any[] = [];
 
-		// 🌟 2. การกรองข้อมูลตามสิทธิ์
-		if (user.role !== 'admin') {
-			// ลีดเดอร์ แต่ละแผนกสามารถดูลูกน้องของแผนกตัวเองได้เท่านั้น
-			whereClause += ` AND e.section = ?`;
-			params.push(user.section);
-		} else if (filterSection !== 'All') {
+		if (filterSection !== 'All') {
 			whereClause += ` AND e.section = ?`;
 			params.push(filterSection);
 		}
@@ -37,7 +25,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(filterGroup);
 		}
 
-		// 🌟 3. ดึงตัวเลือก Section และ Group จาก Employee Master มาทำ Dropdown
 		const [sections]: any = await pool.execute(
 			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
 		);
@@ -45,7 +32,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			`SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-' ORDER BY emp_group`
 		);
 
-		// 🌟 4. Query สรุปยอด (Summary) เพื่อหาเปอร์เซ็นต์ % Att.
 		const summaryQuery = `
 			SELECT 
 				IFNULL(e.division, '-') as division,
@@ -64,7 +50,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		`;
 		const [summary]: any = await pool.execute(summaryQuery, [displayDate, ...params]);
 
-		// 🌟 5. Query รายชื่อลูกน้อง (Employee Master + เวลาเข้าออก)
 		const listQuery = `
 			SELECT 
 				e.emp_id, 
@@ -82,7 +67,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		`;
 		const [employeeList]: any = await pool.execute(listQuery, [displayDate, ...params]);
 
-		// 🌟 คำนวณ % Att. สำหรับแต่ละกลุ่ม
 		const processedSummary = summary.map((row: any) => {
 			const percent = row.active_emp > 0 ? (row.attendance / row.active_emp) * 100 : 0;
 			return { ...row, percent_att: Math.round(percent * 10) / 10 };
@@ -108,7 +92,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			groups: [],
 			summary: [],
 			employeeList: [],
-			user: locals.user
+			user: locals.user || { role: 'staff' }
 		};
 	}
 };
@@ -154,6 +138,65 @@ export const actions: Actions = {
 		} catch (error) {
 			console.error('Save Verification Error:', error);
 			return fail(500, { success: false, message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
+		}
+	},
+
+	importExcel: async ({ request }) => {
+		const formData = await request.formData();
+		const file = formData.get('file') as File;
+		if (!file || file.size === 0) return { success: false, message: 'กรุณาเลือกไฟล์ Excel' };
+
+		try {
+			const arrayBuffer = await file.arrayBuffer();
+			const workbook = new ExcelJS.Workbook();
+			await workbook.xlsx.load(arrayBuffer);
+			const worksheet = workbook.worksheets[0];
+			let importedCount = 0;
+
+			for (let i = 2; i <= worksheet.rowCount; i++) {
+				const row = worksheet.getRow(i);
+				const emp_id = row.getCell(1).value?.toString().trim();
+				const citizen_id = row.getCell(2).value?.toString().trim() || null;
+				const emp_name = row.getCell(3).value?.toString().trim() || null;
+				const division = row.getCell(4).value?.toString().trim() || null;
+				const section = row.getCell(5).value?.toString().trim() || null;
+				const emp_group = row.getCell(6).value?.toString().trim() || null;
+				const position_name = row.getCell(7).value?.toString().trim() || null;
+				const project = row.getCell(8).value?.toString().trim() || null;
+
+				if (emp_id) {
+					let positionId = null;
+					if (position_name) {
+						const [posRows]: any = await pool.execute(
+							'SELECT id FROM job_positions WHERE position_name = ?',
+							[position_name]
+						);
+						if (posRows.length > 0) positionId = posRows[0].id;
+						else {
+							const [insertPos]: any = await pool.execute(
+								'INSERT INTO job_positions (position_name, max_capacity) VALUES (?, 10)',
+								[position_name]
+							);
+							positionId = insertPos.insertId;
+						}
+					}
+					await pool.execute(
+						`INSERT INTO employees (emp_id, citizen_id, emp_name, division, section, emp_group, position_id, project) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), division = VALUES(division),
+                        section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
+						[emp_id, citizen_id, emp_name, division, section, emp_group, positionId, project]
+					);
+					importedCount++;
+				}
+			}
+			return {
+				success: true,
+				message: `อัปเดตข้อมูลพนักงาน (Master) สำเร็จ ${importedCount} รายการ!`
+			};
+		} catch (error) {
+			console.error('Import Error:', error);
+			return { success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลพนักงาน' };
 		}
 	}
 };

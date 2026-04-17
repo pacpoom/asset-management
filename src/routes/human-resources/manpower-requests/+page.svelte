@@ -234,19 +234,19 @@
 						<td class="px-4 py-3 text-center">
 							{#if req.status === 'Pending Dept'}
 								<span class="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-800"
-									>⏳ {$t('รออนุมัติ (Dept Mgr)')}</span
+									>{$t('รออนุมัติ (Dept Mgr)')}</span
 								>
 							{:else if req.status === 'Pending HR'}
 								<span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800"
-									>⏳ {$t('รออนุมัติ (HR Mgr)')}</span
+									>{$t('รออนุมัติ (HR Mgr)')}</span
 								>
 							{:else if req.status === 'Approved'}
 								<span class="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-800"
-									>✅ {$t('อนุมัติแล้ว')}</span
+									>{$t('อนุมัติแล้ว')}</span
 								>
 							{:else}
 								<span class="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800"
-									>❌ {$t('ปฏิเสธ')}</span
+									>{$t('ปฏิเสธ')}</span
 								>
 							{/if}
 						</td>
@@ -359,8 +359,8 @@
 			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
 					{modalMode === 'edit'
-						? `📝 ${$t('แก้ไขใบขออัตรากำลัง')}`
-						: `📝 ${$t('สร้างใบขออัตรากำลังใหม่')}`}
+						? `${$t('แก้ไขใบขออัตรากำลัง')}`
+						: `${$t('สร้างใบขออัตรากำลังใหม่')}`}
 				</h2>
 				<button type="button" onclick={closeModals} class="text-gray-400 hover:text-gray-600"
 					><span class="material-symbols-outlined">close</span></button
@@ -950,8 +950,8 @@
 						(currentUserRole === 'dept_manager' || currentUserRole === 'admin')) ||
 					(reviewModalItem.status === 'Pending HR' &&
 						(currentUserRole === 'hr_manager' || currentUserRole === 'admin'))
-						? '🛡️ ' + $t('ตรวจสอบและอนุมัติ')
-						: '📄 ' + $t('รายละเอียดใบขออัตรากำลัง')}
+						? '' + $t('ตรวจสอบและอนุมัติ')
+						: '' + $t('รายละเอียดใบขออัตรากำลัง')}
 				</h2>
 				<button type="button" onclick={closeModals} class="text-gray-400 hover:text-gray-600"
 					><span class="material-symbols-outlined">close</span></button
@@ -1064,7 +1064,7 @@
 							</h4>
 							{#if reviewModalItem.req_nature === 'Replacement'}
 								<div class="rounded border border-blue-100 bg-blue-50 p-3 text-sm">
-									<p class="mb-1 font-bold text-blue-800">🔄 {$t('ทดแทนตำแหน่งเดิม')}</p>
+									<p class="mb-1 font-bold text-blue-800">{$t('ทดแทนตำแหน่งเดิม')}</p>
 									<p>
 										<strong>{$t('ชื่อคนออก')}:</strong>
 										{reviewModalItem.replacement_name || '-'}
@@ -1084,7 +1084,7 @@
 								</div>
 							{:else}
 								<div class="rounded border border-purple-100 bg-purple-50 p-3 text-sm">
-									<p class="mb-1 font-bold text-purple-800">➕ {$t('เพิ่มตำแหน่งใหม่')}</p>
+									<p class="mb-1 font-bold text-purple-800">{$t('เพิ่มตำแหน่งใหม่')}</p>
 									<p><strong>{$t('เหตุผล')}:</strong> {reviewModalItem.additional_reason || '-'}</p>
 								</div>
 							{/if}
@@ -1182,7 +1182,7 @@
 									"{reviewModalItem.dept_manager_remark}"
 								</p>{/if}
 						{:else}
-							<p class="mt-4 font-bold text-yellow-600">⏳ {$t('รอการอนุมัติ')}</p>
+							<p class="mt-4 font-bold text-yellow-600">{$t('รอการอนุมัติ')}</p>
 						{/if}
 					</div>
 
@@ -1211,7 +1211,7 @@
 									"{reviewModalItem.hr_manager_remark}"
 								</p>{/if}
 						{:else}
-							<p class="mt-4 font-bold text-yellow-600">⏳ {$t('รอการอนุมัติ')}</p>
+							<p class="mt-4 font-bold text-yellow-600">{$t('รอการอนุมัติ')}</p>
 						{/if}
 					</div>
 				</div>
@@ -1232,7 +1232,7 @@
 					>
 						<input type="hidden" name="id" value={reviewModalItem.id} />
 						<label for="admin_remark" class="mb-1 block font-bold text-blue-800">
-							✍️ {$t('ส่วนของผู้อนุมัติ')} ({currentUserRole === 'dept_manager' ||
+							{$t('ส่วนของผู้อนุมัติ')} ({currentUserRole === 'dept_manager' ||
 							(currentUserRole === 'admin' && reviewModalItem.status === 'Pending Dept')
 								? $t('Department Manager')
 								: $t('HR Manager')})
