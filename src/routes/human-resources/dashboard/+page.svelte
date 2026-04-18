@@ -476,14 +476,14 @@
 					<button
 						class="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-40"
 						disabled={deptCurrentPage === 1}
-						onclick={() => deptCurrentPage--}>{$t('ก่อนหน้า')}</button
+						onclick={() => deptCurrentPage--}>{$t('Previous')}</button
 					>
 					<span class="text-xs font-medium text-gray-500">{deptCurrentPage} / {deptTotalPages}</span
 					>
 					<button
 						class="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-40"
 						disabled={deptCurrentPage === deptTotalPages}
-						onclick={() => deptCurrentPage++}>{$t('ถัดไป')}</button
+						onclick={() => deptCurrentPage++}>{$t('Next')}</button
 					>
 				</div>
 			{/if}
