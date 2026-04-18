@@ -19,24 +19,24 @@
 	let isSubmitting = $state(false);
 
 	let sectionOptions = $derived([
-		{ value: 'All', label: '-- ทุกแผนก (All) --' },
+		{ value: 'All', label: '-- All --' },
 		...(data.sections || []).map((s: string) => ({ value: s, label: s }))
 	]);
 	let groupOptions = $derived([
-		{ value: 'All', label: '-- ทุกกลุ่มงาน (All) --' },
+		{ value: 'All', label: '-- All --' },
 		...(data.groups || []).map((g: string) => ({ value: g, label: g }))
 	]);
 
 	let selectedSection = $state(
 		data.sectionFilter && data.sectionFilter !== 'All'
 			? { value: data.sectionFilter, label: data.sectionFilter }
-			: { value: 'All', label: `-- ${$t('ทุกแผนก')} (All) --` }
+			: { value: 'All', label: `-- ${$t('All')} (All) --` }
 	);
 
 	let selectedGroup = $state(
 		data.groupFilter && data.groupFilter !== 'All'
 			? { value: data.groupFilter, label: data.groupFilter }
-			: { value: 'All', label: `-- ${$t('ทุกกลุ่มงาน')} (All) --` }
+			: { value: 'All', label: `-- ${$t('All')} (All) --` }
 	);
 
 	let deptCurrentPage = $state(1);
@@ -114,7 +114,7 @@
 					: ''}"
 			>
 				<span class="material-symbols-outlined text-[18px]">upload</span>
-				{$t('Import Master')}
+				{$t('Import')}
 				<input
 					type="file"
 					name="file"
@@ -167,10 +167,17 @@
 </div>
 
 <div class="relative z-50 mb-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
-	<form method="GET" class="flex flex-wrap items-end gap-4">
+	<form
+		method="GET"
+		class="flex flex-wrap items-end gap-4"
+		onsubmit={() => {
+			deptCurrentPage = 1;
+			logCurrentPage = 1;
+		}}
+	>
 		<div class="w-40">
 			<label for="dateFilter" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('วันที่ (Date)')}</label
+				>{$t('Date')}</label
 			>
 			<input
 				type="date"
@@ -182,7 +189,7 @@
 		</div>
 
 		<div class="w-[200px]">
-			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('แผนก (Section)')}</div>
+			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('Section')}</div>
 			<Select
 				items={sectionOptions}
 				bind:value={selectedSection}
@@ -193,7 +200,7 @@
 		</div>
 
 		<div class="w-[200px]">
-			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('กลุ่มงาน (Group)')}</div>
+			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('Group')}</div>
 			<Select
 				items={groupOptions}
 				bind:value={selectedGroup}
@@ -205,7 +212,7 @@
 
 		<div class="w-36">
 			<label for="statusFilter" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('สถานะ')}</label
+				>{$t('Status')}</label
 			>
 			<select
 				id="statusFilter"
@@ -222,7 +229,7 @@
 
 		<div class="min-w-[200px] flex-1">
 			<label for="searchInput" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('ค้นหา รหัส / ชื่อพนักงาน')}</label
+				>{$t('Search for employee ID/name')}</label
 			>
 			<input
 				id="searchInput"
@@ -237,30 +244,30 @@
 			type="submit"
 			class="rounded-lg bg-gray-800 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-700"
 			><span class="material-symbols-outlined mr-1 align-middle text-[18px]">search</span>
-			{$t('ค้นหา')}</button
+			{$t('Search')}</button
 		>
 	</form>
 </div>
 
 <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 	<div class="rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
-		<p class="text-sm font-medium text-gray-500">{$t('กำลังพลทั้งหมด (Total Plan)')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('All Employees (Total Plan)')}</p>
 		<p class="mt-2 text-3xl font-bold text-gray-900">{stats.total}</p>
 	</div>
 	<div
 		class="rounded-lg border border-l-4 border-gray-100 border-l-green-500 bg-white p-6 shadow-sm"
 	>
-		<p class="text-sm font-medium text-gray-500">{$t('มาทำงาน (Attendance)')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Work Today')}</p>
 		<p class="mt-2 text-3xl font-bold text-green-600">{stats.present}</p>
 	</div>
 	<div
 		class="rounded-lg border border-l-4 border-gray-100 border-l-orange-500 bg-white p-6 shadow-sm"
 	>
-		<p class="text-sm font-medium text-gray-500">{$t('สาย (Late)')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Late')}</p>
 		<p class="mt-2 text-3xl font-bold text-orange-500">{stats.late}</p>
 	</div>
 	<div class="rounded-lg border border-l-4 border-gray-100 border-l-red-500 bg-white p-6 shadow-sm">
-		<p class="text-sm font-medium text-gray-500">{$t('ขาด/ลา (Absent/Leave)')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Absent/Leave')}</p>
 		<p class="mt-2 text-3xl font-bold text-red-600">{stats.absent}</p>
 	</div>
 </div>
@@ -405,7 +412,7 @@
 
 	<div class="flex flex-col rounded-lg border border-gray-100 bg-white shadow-sm xl:col-span-1">
 		<div class="border-b border-gray-100 bg-gray-50 p-4">
-			<h2 class="text-lg font-semibold text-gray-800">{$t('สรุปยอด % Att. ตามแผนก')}</h2>
+			<h2 class="text-lg font-semibold text-gray-800">{$t('Summary of totals by dep.')}</h2>
 		</div>
 
 		<div class="flex flex-1 flex-col gap-6 p-5">
@@ -453,7 +460,7 @@
 						{:else if dep.active_emp === 0}
 							<span class="font-medium text-gray-400">{$t('ไม่มีข้อมูล')}</span>
 						{:else}
-							<span class="font-medium text-green-600">{$t('ครบ 100%')} ✅</span>
+							<span class="font-medium text-green-600">{$t('100%')}</span>
 						{/if}
 					</div>
 				</div>

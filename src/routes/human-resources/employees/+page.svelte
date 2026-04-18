@@ -137,7 +137,7 @@
 </svelte:head>
 
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-	<h1 class="text-2xl font-bold text-gray-800">{$t('ฐานข้อมูลพนักงาน (Employee Master)')}</h1>
+	<h1 class="text-2xl font-bold text-gray-800">{$t('Employee Master')}</h1>
 	<div class="flex flex-wrap items-center gap-3">
 		{#if form?.message}
 			<span class="text-sm font-semibold {form.success ? 'text-green-600' : 'text-red-600'}">
@@ -162,7 +162,7 @@
 			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
 		>
 			<span class="material-symbols-outlined text-[18px]">download</span>
-			{$t('Export (Template)')}
+			{$t('Export')}
 		</a>
 		<form
 			method="POST"
@@ -176,7 +176,7 @@
 				class="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-500"
 			>
 				<span class="material-symbols-outlined text-[18px]">upload</span>
-				{$t('Import ไฟล์รายชื่อ')}
+				{$t('Import')}
 				<input
 					id="fileUpload"
 					type="file"
@@ -201,7 +201,7 @@
 				type="text"
 				name="search"
 				value={data.searchQuery}
-				placeholder="พิมพ์คำค้นหา..."
+				placeholder={$t('พิมพ์คำค้นหา...')}
 				class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
 			/>
 		</div>
@@ -210,7 +210,7 @@
 			class="rounded-lg bg-gray-800 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-700"
 		>
 			<span class="material-symbols-outlined mr-1 align-middle text-[18px]">search</span>
-			{$t('ค้นหา')}
+			{$t('Search')}
 		</button>
 	</form>
 </div>
@@ -219,7 +219,7 @@
 	class="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-100 bg-white p-4 shadow-sm"
 >
 	<div class="flex items-center gap-2 text-sm font-medium text-gray-700">
-		<label for="itemsPerPage">{$t('แสดง')}</label>
+		<label for="itemsPerPage">{$t('Show')}</label>
 		<select
 			id="itemsPerPage"
 			class="rounded-lg border border-gray-300 bg-white py-1.5 pr-8 pl-3 focus:border-blue-500 focus:outline-none"
@@ -237,7 +237,7 @@
 		class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-700"
 	>
 		{$t('พบข้อมูลทั้งหมด')} <span class="font-bold text-blue-600">{employees.length}</span>
-		{$t('รายการ')}
+		{$t('item')}
 	</div>
 </div>
 
@@ -275,7 +275,7 @@
 						onclick={() => toggleSort('emp_id')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
-							{$t('ID No.')}
+							{$t('Emp ID')}
 							<span
 								class="material-symbols-outlined text-[14px] {sortColumn === 'emp_id'
 									? 'text-blue-600'
@@ -291,7 +291,7 @@
 						onclick={() => toggleSort('citizen_id')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
-							{$t('ID (บัตรประชาชน)')}
+							{$t('National ID card')}
 							<span
 								class="material-symbols-outlined text-[14px] {sortColumn === 'citizen_id'
 									? 'text-blue-600'
@@ -307,7 +307,7 @@
 						onclick={() => toggleSort('emp_name')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
-							{$t('ชื่อ-นามสกุล')}
+							{$t('Name')}
 							<span
 								class="material-symbols-outlined text-[14px] {sortColumn === 'emp_name'
 									? 'text-blue-600'
@@ -318,14 +318,14 @@
 							>
 						</div>
 					</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('วันเริ่มงาน TC')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Start TC')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Start IH')}</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
 						onclick={() => toggleSort('tenure')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
-							{$t('อายุงาน')}
+							{$t('Tenure')}
 							<span
 								class="material-symbols-outlined text-[14px] {sortColumn === 'tenure'
 									? 'text-blue-600'
@@ -346,7 +346,7 @@
 						onclick={() => toggleSort('status')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
-							{$t('สถานะ')}
+							{$t('Status')}
 							<span
 								class="material-symbols-outlined text-[14px] {sortColumn === 'status'
 									? 'text-blue-600'
@@ -534,7 +534,7 @@
 					<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 						<div>
 							<label for="emp_id" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('ID No.')}</label
+								>{$t('Emp ID')}</label
 							>
 							<input
 								id="emp_id"
@@ -547,7 +547,7 @@
 						</div>
 						<div>
 							<label for="emp_name" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('ชื่อ-นามสกุล')} <span class="text-red-500">*</span></label
+								>{$t('Name')} <span class="text-red-500">*</span></label
 							>
 							<input
 								id="emp_name"
@@ -564,7 +564,7 @@
 						</div>
 						<div>
 							<label for="citizen_id" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('บัตรประชาชน (ID)')}</label
+								>{$t('National ID card')}</label
 							>
 							<input
 								id="citizen_id"
@@ -782,7 +782,7 @@
 
 						<div>
 							<label for="status" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('สถานะ')}</label
+								>{$t('Status')}</label
 							>
 							{#if modalMode === 'view'}
 								<input

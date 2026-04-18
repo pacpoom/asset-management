@@ -137,7 +137,7 @@
 	<div>
 		<h1 class="text-2xl font-bold text-gray-800">{$t('Manpower Requests')}</h1>
 		<p class="mt-1 text-sm text-gray-500">
-			{$t('ใบขออัตรากำลังพนักงานรับเหมาแรงงาน (Outsource Requisition)')}
+			{$t('Outsourced Labor Requisition Form (Outsource Requisition)')}
 		</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-3">
@@ -163,7 +163,7 @@
 	<form method="GET" class="flex flex-wrap items-end gap-4">
 		<div class="w-48">
 			<label for="statusFilter" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('สถานะ')}</label
+				>{$t('Status')}</label
 			>
 			<select
 				id="statusFilter"
@@ -172,16 +172,16 @@
 				class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
 				onchange={(e) => e.currentTarget.form?.submit()}
 			>
-				<option value="All">{$t('ทั้งหมด')}</option>
-				<option value="Pending Dept">{$t('รออนุมัติ (Dept)')}</option>
-				<option value="Pending HR">{$t('รออนุมัติ (HR)')}</option>
-				<option value="Approved">{$t('อนุมัติแล้ว (Approved)')}</option>
-				<option value="Rejected">{$t('ไม่อนุมัติ (Rejected)')}</option>
+				<option value="All">{$t('All')}</option>
+				<option value="Pending Dept">{$t('Pending Approval (Dept)')}</option>
+				<option value="Pending HR">{$t('Pending Approval (HR)')}</option>
+				<option value="Approved">{$t('Approved')}</option>
+				<option value="Rejected">{$t('Rejected')}</option>
 			</select>
 		</div>
 		<div class="min-w-[250px] flex-1">
 			<label for="searchInput" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('ค้นหาเลขที่ / แผนก / ตำแหน่ง')}</label
+				>{$t('Search for number / department / position')}</label
 			>
 			<input
 				id="searchInput"
@@ -196,7 +196,7 @@
 			type="submit"
 			class="rounded-lg bg-gray-800 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-700"
 			><span class="material-symbols-outlined mr-1 align-middle text-[18px]">search</span>
-			{$t('ค้นหา')}</button
+			{$t('Search')}</button
 		>
 	</form>
 </div>
@@ -206,13 +206,13 @@
 		<table class="w-full min-w-[1200px] text-left text-sm text-gray-600">
 			<thead class="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase">
 				<tr>
-					<th class="px-4 py-3">{$t('Req. No.')}</th>
-					<th class="px-4 py-3">{$t('วันที่ขอ')}</th>
-					<th class="px-4 py-3">{$t('Section / ตำแหน่ง')}</th>
-					<th class="px-4 py-3 text-center">{$t('จำนวน')}</th>
-					<th class="px-4 py-3">{$t('เริ่มงานวันที่')}</th>
-					<th class="px-4 py-3">{$t('ผู้ขอ')}</th>
-					<th class="px-4 py-3 text-center">{$t('สถานะ')}</th>
+					<th class="px-4 py-3">{$t('Document No.')}</th>
+					<th class="px-4 py-3">{$t('Request Date')}</th>
+					<th class="px-4 py-3">{$t('Section / Position')}</th>
+					<th class="px-4 py-3 text-center">{$t('Quantity')}</th>
+					<th class="px-4 py-3">{$t('Start Date')}</th>
+					<th class="px-4 py-3">{$t('Request by')}</th>
+					<th class="px-4 py-3 text-center">{$t('Status')}</th>
 					<th class="px-4 py-3 text-center">{$t('Actions')}</th>
 				</tr>
 			</thead>

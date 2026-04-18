@@ -115,9 +115,7 @@
 			</select>
 		</div>
 		<div>
-			<label for="yearInput" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('ปี (ค.ศ.)')}</label
-			>
+			<label for="yearInput" class="mb-1 block text-sm font-medium text-gray-700">{$t('ปี')}</label>
 			<input
 				id="yearInput"
 				type="number"
@@ -157,7 +155,7 @@
 			class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-500"
 		>
 			<span class="material-symbols-outlined mr-1 align-middle text-[18px]">search</span>
-			{$t('ค้นหา')}
+			{$t('Search')}
 		</button>
 	</form>
 </div>
@@ -166,31 +164,32 @@
 	<div
 		class="rounded-lg border border-l-4 border-gray-100 border-l-blue-500 bg-white p-6 shadow-sm"
 	>
-		<p class="text-sm font-medium text-gray-500">{$t('จำนวนวันที่มาทำงาน')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Total number of employees')}</p>
 		<p class="mt-2 text-3xl font-bold text-blue-600">
-			{stats.total_days} <span class="text-base font-normal text-gray-500">{$t('วัน')}</span>
+			{stats.total_days} <span class="text-base font-normal text-gray-500">{$t('People')}</span>
 		</p>
 	</div>
 	<div
 		class="rounded-lg border border-l-4 border-gray-100 border-l-orange-500 bg-white p-6 shadow-sm"
 	>
-		<p class="text-sm font-medium text-gray-500">{$t('สายสะสม (เดือนนี้)')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Late (this month)')}</p>
 		<p class="mt-2 text-3xl font-bold text-orange-500">
-			{stats.total_late_mins} <span class="text-base font-normal text-gray-500">{$t('นาที')}</span>
+			{stats.total_late_mins}
+			<span class="text-base font-normal text-gray-500">{$t('Minute')}</span>
 		</p>
 	</div>
 	<div
 		class="rounded-lg border border-l-4 border-gray-100 border-l-purple-500 bg-white p-6 shadow-sm"
 	>
-		<p class="text-sm font-medium text-gray-500">{$t('ล่วงเวลา (OT) สะสม')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Accumulated overtime (OT)')}</p>
 		<p class="mt-2 text-3xl font-bold text-purple-600">
-			{stats.total_ot_hours} <span class="text-base font-normal text-gray-500">{$t('ชม.')}</span>
+			{stats.total_ot_hours} <span class="text-base font-normal text-gray-500">{$t('Hour')}</span>
 		</p>
 	</div>
 	<div class="rounded-lg border border-gray-100 bg-gray-50 p-6 shadow-sm">
-		<p class="text-sm font-medium text-gray-500">{$t('รายการบันทึกทั้งหมด')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('All recordings')}</p>
 		<p class="mt-2 text-3xl font-bold text-gray-900">
-			{logs.length} <span class="text-base font-normal text-gray-500">{$t('รายการ')}</span>
+			{logs.length} <span class="text-base font-normal text-gray-500">{$t('Item')}</span>
 		</p>
 	</div>
 </div>
@@ -200,18 +199,18 @@
 		<table class="w-full min-w-[1000px] text-left text-sm text-gray-600">
 			<thead class="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase">
 				<tr>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('วันที่')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('รหัสพนักงาน')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('ชื่อ-นามสกุล')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('แผนก (Dis/Sec)')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('ตำแหน่ง')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('กะ')}</th>
-					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('เวลาเข้า')}</th>
-					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('เวลาออก')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Date')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Emp ID')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Name')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Dis/Sec')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Position')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Shift')}</th>
+					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Time In')}</th>
+					<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Time Out')}</th>
 					<th class="px-4 py-3 text-center font-bold whitespace-nowrap text-blue-600"
 						>{$t('ชั่วโมง OT')}</th
 					>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('สถานะ')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Status')}</th>
 				</tr>
 			</thead>
 			<tbody>

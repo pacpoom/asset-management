@@ -101,7 +101,7 @@
 
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">{$t('บันทึกการลางาน (Leave Records)')}</h1>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Leave Records')}</h1>
 		<p class="mt-1 text-sm text-gray-500">
 			{$t('จัดการประวัติการลา อัปโหลดเอกสารใบลา และตรวจสอบสถานะ')}
 		</p>
@@ -146,7 +146,7 @@
 			class="rounded-lg bg-gray-800 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-700"
 		>
 			<span class="material-symbols-outlined mr-1 align-middle text-[18px]">search</span>
-			{$t('ค้นหา')}
+			{$t('Search')}
 		</button>
 	</form>
 </div>
@@ -157,7 +157,7 @@
 			<thead class="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase">
 				<tr>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Date')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Emp_ID')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Emp ID')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Name')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Section / Group')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Type')}</th>

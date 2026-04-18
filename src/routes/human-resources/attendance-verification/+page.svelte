@@ -11,20 +11,20 @@
 	let isSubmitting = $state(false);
 
 	let statusOptions = $derived([
-		{ value: 'Present', label: `✅ ${$t('มาปกติ')} (Present)` },
-		{ value: 'Late', label: `⚠️ ${$t('มาสาย')} (Late)` },
-		{ value: 'Leave Morning', label: `🌤️ ${$t('ลาครึ่งวันเช้า')}` },
-		{ value: 'Leave Afternoon', label: `🌥️ ${$t('ลาครึ่งวันบ่าย')}` },
-		{ value: 'Leave Full Day', label: `📅 ${$t('ลาเต็มวัน')}` },
-		{ value: 'Absent', label: `❌ ${$t('ขาดงาน')} (Absent)` }
+		{ value: 'Present', label: `${$t('Present')}` },
+		{ value: 'Late', label: `${$t('Late')} ` },
+		{ value: 'Leave Morning', label: `${$t('half-day leave morning')}` },
+		{ value: 'Leave Afternoon', label: `${$t('half-day leave afternoon')}` },
+		{ value: 'Leave Full Day', label: `${$t('Leave')}` },
+		{ value: 'Absent', label: `${$t('Absent')} ` }
 	]);
 
 	let sectionOptions = $derived([
-		{ value: 'All', label: `-- ${$t('ทุกแผนก')} (All Sections) --` },
+		{ value: 'All', label: `-- ${$t('All Sections')} --` },
 		...(data.sections || []).map((s: string) => ({ value: s, label: s }))
 	]);
 	let groupOptions = $derived([
-		{ value: 'All', label: `-- ${$t('ทุกกลุ่ม')} (All Groups) --` },
+		{ value: 'All', label: `-- ${$t('All Groups')} --` },
 		...(data.groups || []).map((g: string) => ({ value: g, label: g }))
 	]);
 
@@ -40,7 +40,6 @@
 			: { value: 'All', label: `-- ${$t('ทุกกลุ่ม')} (All Groups) --` }
 	);
 
-	// 🌟 1. ระบบค้นหา Dropdown สำหรับ "สรุปยอดกำลังพล"
 	let summarySearch: any = $state(null);
 	let summaryOptions = $derived(
 		summary.map((s: any) => ({
@@ -54,7 +53,6 @@
 			: summary.filter((s: any) => s.section + (s.emp_group || '') === summarySearch.value)
 	);
 
-	// 🌟 2. ระบบค้นหา Dropdown สำหรับ "รายชื่อพนักงาน"
 	let empSearch: any = $state(null);
 	let empSearchOptions = $derived(
 		employeeList.map((e: any) => ({
@@ -66,7 +64,6 @@
 		!empSearch ? employeeList : employeeList.filter((e: any) => e.emp_id === empSearch.value)
 	);
 
-	// 🌟 Pagination (ผูกกับข้อมูลที่ถูก Filter แล้ว)
 	let sumCurrentPage = $state(1);
 	let sumPerPage = $state(10);
 	let sumTotalPages = $derived(Math.ceil(filteredSummary.length / sumPerPage) || 1);
@@ -87,7 +84,7 @@
 
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">{$t('ตรวจสอบเวลาทำงาน (Leader Verification)')}</h1>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Check employee working')}</h1>
 		<p class="mt-1 text-sm text-gray-500">
 			{$t('ตรวจสอบสถานะ และกำหนดกะทำงาน (เช้า/ดึก) ให้ลูกน้องในแผนก')}
 		</p>
@@ -150,7 +147,7 @@
 	<form method="GET" class="flex flex-wrap items-end gap-4">
 		<div>
 			<label for="dateFilter" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('เลือกวันที่ (Date)')}</label
+				>{$t('Date')}</label
 			>
 			<input
 				type="date"
@@ -163,7 +160,7 @@
 		</div>
 
 		<div class="w-64">
-			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('แผนก (Section)')}</div>
+			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('Section')}</div>
 			<Select
 				items={sectionOptions}
 				bind:value={selectedSection}
@@ -174,7 +171,7 @@
 		</div>
 
 		<div class="w-64">
-			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('กลุ่มงาน (Group)')}</div>
+			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('Group')}</div>
 			<Select
 				items={groupOptions}
 				bind:value={selectedGroup}
@@ -190,7 +187,7 @@
 			class="rounded-lg bg-gray-800 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-700"
 		>
 			<span class="material-symbols-outlined mr-1 align-middle text-[18px]">search</span>
-			{$t('ค้นหา')}
+			{$t('Search')}
 		</button>
 	</form>
 </div>
@@ -222,14 +219,14 @@
 		<table class="w-full min-w-[800px] text-center text-sm text-gray-600">
 			<thead class="border-b border-gray-100 bg-white text-xs text-gray-700 uppercase">
 				<tr>
-					<th class="px-4 py-3">Division</th>
-					<th class="px-4 py-3">Section / Group</th>
-					<th class="px-4 py-3">Total Plan</th>
-					<th class="px-4 py-3">Active</th>
-					<th class="px-4 py-3 font-bold text-blue-600">Attendance</th>
-					<th class="px-4 py-3 font-bold text-orange-500">Leave</th>
-					<th class="px-4 py-3 font-bold text-red-600">Absent</th>
-					<th class="px-4 py-3 font-bold text-green-600">% Att.</th>
+					<th class="px-4 py-3">{$t('Division')}</th>
+					<th class="px-4 py-3">{$t('Section / Group')}</th>
+					<th class="px-4 py-3">{$t('Total Plan')}</th>
+					<th class="px-4 py-3">{$t('Active')}</th>
+					<th class="px-4 py-3 font-bold text-blue-600">{$t('Attendance')}</th>
+					<th class="px-4 py-3 font-bold text-orange-500">{$t('Leave')}</th>
+					<th class="px-4 py-3 font-bold text-red-600">{$t('Absent')}</th>
+					<th class="px-4 py-3 font-bold text-green-600">{$t('Att.')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-50">
@@ -401,16 +398,16 @@
 					class="sticky top-0 z-10 border-b border-gray-100 bg-white text-xs text-gray-700 uppercase"
 				>
 					<tr>
-						<th class="px-4 py-3 whitespace-nowrap">{$t('Group')}</th>
-						<th class="px-4 py-3 whitespace-nowrap">{$t('รหัสพนักงาน')}</th>
-						<th class="px-4 py-3 whitespace-nowrap">{$t('ชื่อ-นามสกุล')}</th>
-						<th class="w-36 px-4 py-3 text-center whitespace-nowrap">{$t('กะทำงาน')}</th>
-						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('เวลาเข้า')}</th>
-						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('เวลาออก')}</th>
-						<th class="w-48 px-4 py-3 whitespace-nowrap"
-							>{$t('สถานะ (Status)')} <span class="text-red-500">*</span></th
+						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Group')}</th>
+						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Emp ID')}</th>
+						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Name')}</th>
+						<th class="w-36 px-4 py-3 text-center whitespace-nowrap">{$t('Work shift')}</th>
+						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Time In')}</th>
+						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Time Out')}</th>
+						<th class="w-56 px-4 py-3 text-center whitespace-nowrap"
+							>{$t('Status')} <span class="text-red-500"></span></th
 						>
-						<th class="w-64 px-4 py-3 whitespace-nowrap">{$t('หมายเหตุ / ประเภทการลา')}</th>
+						<th class="w-64 px-4 py-3 whitespace-nowrap">{$t('Notes/Types of Leave')}</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-50">
@@ -445,13 +442,15 @@
 								<select
 									aria-label="Shift"
 									name="shift[]"
-									class="w-full rounded border px-2 py-1.5 text-center text-sm font-bold [text-align-last:center] focus:outline-none
+									class="w-full cursor-pointer rounded border py-1.5 pr-8 pl-2 text-center text-sm font-bold [text-align-last:center] focus:outline-none
 									{emp.shift_type === 'Day'
 										? 'border-yellow-300 bg-yellow-50 text-yellow-700'
 										: 'border-indigo-300 bg-indigo-50 text-indigo-700'}"
 								>
-									<option value="Day" selected={emp.shift_type === 'Day'}>{$t('กะเช้า')}</option>
-									<option value="Night" selected={emp.shift_type === 'Night'}>{$t('กะดึก')}</option>
+									<option value="Day" selected={emp.shift_type === 'Day'}>{$t('Day shift')}</option>
+									<option value="Night" selected={emp.shift_type === 'Night'}
+										>{$t('Night shift')}</option
+									>
 								</select>
 							</td>
 
@@ -470,8 +469,8 @@
 								<select
 									aria-label="Status"
 									name="status[]"
-									class="w-full rounded border px-2 py-1.5 text-sm font-medium focus:border-blue-500 focus:outline-none
-									{needsCheck
+									class="w-full cursor-pointer rounded border py-1.5 pr-8 pl-2 text-center text-sm font-medium [text-align-last:center] focus:border-blue-500 focus:outline-none
+										{needsCheck
 										? 'animate-pulse border-red-400 bg-red-100 text-red-700 ring-1 ring-red-400'
 										: emp.status === 'Present' || (hasScan && emp.status === 'Pending')
 											? 'border-green-300 bg-green-50 text-green-700'
@@ -484,7 +483,7 @@
 														: 'border-gray-300 bg-white'}"
 								>
 									{#if needsCheck}
-										<option value="Pending" selected hidden>🔴 {$t('รอระบุสถานะ...')}</option>
+										<option value="Pending" selected hidden>{$t('รอระบุสถานะ...')}</option>
 									{/if}
 									{#each statusOptions as opt}
 										<option
