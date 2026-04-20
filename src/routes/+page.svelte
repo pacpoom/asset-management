@@ -102,13 +102,33 @@
 	</div>
 </div>
 
+<svelte:window
+	onkeydown={(e) => {
+		if (e.key === 'Escape' && previewImageUrl) {
+			e.preventDefault();
+			closeImagePreview();
+		}
+	}}
+/>
+
 {#if previewImageUrl}
 	<div
 		class="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4"
-		onclick={closeImagePreview}
-		role="presentation"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeImagePreview();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				closeImagePreview();
+			}
+		}}
+		role="dialog"
+		aria-modal="true"
+		aria-label={previewImageTitle || 'ภาพขยาย'}
+		tabindex="-1"
 	>
-		<div class="relative max-h-[90vh] w-full max-w-5xl" onclick={(e) => e.stopPropagation()}>
+		<div class="relative max-h-[90vh] w-full max-w-5xl">
 			<button
 				type="button"
 				class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs font-semibold text-white hover:bg-black/80"

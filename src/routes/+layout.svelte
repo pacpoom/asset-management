@@ -3,6 +3,7 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutServerData } from './$types';
+	import { goto } from '$app/navigation';
 	import { page, navigating } from '$app/stores';
 	import { slide, fade, fly } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
@@ -178,26 +179,30 @@
 		return false;
 	}
 
-	/** เปิดเมนูแม่ทุกระดับที่ครอบคลุม path ปัจจุบัน (หลังคลิกเมนูย่อย / เปิดลิงก์ตรง) */
+	/** เปิดเมนูแม่ทุกระดับที่ครอบคลุม path ปัจจุบัน (รวมหน้า main ของโมดูลที่ route ตรง parent เช่น /isodocs-control) */
 	function collectAncestorMenuIdsForOpen(menus: Menu[] | undefined, pathname: string): Set<number> {
 		const ids = new Set<number>();
 		const pathNorm = pathname.replace(/\/$/, '') || '';
 
 		function walk(items: Menu[]): boolean {
-			let found = false;
+			let any = false;
 			for (const m of items) {
+				let activeHere = false;
 				if (m.children?.length) {
-					const inSubtree = walk(m.children);
-					if (inSubtree) {
+					if (walk(m.children)) {
 						ids.add(m.id);
-						found = true;
+						activeHere = true;
 					}
+					if (m.route && isLinkActiveFor(m.route, pathNorm)) {
+						ids.add(m.id);
+						activeHere = true;
+					}
+				} else if (m.route && isLinkActiveFor(m.route, pathNorm)) {
+					activeHere = true;
 				}
-				if (m.route && isLinkActiveFor(m.route, pathNorm)) {
-					found = true;
-				}
+				if (activeHere) any = true;
 			}
-			return found;
+			return any;
 		}
 
 		walk(menus ?? []);
@@ -350,7 +355,13 @@
 											href={menu.route}
 											onclick={(e) => {
 												e.preventDefault();
-												toggleMenu(menu.id);
+												// เหมือนเมนูไม่มี route (เช่น Configuration): คลิกซ้ำให้ฟุบได้ — ถ้ายังไม่เปิดให้เปิดเมนู + ไปหน้า main ของโมดูล
+												if (openMenuIds.has(menu.id)) {
+													toggleMenu(menu.id);
+												} else {
+													toggleMenu(menu.id);
+													goto(menu.route);
+												}
 											}}
 											class="flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 pr-10 transition-colors duration-150 {isLinkActive(
 												menu.route
@@ -400,10 +411,13 @@
 										href={menu.route}
 										onclick={(e) => {
 											e.preventDefault();
-											// When sidebar is collapsed on desktop, clicking a parent menu should expand it
-											// so the user can see its submenus immediately.
 											isSidebarPinned = true;
-											toggleMenu(menu.id);
+											if (openMenuIds.has(menu.id)) {
+												toggleMenu(menu.id);
+											} else {
+												toggleMenu(menu.id);
+												goto(menu.route);
+											}
 										}}
 										class="group flex w-full min-w-0 items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
 											menu.route
