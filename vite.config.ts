@@ -11,8 +11,9 @@ export default defineConfig({
 			// Allow serving files from the 'uploads' directory,
 			// which is located at the root of your project.
 			allow: [path.resolve(process.cwd(), 'uploads')]
-		}
-		
+		},
+		// Cloudflare Tunnel / public hostname (otherwise "Blocked request... not allowed")
+		allowedHosts: ['bizcore.anjiweb.site']
 	},
 	ssr: {
 		noExternal: ['svelte-chartjs', 'chart.js']
