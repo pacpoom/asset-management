@@ -180,6 +180,28 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 			}
 			let flat = menuRows as Menu[];
 			flat = excludeRetiredMenuBranches(flat);
+			if (!userHasAdminRole(locals.user)) {
+				const permissionSet = new Set(
+					(expandPermissionsForMenuInClause(locals.user.permissions) ?? []).map((p) =>
+						String(p || '').trim().toLowerCase()
+					)
+				);
+				// Keep parent auto-pull behavior generally, but do not auto-show "Configuration/Settings"
+				// root menu unless user explicitly has its own permission.
+				flat = flat.filter((m) => {
+					if (m.parent_id !== null) return true;
+					const title = String(m.title || '').trim().toLowerCase();
+					const route = String(m.route || '').trim().toLowerCase();
+					const isConfigRoot =
+						title === 'configuration' ||
+						title === 'settings' ||
+						title.includes('config') ||
+						route.startsWith('/settings');
+					if (!isConfigRoot) return true;
+					const ownPermission = String(m.permission_name || '').trim().toLowerCase();
+					return ownPermission !== '' && permissionSet.has(ownPermission);
+				});
+			}
 			// Drop NULL-permission items when their parent was not loaded (stops "Workforce" branch
 			// showing via a free child). Keep rows with explicit permission even if an ancestor is
 			// missing so deep trees still work with the single-level parent subquery.

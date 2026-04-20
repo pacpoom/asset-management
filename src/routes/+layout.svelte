@@ -138,9 +138,23 @@
 		'/roles',
 		'/permissions',
 		'/menus',
+		'/settings/translations',
 		'/settings/company-announcements',
 		'/settings/env-config'
 	] as const;
+
+	const SYSTEM_MANAGEMENT_ROOT_TITLE_KEYS = new Set([
+		'system management',
+		'configuration',
+		'settings',
+		'system config'
+	]);
+
+	function isSystemManagementRootMenu(menu: Menu, level: number): boolean {
+		if (level !== 0) return false;
+		const title = menu.title.trim().toLowerCase();
+		return SYSTEM_MANAGEMENT_ROOT_TITLE_KEYS.has(title);
+	}
 
 	function isLinkActiveFor(href: string | null, currentPath: string): boolean {
 		if (!href) return false;
@@ -257,13 +271,21 @@
 		return checkChildren(menu.children);
 	}
 
+	const systemManagementRootMenu = $derived(
+		(data.menus ?? []).find((m) => isSystemManagementRootMenu(m, 0)) ?? null
+	);
+
+	const systemManagementChildren = $derived(systemManagementRootMenu?.children ?? []);
+
 	const isAdminSectionActive = $derived(
 		isLinkActive('/users') ||
 			isLinkActive('/roles') ||
 			isLinkActive('/permissions') ||
 			isLinkActive('/menus') ||
+			isLinkActive('/settings/translations') ||
 			isLinkActive('/settings/company-announcements') ||
-			isLinkActive('/settings/env-config')
+			isLinkActive('/settings/env-config') ||
+			(systemManagementRootMenu ? isMenuSectionActive(systemManagementRootMenu) : false)
 	);
 
 	function canSeeRolesPage(user: LayoutServerData['user']): boolean {
@@ -290,6 +312,12 @@
 		return user.permissions?.includes('manage settings') ?? false;
 	}
 
+	function canSeeTranslationsPage(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		if (userHasAdminRole(user)) return true;
+		return user.permissions?.includes('manage settings') ?? false;
+	}
+
 	function canSeeUsersControl(user: LayoutServerData['user']): boolean {
 		if (!user) return false;
 		return canManageUsers(user);
@@ -306,6 +334,7 @@
 			canSeeRolesPage(user) ||
 			canSeePermissionsPage(user) ||
 			canSeeMenuManagementPage(user) ||
+			canSeeTranslationsPage(user) ||
 			canSeeCompanyAnnouncementsPage(user) ||
 			canSeeEnvConfig(user)
 		);
@@ -313,10 +342,14 @@
 
 	function shouldHideTopLevelMenu(menu: Menu, level: number): boolean {
 		if (level !== 0) return false;
-		if (!canSeeSystemManagement(data.user)) return false;
+		if (isSystemManagementRootMenu(menu, level)) return true;
 		const title = menu.title.trim().toLowerCase();
 		const route = menu.route?.trim().toLowerCase() ?? '';
-		return title === 'settings' || title.includes('setting') || route.startsWith('/settings');
+		return (
+			title === 'settings' ||
+			title.includes('setting') ||
+			route.startsWith('/settings')
+		);
 	}
 
 	const companyLogoSrc = $derived(isCompanyLogoBroken ? favicon : '/logo/company-logo.png');
@@ -673,7 +706,28 @@
 
 								{#if isSidebarExpanded && isAdminMenuOpen}
 									<ul class="space-y-1 pt-1 pl-5" transition:slide>
-										{#if canSeeUsersControl(data.user)}
+										{#if systemManagementChildren.length > 0}
+											{#each systemManagementChildren as sm}
+												{#if sm.route}
+													<li>
+														<a
+															href={sm.route}
+															class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+																sm.route
+															)
+																? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+																: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+															title={$t(sm.title)}
+															><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+																>{sm.icon || 'folder'}</span
+															><span class="text-sm leading-snug font-medium whitespace-normal"
+																>{$t(sm.title)}</span
+															></a
+														>
+													</li>
+												{/if}
+											{/each}
+										{:else if canSeeUsersControl(data.user)}
 											<li>
 												<a
 													href="/users"
@@ -691,7 +745,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeRolesPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeRolesPage(data.user)}
 											<li>
 												<a
 													href="/roles"
@@ -709,7 +763,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeePermissionsPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeePermissionsPage(data.user)}
 											<li>
 												<a
 													href="/permissions"
@@ -727,7 +781,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeMenuManagementPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeMenuManagementPage(data.user)}
 											<li>
 												<a
 													href="/menus"
@@ -744,7 +798,25 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeCompanyAnnouncementsPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeTranslationsPage(data.user)}
+											<li>
+												<a
+													href="/settings/translations"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/settings/translations'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Translations Management')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+														>translate</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Translations Management')}</span
+													></a
+												>
+											</li>
+										{/if}
+										{#if systemManagementChildren.length === 0 && canSeeCompanyAnnouncementsPage(data.user)}
 											<li>
 												<a
 													href="/settings/company-announcements"
@@ -762,7 +834,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeEnvConfig(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeEnvConfig(data.user)}
 											<li>
 												<a
 													href="/settings/env-config"
