@@ -71,7 +71,7 @@ interface ItemData {
 	line_total: number;
 	wht_rate?: number;
 	is_vat?: number | boolean;
-    amount?: number; // Added optional property for calculation
+    amount?: number; 
 }
 
 const pdfSpecificDict: Record<string, Record<string, string>> = {
@@ -281,33 +281,28 @@ function getInvoiceHtml(
 	let incVatTotal = 0;
 
 	itemsData.forEach((item) => {
-        // Amount สำหรับโชว์ในตารางใช้ค่า line_total ตรงๆ
         const rawLineTotal = Number(item.line_total) || 0;
         let amount = rawLineTotal;
 
 		subtotalBeforeVat += amount;
-		if (item.is_vat) {
+		if (Number(item.is_vat) === 1) { // 1 = Inc. VAT
 			incVatTotal += amount;
-		} else {
+		} else if (Number(item.is_vat) === 0) { // 0 = Exc. VAT
 			excVatTotal += amount;
 		}
 
 		const rate = Number(item.wht_rate || 0);
 		if (rate > 0) {
 			activeRates.add(rate);
-            
-            // คำนวณฐานภาษีหัก ณ ที่จ่าย (ถ้า is_vat ถอดภาษีออกก่อน)
             let whtBase = rawLineTotal;
-            if (item.is_vat && vatRate > 0) {
+            if (Number(item.is_vat) === 1 && vatRate > 0) {
                 whtBase = rawLineTotal * 100 / (100 + vatRate);
             }
 			calculatedWhtAmt += whtBase * (rate / 100);
 		}
-        
         item.amount = amount;
 	});
 
-	// คำนวณ VAT ใหม่เพื่อให้ครอบคลุมทั้งแบบ Inc. VAT และ Exc. VAT (รวมยอด VAT เพื่อแสดงผล)
 	const discountForExcVat = subtotalBeforeVat > 0 ? discount * (excVatTotal / subtotalBeforeVat) : 0;
 	const discountForIncVat = subtotalBeforeVat > 0 ? discount * (incVatTotal / subtotalBeforeVat) : 0;
 
@@ -315,7 +310,6 @@ function getInvoiceHtml(
 	const vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
 
 	let vatAmt = vatFromExc + vatFromInc;
-	// กรณีที่คำนวณแล้วเป็น 0 แต่ใน DB มีบันทึกไว้ ให้ fallback ไปใช้ค่าจาก DB
 	if (vatAmt === 0 && Number(docData.vat_amount || 0) > 0) {
 		vatAmt = Number(docData.vat_amount || 0);
 	}
@@ -329,7 +323,6 @@ function getInvoiceHtml(
 			? calculatedWhtAmt
 			: Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
-	// คำนวณ Net Amount ดึงจากค่าที่ผ่านการคำนวณจากหน้าบ้านและบันทึกไว้ในระบบแทน
 	const netAmount = Number(docData.total_amount || 0);
 	const netAmountText = bahttext(netAmount);
 
@@ -420,7 +413,7 @@ function getInvoiceHtml(
             <th class="p-2 text-left">${tPdf('Description', lang)}</th>
             <th class="p-2 text-right w-16">${tPdf('Qty', lang)}</th>
             <th class="p-2 text-right w-24">${tPdf('UnitPrice', lang)}</th>
-            <th class="p-2 text-center w-16" style="color: #2563eb;">Inc. VAT</th>
+            <th class="p-2 text-center w-16" style="color: #2563eb;">VAT Status</th>
             <th class="p-2 text-right w-24">${tPdf('Amount', lang)}</th>
             <th class="p-2 text-center w-20 whitespace-nowrap" style="color: #ef4444;">${tPdf('WHT', lang)}</th>
             <th class="p-2 text-right w-24">${tPdf('Total', lang)}</th>
@@ -537,7 +530,7 @@ function getInvoiceHtml(
 		return total;
 	}
 
-	const MAX_LINES_PER_PAGE = 22; 
+	const MAX_LINES_PER_PAGE = 21; 
 	const MAX_LINES_LAST_PAGE = 12; 
 
 	interface PageInfo {
@@ -586,22 +579,34 @@ function getInvoiceHtml(
 
 			const rowsHtml = pageInfo.items
 				.map(
-					(item, i) => `
-    <tr style="border-bottom: 1px solid #eee;">
-        <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
-        <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
-        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
-        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
-        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500; vertical-align: top;">
-            ${item.is_vat ? '✓' : '-'}
-        </td>
-        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.amount || 0)}</td>
-        <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
-            ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
-        </td>
-        <td class="p-2 text-right" style="vertical-align: top; font-weight: bold;">${formatNumber(item.line_total)}</td>
-    </tr>
-`
+					(item, i) => {
+                        let vatText = 'None';
+                        let vatColor = '#6b7280';
+                        if (Number(item.is_vat) === 1) {
+                            vatText = 'Inc.';
+                            vatColor = '#2563eb';
+                        } else if (Number(item.is_vat) === 0) {
+                            vatText = 'Exc.';
+                            vatColor = '#ea580c';
+                        }
+
+                        return `
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
+                            <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
+                            <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
+                            <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
+                            <td class="p-2 text-center" style="color: ${vatColor}; font-weight: 500; vertical-align: top;">
+                                ${vatText}
+                            </td>
+                            <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.amount || 0)}</td>
+                            <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
+                                ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
+                            </td>
+                            <td class="p-2 text-right" style="vertical-align: top; font-weight: bold;">${formatNumber(item.line_total)}</td>
+                        </tr>
+                        `;
+                    }
 				)
 				.join('');
 
@@ -652,21 +657,8 @@ function getInvoiceHtml(
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
                 body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #333; background: #fff !important; margin: 0; padding: 0; }
                 
-				.document-page { 
-					padding: 40px; 
-					box-sizing: border-box; 
-					position: relative; 
-					height: 297mm; 
-					overflow: hidden; 
-				}
-                
-				.footer-container { 
-					position: absolute; 
-					bottom: 40px; 
-					left: 40px; 
-					right: 40px; 
-				}
-                
+				.document-page { padding: 40px; box-sizing: border-box; position: relative; height: 297mm; overflow: hidden; }
+				.footer-container { position: absolute; bottom: 40px; left: 40px; right: 40px; }
 				@media print { 
 					@page { size: A4; margin: 0; } 
 					body { -webkit-print-color-adjust: exact; } 
@@ -694,9 +686,7 @@ export const GET = async ({ url, fetch }) => {
 				dbDict.th[item.translation_key] = item.th_text;
 			});
 		}
-	} catch (e) {
-		console.error('Failed to fetch translations:', e);
-	}
+	} catch (e) {}
 
 	let connection;
 	try {
@@ -737,15 +727,11 @@ export const GET = async ({ url, fetch }) => {
 
 		const [company] = await connection.execute<CompanyData[]>('SELECT * FROM company LIMIT 1');
 		const companyData = company[0] || null;
-
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
 		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64, lang, dbDict);
 
-		const browser = await puppeteer.launch({
-			args: ['--no-sandbox', '--disable-setuid-sandbox'],
-			headless: true
-		});
+		const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'], headless: true });
 		const page = await browser.newPage();
 		await page.setContent(html, { waitUntil: 'networkidle0' });
 		const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });

@@ -140,23 +140,9 @@ export const actions: Actions = {
                  vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, wht_amount = ?, total_amount = ?
                  WHERE id = ?`,
 				[
-					document_date,
-					credit_term,
-					due_date,
-					customer_id,
-					customer_contact_id,
-					job_order_id,
-					reference_doc,
-					notes,
-					subtotal,
-					discount_amount,
-					total_after_discount,
-					vat_rate,
-					vat_amount,
-					wht_rate,
-					wht_amount,
-					wht_amount,
-					total_amount,
+					document_date, credit_term, due_date, customer_id, customer_contact_id, job_order_id, reference_doc, notes,
+					subtotal, discount_amount, total_after_discount,
+					vat_rate, vat_amount, wht_rate, wht_amount, wht_amount, total_amount,
 					documentId
 				]
 			);
@@ -170,10 +156,12 @@ export const actions: Actions = {
 				for (const [index, item] of items.entries()) {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
-					const isVat = item.is_vat === false ? 0 : 1;
+					
+                    // is_vat will be 0, 1, or 2 based on new UI
+					const isVat = item.is_vat !== undefined ? Number(item.is_vat) : 1;
 					
 					let baseAmount = lineTotal;
-					if (isVat === 1 && vat_rate > 0) {
+					if (isVat === 1 && vat_rate > 0) { // Inc. VAT
 						baseAmount = lineTotal * 100 / (100 + vat_rate);
 					}
 					const lineWhtAmount = baseAmount * (lineWhtRate / 100);
@@ -183,17 +171,8 @@ export const actions: Actions = {
                         (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, is_vat) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
-							documentId,
-							item.product_id || null,
-							item.description,
-							item.quantity,
-							item.unit_id || null,
-							item.unit_price,
-							lineTotal,
-							lineWhtRate,
-							lineWhtAmount,
-							index,
-							isVat
+							documentId, item.product_id || null, item.description, item.quantity, item.unit_id || null,
+							item.unit_price, lineTotal, lineWhtRate, lineWhtAmount, index, isVat
 						]
 					);
 				}
@@ -208,28 +187,19 @@ export const actions: Actions = {
                         (document_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
                         VALUES (?, ?, ?, ?, ?, ?)`,
 						[
-							documentId,
-							savedFile.originalName,
-							savedFile.systemName,
-							savedFile.mimeType,
-							savedFile.size,
-							locals.user?.id
+							documentId, savedFile.originalName, savedFile.systemName, savedFile.mimeType, savedFile.size, locals.user?.id
 						]
 					);
 				}
 			}
 
-			// Check document type to update job order status if needed
 			const [docRows] = await connection.execute<any[]>(
 				'SELECT document_type FROM sales_documents WHERE id = ?',
 				[documentId]
 			);
 			
 			if (docRows.length > 0 && docRows[0].document_type === 'INV' && job_order_id) {
-				await connection.execute(
-					`UPDATE job_orders SET job_status = 'Completed' WHERE id = ?`,
-					[job_order_id]
-				);
+				await connection.execute(`UPDATE job_orders SET job_status = 'Completed' WHERE id = ?`, [job_order_id]);
 			}
 
 			await connection.commit();
@@ -245,9 +215,9 @@ export const actions: Actions = {
 	},
 
 	deleteAttachment: async ({ request }) => {
-		//...
+		// Preserved...
 	},
 	createProduct: async ({ request }) => {
-		//...
+		// Preserved...
 	}
 };

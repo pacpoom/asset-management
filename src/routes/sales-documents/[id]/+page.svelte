@@ -22,6 +22,7 @@
 		companyData = data.company;
 	});
 
+	// --- Recalculate Logic with 3 VAT States ---
 	let displayVatAmount = $derived.by(() => {
 		if (!document || !items) return 0;
 		const vatRate = Number(document.vat_rate || 0);
@@ -34,11 +35,12 @@
 		for (const item of items) {
 			const amount = Number(item.line_total || 0);
 			subtotal += amount;
-			if (item.is_vat) {
+			if (Number(item.is_vat) === 1) { // 1 = Inc. VAT
 				incVatTotal += amount;
-			} else {
+			} else if (Number(item.is_vat) === 0) { // 0 = Exc. VAT
 				excVatTotal += amount;
 			}
+            // 2 = Non-VAT, ignored for VAT totals
 		}
 
 		const discountForExcVat = subtotal > 0 ? discountAmount * (excVatTotal / subtotal) : 0;
@@ -64,7 +66,7 @@
 			const rate = Number(item.wht_rate || 0);
 			if (rate > 0) {
 				let whtBase = rawLineTotal;
-				if (item.is_vat && vatRate > 0) {
+				if (Number(item.is_vat) === 1 && vatRate > 0) { // Inc VAT
 					whtBase = rawLineTotal * 100 / (100 + vatRate);
 				}
 				calculatedWhtAmt += whtBase * (rate / 100);
@@ -361,7 +363,7 @@
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Qty')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Unit Price')}</th>
-					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">Inc. VAT</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">VAT Status</th>
 					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Amount') || 'Amount'}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
 					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">{$t('Total')}</th>
@@ -370,7 +372,7 @@
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#each items as item}
 					{@const amount = item.line_total}
-					{@const whtBase = item.is_vat ? item.line_total * 100 / (100 + Number(document.vat_rate || 7)) : item.line_total}
+					{@const whtBase = Number(item.is_vat) === 1 ? item.line_total * 100 / (100 + Number(document.vat_rate || 7)) : item.line_total}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-4 py-4 text-gray-700"
 							><div class="font-medium text-gray-900">{item.description}</div></td
@@ -378,8 +380,14 @@
 						<td class="px-4 py-4 text-center text-gray-700">{item.quantity}</td>
 						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>
 						<td class="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
-						<td class="px-4 py-4 text-center font-bold text-blue-600">
-							{item.is_vat ? '✓' : '-'}
+						<td class="px-4 py-4 text-center font-bold">
+                            {#if Number(item.is_vat) === 1}
+                                <span class="text-blue-600">Inc.</span>
+                            {:else if Number(item.is_vat) === 0}
+                                <span class="text-orange-600">Exc.</span>
+                            {:else}
+                                <span class="text-gray-500">None</span>
+                            {/if}
 						</td>
 						<td class="px-4 py-4 text-right text-gray-700 font-medium">
 							{formatCurrency(amount)}

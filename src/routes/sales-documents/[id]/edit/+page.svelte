@@ -121,7 +121,7 @@
 						unit_price: parseFloat(item.unit_price || '0'),
 						line_total: parseFloat(item.line_total || '0'),
 						wht_rate: parseFloat(item.wht_rate || '0'),
-						is_vat: item.is_vat !== undefined ? !!item.is_vat : true
+						is_vat: item.is_vat !== undefined ? Number(item.is_vat) : 1
 					};
 				});
 			}
@@ -149,15 +149,12 @@
 		selectedJobOrderId = selected ? selected.value : '';
 	}
 
-	// Calculate line items amounts
 	$: calculatedItems = items.map(item => {
 		const rawLineTotal = (item.quantity || 0) * (item.unit_price || 0);
 		let amount = rawLineTotal;
 		
-		// WHT is calculated from the base amount
-		// ถ้ารวม VAT แล้ว ต้องถอด VAT ก่อนเอามาคิด WHT
 		let whtBase = rawLineTotal;
-		if (item.is_vat && vatRate > 0) {
+		if (Number(item.is_vat) === 1 && vatRate > 0) {
 			whtBase = rawLineTotal * 100 / (100 + vatRate);
 		}
 		
@@ -171,32 +168,22 @@
 		};
 	});
 
-	// --- FIX: VAT Calculation Logic ---
-	// คิด Subtotal จาก Amount ยอดเต็ม
+	// --- VAT Calculation Logic (3 states) ---
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + item.amount, 0);
-	
-	// นำยอดรวมมาหักส่วนลดก่อน
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
-	// แบ่งส่วนรายการที่ไม่รวม VAT (Exclusive) และ รวม VAT แล้ว (Inclusive)
-	$: excVatTotal = calculatedItems.filter(item => !item.is_vat).reduce((sum, item) => sum + item.amount, 0);
-	$: incVatTotal = calculatedItems.filter(item => item.is_vat).reduce((sum, item) => sum + item.amount, 0);
+	$: excVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 0).reduce((sum, item) => sum + item.amount, 0);
+	$: incVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 1).reduce((sum, item) => sum + item.amount, 0);
 
-	// แบ่งส่วนลดตามสัดส่วน
 	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
 	$: discountForIncVat = subtotalBeforeVat > 0 ? discountAmount * (incVatTotal / subtotalBeforeVat) : 0;
 	
-	// คำนวณ VAT ของแต่ละส่วน
 	$: vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
 	$: vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
 	
-	// นำ VAT มารวมเพื่อแสดงผล (ตามความต้องการที่ให้ Sum ทั้งหมด)
 	$: vatAmount = vatFromExc + vatFromInc;
-	
-	// คำนวณ WHT รวม
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
 	
-	// ยอดสรุปสุดท้าย (บวกเฉพาะ VAT ที่มาจาก Exclusive เพราะ Inclusive รวมอยู่ใน Subtotal/TotalAfterDiscount แล้ว)
 	$: grandTotal = totalAfterDiscount + vatFromExc - whtAmount;
 	
 	$: itemsJson = JSON.stringify(calculatedItems);
@@ -213,7 +200,7 @@
 				unit_price: 0,
 				line_total: 0,
 				wht_rate: 0,
-				is_vat: true
+				is_vat: 1
 			}
 		];
 	}
@@ -235,14 +222,14 @@
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
-			items[index].is_vat = true;
+			items[index].is_vat = 1;
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
 			items[index].wht_rate = 0;
-			items[index].is_vat = true;
+			items[index].is_vat = 1;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -258,9 +245,6 @@
 
 	let isSaving = false;
 
-	// Modal สร้างสินค้า ...
-	let showAddProductModal = false;
-	let isSavingProduct = false;
 </script>
 
 <svelte:head>
@@ -291,7 +275,6 @@
 		}}
 	>
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-			<!-- Top Fields... -->
             <div class="relative z-[60]">
 				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Document Type (Cannot be changed)')}</label
@@ -420,22 +403,22 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-32 px-4 py-2 text-left font-medium">{$t('Product/Service')}</th>
+							<th class="w-20 px-3 py-2 text-left font-medium">{$t('Product/Service')}</th>
 							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
-							<th class="w-20 px-3 py-2 text-right">{$t('Qty')}</th>
-							<th class="w-20 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-24 px-3 py-2 text-right">{$t('Unit Price')}</th>
-							<th class="w-20 px-3 py-2 text-center text-blue-600 cursor-help" title="Include VAT">Inc. VAT</th>
+							<th class="w-25 px-3 py-2 text-right">{$t('Qty')}</th>
+							<th class="w-25 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-35 px-3 py-2 text-right">{$t('Unit Price')}</th>
+							<th class="w-25 px-2 py-2 text-center text-blue-600">VAT Status</th>
 							<th class="w-28 px-3 py-2 text-right text-gray-700">{$t('Amount') || 'Amount'}</th>
 							<th class="w-20 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
 							<th class="w-28 px-3 py-2 text-right">{$t('Total')}</th>
-							<th class="w-10 px-3 py-2"></th>
+							<th class="w-3 px-3 py-2"></th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each calculatedItems as item, index}
 							<tr>
-								<td class="w-20 px-4 py-2" style="min-width: 180px; max-width: 250px;">
+								<td class="w-20 px-3 py-2" style="min-width: 150px; max-width: 200px;">
 									<Select
 										items={productOptions}
 										value={item.product_object}
@@ -483,15 +466,15 @@
 										required
 									/>
 								</td>
-								<td class="px-1 py-1 text-center align-middle">
-									<div class="flex items-center justify-center h-full pt-1">
-										<input 
-											type="checkbox" 
-											bind:checked={items[index].is_vat} 
-											class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" 
-											title="Include VAT" 
-										/>
-									</div>
+								<td class="px-1 py-2 text-center align-middle">
+									<select
+										bind:value={items[index].is_vat}
+										class="w-full rounded-md border-gray-300 py-1.5 px-1 text-center text-xs font-medium focus:border-blue-500 focus:ring-blue-500 {items[index].is_vat === 1 ? 'text-blue-600 bg-blue-50' : items[index].is_vat === 0 ? 'text-orange-600 bg-orange-50' : 'text-gray-600 bg-gray-50'}"
+									>
+										<option value={1}>Inc. VAT</option>
+										<option value={0}>Exc. VAT</option>
+										<option value={2}>Non-VAT</option>
+									</select>
 								</td>
 								<td class="px-2 py-2 text-right font-medium text-gray-700 bg-gray-50/50">
 									{formatNumber(item.amount)}
