@@ -179,7 +179,7 @@
 		return false;
 	}
 
-	/** เปิดเมนูแม่ทุกระดับที่ครอบคลุม path ปัจจุบัน (รวมหน้า main ของโมดูลที่ route ตรง parent เช่น /isodocs-control) */
+	/** เปิดเมนูแม่เฉพาะเมื่อ path ตรงกับเมนูย่อย/ลูกหลาน — ไม่บังคับเปิดจาก route ของ parent ลำพัง (เช่น /isodocs-control) เพื่อไม่ให้ $effect หลัง goto เปิดเมนูทับการหุบจากคลิกตรงกลาง */
 	function collectAncestorMenuIdsForOpen(menus: Menu[] | undefined, pathname: string): Set<number> {
 		const ids = new Set<number>();
 		const pathNorm = pathname.replace(/\/$/, '') || '';
@@ -190,10 +190,6 @@
 				let activeHere = false;
 				if (m.children?.length) {
 					if (walk(m.children)) {
-						ids.add(m.id);
-						activeHere = true;
-					}
-					if (m.route && isLinkActiveFor(m.route, pathNorm)) {
 						ids.add(m.id);
 						activeHere = true;
 					}
@@ -355,13 +351,9 @@
 											href={menu.route}
 											onclick={(e) => {
 												e.preventDefault();
-												// เหมือนเมนูไม่มี route (เช่น Configuration): คลิกซ้ำให้ฟุบได้ — ถ้ายังไม่เปิดให้เปิดเมนู + ไปหน้า main ของโมดูล
-												if (openMenuIds.has(menu.id)) {
-													toggleMenu(menu.id);
-												} else {
-													toggleMenu(menu.id);
-													goto(menu.route);
-												}
+												// สลับเปิด/หุบ + ไปหน้า parent — จากเมนูย่อยกลับมาจะหุบและโหลดหน้า main ในคลิกเดียว (ลูกศรขวา = หุบ/ขยายอย่างเดียว ไม่สลับ route)
+												toggleMenu(menu.id);
+												goto(menu.route);
 											}}
 											class="flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 pr-10 transition-colors duration-150 {isLinkActive(
 												menu.route
@@ -412,12 +404,8 @@
 										onclick={(e) => {
 											e.preventDefault();
 											isSidebarPinned = true;
-											if (openMenuIds.has(menu.id)) {
-												toggleMenu(menu.id);
-											} else {
-												toggleMenu(menu.id);
-												goto(menu.route);
-											}
+											toggleMenu(menu.id);
+											goto(menu.route);
 										}}
 										class="group flex w-full min-w-0 items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
 											menu.route
