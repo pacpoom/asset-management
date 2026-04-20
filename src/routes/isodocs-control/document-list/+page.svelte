@@ -713,7 +713,7 @@
 										{#if doc.attached_file_system_name}
 											<div class="flex min-w-0 max-w-full flex-col gap-1.5">
 												<a
-													href="/uploads/isodocs/document-master/{doc.attached_file_system_name}"
+													href="/isodocs-control/document-list/download/{doc.id}"
 													target="_blank"
 													rel="noopener noreferrer"
 													class="block min-w-0 truncate font-medium leading-snug text-blue-600 hover:underline"
