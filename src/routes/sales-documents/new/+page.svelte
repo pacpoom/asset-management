@@ -6,17 +6,82 @@
 	import { onMount } from 'svelte';
 	import { t, locale } from '$lib/i18n';
 
+	interface Customer {
+		id: number | string;
+		name: string;
+		company_name?: string;
+	}
+
+	interface Product {
+		id: number | string;
+		name: string;
+		price: number | string;
+		unit_id: number | string | null;
+		default_wht_rate: number | string;
+	}
+
+	interface CustomerContact {
+		id: number | string;
+		customer_id: number | string;
+		name: string;
+		position?: string;
+	}
+
+	interface JobOrder {
+		id: number | string;
+		customer_id: number | string;
+		job_number: string;
+		bl_number?: string;
+	}
+
+	interface Vendor {
+		id: number | string;
+		name: string;
+	}
+
+	interface SelectOption {
+		value: string | number;
+		label: string;
+		customer?: Customer;
+		product?: Product;
+	}
+
+	interface DBItem {
+		product_id: number | string | null;
+		description: string;
+		quantity: number | string;
+		unit_id: number | string | null;
+		unit_price: number | string;
+		line_total: number | string;
+		wht_rate: number | string;
+		is_vat?: boolean | number;
+	}
+
+	interface DocumentItem {
+		product_object: SelectOption | null;
+		product_id: number | string | null;
+		description: string;
+		quantity: number;
+		unit_id: number | string | null;
+		unit_price: number;
+		line_total: number;
+		wht_rate: number;
+		is_vat: boolean;
+		amount?: number;
+		wht_amount?: number;
+	}
+
 	export let data: PageData;
 	$: ({ customers, customerContacts, units, jobOrders, prefillData } = data);
 	let localProducts = data.products || [];
 
-	$: customerOptions = customers.map((c: any) => ({
+	$: customerOptions = customers.map((c: Customer) => ({
 		value: c.id,
 		label: c.company_name || c.name,
 		customer: c
 	}));
 
-	$: productOptions = localProducts.map((p: any) => ({
+	$: productOptions = localProducts.map((p: Product) => ({
 		value: p.id,
 		label: p.name,
 		product: p
@@ -27,13 +92,13 @@
 	let creditTerm: number | null = 0;
 	let dueDate = new Date().toISOString().split('T')[0];
 
-	let selectedCustomerObj: any = null;
+	let selectedCustomerObj: SelectOption | null = null;
 	let selectedCustomerId: string | number = '';
 	
-	let selectedContactObj: any = null;
+	let selectedContactObj: SelectOption | null = null;
 	let selectedContactId: string | number = '';
 	
-	let selectedJobOrderObj: any = null;
+	let selectedJobOrderObj: SelectOption | null = null;
 	let selectedJobOrderId: string | number = '';
 
 	let referenceDoc = '';
@@ -41,7 +106,7 @@
 	let discountAmount = 0;
 	let vatRate = 7;
 
-	let items: any[] = [
+	let items: DocumentItem[] = [
 		{
 			product_object: null,
 			product_id: null,
@@ -56,26 +121,26 @@
 	];
 
 	$: filteredJobOrders = selectedCustomerId
-		? jobOrders.filter((jo: any) => jo.customer_id == selectedCustomerId)
+		? jobOrders.filter((jo: JobOrder) => jo.customer_id == selectedCustomerId)
 		: [];
 
 	$: filteredContacts = selectedCustomerId
-		? customerContacts.filter((c: any) => c.customer_id == selectedCustomerId)
+		? customerContacts.filter((c: CustomerContact) => c.customer_id == selectedCustomerId)
 		: [];
 
-	$: contactOptions = filteredContacts.map((c: any) => ({
+	$: contactOptions = filteredContacts.map((c: CustomerContact) => ({
 		value: c.id,
 		label: `${c.name} ${c.position ? `(${c.position})` : ''}`
 	}));
 
-	$: jobOrderOptions = filteredJobOrders.map((job: any) => ({
+	$: jobOrderOptions = filteredJobOrders.map((job: JobOrder) => ({
 		value: job.id,
 		label: `${job.job_number} | BL: ${job.bl_number !== '-' && job.bl_number ? job.bl_number : 'N/A'}`
 	}));
 
 	$: if (selectedContactId && contactOptions.length > 0) {
 		if (!selectedContactObj || selectedContactObj.value !== selectedContactId) {
-			selectedContactObj = contactOptions.find((c: any) => c.value == selectedContactId) || null;
+			selectedContactObj = contactOptions.find((c: SelectOption) => c.value == selectedContactId) || null;
 		}
 	} else if (!selectedContactId) {
 		selectedContactObj = null;
@@ -83,7 +148,7 @@
 
 	$: if (selectedJobOrderId && jobOrderOptions.length > 0) {
 		if (!selectedJobOrderObj || selectedJobOrderObj.value !== selectedJobOrderId) {
-			selectedJobOrderObj = jobOrderOptions.find((j: any) => j.value == selectedJobOrderId) || null;
+			selectedJobOrderObj = jobOrderOptions.find((j: SelectOption) => j.value == selectedJobOrderId) || null;
 		}
 	} else if (!selectedJobOrderId) {
 		selectedJobOrderObj = null;
@@ -97,14 +162,14 @@
 			}
 
 			selectedCustomerId = prefillData.document.customer_id || '';
-			selectedCustomerObj = customerOptions.find((c: any) => c.value == selectedCustomerId) || null;
+			selectedCustomerObj = customerOptions.find((c: SelectOption) => c.value == selectedCustomerId) || null;
 			
 			selectedContactId = prefillData.document.customer_contact_id || '';
 
 			setTimeout(() => {
 				selectedJobOrderId = prefillData.document.job_order_id || '';
 				if (selectedJobOrderId && jobOrderOptions.length > 0) {
-					selectedJobOrderObj = jobOrderOptions.find((j: any) => j.value == selectedJobOrderId) || null;
+					selectedJobOrderObj = jobOrderOptions.find((j: SelectOption) => j.value == selectedJobOrderId) || null;
 				}
 			}, 150);
 
@@ -113,17 +178,17 @@
 			vatRate = parseFloat(prefillData.document.vat_rate || '7');
 
 			if (prefillData.items && prefillData.items.length > 0) {
-				items = prefillData.items.map((item: any) => {
-					const productObj = productOptions.find((p: any) => p.value == item.product_id) || null;
+				items = prefillData.items.map((item: DBItem) => {
+					const productObj = productOptions.find((p: SelectOption) => p.value == item.product_id) || null;
 					return {
 						product_object: productObj,
 						product_id: item.product_id,
 						description: item.description,
-						quantity: parseFloat(item.quantity || 1),
+						quantity: parseFloat((item.quantity || 1).toString()),
 						unit_id: item.unit_id,
-						unit_price: parseFloat(item.unit_price || 0),
-						line_total: parseFloat(item.line_total || 0),
-						wht_rate: parseFloat(item.wht_rate || 0),
+						unit_price: parseFloat((item.unit_price || 0).toString()),
+						line_total: parseFloat((item.line_total || 0).toString()),
+						wht_rate: parseFloat((item.wht_rate || 0).toString()),
 						is_vat: item.is_vat !== undefined ? !!item.is_vat : true
 					};
 				});
@@ -134,13 +199,14 @@
 
 	function calculateDueDate() {
 		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity
 			const d = new Date(documentDate);
 			d.setDate(d.getDate() + Number(creditTerm));
 			dueDate = d.toISOString().split('T')[0];
 		}
 	}
 
-	function onCustomerChange(selected: any) {
+	function onCustomerChange(selected: SelectOption | null) {
 		selectedCustomerObj = selected;
 		selectedCustomerId = selected ? selected.value : '';
 		
@@ -151,12 +217,12 @@
 		selectedContactObj = null;
 	}
 
-	function onContactChange(selected: any) {
+	function onContactChange(selected: SelectOption | null) {
 		selectedContactObj = selected;
 		selectedContactId = selected ? selected.value : '';
 	}
 
-	function onJobOrderChange(selected: any) {
+	function onJobOrderChange(selected: SelectOption | null) {
 		selectedJobOrderObj = selected;
 		selectedJobOrderId = selected ? selected.value : '';
 	}
@@ -185,22 +251,31 @@
 
 	// --- FIX: VAT Calculation Logic ---
 	// คิด Subtotal จาก Amount ยอดเต็ม
-	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + item.amount, 0);
+	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + (item.amount || 0), 0);
 	
 	// นำยอดรวมมาหักส่วนลดก่อน
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
-	// คำนวณ VAT เฉพาะรายการที่ไม่ติ๊ก Inc. VAT (is_vat === false)
-	// โดยหาสัดส่วนส่วนลดที่ไปตกกับยอดที่ต้องคิด VAT ก่อน
-	$: excVatTotal = calculatedItems.filter(item => !item.is_vat).reduce((sum, item) => sum + item.amount, 0);
+	// แบ่งส่วนรายการที่ไม่รวม VAT (Exclusive) และ รวม VAT แล้ว (Inclusive)
+	$: excVatTotal = calculatedItems.filter(item => !item.is_vat).reduce((sum, item) => sum + (item.amount || 0), 0);
+	$: incVatTotal = calculatedItems.filter(item => item.is_vat).reduce((sum, item) => sum + (item.amount || 0), 0);
+
+	// แบ่งส่วนลดตามสัดส่วน
 	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
-	$: vatAmount = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+	$: discountForIncVat = subtotalBeforeVat > 0 ? discountAmount * (incVatTotal / subtotalBeforeVat) : 0;
+	
+	// คำนวณ VAT ของแต่ละส่วน
+	$: vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+	$: vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+	
+	// นำ VAT มารวมเพื่อแสดงผล (ตามความต้องการที่ให้ Sum ทั้งหมด)
+	$: vatAmount = vatFromExc + vatFromInc;
 	
 	// คำนวณ WHT รวม
-	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
+	$: whtAmount = calculatedItems.reduce((sum, item) => sum + (item.wht_amount || 0), 0);
 	
-	// ยอดสรุปสุดท้าย
-	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+	// ยอดสรุปสุดท้าย (บวกเฉพาะ VAT ที่มาจาก Exclusive เพราะ Inclusive รวมอยู่ใน Subtotal/TotalAfterDiscount แล้ว)
+	$: grandTotal = totalAfterDiscount + vatFromExc - whtAmount;
 	
 	// Save JSON to be submitted
 	$: itemsJson = JSON.stringify(calculatedItems);
@@ -230,15 +305,15 @@
 		items[index].line_total = (items[index].quantity || 0) * (items[index].unit_price || 0);
 	}
 
-	function onProductChange(index: number, selected: any) {
+	function onProductChange(index: number, selected: SelectOption | null) {
 		items[index].product_object = selected;
-		if (selected) {
+		if (selected && selected.product) {
 			const product = selected.product;
 			items[index].product_id = product.id;
 			items[index].description = product.name;
-			items[index].unit_price = parseFloat(product.price) || 0;
+			items[index].unit_price = parseFloat(product.price.toString()) || 0;
 			items[index].unit_id = product.unit_id;
-			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
+			items[index].wht_rate = parseFloat(product.default_wht_rate.toString()) || 0;
 			items[index].is_vat = true;
 		} else {
 			items[index].product_id = null;
@@ -258,11 +333,11 @@
 	let isSavingProduct = false;
 	let toastMessage = '';
 	let newProduct = {
-		sku: '', name: '', description: '', product_type: 'Stock', category_id: null as any,
-		unit_id: null as any, purchase_unit_id: null as any, sales_unit_id: null as any,
+		sku: '', name: '', description: '', product_type: 'Stock', category_id: null as number | null,
+		unit_id: null as number | null, purchase_unit_id: null as number | null, sales_unit_id: null as number | null,
 		purchase_cost: 0, selling_price: 0, quantity_on_hand: 0, reorder_level: 0,
-		preferred_vendor_id: null as any, preferred_customer_id: null as any,
-		asset_account_id: null as any, income_account_id: null as any, expense_account_id: null as any,
+		preferred_vendor_id: null as number | null, preferred_customer_id: null as number | null,
+		asset_account_id: null as number | null, income_account_id: null as number | null, expense_account_id: null as number | null,
 		is_active: true, default_wht_rate: 3
 	};
 
@@ -271,10 +346,10 @@
 	let customerSearchText = '';
 	let isCustomerDropdownOpen = false;
 	$: filteredVendors = data.vendors
-		? data.vendors.filter((v: any) => v.name.toLowerCase().includes(vendorSearchText.toLowerCase()))
+		? data.vendors.filter((v: Vendor) => v.name.toLowerCase().includes(vendorSearchText.toLowerCase()))
 		: [];
 	$: filteredCustomers = data.customers
-		? data.customers.filter((c: any) =>
+		? data.customers.filter((c: Customer) =>
 				c.name.toLowerCase().includes(customerSearchText.toLowerCase())
 			)
 		: [];
@@ -595,7 +670,7 @@
 									</div>
 								</td>
 								<td class="px-2 py-2 text-right font-medium text-gray-700 bg-gray-50/50">
-									{formatNumber(item.amount)}
+									{formatNumber(item.amount || 0)}
 								</td>
 								<td class="px-2 py-2">
 									<select
@@ -611,7 +686,7 @@
 								</td>
 								<td class="px-2 py-2 text-right">
 									<div class="font-bold text-gray-900">{formatNumber(item.line_total)}</div>
-									{#if item.wht_amount > 0}
+									{#if item.wht_amount && item.wht_amount > 0}
 										<div class="mt-0.5 text-[10px] text-red-500">
 											(-{formatNumber(item.wht_amount)})
 										</div>
@@ -667,7 +742,7 @@
 							<option value={7}>7%</option>
 						</select>
 					</span>
-					<span class="font-medium text-green-600">+{formatNumber(vatAmount)}</span>
+					<span class="font-medium text-gray-800">{formatNumber(vatAmount)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 				<div class="flex justify-between border-b pb-2 text-sm text-red-600">

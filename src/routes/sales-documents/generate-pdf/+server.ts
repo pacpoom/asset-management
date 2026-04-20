@@ -272,15 +272,25 @@ function getInvoiceHtml(
 	const totalAfterDiscount = Number(docData.total_after_discount || 0);
 
 	const vatRate = Number(docData.vat_rate || 0);
-	const vatAmt = Number(docData.vat_amount || 0);
 
 	let calculatedWhtAmt = 0;
 	const activeRates = new Set<number>();
+
+	let subtotalBeforeVat = 0;
+	let excVatTotal = 0;
+	let incVatTotal = 0;
 
 	itemsData.forEach((item) => {
         // Amount สำหรับโชว์ในตารางใช้ค่า line_total ตรงๆ
         const rawLineTotal = Number(item.line_total) || 0;
         let amount = rawLineTotal;
+
+		subtotalBeforeVat += amount;
+		if (item.is_vat) {
+			incVatTotal += amount;
+		} else {
+			excVatTotal += amount;
+		}
 
 		const rate = Number(item.wht_rate || 0);
 		if (rate > 0) {
@@ -288,7 +298,7 @@ function getInvoiceHtml(
             
             // คำนวณฐานภาษีหัก ณ ที่จ่าย (ถ้า is_vat ถอดภาษีออกก่อน)
             let whtBase = rawLineTotal;
-            if (item.is_vat) {
+            if (item.is_vat && vatRate > 0) {
                 whtBase = rawLineTotal * 100 / (100 + vatRate);
             }
 			calculatedWhtAmt += whtBase * (rate / 100);
@@ -296,6 +306,19 @@ function getInvoiceHtml(
         
         item.amount = amount;
 	});
+
+	// คำนวณ VAT ใหม่เพื่อให้ครอบคลุมทั้งแบบ Inc. VAT และ Exc. VAT (รวมยอด VAT เพื่อแสดงผล)
+	const discountForExcVat = subtotalBeforeVat > 0 ? discount * (excVatTotal / subtotalBeforeVat) : 0;
+	const discountForIncVat = subtotalBeforeVat > 0 ? discount * (incVatTotal / subtotalBeforeVat) : 0;
+
+	const vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+	const vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+
+	let vatAmt = vatFromExc + vatFromInc;
+	// กรณีที่คำนวณแล้วเป็น 0 แต่ใน DB มีบันทึกไว้ ให้ fallback ไปใช้ค่าจาก DB
+	if (vatAmt === 0 && Number(docData.vat_amount || 0) > 0) {
+		vatAmt = Number(docData.vat_amount || 0);
+	}
 
 	const ratesArray = Array.from(activeRates);
 	const whtRateText =
@@ -306,7 +329,8 @@ function getInvoiceHtml(
 			? calculatedWhtAmt
 			: Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
-	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
+	// คำนวณ Net Amount ดึงจากค่าที่ผ่านการคำนวณจากหน้าบ้านและบันทึกไว้ในระบบแทน
+	const netAmount = Number(docData.total_amount || 0);
 	const netAmountText = bahttext(netAmount);
 
 	const docTitle = getDocumentTitle(docData.document_type);

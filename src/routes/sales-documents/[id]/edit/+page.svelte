@@ -178,17 +178,26 @@
 	// นำยอดรวมมาหักส่วนลดก่อน
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
-	// คำนวณ VAT เฉพาะรายการที่ไม่ติ๊ก Inc. VAT (is_vat === false)
-	// โดยหาสัดส่วนส่วนลดที่ไปตกกับยอดที่ต้องคิด VAT ก่อน
+	// แบ่งส่วนรายการที่ไม่รวม VAT (Exclusive) และ รวม VAT แล้ว (Inclusive)
 	$: excVatTotal = calculatedItems.filter(item => !item.is_vat).reduce((sum, item) => sum + item.amount, 0);
+	$: incVatTotal = calculatedItems.filter(item => item.is_vat).reduce((sum, item) => sum + item.amount, 0);
+
+	// แบ่งส่วนลดตามสัดส่วน
 	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
-	$: vatAmount = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+	$: discountForIncVat = subtotalBeforeVat > 0 ? discountAmount * (incVatTotal / subtotalBeforeVat) : 0;
+	
+	// คำนวณ VAT ของแต่ละส่วน
+	$: vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+	$: vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+	
+	// นำ VAT มารวมเพื่อแสดงผล (ตามความต้องการที่ให้ Sum ทั้งหมด)
+	$: vatAmount = vatFromExc + vatFromInc;
 	
 	// คำนวณ WHT รวม
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
 	
-	// ยอดสรุปสุดท้าย
-	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+	// ยอดสรุปสุดท้าย (บวกเฉพาะ VAT ที่มาจาก Exclusive เพราะ Inclusive รวมอยู่ใน Subtotal/TotalAfterDiscount แล้ว)
+	$: grandTotal = totalAfterDiscount + vatFromExc - whtAmount;
 	
 	$: itemsJson = JSON.stringify(calculatedItems);
 
@@ -611,7 +620,7 @@
 							<option value={7}>7%</option>
 						</select>
 					</span>
-					<span class="font-medium text-green-600">+{formatNumber(vatAmount)}</span>
+					<span class="font-medium text-gray-800">{formatNumber(vatAmount)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 				<div class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600">

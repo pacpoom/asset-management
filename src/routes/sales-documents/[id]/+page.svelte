@@ -22,6 +22,57 @@
 		companyData = data.company;
 	});
 
+	let displayVatAmount = $derived.by(() => {
+		if (!document || !items) return 0;
+		const vatRate = Number(document.vat_rate || 0);
+		const discountAmount = Number(document.discount_amount || 0);
+
+		let subtotal = 0;
+		let excVatTotal = 0;
+		let incVatTotal = 0;
+
+		for (const item of items) {
+			const amount = Number(item.line_total || 0);
+			subtotal += amount;
+			if (item.is_vat) {
+				incVatTotal += amount;
+			} else {
+				excVatTotal += amount;
+			}
+		}
+
+		const discountForExcVat = subtotal > 0 ? discountAmount * (excVatTotal / subtotal) : 0;
+		const discountForIncVat = subtotal > 0 ? discountAmount * (incVatTotal / subtotal) : 0;
+
+		const vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+		const vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+
+		let vatAmt = vatFromExc + vatFromInc;
+		if (vatAmt === 0 && Number(document.vat_amount || 0) > 0) {
+			vatAmt = Number(document.vat_amount || 0);
+		}
+		return vatAmt;
+	});
+
+	let displayWhtAmount = $derived.by(() => {
+		if (!document || !items) return 0;
+		const vatRate = Number(document.vat_rate || 0);
+		let calculatedWhtAmt = 0;
+
+		for (const item of items) {
+			const rawLineTotal = Number(item.line_total || 0);
+			const rate = Number(item.wht_rate || 0);
+			if (rate > 0) {
+				let whtBase = rawLineTotal;
+				if (item.is_vat && vatRate > 0) {
+					whtBase = rawLineTotal * 100 / (100 + vatRate);
+				}
+				calculatedWhtAmt += whtBase * (rate / 100);
+			}
+		}
+		return calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(document.wht_amount || document.withholding_tax_amount || 0);
+	});
+
 	const formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
 		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
@@ -373,10 +424,10 @@
 
 		<div class="mt-1 flex items-center justify-between">
 			<span class="font-medium text-gray-600">VAT ({Number(document.vat_rate ?? 0)}%):</span>
-			<span class="font-medium text-gray-800">{formatCurrency(document.vat_amount)}</span>
+			<span class="font-medium text-gray-800">{formatCurrency(displayVatAmount)}</span>
 		</div>
 
-		{#if parseFloat(document.withholding_tax_amount || document.wht_amount || '0') > 0}
+		{#if displayWhtAmount > 0}
 			{@const activeWhtRates = [
 				...new Set(
 					items.map((i: any) => parseFloat(i.wht_rate || '0')).filter((r: number) => r > 0)
@@ -389,7 +440,7 @@
 						: 'Total'}):</span
 				>
 				<span class="font-medium text-red-600"
-					>- {formatCurrency(document.withholding_tax_amount || document.wht_amount)}</span
+					>- {formatCurrency(displayWhtAmount)}</span
 				>
 			</div>
 		{/if}
