@@ -219,6 +219,19 @@ export const actions: Actions = {
 				}
 			}
 
+			// Check document type to update job order status if needed
+			const [docRows] = await connection.execute<any[]>(
+				'SELECT document_type FROM sales_documents WHERE id = ?',
+				[documentId]
+			);
+			
+			if (docRows.length > 0 && docRows[0].document_type === 'INV' && job_order_id) {
+				await connection.execute(
+					`UPDATE job_orders SET job_status = 'Completed' WHERE id = ?`,
+					[job_order_id]
+				);
+			}
+
 			await connection.commit();
 		} catch (err: any) {
 			await connection.rollback();

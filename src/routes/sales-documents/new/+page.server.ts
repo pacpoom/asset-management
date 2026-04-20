@@ -234,6 +234,14 @@ export const actions: Actions = {
 				}
 			}
 
+			// Update job order status to 'Completed' if this is an Invoice (INV)
+			if (document_type === 'INV' && job_order_id) {
+				await connection.execute(
+					`UPDATE job_orders SET job_status = 'Completed' WHERE id = ?`,
+					[job_order_id]
+				);
+			}
+
 			await connection.commit();
 			throw redirect(303, `/sales-documents/${documentId}`);
 		} catch (err: any) {

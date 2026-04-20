@@ -198,6 +198,12 @@ export const actions = {
                 );
             }
 
+			 // อัปเดตสถานะของ Job Order เป็น 'In Progress' ทันทีที่มีการเพิ่มค่าใช้จ่าย
+            await connection.execute(
+                `UPDATE job_orders SET job_status = 'In Progress', updated_at = NOW() WHERE id = ?`,
+                [job_order_id]
+            );
+			
             await connection.commit();
 			return { success: true, action: 'addExpense' };
 		} catch (err: unknown) {
