@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutServerData } from './$types';
@@ -118,13 +118,102 @@
 		return null;
 	}
 
+	/** ไม่ให้รวมกับ effect ที่สังเกต `$navigating` — ถ้ารวม ทุกครั้งที่ navigate จะเคลียร์เมนูที่เปิดไว้ตอน sidebar ไม่ถูก pin */
 	$effect(() => {
 		if ($navigating) {
 			isSidebarOpen = false;
 		}
+	});
+
+	$effect(() => {
 		if (!isSidebarPinned) {
 			openMenuIds = new Set<number>();
 			isAdminMenuOpen = false;
+		}
+	});
+
+	const ADMIN_SECTION_ROUTES = [
+		'/users',
+		'/roles',
+		'/permissions',
+		'/menus',
+		'/settings/company-announcements',
+		'/settings/env-config'
+	] as const;
+
+	function isLinkActiveFor(href: string | null, currentPath: string): boolean {
+		if (!href) return false;
+		const current = currentPath.replace(/\/$/, '');
+		const targetHref = href.trim().replace(/\/$/, '');
+
+		if (targetHref === '') {
+			return current === '';
+		}
+		if (current === targetHref) {
+			return true;
+		}
+		if (current.startsWith(targetHref + '/')) {
+			let hasMoreSpecificMenu = false;
+
+			function checkSpecific(menus: Menu[] | undefined) {
+				if (!menus) return;
+				for (const m of menus) {
+					if (m.route) {
+						const route = m.route.replace(/\/$/, '');
+						if (
+							route.length > targetHref.length &&
+							(current === route || current.startsWith(route + '/'))
+						) {
+							hasMoreSpecificMenu = true;
+						}
+					}
+					if (m.children) checkSpecific(m.children);
+				}
+			}
+
+			checkSpecific(data.menus);
+			return !hasMoreSpecificMenu;
+		}
+
+		return false;
+	}
+
+	/** เปิดเมนูแม่ทุกระดับที่ครอบคลุม path ปัจจุบัน (หลังคลิกเมนูย่อย / เปิดลิงก์ตรง) */
+	function collectAncestorMenuIdsForOpen(menus: Menu[] | undefined, pathname: string): Set<number> {
+		const ids = new Set<number>();
+		const pathNorm = pathname.replace(/\/$/, '') || '';
+
+		function walk(items: Menu[]): boolean {
+			let found = false;
+			for (const m of items) {
+				if (m.children?.length) {
+					const inSubtree = walk(m.children);
+					if (inSubtree) {
+						ids.add(m.id);
+						found = true;
+					}
+				}
+				if (m.route && isLinkActiveFor(m.route, pathNorm)) {
+					found = true;
+				}
+			}
+			return found;
+		}
+
+		walk(menus ?? []);
+		return ids;
+	}
+
+	$effect(() => {
+		void $page.url.pathname;
+		void data.menus;
+		const path = $page.url.pathname.replace(/\/$/, '');
+		const required = collectAncestorMenuIdsForOpen(data.menus, path);
+		const prev = untrack(() => openMenuIds);
+		openMenuIds = new Set([...required, ...prev]);
+
+		if (ADMIN_SECTION_ROUTES.some((r) => isLinkActiveFor(r, path))) {
+			isAdminMenuOpen = true;
 		}
 	});
 
@@ -142,41 +231,7 @@
 	}
 
 	function isLinkActive(href: string | null) {
-		if (!href) return false;
-
-		const currentPath = $page.url.pathname.replace(/\/$/, '');
-		const targetHref = href.trim().replace(/\/$/, '');
-
-		if (targetHref === '') {
-			return currentPath === '';
-		}
-		if (currentPath === targetHref) {
-			return true;
-		}
-		if (currentPath.startsWith(targetHref + '/')) {
-			let hasMoreSpecificMenu = false;
-
-			function checkSpecific(menus: Menu[] | undefined) {
-				if (!menus) return;
-				for (const m of menus) {
-					if (m.route) {
-						const route = m.route.replace(/\/$/, '');
-						if (
-							route.length > targetHref.length &&
-							(currentPath === route || currentPath.startsWith(route + '/'))
-						) {
-							hasMoreSpecificMenu = true;
-						}
-					}
-					if (m.children) checkSpecific(m.children);
-				}
-			}
-
-			checkSpecific(data.menus);
-			return !hasMoreSpecificMenu;
-		}
-
-		return false;
+		return isLinkActiveFor(href, $page.url.pathname.replace(/\/$/, ''));
 	}
 
 	function isMenuSectionActive(menu: Menu): boolean {
@@ -290,15 +345,18 @@
 						{#if menu.route}
 							{#if menu.children && menu.children.length > 0}
 								{#if isSidebarExpanded || isSidebarOpen}
-									<div class="group relative">
+									<div class="group relative flex w-full min-w-0 items-center">
 										<a
 											href={menu.route}
-											onclick={() => toggleMenu(menu.id)}
-											class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 {isLinkActive(
+											onclick={(e) => {
+												e.preventDefault();
+												toggleMenu(menu.id);
+											}}
+											class="flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 pr-10 transition-colors duration-150 {isLinkActive(
 												menu.route
 											)
 												? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} pr-8 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 											title={$t(menu.title)}
 										>
 											<span
@@ -306,13 +364,14 @@
 												>{menu.icon || 'folder'}</span
 											>
 											<span
-												class="leading-snug font-medium whitespace-normal transition-all duration-100"
+												class="min-w-0 flex-1 leading-snug font-medium whitespace-normal"
 												>{$t(menu.title)}</span
 											>
 										</a>
 										<button
 											type="button"
 											onclick={(event) => {
+												event.preventDefault();
 												event.stopPropagation();
 												toggleMenu(menu.id);
 											}}
@@ -339,13 +398,14 @@
 								{:else}
 									<a
 										href={menu.route}
-										onclick={() => {
+										onclick={(e) => {
+											e.preventDefault();
 											// When sidebar is collapsed on desktop, clicking a parent menu should expand it
 											// so the user can see its submenus immediately.
 											isSidebarPinned = true;
 											toggleMenu(menu.id);
 										}}
-										class="group flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
+										class="group flex w-full min-w-0 items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
 											menu.route
 										)
 											? 'bg-blue-100 text-blue-700'
@@ -388,19 +448,24 @@
 							{/if}
 						{:else if menu.children && menu.children.length > 0}
 							{#if !(isSidebarExpanded || isSidebarOpen) && !isFlyout}
-								<div
+								<button
+									type="button"
 									class="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isMenuSectionActive(
 										menu
 									)
 										? 'bg-blue-100 text-blue-700'
 										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
 									title={$t(menu.title)}
+									onclick={() => {
+										isSidebarPinned = true;
+										toggleMenu(menu.id);
+									}}
 								>
 									<span
 										class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
 										>{menu.icon || 'folder'}</span
 									>
-								</div>
+								</button>
 							{:else}
 								<button
 									type="button"
