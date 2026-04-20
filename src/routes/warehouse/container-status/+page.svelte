@@ -11,7 +11,6 @@
 	let searchQuery = $state(data.searchQuery ?? '');
 	let startDate = $state(data.startDate ?? '');
 	let endDate = $state(data.endDate ?? '');
-	let statusFilter = $state(data.statusFilter ?? '');
 	let ownerFilter = $state(data.ownerFilter ?? '');
 	let searchTimer: NodeJS.Timeout;
 
@@ -36,7 +35,6 @@
 		search: string,
 		start: string,
 		end: string,
-		status: string,
 		owner: string,
 		limitStr: string,
 		pageStr: string
@@ -45,7 +43,6 @@
 		if (search) query.push(`search=${encodeURIComponent(search)}`);
 		query.push(`startDate=${encodeURIComponent(start)}`);
 		query.push(`endDate=${encodeURIComponent(end)}`);
-		if (status) query.push(`status=${encodeURIComponent(status)}`);
 		if (owner) query.push(`owner=${encodeURIComponent(owner)}`);
 		query.push(`limit=${limitStr}`);
 		query.push(`page=${pageStr}`);
@@ -57,7 +54,6 @@
 		if (searchQuery) query.push(`search=${encodeURIComponent(searchQuery)}`);
 		query.push(`startDate=${encodeURIComponent(startDate)}`);
 		query.push(`endDate=${encodeURIComponent(endDate)}`);
-		if (statusFilter) query.push(`status=${encodeURIComponent(statusFilter)}`);
 		if (ownerFilter) query.push(`owner=${encodeURIComponent(ownerFilter)}`);
 		return `/warehouse/container-status/export?${query.join('&')}`;
 	}
@@ -69,7 +65,6 @@
 				searchQuery,
 				startDate,
 				endDate,
-				statusFilter,
 				ownerFilter,
 				data.limit.toString(),
 				'1'
@@ -88,7 +83,6 @@
 			searchQuery,
 			startDate,
 			endDate,
-			statusFilter,
 			ownerFilter,
 			newLimit,
 			'1'
@@ -168,7 +162,6 @@
 			searchQuery,
 			startDate,
 			endDate,
-			statusFilter,
 			ownerFilter,
 			data.limit.toString(),
 			pageNum.toString()
@@ -211,96 +204,6 @@
 				<p class="text-[10px] font-bold text-blue-600 uppercase">{$t('Total')}</p>
 				<p class="text-lg leading-none font-bold text-gray-900">
 					{data.totalCount.toLocaleString()}
-				</p>
-			</div>
-		</div>
-
-		<div
-			class="flex items-center gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-2 shadow-sm"
-		>
-			<div
-				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path
-						d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-					></path>
-					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-					<line x1="12" y1="22.08" x2="12" y2="12"></line>
-				</svg>
-			</div>
-			<div>
-				<p class="text-[10px] font-bold text-red-600 uppercase">{$t('Full')}</p>
-				<p class="text-lg leading-none font-bold text-gray-900">
-					{data.fullCount.toLocaleString()}
-				</p>
-			</div>
-		</div>
-
-		<div
-			class="flex items-center gap-3 rounded-xl border border-orange-100 bg-orange-50 px-4 py-2 shadow-sm"
-		>
-			<div
-				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path
-						d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-					></path>
-					<polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
-					<polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
-					<polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
-					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-					<line x1="12" y1="22.08" x2="12" y2="12"></line>
-				</svg>
-			</div>
-			<div>
-				<p class="text-[10px] font-bold text-orange-600 uppercase">{$t('Partial')}</p>
-				<p class="text-lg leading-none font-bold text-gray-900">
-					{data.partialCount.toLocaleString()}
-				</p>
-			</div>
-		</div>
-
-		<div
-			class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 shadow-sm"
-		>
-			<div
-				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-600"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path
-						d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-					></path>
-					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-					<line x1="12" y1="22.08" x2="12" y2="12"></line>
-				</svg>
-			</div>
-			<div>
-				<p class="text-[10px] font-bold text-gray-600 uppercase">{$t('Empty')}</p>
-				<p class="text-lg leading-none font-bold text-gray-900">
-					{data.emptyCount.toLocaleString()}
 				</p>
 			</div>
 		</div>
@@ -401,24 +304,6 @@
 			/>
 		</div>
 
-		<div>
-			<label for="statusFilter" class="mb-1 block text-xs font-semibold text-gray-700"
-				>{$t('Plan Status')}</label
-			>
-			<select
-				name="status"
-				id="statusFilter"
-				bind:value={statusFilter}
-				onchange={handleSearchInput}
-				class="w-full cursor-pointer rounded-lg border-gray-300 py-2.5 pr-8 text-sm focus:border-blue-500 focus:ring-blue-500"
-			>
-				<option value="">{$t('All Status')}</option>
-				<option value="2">{$t('Received')}</option>
-				<option value="3">{$t('Shipped Out')}</option>
-				<option value="4">{$t('Returned')}</option>
-			</select>
-		</div>
-
 		<div class="w-full sm:w-64">
 			<label for="ownerFilter" class="mb-1 block text-xs font-semibold text-gray-700"
 				>{$t('Container Owner')}</label
@@ -477,15 +362,12 @@
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
 					>{$t('Status')}</th
 				>
-				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
-					>{$t('Stock Status')}</th
-				>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.containers.length === 0}
 				<tr>
-					<td colspan="12" class="py-12 text-center text-gray-500">
+					<td colspan="11" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery || data.startDate || data.endDate}
 							{$t('ไม่พบข้อมูลตู้คอนเทนเนอร์ที่ตรงกับเงื่อนไขการค้นหา')}
 						{:else}
@@ -558,23 +440,6 @@
 									: item.status == 4
 										? $t('Returned')
 										: $t('Shipped Out')}
-							</span>
-						</td>
-
-						<td class="px-4 py-3 text-center">
-							<span
-								class="rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap
-        						{item.stock_status == 1
-									? 'bg-red-100 text-red-800'
-									: item.stock_status == 3
-										? 'bg-gray-200 text-gray-800'
-										: 'bg-orange-100 text-orange-800'}"
-							>
-								{item.stock_status == 1
-									? $t('Full')
-									: item.stock_status == 3
-										? $t('Empty')
-										: $t('Partial')}
 							</span>
 						</td>
 					</tr>

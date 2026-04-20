@@ -167,6 +167,20 @@ export const actions: Actions = {
         try {
             await connection.beginTransaction();
 
+            // เช็กว่า container_no นี้มีแผนที่ยังไม่ Returned (status != 4) อยู่แล้วหรือไม่
+            const [duplicateContainerNo]: any = await connection.query(
+                `SELECT cop.id
+                 FROM container_order_plans cop
+                 INNER JOIN containers c ON c.id = cop.container_id
+                 WHERE c.container_no = ? AND cop.status != 4
+                 LIMIT 1`,
+                [container_no]
+            );
+            if (duplicateContainerNo.length > 0) {
+                await connection.rollback();
+                return fail(400, { message: `Container No ${container_no} มีแผนค้างอยู่ในระบบแล้ว` });
+            }
+
             // 1. ดึงข้อมูลหรือสร้าง Container ใหม่
             const [containers]: any = await connection.query('SELECT id FROM containers WHERE container_no = ? LIMIT 1', [container_no]);
             let container_id;
@@ -390,6 +404,20 @@ export const actions: Actions = {
 
                 // ข้ามแถวที่ไม่มีข้อมูลจำเป็น
                 if (!container_no || !house_bl) continue;
+
+                // เช็กว่า container_no นี้มีแผนที่ยังไม่ Returned (status != 4) อยู่แล้วหรือไม่
+                const [duplicateContainerNo]: any = await connection.query(
+                    `SELECT cop.id
+                     FROM container_order_plans cop
+                     INNER JOIN containers c ON c.id = cop.container_id
+                     WHERE c.container_no = ? AND cop.status != 4
+                     LIMIT 1`,
+                    [container_no]
+                );
+                if (duplicateContainerNo.length > 0) {
+                    await connection.rollback();
+                    return fail(400, { message: `Container No ${container_no} มีแผนค้างอยู่ในระบบแล้ว` });
+                }
 
                 // 1. หาหรือสร้าง Container
                 const [containers]: any = await connection.query('SELECT id FROM containers WHERE container_no = ? LIMIT 1', [container_no]);

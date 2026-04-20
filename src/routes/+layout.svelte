@@ -14,6 +14,7 @@
 	import { canAccessApplicationEnvConfig } from '$lib/envConfigAccess';
 
 	const { data, children } = $props<{ data: LayoutServerData; children: unknown }>();
+
 	type Menu = LayoutServerData['menus'][0];
 
 	onMount(async () => {
@@ -285,67 +286,111 @@
 		>
 			{#each menus as menu}
 				{#if !shouldHideTopLevelMenu(menu, level)}
-				<li>
-					{#if menu.route}
-						{#if menu.children && menu.children.length > 0}
-							{#if isSidebarExpanded || isSidebarOpen}
-								<div class="group relative">
+					<li>
+						{#if menu.route}
+							{#if menu.children && menu.children.length > 0}
+								{#if isSidebarExpanded || isSidebarOpen}
+									<div class="group relative">
+										<a
+											href={menu.route}
+											onclick={() => toggleMenu(menu.id)}
+											class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 {isLinkActive(
+												menu.route
+											)
+												? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} pr-8 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+											title={$t(menu.title)}
+										>
+											<span
+												class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110"
+												>{menu.icon || 'folder'}</span
+											>
+											<span
+												class="leading-snug font-medium whitespace-normal transition-all duration-100"
+												>{$t(menu.title)}</span
+											>
+										</a>
+										<button
+											type="button"
+											onclick={(event) => {
+												event.stopPropagation();
+												toggleMenu(menu.id);
+											}}
+											class="absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-200 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+											aria-label="Toggle submenu"
+										>
+											<span class="sr-only">Toggle submenu</span>
+											<svg
+												class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'}`}
+												xmlns="http://www.w3.org/2000/svg"
+												width="24"
+												height="24"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											>
+												<path d="m9 18 6-6-6-6" />
+											</svg>
+										</button>
+									</div>
+								{:else}
 									<a
 										href={menu.route}
-										onclick={() => toggleMenu(menu.id)}
-										class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 {isLinkActive(
+										onclick={() => {
+											// When sidebar is collapsed on desktop, clicking a parent menu should expand it
+											// so the user can see its submenus immediately.
+											isSidebarPinned = true;
+											toggleMenu(menu.id);
+										}}
+										class="group flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
 											menu.route
 										)
-											? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-											: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} pr-8 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+											? 'bg-blue-100 text-blue-700'
+											: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
 										title={$t(menu.title)}
 									>
 										<span
-											class="material-symbols-outlined h-5 w-5 flex-shrink-0 transition-transform group-hover:scale-110"
-											>{menu.icon || 'folder'}</span
+											class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
 										>
-										<span
-											class="leading-snug font-medium whitespace-normal transition-all duration-100"
-											>{$t(menu.title)}</span
-										>
+											{menu.icon || 'folder'}
+										</span>
 									</a>
-									<button
-										type="button"
-										onclick={(event) => {
-											event.stopPropagation();
-											toggleMenu(menu.id);
-										}}
-										class="absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-200 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-										aria-label="Toggle submenu"
-									>
-										<span class="sr-only">Toggle submenu</span>
-										<svg
-											class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'}`}
-											xmlns="http://www.w3.org/2000/svg"
-											width="24"
-											height="24"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										>
-											<path d="m9 18 6-6-6-6" />
-										</svg>
-									</button>
-								</div>
+								{/if}
 							{:else}
 								<a
 									href={menu.route}
-									onclick={() => {
-										// When sidebar is collapsed on desktop, clicking a parent menu should expand it
-										// so the user can see its submenus immediately.
-										isSidebarPinned = true;
-										toggleMenu(menu.id);
-									}}
-									class="group flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
-										menu.route
+									class="group flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
+                                {isLinkActive(menu.route)
+										? !(isSidebarExpanded || isSidebarOpen) || isFlyout
+											? 'bg-blue-100 text-blue-700'
+											: 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
+                                focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
+                                {!(isSidebarExpanded || isSidebarOpen) && !isFlyout
+										? 'justify-center'
+										: ''}"
+									title={!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? $t(menu.title) : ''}
+								>
+									<span
+										class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
+									>
+										{menu.icon || 'circle'}
+									</span>
+									<span
+										class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? 'lg:hidden' : ''}`}
+									>
+										{$t(menu.title)}
+									</span>
+								</a>
+							{/if}
+						{:else if menu.children && menu.children.length > 0}
+							{#if !(isSidebarExpanded || isSidebarOpen) && !isFlyout}
+								<div
+									class="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isMenuSectionActive(
+										menu
 									)
 										? 'bg-blue-100 text-blue-700'
 										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
@@ -353,114 +398,70 @@
 								>
 									<span
 										class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
+										>{menu.icon || 'folder'}</span
 									>
-										{menu.icon || 'folder'}
-									</span>
-								</a>
+								</div>
+							{:else}
+								<button
+									type="button"
+									onclick={() => toggleMenu(menu.id)}
+									class="group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none {isMenuSectionActive(
+										menu
+									)
+										? 'bg-blue-100 text-blue-700'
+										: 'text-gray-600'}"
+								>
+									<div class="flex items-center gap-3">
+										<span
+											class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
+											>{menu.icon || 'folder'}</span
+										>
+										<span
+											class="text-left leading-snug font-medium whitespace-normal transition-all duration-100"
+											>{$t(menu.title)}</span
+										>
+									</div>
+									<svg
+										class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'}`}
+										xmlns="http://www.w3.org/2000/svg"
+										width="24"
+										height="24"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<path d="m9 18 6-6-6-6" />
+									</svg>
+								</button>
 							{/if}
 						{:else}
-							<a
-								href={menu.route}
-								class="group flex items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150
-                                {isLinkActive(menu.route)
-									? !(isSidebarExpanded || isSidebarOpen) || isFlyout
-										? 'bg-blue-100 text-blue-700'
-										: 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
-                                focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none
-                                {!(isSidebarExpanded || isSidebarOpen) && !isFlyout
+							<div
+								class="flex items-center gap-3 rounded-lg px-3 py-3 text-gray-400 {!(
+									isSidebarExpanded || isSidebarOpen
+								) && !isFlyout
 									? 'justify-center'
 									: ''}"
 								title={!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? $t(menu.title) : ''}
 							>
-								<span
-									class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
+								<span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+									>{menu.icon || 'circle'}</span
 								>
-									{menu.icon || 'circle'}
-								</span>
 								<span
 									class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? 'lg:hidden' : ''}`}
-								>
-									{$t(menu.title)}
-								</span>
-							</a>
-						{/if}
-					{:else if menu.children && menu.children.length > 0}
-						{#if !(isSidebarExpanded || isSidebarOpen) && !isFlyout}
-							<div
-								class="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isMenuSectionActive(
-									menu
-								)
-									? 'bg-blue-100 text-blue-700'
-									: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
-								title={$t(menu.title)}
-							>
-								<span
-									class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
-									>{menu.icon || 'folder'}</span
+									>{$t(menu.title)}</span
 								>
 							</div>
-						{:else}
-							<button
-								type="button"
-								onclick={() => toggleMenu(menu.id)}
-								class="group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none {isMenuSectionActive(
-									menu
-								)
-									? 'bg-blue-100 text-blue-700'
-									: 'text-gray-600'}"
-							>
-								<div class="flex items-center gap-3">
-									<span
-										class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
-										>{menu.icon || 'folder'}</span
-									>
-									<span
-										class="text-left leading-snug font-medium whitespace-normal transition-all duration-100"
-										>{$t(menu.title)}</span
-									>
-								</div>
-								<svg
-									class={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${openMenuIds.has(menu.id) ? 'rotate-90' : 'rotate-0'}`}
-									xmlns="http://www.w3.org/2000/svg"
-									width="24"
-									height="24"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								>
-									<path d="m9 18 6-6-6-6" />
-								</svg>
-							</button>
 						{/if}
-					{:else}
-						<div
-							class="flex items-center gap-3 rounded-lg px-3 py-3 text-gray-400 {!(
-								isSidebarExpanded || isSidebarOpen
-							) && !isFlyout
-								? 'justify-center'
-								: ''}"
-							title={!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? $t(menu.title) : ''}
-						>
-							<span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
-								>{menu.icon || 'circle'}</span
-							>
-							<span
-								class={`leading-snug font-medium whitespace-normal transition-all duration-100 ${!(isSidebarExpanded || isSidebarOpen) && !isFlyout ? 'lg:hidden' : ''}`}
-								>{$t(menu.title)}</span
-							>
-						</div>
-					{/if}
 
-					{#if menu.children && menu.children.length > 0 && (isSidebarExpanded || isSidebarOpen) && !isFlyout && openMenuIds.has(menu.id)}
-						<div transition:fly={{ y: -10, duration: 300 }}>
-							{@render menuList(menu.children, level + 1)}
-						</div>
-					{/if}
-				</li>
+						{#if menu.children && menu.children.length > 0 && (isSidebarExpanded || isSidebarOpen) && !isFlyout && openMenuIds.has(menu.id)}
+							<div transition:fly={{ y: -10, duration: 300 }}>
+								{@render menuList(menu.children, level + 1)}
+							</div>
+						{/if}
+					</li>
 				{/if}
 			{/each}
 		</ul>
@@ -704,8 +705,7 @@
 														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
 														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 													title={$t('Environment (.env)')}
-													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
-														>tune</span
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0">tune</span
 													><span class="text-sm leading-snug font-medium whitespace-normal"
 														>{$t('Environment (.env)')}</span
 													></a
