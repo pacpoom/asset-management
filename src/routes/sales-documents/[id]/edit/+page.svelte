@@ -149,37 +149,40 @@
 		selectedJobOrderId = selected ? selected.value : '';
 	}
 
-	// Dynamic calculation logic mapped with Amount and Inc VAT
+	// Calculate line items amounts
 	$: calculatedItems = items.map(item => {
 		const rawLineTotal = (item.quantity || 0) * (item.unit_price || 0);
 		let amount = rawLineTotal;
-		let itemVatAmt = 0;
 		
+		// WHT is calculated from the base amount
+		// ถ้ารวม VAT แล้ว ต้องถอด VAT ก่อนเอามาคิด WHT
+		let whtBase = rawLineTotal;
 		if (item.is_vat && vatRate > 0) {
-			amount = rawLineTotal * 100 / (100 + vatRate);
-			itemVatAmt = rawLineTotal - amount;
+			whtBase = rawLineTotal * 100 / (100 + vatRate);
 		}
 		
-		const whtAmt = amount * (item.wht_rate / 100);
+		const whtAmt = whtBase * (item.wht_rate / 100);
 		
 		return {
 			...item,
 			line_total: rawLineTotal,
 			amount: amount,
-			item_vat: itemVatAmt,
 			wht_amount: whtAmt
 		};
 	});
 
 	// --- FIX: VAT Calculation Logic ---
-	// คิด Subtotal จาก Amount ก่อนภาษี
+	// คิด Subtotal จาก Amount ยอดเต็ม
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + item.amount, 0);
 	
 	// นำยอดรวมมาหักส่วนลดก่อน
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
-	// คำนวณ VAT จากยอดทั้งหมดเสมอ (ไม่ขึ้นอยู่กับว่าติ๊กหรือไม่ติ๊กแล้ว)
-	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
+	// คำนวณ VAT เฉพาะรายการที่ไม่ติ๊ก Inc. VAT (is_vat === false)
+	// โดยหาสัดส่วนส่วนลดที่ไปตกกับยอดที่ต้องคิด VAT ก่อน
+	$: excVatTotal = calculatedItems.filter(item => !item.is_vat).reduce((sum, item) => sum + item.amount, 0);
+	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
+	$: vatAmount = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
 	
 	// คำนวณ WHT รวม
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
@@ -579,7 +582,7 @@
 
 			<div class="h-fit w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">{$t('Subtotal')} <span class="text-xs text-gray-400">({$t('Before VAT') || 'Before VAT'})</span></span>
+					<span class="text-gray-600">{$t('Subtotal')}</span>
 					<span class="font-medium">{formatNumber(subtotalBeforeVat)}</span>
 				</div>
 				<div class="flex items-center justify-between text-sm">

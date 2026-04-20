@@ -318,7 +318,8 @@
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#each items as item}
-					{@const amount = item.is_vat ? item.line_total * 100 / (100 + Number(document.vat_rate || 7)) : item.line_total}
+					{@const amount = item.line_total}
+					{@const whtBase = item.is_vat ? item.line_total * 100 / (100 + Number(document.vat_rate || 7)) : item.line_total}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-4 py-4 text-gray-700"
 							><div class="font-medium text-gray-900">{item.description}</div></td
@@ -339,7 +340,7 @@
 							<div class="font-bold text-gray-900">{formatCurrency(item.line_total)}</div>
 							{#if parseFloat(item.wht_rate || '0') > 0}
 								<div class="mt-0.5 text-[10px] text-red-500 font-medium">
-									(-{formatCurrency((amount * parseFloat(item.wht_rate)) / 100)})
+									(-{formatCurrency((whtBase * parseFloat(item.wht_rate)) / 100)})
 								</div>
 							{/if}
 						</td>
@@ -354,7 +355,7 @@
 	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">{$t('Financial Summary')}</h2>
 	<div class="mt-3 w-full space-y-2 text-sm">
 		<div class="flex items-center justify-between">
-			<span class="font-medium text-gray-600">{$t('Subtotal')} <span class="text-xs text-gray-400">({$t('Before VAT') || 'Before VAT'})</span>:</span>
+			<span class="font-medium text-gray-600">{$t('Subtotal')}:</span>
 			<span class="font-medium text-gray-800">{formatCurrency(document.subtotal)}</span>
 		</div>
 

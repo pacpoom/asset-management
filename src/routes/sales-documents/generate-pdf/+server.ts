@@ -278,21 +278,22 @@ function getInvoiceHtml(
 	const activeRates = new Set<number>();
 
 	itemsData.forEach((item) => {
-        // Calculate amount mapping with Svelte logic
+        // Amount สำหรับโชว์ในตารางใช้ค่า line_total ตรงๆ
         const rawLineTotal = Number(item.line_total) || 0;
         let amount = rawLineTotal;
-
-        if (item.is_vat) {
-            amount = rawLineTotal * 100 / (100 + vatRate);
-        }
 
 		const rate = Number(item.wht_rate || 0);
 		if (rate > 0) {
 			activeRates.add(rate);
-			calculatedWhtAmt += amount * (rate / 100);
+            
+            // คำนวณฐานภาษีหัก ณ ที่จ่าย (ถ้า is_vat ถอดภาษีออกก่อน)
+            let whtBase = rawLineTotal;
+            if (item.is_vat) {
+                whtBase = rawLineTotal * 100 / (100 + vatRate);
+            }
+			calculatedWhtAmt += whtBase * (rate / 100);
 		}
         
-        // Attach amount for HTML rendering
         item.amount = amount;
 	});
 
