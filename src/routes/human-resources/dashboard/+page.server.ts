@@ -250,7 +250,7 @@ export const actions: Actions = {
 				const raw_id = cols[1]?.trim();
 				const dateRaw = cols[3]?.trim();
 				const timeInRaw = cols[4]?.trim();
-				const timeOutRaw =
+				let timeOutRaw =
 					cols.length > 5 && cols[5]?.trim() !== '' ? cols[5]?.replace('\r', '')?.trim() : null;
 
 				if (!raw_id || !dateRaw || !timeInRaw) continue;
@@ -278,7 +278,21 @@ export const actions: Actions = {
 				};
 
 				const inMins = timeToMins(timeInRaw);
-				const outMins = timeOutRaw ? timeToMins(timeOutRaw) : 0;
+				let outMins = timeOutRaw ? timeToMins(timeOutRaw) : 0;
+
+				// 🌟 เพิ่ม Logic ตัดการสแกนซ้ำภายใน 60 นาที
+				if (timeOutRaw) {
+					// หาความห่างของเวลาเข้าและออก
+					let diff = outMins - inMins;
+					// ถ้าเป็นกะดึก (ข้ามวัน) ให้บวก 24 ชม. (1440 นาที)
+					if (diff < 0) diff += 1440;
+
+					// ถ้าน้อยกว่า 60 นาที ให้ถือว่าเป็นการสแกนลั่น ให้ลบเวลาออกทิ้งไป
+					if (diff < 60) {
+						timeOutRaw = null;
+						outMins = 0;
+					}
+				}
 
 				let shiftType = 'Day';
 				let isLate = inMins > 460 ? 1 : 0;

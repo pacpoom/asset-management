@@ -53,6 +53,21 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			`SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-' ORDER BY emp_group ASC`
 		);
 
+		const [company]: any = await pool.execute(`SELECT logo_path FROM company LIMIT 1`);
+
+		return {
+			requests: requests,
+			sections: sections.map((s: any) => s.section),
+			positions: positions.map((p: any) => p.position_name),
+			usersList: usersList.map((u: any) => u.full_name),
+			divisions: divisions.map((d: any) => d.division),
+			groups: groups.map((g: any) => g.emp_group),
+			searchQuery: search,
+			statusFilter: statusFilter,
+			user: user,
+			companyLogo: company.length > 0 ? company[0].logo_path : null
+		};
+
 		return {
 			requests: requests,
 			sections: sections.map((s: any) => s.section),
