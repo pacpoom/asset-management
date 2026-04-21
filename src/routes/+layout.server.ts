@@ -77,6 +77,39 @@ function buildMenuTree(menus: Menu[]): Menu[] {
 	return rootMenus;
 }
 
+/** Legacy DB menu titles to hide everywhere (whole branch). Kept in code so sidebars stay clean without an immediate DB cleanup. */
+const RETIRED_MENU_ROOT_TITLE_KEYS = new Set(['iso document center']);
+
+function excludeRetiredMenuBranches(menus: Menu[]): Menu[] {
+	if (!menus.length) return menus;
+	const byParent = new Map<number | null, Menu[]>();
+	for (const m of menus) {
+		const pid = m.parent_id ?? null;
+		const list = byParent.get(pid) ?? [];
+		list.push(m);
+		byParent.set(pid, list);
+	}
+	const removed = new Set<number>();
+	const queue: number[] = [];
+	for (const m of menus) {
+		if (RETIRED_MENU_ROOT_TITLE_KEYS.has(m.title.trim().toLowerCase())) {
+			removed.add(m.id);
+			queue.push(m.id);
+		}
+	}
+	while (queue.length) {
+		const id = queue.pop()!;
+		const kids = byParent.get(id) ?? [];
+		for (const ch of kids) {
+			if (!removed.has(ch.id)) {
+				removed.add(ch.id);
+				queue.push(ch.id);
+			}
+		}
+	}
+	return menus.filter((m) => !removed.has(m.id));
+}
+
 /**
  * LayoutServerLoad function to check login status and load dynamic,
  * permission-based menus for the sidebar on every page.
@@ -146,6 +179,7 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 				[menuRows] = await pool.execute<Menu[]>(query, params);
 			}
 			let flat = menuRows as Menu[];
+			flat = excludeRetiredMenuBranches(flat);
 			// Drop NULL-permission items when their parent was not loaded (stops "Workforce" branch
 			// showing via a free child). Keep rows with explicit permission even if an ancestor is
 			// missing so deep trees still work with the single-level parent subquery.

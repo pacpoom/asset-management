@@ -8,11 +8,12 @@ type SessionUser = {
 	permissions: string[];
 };
 
-/** โหลด dashboard หลัก (/) ได้เมื่อเป็น admin หรือมีสิทธิ์ view dashboard */
+/** โหลด dashboard หลัก (/) ได้เมื่อเป็น admin หรือมีสิทธิ์ view dashboard / view dashboard news */
 export function shouldLoadAssetDashboard(user: SessionUser | null): boolean {
 	if (!user) return false;
 	if (userHasAdminRole(user)) return true;
-	return user.permissions?.includes('view dashboard') ?? false;
+	const p = user.permissions ?? [];
+	return p.includes('view dashboard') || p.includes('view dashboard news');
 }
 
 /**
@@ -23,6 +24,7 @@ export function getFallbackHomePath(user: SessionUser | null): string {
 	if (!user) return '/login';
 	const p = new Set(user.permissions ?? []);
 
+	if (p.has('view dashboard news') || p.has('view dashboard')) return '/';
 	if (p.has('view isodocs')) return '/isodocs-control';
 	if (hasDarListAccess(user)) return '/isodocs-control/dar-list';
 	if (p.has('manage isodocs flow')) return '/isodocs-control/approval-flow';

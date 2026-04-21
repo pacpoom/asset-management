@@ -50,10 +50,15 @@ type IncomingStep = {
 };
 
 async function pickFallbackDocumentTypeId(connection: PoolConnection): Promise<number> {
-	const [rows] = await connection.execute<RowDataPacket[]>(
+	// Prefer active type; if none active, fallback to the first existing type.
+	const [activeRows] = await connection.execute<RowDataPacket[]>(
 		`SELECT id FROM iso_document_types WHERE is_active = 1 ORDER BY id ASC LIMIT 1`
 	);
-	return Number(rows[0]?.id || 0);
+	if (activeRows.length > 0) return Number(activeRows[0]?.id || 0);
+	const [anyRows] = await connection.execute<RowDataPacket[]>(
+		`SELECT id FROM iso_document_types ORDER BY id ASC LIMIT 1`
+	);
+	return Number(anyRows[0]?.id || 0);
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -195,7 +200,38 @@ export const actions: Actions = {
 		const connection = await pool.getConnection();
 		try {
 			await connection.beginTransaction();
-			const fallbackTypeId = await pickFallbackDocumentTypeId(connection);
+			let fallbackTypeId = await pickFallbackDocumentTypeId(connection);
+			if (!fallbackTypeId) {
+				// First-time bootstrap: create one active document type so approval flow can be saved.
+				try {
+					const [seedResult] = await connection.execute<ResultSetHeader>(
+						`INSERT INTO iso_document_types
+						 (code, name, prefix, description, is_active, created_by)
+						 VALUES (?, ?, ?, ?, 1, ?)`,
+						[
+							'GEN',
+							'General',
+							'GEN',
+							'Auto-created default type for approval flow',
+							locals.user?.id || null
+						]
+					);
+					fallbackTypeId = Number(seedResult.insertId || 0);
+				} catch (seedErr: any) {
+					if (seedErr?.code === 'ER_BAD_FIELD_ERROR') {
+						// Older schema: no `description` column yet.
+						const [seedResultNoDesc] = await connection.execute<ResultSetHeader>(
+							`INSERT INTO iso_document_types
+							 (code, name, prefix, is_active, created_by)
+							 VALUES (?, ?, ?, 1, ?)`,
+							['GEN', 'General', 'GEN', locals.user?.id || null]
+						);
+						fallbackTypeId = Number(seedResultNoDesc.insertId || 0);
+					} else {
+						throw seedErr;
+					}
+				}
+			}
 
 			let targetFlowId = flowId;
 			if (flowId > 0) {
@@ -228,23 +264,55 @@ export const actions: Actions = {
 					return fail(400, {
 						success: false,
 						action: 'saveFlow',
-						message: 'No active document type found in master data.'
+						message: 'No document type found in master data.'
 					});
 				}
-				const [insertResult] = await connection.execute<ResultSetHeader>(
-					`INSERT INTO iso_approval_flows
-					 (name, department_id, iso_document_type_id, is_active, qmr_user_ids_json, created_by)
-					 VALUES (?, ?, ?, ?, ?, ?)`,
-					[
-						name,
-						departmentId,
-						fallbackTypeId,
-						isActive,
-						JSON.stringify(Array.from(new Set(qmrUserIds))),
-						locals.user?.id || null
-					]
+
+				// Department-only mode: if the department already has a flow, update it instead of duplicate insert.
+				const [existingByDeptRows] = await connection.execute<RowDataPacket[]>(
+					`SELECT id, iso_document_type_id
+					 FROM iso_approval_flows
+					 WHERE department_id = ?
+					 ORDER BY id ASC
+					 LIMIT 1`,
+					[departmentId]
 				);
-				targetFlowId = Number(insertResult.insertId);
+
+				if (existingByDeptRows.length > 0) {
+					targetFlowId = Number(existingByDeptRows[0].id);
+					const keepTypeId = Number(existingByDeptRows[0].iso_document_type_id || fallbackTypeId || 0);
+					await connection.execute(
+						`UPDATE iso_approval_flows
+						 SET name = ?, iso_document_type_id = ?, is_active = ?, qmr_user_ids_json = ?
+						 WHERE id = ?`,
+						[
+							name,
+							keepTypeId || null,
+							isActive,
+							JSON.stringify(Array.from(new Set(qmrUserIds))),
+							targetFlowId
+						]
+					);
+					await connection.execute(
+						`DELETE FROM iso_approval_flow_steps WHERE iso_approval_flow_id = ?`,
+						[targetFlowId]
+					);
+				} else {
+					const [insertResult] = await connection.execute<ResultSetHeader>(
+						`INSERT INTO iso_approval_flows
+						 (name, department_id, iso_document_type_id, is_active, qmr_user_ids_json, created_by)
+						 VALUES (?, ?, ?, ?, ?, ?)`,
+						[
+							name,
+							departmentId,
+							fallbackTypeId,
+							isActive,
+							JSON.stringify(Array.from(new Set(qmrUserIds))),
+							locals.user?.id || null
+						]
+					);
+					targetFlowId = Number(insertResult.insertId);
+				}
 			}
 
 			for (const s of incomingSteps.sort((a, b) => a.step_no - b.step_no)) {
