@@ -7,11 +7,9 @@
 	import { t, locale } from '$lib/i18n';
 
 	export let data: PageData;
-	// 🌟 รับข้อมูลจาก Server (เอา deliveryAddresses ออกจาก Reactive เพื่อป้องกันปัญหา undefined ตอนโหลด)
 	$: ({ vendors, vendorContacts, units, jobOrders, prefillData, vendorContractsData } = data);
 	
 	let localProducts = data.products || [];
-	// ✅ แก้ไข: ดึงข้อมูลจาก data.deliveryAddresses โดยตรงแบบเดียวกับ products
 	let localAddresses = data.deliveryAddresses || [];
 
 	$: vendorOptions = vendors.map((v: any) => ({
@@ -35,19 +33,15 @@
 	let selectedVendorObj: any = null;
 	let selectedVendorId: string | number = '';
 	
-	// Vendor Contact
 	let selectedContactObj: any = null;
 	let selectedContactId: string | number = '';
 
-	// Job Order
 	let selectedJobObj: any = null;
 	let selectedJobId: string | number = '';
 	
-	// Vendor Contract
 	let selectedContractObj: any = null;
 	let selectedContractId: string | number = '';
 
-	// 🌟 สถานที่จัดส่ง
 	let selectedDeliveryAddressId: string | number = '';
 
 	let referenceDoc = '';
@@ -65,11 +59,10 @@
 			unit_price: 0,
 			line_total: 0,
 			wht_rate: 0,
-			is_vat: true
+			vat_type: 2 // 1=Inc Vat, 2=Exc Vat, 3=Non Vat
 		}
 	];
 
-	// 🌟 กรอง Contact เฉพาะของ Vendor ที่เลือก
 	$: filteredContacts = selectedVendorId
 		? vendorContacts?.filter((c: any) => c.vendor_id == selectedVendorId) || []
 		: [];
@@ -79,7 +72,6 @@
 		label: `${c.name} ${c.position ? `(${c.position})` : ''}`
 	}));
 
-	// 🌟 กรอง Vendor Contracts ให้แสดงเฉพาะของ Vendor ที่เลือก
 	$: filteredContracts = selectedVendorId 
 		? (vendorContractsData || []).filter((c: any) => c.vendor_id == selectedVendorId)
 		: [];
@@ -89,7 +81,6 @@
 		label: `${c.title} ${c.contract_number ? `(${c.contract_number})` : ''}`
 	}));
 
-	// กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือก
 	$: availableJobOrders = selectedVendorId 
 		? (jobOrders || []).filter((j: any) => j.vendor_id == selectedVendorId)
 		: [];
@@ -125,8 +116,6 @@
 			
 			selectedContactId = prefillData.document.vendor_contact_id || '';
 			selectedContractId = prefillData.document.contract_id || '';
-			
-			// โหลดที่อยู่จัดส่งเดิมถ้ามี
 			selectedDeliveryAddressId = prefillData.document.delivery_address_id || '';
 
 			setTimeout(() => {
@@ -151,7 +140,7 @@
 						unit_price: parseFloat(item.unit_price || 0),
 						line_total: parseFloat(item.line_total || 0),
 						wht_rate: parseFloat(item.wht_rate || 0),
-						is_vat: item.is_vat !== undefined ? !!item.is_vat : true
+						vat_type: item.vat_type !== undefined ? Number(item.vat_type) : (item.is_vat ? 2 : 3)
 					};
 				});
 			}
@@ -171,30 +160,56 @@
 		selectedVendorObj = selected;
 		selectedVendorId = selected ? selected.value : '';
 		
-		// เคลียร์ค่า Contact, Job Order และ Contract เมื่อเปลี่ยน Vendor
 		selectedContactId = ''; 
 		selectedContactObj = null;
-
 		selectedJobId = '';
 		selectedJobObj = null;
-
 		selectedContractId = '';
 		selectedContractObj = null;
 	}
 
+	// === ระบบคำนวณภาษี 3 รูปแบบ ===
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
-	$: subtotalVatable = items.reduce((sum, item) => sum + (item.is_vat ? (item.line_total || 0) : 0), 0);
-	$: vatableRatio = subtotal > 0 ? (subtotalVatable / subtotal) : 0;
-	$: vatableAfterDiscount = Math.max(0, subtotalVatable - (discountAmount * vatableRatio));
-	
+	$: discountRatio = subtotal > 0 ? (discountAmount / subtotal) : 0;
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
-	$: vatAmount = (vatableAfterDiscount * vatRate) / 100;
+
+	// คำนวณ VAT Exc (ภาษีมูลค่าเพิ่มที่ต้องบวกเพิ่มจากยอด)
+	$: addedVat = items.reduce((sum, item) => {
+		if (Number(item.vat_type) === 2) { // 2 = Exc Vat
+			const discountedLineTotal = (item.line_total || 0) * (1 - discountRatio);
+			return sum + (discountedLineTotal * vatRate / 100);
+		}
+		return sum;
+	}, 0);
+
+	// คำนวณ VAT Inc (ภาษีมูลค่าเพิ่มที่แฝงอยู่ในยอด ถอดออกมาเพื่อโชว์เฉยๆ)
+	$: extractedVat = items.reduce((sum, item) => {
+		if (Number(item.vat_type) === 1) { // 1 = Inc Vat
+			const discountedLineTotal = (item.line_total || 0) * (1 - discountRatio);
+			return sum + (discountedLineTotal - (discountedLineTotal * 100 / (100 + vatRate)));
+		}
+		return sum;
+	}, 0);
+
+	// VAT รวมทั้งเอกสาร (เพื่อไปแสดงผล)
+	$: vatAmount = addedVat + extractedVat;
 	
-	$: whtAmount = items.reduce(
-		(sum, item) => sum + (item.line_total || 0) * (item.wht_rate / 100),
-		0
-	);
-	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+	// หัก ณ ที่จ่าย (WHT) ต้องคิดจากยอด "ก่อน VAT" เท่านั้น
+	$: whtAmount = items.reduce((sum, item) => {
+		const rate = item.wht_rate || 0;
+		if (rate === 0) return sum;
+
+		const discountedLineTotal = (item.line_total || 0) * (1 - discountRatio);
+		let baseAmountForWht = discountedLineTotal;
+		
+		if (Number(item.vat_type) === 1) { // ถ้ารวม VAT แล้ว ต้องถอด VAT ออกก่อนคิด WHT
+			baseAmountForWht = discountedLineTotal * 100 / (100 + vatRate);
+		}
+		return sum + (baseAmountForWht * rate / 100);
+	}, 0);
+
+	// ยอดสุทธิ = (ยอดรวมหลังหักส่วนลด) + (VAT ที่ต้องบวกเพิ่ม) - หัก ณ ที่จ่าย
+	$: grandTotal = totalAfterDiscount + addedVat - whtAmount;
 	$: itemsJson = JSON.stringify(items);
 
 	function addItem() {
@@ -209,7 +224,7 @@
 				unit_price: 0,
 				line_total: 0,
 				wht_rate: 0,
-				is_vat: true
+				vat_type: 2
 			}
 		];
 	}
@@ -229,16 +244,16 @@
 			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
-			items[index].unit_id = product.unit_id;
+			items[index].unit_id = product.unit_id ? Number(product.unit_id) : null;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
-			items[index].is_vat = true;
+			items[index].vat_type = 2; // Default Exc Vat
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
 			items[index].wht_rate = 0;
-			items[index].is_vat = true;
+			items[index].vat_type = 2;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -446,7 +461,7 @@
 				<input type="hidden" name="job_id" value={selectedJobId} />
 			</div>
 
-			<!-- 🌟 เพิ่ม Delivery Address Dropdown + Button Modal -->
+			<!-- Delivery Address Dropdown + Button Modal -->
 			<div class="relative z-[20] md:col-span-1">
 				<div class="mb-1 flex items-center justify-between">
 					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700"
@@ -534,7 +549,6 @@
 				</div>
 			</div>
 
-			<!-- 🌟 จัด Layout Reference Doc และ Delivery Address ให้เท่ากัน (1 col) -->
 			<div class="relative z-[20] md:col-span-1">
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Other Reference (PO/Ref)')}</label
@@ -569,15 +583,15 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-32 px-4 py-2 text-left font-medium">{$t('Product/Service')}</th>
+							<th class="w-25 px-4 py-2 text-left font-medium">{$t('Product/Service')}</th>
 							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
-							<th class="w-28 px-3 py-2 text-right">{$t('Quantity')}</th>
-							<th class="w-32 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-32 px-3 py-2 text-right">{$t('Unit Price')}</th>
-							<th class="w-32 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
+							<th class="w-30 px-3 py-2 text-right">{$t('Quantity')}</th>
+							<th class="w-30 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-35 px-3 py-2 text-right">{$t('Unit Price')}</th>
+							<th class="w-35 px-3 py-2 text-center text-blue-600">{$t('VAT')}</th>
 							<th class="w-28 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
 							<th class="w-32 px-3 py-2 text-right">{$t('Total')}</th>
-							<th class="w-10 px-3 py-2"></th>
+							<th class="w-3 px-3 py-2"></th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
@@ -601,13 +615,12 @@
 								<td class="w-80 px-2 py-2">
 									<textarea
 										bind:value={item.description}
-										title={item.description}
 										rows="2"
 										class="w-full rounded-md border-gray-300 text-sm min-h-[38px] resize-y"
 										required
 									></textarea>
 								</td>
-								<td class="w-5 px-2 py-2">
+								<td class="px-2 py-2">
 									<input
 										type="number"
 										bind:value={item.quantity}
@@ -617,7 +630,7 @@
 										required
 									/>
 								</td>
-								<td class="w-5 px-2 py-2">
+								<td class="px-2 py-2">
 									<select
 										bind:value={item.unit_id}
 										class="w-full rounded-md border-gray-300 py-1.5 text-center text-sm"
@@ -626,7 +639,7 @@
 										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
-								<td class="w-5 px-2 py-2">
+								<td class="px-2 py-2">
 									<input
 										type="number"
 										step="0.01"
@@ -636,13 +649,14 @@
 										required
 									/>
 								</td>
-								<td class="w-15 px-1 py-1">
+								<td class="px-1 py-1">
 									<select
-										bind:value={item.is_vat}
+										bind:value={item.vat_type}
 										class="w-full rounded-md border-blue-200 bg-blue-50 py-1.5 text-center text-sm font-bold text-blue-700"
 									>
-										<option value={true}>VAT 7%</option>
-										<option value={false}>-</option>
+										<option value={1}>Inc Vat</option>
+										<option value={2}>Exc Vat</option>
+										<option value={3}>Non Vat</option>
 									</select>
 								</td>
 								<td class="px-2 py-2">

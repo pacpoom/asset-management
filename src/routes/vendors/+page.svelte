@@ -73,7 +73,15 @@
 				? userOptions.find((o: any) => o.value === vendor.assigned_to_user_id) || null
 				: null;
 		} else {
-			selectedVendor = { name: '', company_name: null, assigned_to_user_id: undefined };
+			// [แก้ไข] กำหนดค่าเริ่มต้นให้กับฟิลด์ใหม่ตอน Add
+			selectedVendor = { 
+				name: '', 
+				company_name: null, 
+				tax_type: 'corporate', 
+				credit_limit: null, 
+				credit_terms_days: null,
+				assigned_to_user_id: undefined 
+			};
 			selectedUserObj = null;
 		}
 	}
@@ -470,16 +478,58 @@
 								/>
 							</div>
 						</div>
-						<div>
-							<label for="tax_id" class="block text-sm font-medium">{$t('Tax ID')}</label>
-							<input
-								type="text"
-								name="tax_id"
-								id="tax_id"
-								bind:value={selectedVendor.tax_id}
-								class="w-full rounded-md border-gray-300"
-							/>
+						
+						<!-- [เพิ่ม] ประเภทภาษี, วงเงิน, และเครดิตเทอม -->
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label for="tax_id" class="block text-sm font-medium">{$t('Tax ID')}</label>
+								<input
+									type="text"
+									name="tax_id"
+									id="tax_id"
+									bind:value={selectedVendor.tax_id}
+									class="w-full rounded-md border-gray-300"
+								/>
+							</div>
+							<div>
+								<label for="tax_type" class="block text-sm font-medium">{$t('Tax Type')}</label>
+								<select
+									name="tax_type"
+									id="tax_type"
+									bind:value={selectedVendor.tax_type}
+									class="w-full rounded-md border-gray-300 bg-white"
+								>
+									<option value="corporate">{$t('Corporate')}</option>
+									<option value="individual">{$t('Individual')}</option>
+								</select>
+							</div>
 						</div>
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label for="credit_limit" class="block text-sm font-medium">{$t('Credit Limit')}</label>
+								<input
+									type="number"
+									step="0.01"
+									name="credit_limit"
+									id="credit_limit"
+									bind:value={selectedVendor.credit_limit}
+									class="w-full rounded-md border-gray-300"
+									placeholder="0.00"
+								/>
+							</div>
+							<div>
+								<label for="credit_terms_days" class="block text-sm font-medium">{$t('Credit Terms (Days)')}</label>
+								<input
+									type="number"
+									name="credit_terms_days"
+									id="credit_terms_days"
+									bind:value={selectedVendor.credit_terms_days}
+									class="w-full rounded-md border-gray-300"
+									placeholder="e.g. 30"
+								/>
+							</div>
+						</div>
+						
 						<div>
 							<label for="address" class="block text-sm font-medium">{$t('Address')}</label>
 							<textarea
@@ -519,7 +569,7 @@
 				</form>
 
 				{#if modalMode === 'edit' && selectedVendor.id}
-					<!-- [เพิ่ม] ส่วนจัดการผู้ติดต่อ (Contact Persons) -->
+					<!-- ส่วนจัดการผู้ติดต่อ (Contact Persons) -->
 					<div class="border-t bg-gray-50 px-6 py-4">
 						<h3 class="mb-3 text-sm font-semibold text-gray-800">{$t('Contact Persons')}</h3>
 						

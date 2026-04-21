@@ -12,14 +12,13 @@
 		existingAttachments,
 		vendors,
 		vendorContacts,
-		vendorContractsData, // 🌟 เพิ่ม Data สำหรับ Contracts
+		vendorContractsData,
 		products,
 		units,
 		jobOrders,
 		deliveryAddresses
 	} = data);
 
-	// ✅ แก้ไข: ดึงข้อมูลจาก data.deliveryAddresses โดยตรงเพื่อป้องกันปัญหา undefined ในตอนเริ่มต้น (ทำให้ออปชันใน Select หาย)
 	let localAddresses = data.deliveryAddresses || [];
 	let localProducts = data.products || [];
 
@@ -44,16 +43,17 @@
 		unit_price: number;
 		line_total: number;
 		wht_rate: number;
-		is_vat: boolean; 
+		vat_type: number; 
 	}
 
 	let documentDate = '';
 	let dueDate = '';
-	let deliveryDate = ''; // 🌟 เพิ่มตัวแปร Delivery Date
+	let deliveryDate = '';
 	let creditTerm: number | null = 0;
 	let items: DocumentItem[] = [];
 	let discountAmount = 0;
 	let vatRate = 7;
+	let referenceDoc = '';
 
 	let selectedVendorObj: any = null;
 	let selectedVendorId: string | number = '';
@@ -62,14 +62,13 @@
 	let selectedContactId: string | number = '';
 
 	let selectedContractObj: any = null;
-	let selectedContractId: string | number = ''; // 🌟 เพิ่มตัวแปรสำหรับ Contract
+	let selectedContractId: string | number = '';
 
 	let selectedDeliveryAddressId: string | number = '';
 
 	let selectedJobObj: any = null;
 	let selectedJobId: string | number = '';
 
-	// กรอง Contact ตาม Vendor
 	$: filteredContacts = selectedVendorId
 		? vendorContacts?.filter((c: any) => c.vendor_id == selectedVendorId) || []
 		: [];
@@ -79,7 +78,6 @@
 		label: `${c.name} ${c.position ? `(${c.position})` : ''}`
 	}));
 
-	// 🌟 กรอง Vendor Contracts ตาม Vendor
 	$: filteredContracts = selectedVendorId 
 		? (vendorContractsData || []).filter((c: any) => c.vendor_id == selectedVendorId)
 		: [];
@@ -89,7 +87,6 @@
 		label: `${c.title} ${c.contract_number ? `(${c.contract_number})` : ''}`
 	}));
 
-	// กรอง Job Order ให้แสดงเฉพาะของ Vendor ที่เลือก
 	$: availableJobOrders = selectedVendorId 
 		? (jobOrders || []).filter((j: any) => j.vendor_id == selectedVendorId)
 		: [];
@@ -107,23 +104,22 @@
 			maximumFractionDigits: 2
 		}).format(amount || 0);
 
-	// ไฮเดรตข้อมูลหัวเอกสาร
 	let initializedDocId: number | null = null;
 	$: if (document && document.id !== initializedDocId) {
 		initializedDocId = document.id;
 		documentDate = new Date(document.document_date).toISOString().split('T')[0];
 		dueDate = document.due_date ? new Date(document.due_date).toISOString().split('T')[0] : '';
-		deliveryDate = document.delivery_date ? new Date(document.delivery_date).toISOString().split('T')[0] : ''; // 🌟 โหลด Delivery Date
+		deliveryDate = document.delivery_date ? new Date(document.delivery_date).toISOString().split('T')[0] : '';
 		creditTerm = document.credit_term !== null ? Number(document.credit_term) : 0;
 		discountAmount = parseFloat(document.discount_amount || '0');
 		vatRate = parseFloat(document.vat_rate || '7');
+		referenceDoc = document.reference_doc || '';
 		
 		selectedVendorId = document.vendor_id;
 		selectedVendorObj = vendorOptions.find((v: any) => v.value == selectedVendorId) || null;
 
 		selectedDeliveryAddressId = document.delivery_address_id || '';
 
-		// โหลดข้อมูล Contact
 		selectedContactId = document.vendor_contact_id || '';
 		if (selectedContactId && vendorContacts) {
 			const foundContact = vendorContacts.find((c: any) => c.id == selectedContactId);
@@ -135,7 +131,6 @@
 			}
 		}
 
-		// โหลดข้อมูล Contract
 		selectedContractId = document.contract_id || '';
 		if (selectedContractId && vendorContractsData) {
 			const foundContract = vendorContractsData.find((c: any) => c.id == selectedContractId);
@@ -147,7 +142,6 @@
 			}
 		}
 
-		// โหลดข้อมูล Job Order
 		if (document.job_id) {
 			selectedJobId = document.job_id;
 			const foundJob = jobOrders.find((j: any) => j.id == document.job_id);
@@ -164,7 +158,6 @@
 		}
 	}
 
-	// อัพเดท Object เมื่อมีการเปลี่ยน Option จาก Dropdown
 	$: if (selectedContactId && contactOptions.length > 0) {
 		if (!selectedContactObj || selectedContactObj.value !== selectedContactId) {
 			selectedContactObj = contactOptions.find((c: any) => c.value == selectedContactId) || null;
@@ -181,7 +174,6 @@
 		selectedContractObj = null;
 	}
 
-	// ไฮเดรตข้อมูลรายการสินค้า 
 	let initializedItemsDocId: number | null = null;
 	$: if (existingItems && document && document.id !== initializedItemsDocId) {
 		initializedItemsDocId = document.id;
@@ -195,6 +187,10 @@
 					}
 				: null;
 
+			const resolvedVatType = item.vat_type !== undefined 
+				? Number(item.vat_type) 
+				: (item.is_vat ? 2 : 3);
+
 			return {
 				product_object: productObj,
 				product_id: item.product_id ? Number(item.product_id) : null,
@@ -204,23 +200,47 @@
 				unit_price: parseFloat(item.unit_price || '0'),
 				line_total: parseFloat(item.line_total || '0'),
 				wht_rate: parseFloat(item.wht_rate || '0'),
-				is_vat: item.is_vat !== undefined ? !!item.is_vat : true 
+				vat_type: resolvedVatType
 			};
 		});
 	}
 
 	$: subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
-	$: subtotalVatable = items.reduce((sum, item) => sum + (item.is_vat ? (item.line_total || 0) : 0), 0);
-	$: vatableRatio = subtotal > 0 ? (subtotalVatable / subtotal) : 0;
-	$: vatableAfterDiscount = Math.max(0, subtotalVatable - (discountAmount * vatableRatio));
-	
+	$: discountRatio = subtotal > 0 ? (discountAmount / subtotal) : 0;
 	$: totalAfterDiscount = Math.max(0, subtotal - discountAmount);
-	$: vatAmount = (vatableAfterDiscount * vatRate) / 100;
-	$: whtAmount = items.reduce(
-		(sum, item) => sum + (item.line_total || 0) * (item.wht_rate / 100),
-		0
-	);
-	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+
+	$: addedVat = items.reduce((sum, item) => {
+		if (Number(item.vat_type) === 2) { 
+			const discountedLineTotal = (item.line_total || 0) * (1 - discountRatio);
+			return sum + (discountedLineTotal * vatRate / 100);
+		}
+		return sum;
+	}, 0);
+
+	$: extractedVat = items.reduce((sum, item) => {
+		if (Number(item.vat_type) === 1) { 
+			const discountedLineTotal = (item.line_total || 0) * (1 - discountRatio);
+			return sum + (discountedLineTotal - (discountedLineTotal * 100 / (100 + vatRate)));
+		}
+		return sum;
+	}, 0);
+
+	$: vatAmount = addedVat + extractedVat;
+	
+	$: whtAmount = items.reduce((sum, item) => {
+		const rate = item.wht_rate || 0;
+		if (rate === 0) return sum;
+
+		const discountedLineTotal = (item.line_total || 0) * (1 - discountRatio);
+		let baseAmountForWht = discountedLineTotal;
+		
+		if (Number(item.vat_type) === 1) {
+			baseAmountForWht = discountedLineTotal * 100 / (100 + vatRate);
+		}
+		return sum + (baseAmountForWht * rate / 100);
+	}, 0);
+
+	$: grandTotal = totalAfterDiscount + addedVat - whtAmount;
 	$: itemsJson = JSON.stringify(items);
 
 	function addItem() {
@@ -235,7 +255,7 @@
 				unit_price: 0,
 				line_total: 0,
 				wht_rate: 0,
-				is_vat: true 
+				vat_type: 2
 			}
 		];
 	}
@@ -255,16 +275,16 @@
 			items[index].product_id = product.id;
 			items[index].description = product.name;
 			items[index].unit_price = parseFloat(product.price) || 0;
-			items[index].unit_id = product.unit_id;
+			items[index].unit_id = product.unit_id ? Number(product.unit_id) : null;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
-			items[index].is_vat = true; 
+			items[index].vat_type = 2; 
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
 			items[index].wht_rate = 0;
-			items[index].is_vat = true;
+			items[index].vat_type = 2;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -282,13 +302,10 @@
 		selectedVendorObj = selected;
 		selectedVendorId = selected ? selected.value : '';
 		
-		// 🌟 เคลียร์ค่า Contact, Contract และ Job Order เมื่อเปลี่ยน Vendor
 		selectedContactId = ''; 
 		selectedContactObj = null;
-
 		selectedContractId = '';
 		selectedContractObj = null;
-
 		selectedJobId = '';
 		selectedJobObj = null;
 	}
@@ -300,11 +317,11 @@
 
 	let isSaving = false;
 
-	// Address Management
 	let showAddressModal = false;
 	let addressModalMode: 'list' | 'form' = 'list';
 	let isSavingAddress = false;
 	let isDeletingAddressId: number | null = null;
+	let toastMessage = '';
 
 	let addressFormData = {
 		id: null as number | null,
@@ -313,7 +330,6 @@
 		contact_name: '',
 		contact_phone: ''
 	};
-	let toastMessage = '';
 
 	function showToast(msg: string) {
 		toastMessage = msg;
@@ -380,6 +396,7 @@
 			};
 		}}
 	>
+		<!-- 🌟 หัวเอกสาร (Header Form) ดึงกลับมาครบถ้วนเหมือนหน้า Create แล้ว -->
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div class="relative z-[60]">
 				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-700"
@@ -517,7 +534,7 @@
 				</select>
 			</div>
 
-			<!-- 🌟 เพิ่ม Delivery Date และปรับเป็น 4 คอลัมน์ -->
+			<!-- Dates Setup -->
 			<div class="relative z-[30] grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-4">
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
@@ -585,7 +602,7 @@
 					type="text"
 					id="reference_doc"
 					name="reference_doc"
-					value={document?.reference_doc || ''}
+					bind:value={referenceDoc}
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500"
 					placeholder={$t('e.g. PR-2023...')}
 				/>
@@ -667,11 +684,12 @@
 								</td>
 								<td class="w-15 px-1 py-1">
 									<select
-										bind:value={item.is_vat}
+										bind:value={item.vat_type}
 										class="w-full rounded-md border-blue-200 bg-blue-50 py-1.5 text-center text-sm font-bold text-blue-700"
 									>
-										<option value={true}>VAT 7%</option>
-										<option value={false}>-</option>
+										<option value={1}>Inc Vat</option>
+										<option value={2}>Exc Vat</option>
+										<option value={3}>Non Vat</option>
 									</select>
 								</td>
 								<td class="px-2 py-2">

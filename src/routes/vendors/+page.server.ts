@@ -15,6 +15,9 @@ interface Vendor extends RowDataPacket {
 	phone: string | null;
 	address: string | null;
 	tax_id: string | null;
+	tax_type: 'corporate' | 'individual' | null; // [เพิ่ม] ประเภทภาษี
+	credit_limit: number | null; // [เพิ่ม] วงเงิน
+	credit_terms_days: number | null; // [เพิ่ม] เครดิต (วัน)
 	notes: string | null; // โน้ตข้อความเดียว (Main Note)
 	assigned_to_user_id: number | null;
 	assigned_user_name: string | null;
@@ -138,9 +141,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / pageSize);
 
-		// Fetch Vendors
+		// Fetch Vendors (อัปเดตดึงข้อมูล 3 ฟิลด์ใหม่)
 		const fetchSql = `SELECT
-                v.id, v.name, v.company_name, v.email, v.phone, v.address, v.tax_id, v.notes,
+                v.id, v.name, v.company_name, v.email, v.phone, v.address, 
+                v.tax_id, v.tax_type, v.credit_limit, v.credit_terms_days, v.notes,
                 v.assigned_to_user_id, u.full_name AS assigned_user_name,
                 v.created_at, v.updated_at
              FROM vendors v
@@ -234,6 +238,14 @@ export const actions: Actions = {
 		const phone = data.get('phone')?.toString()?.trim() || null;
 		const address = data.get('address')?.toString()?.trim() || null;
 		const tax_id = data.get('tax_id')?.toString()?.trim() || null;
+		
+		// [เพิ่ม] รับค่าใหม่ 3 ฟิลด์
+		const tax_type = data.get('tax_type')?.toString() || 'corporate';
+		const credit_limit_str = data.get('credit_limit')?.toString()?.trim();
+		const credit_limit = credit_limit_str ? parseFloat(credit_limit_str) : null;
+		const credit_terms_str = data.get('credit_terms_days')?.toString()?.trim();
+		const credit_terms_days = credit_terms_str ? parseInt(credit_terms_str, 10) : null;
+
 		const notes = data.get('notes')?.toString()?.trim() || null;
 		const assigned_to_user_id = data.get('assigned_to_user_id')?.toString();
 
@@ -255,9 +267,11 @@ export const actions: Actions = {
 				checkPermission(locals, 'edit vendors');
 				await pool.execute(
 					`UPDATE vendors SET
-                        name = ?, company_name = ?, email = ?, phone = ?, address = ?, tax_id = ?, notes = ?, assigned_to_user_id = ?, updated_at = NOW()
+                        name = ?, company_name = ?, email = ?, phone = ?, address = ?, tax_id = ?, 
+						tax_type = ?, credit_limit = ?, credit_terms_days = ?, 
+						notes = ?, assigned_to_user_id = ?, updated_at = NOW()
                      WHERE id = ?`,
-					[name, company_name, email, phone, address, tax_id, notes, assignedUserId, parseInt(id)]
+					[name, company_name, email, phone, address, tax_id, tax_type, credit_limit, credit_terms_days, notes, assignedUserId, parseInt(id)]
 				);
 				return {
 					action: 'saveVendor',
@@ -268,9 +282,9 @@ export const actions: Actions = {
 				checkPermission(locals, 'create vendors');
 				const [result] = await pool.execute(
 					`INSERT INTO vendors
-                        (name, company_name, email, phone, address, tax_id, notes, assigned_to_user_id, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-					[name, company_name, email, phone, address, tax_id, notes, assignedUserId]
+                        (name, company_name, email, phone, address, tax_id, tax_type, credit_limit, credit_terms_days, notes, assigned_to_user_id, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+					[name, company_name, email, phone, address, tax_id, tax_type, credit_limit, credit_terms_days, notes, assignedUserId]
 				);
 				return { action: 'saveVendor', success: true, message: 'Vendor added successfully!' };
 			}

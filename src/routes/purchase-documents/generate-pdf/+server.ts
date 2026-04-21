@@ -61,7 +61,8 @@ interface ItemData {
 	unit_price: number;
 	line_total: number;
 	wht_rate?: number;
-	is_vat?: number | boolean;
+	wht_amount?: number;
+	vat_type?: number;
 }
 
 const pdfSpecificDict: Record<string, Record<string, string>> = {
@@ -210,10 +211,8 @@ function getInvoiceHtml(
 
 	itemsData.forEach((item) => {
 		const rate = Number(item.wht_rate || 0);
-		if (rate > 0) {
-			activeRates.add(rate);
-			calculatedWhtAmt += (Number(item.line_total) * rate) / 100;
-		}
+		if (rate > 0) activeRates.add(rate);
+		calculatedWhtAmt += Number(item.wht_amount || 0);
 	});
 
 	const ratesArray = Array.from(activeRates);
@@ -453,14 +452,22 @@ function getInvoiceHtml(
 
 			const rowsHtml = pageInfo.items
 				.map(
-					(item, i) => `
+					(item, i) => {
+						// กำหนดการแสดงผลของ VAT
+						let vatDisplay = '-';
+						if (item.vat_type == 1) vatDisplay = 'Inc';
+						else if (item.vat_type == 2) vatDisplay = 'Exc';
+						else if (item.vat_type == 3) vatDisplay = 'Non';
+						else vatDisplay = 'Non';
+
+						return `
     <tr style="border-bottom: 1px solid #eee;">
         <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
         <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
         <td class="p-2 text-center" style="color: #2563eb; font-weight: 500; vertical-align: top;">
-            ${item.is_vat ? '7%' : '-'}
+            ${vatDisplay}
         </td>
         <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
@@ -468,6 +475,7 @@ function getInvoiceHtml(
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.line_total)}</td>
     </tr>
 `
+					}
 				)
 				.join('');
 
@@ -590,7 +598,7 @@ export const GET = async ({ url, fetch }) => {
 
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
-            SELECT description, quantity, unit_price, line_total, wht_rate, is_vat
+            SELECT description, quantity, unit_price, line_total, wht_rate, wht_amount, vat_type
             FROM purchase_document_items 
             WHERE document_id = ? 
             ORDER BY item_order ASC

@@ -1,21 +1,32 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
+// เปลี่ยนมาใช้ fs/promises และเพิ่มระบบ Stream
 import fs from 'fs/promises';
+import { createWriteStream } from 'fs';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import path from 'path';
 import mime from 'mime-types';
 
 const UPLOAD_DIR = path.resolve('uploads', 'sales_documents');
 
-async function saveFile(file: File) {
-	if (!file || file.size === 0) return null;
+async function saveFile(file: any) {
+	// ป้องกัน error ถ้าไม่ได้แนบไฟล์ หรือเป็น string ว่างๆ
+	if (!file || typeof file === 'string' || !file.size || file.size === 0) return null;
+	
 	try {
 		await fs.mkdir(UPLOAD_DIR, { recursive: true });
 		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
 		const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
 		const systemName = `${uniqueSuffix}-${sanitizedOriginalName}`;
 		const uploadPath = path.join(UPLOAD_DIR, systemName);
-		await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
+		
+		// 🌟 ใช้ Stream เขียนไฟล์ลงดิสก์ (ประหยัด RAM เซิร์ฟเวอร์ไม่ล่มเมื่อเจอไฟล์ใหญ่)
+		const readableStream = Readable.fromWeb(file.stream() as any);
+		const writeStream = createWriteStream(uploadPath);
+		await pipeline(readableStream, writeStream);
+
 		return {
 			systemName,
 			originalName: file.name,
@@ -65,7 +76,6 @@ async function generateDocumentNumber(docType: string, dateStr: string, connecti
 }
 
 export const load: PageServerLoad = async ({ url }) => {
-	// รับ Parameter สำหรับทำ Auto-Generate (Pre-fill)
 	const sourceId = url.searchParams.get('source_id');
 	const targetType = url.searchParams.get('target_type') || 'INV';
 	
@@ -189,11 +199,10 @@ export const actions: Actions = {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
 					
-                    // Read is_vat strictly as integer 0, 1, or 2
 					const isVat = item.is_vat !== undefined ? Number(item.is_vat) : 1;
 					
 					let baseAmount = lineTotal;
-					if (isVat === 1 && vat_rate > 0) { // Inc VAT
+					if (isVat === 1 && vat_rate > 0) {
 						baseAmount = lineTotal * 100 / (100 + vat_rate);
 					}
 					const lineWhtAmount = baseAmount * (lineWhtRate / 100);
@@ -210,7 +219,7 @@ export const actions: Actions = {
 				}
 			}
 
-			const files = formData.getAll('attachments') as File[];
+			const files = formData.getAll('attachments');
 			for (const file of files) {
 				const savedFile = await saveFile(file);
 				if (savedFile) {
@@ -219,7 +228,12 @@ export const actions: Actions = {
                         (document_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
                         VALUES (?, ?, ?, ?, ?, ?)`,
 						[
-							documentId, savedFile.originalName, savedFile.systemName, savedFile.mimeType, savedFile.size, locals.user?.id
+							documentId, 
+							savedFile.originalName, 
+							savedFile.systemName, 
+							savedFile.mimeType, 
+							savedFile.size, 
+							locals.user?.id || null // 🌟 ดัก null เผื่อ session หลุด
 						]
 					);
 				}
@@ -242,7 +256,6 @@ export const actions: Actions = {
 	},
 
 	createProduct: async ({ request }) => {
-        // Product creation logic preserved...
         return fail(400, { message: 'Not modified for brevity in this response.' });
     }
 };

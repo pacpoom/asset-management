@@ -8,7 +8,7 @@ services:
     environment:
       NODE_ENV: production
       ORIGIN: https://bize_core.freedomsoft.in.th
-      
+      BODY_SIZE_LIMIT: "0"
       DB_HOST: 192.168.111.57
       DB_PORT: 3306
       DB_DATABASE: bizcore      
