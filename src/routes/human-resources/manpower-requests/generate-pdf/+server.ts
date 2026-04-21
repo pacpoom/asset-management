@@ -48,12 +48,12 @@ export const GET = async ({ url }) => {
 
 		let logoBase64 = null;
 		try {
-			const [compRows]: any = await connection.execute('SELECT * FROM company_settings LIMIT 1');
-			if (compRows.length > 0) {
-				logoBase64 = getLogoBase64(compRows[0].logo || compRows[0].logo_url);
+			const [compRows]: any = await connection.execute('SELECT logo_path FROM company LIMIT 1');
+			if (compRows.length > 0 && compRows[0].logo_path) {
+				logoBase64 = getLogoBase64(compRows[0].logo_path);
 			}
 		} catch (e) {
-			console.log('No company settings found.');
+			console.log('No company settings found.', e);
 		}
 
 		const cb = (isChecked: boolean) =>
@@ -69,7 +69,7 @@ export const GET = async ({ url }) => {
 		};
 
 		const logoHtml = logoBase64
-			? `<img src="${logoBase64}" style="max-height: 45px; max-width: 100%; object-fit: contain;" />`
+			? `<img src="${logoBase64}" style="max-height: 80px; max-width: 100%; object-fit: contain;" />`
 			: ``;
 
 		const html = `
@@ -299,7 +299,19 @@ export const GET = async ({ url }) => {
 		const pdfBuffer = await page.pdf({
 			format: 'A4',
 			printBackground: true,
-			margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' }
+			displayHeaderFooter: true,
+			headerTemplate: '<span></span>',
+			footerTemplate: `
+        <div style="width: 100%; font-size: 8px; font-family: sans-serif; padding-left: 15mm; padding-right: 15mm; padding-bottom: 10px; color: #555;">
+            FM-HR-04-01 Rev.00 Effective date August 28, 2020
+        </div>
+    `,
+			margin: {
+				top: '15mm',
+				right: '15mm',
+				bottom: '15mm',
+				left: '15mm'
+			}
 		});
 
 		await browser.close();
