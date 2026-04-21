@@ -134,15 +134,45 @@ export const actions: Actions = {
 
 		try {
 			const today = new Date();
-			const yymm = `${today.getFullYear().toString().slice(-2)}${String(today.getMonth() + 1).padStart(2, '0')}`;
+			const year = today.getFullYear();
+			const month = today.getMonth() + 1; // 1-12
+			const yymm = `${year.toString().slice(-2)}${String(month).padStart(2, '0')}`;
 			const request_date = today.toISOString().split('T')[0];
 
-			const [countRows]: any = await pool.execute(
-				`SELECT COUNT(*) as c FROM manpower_requests WHERE request_no LIKE ?`,
-				[`MPR-${yymm}%`]
+			const docType = 'MPR';
+			let prefix = 'MPR-';
+			let lastNumber = 1;
+			let paddingLength = 3;
+
+			const [seqRows]: any = await pool.execute(
+				`SELECT prefix, last_number, padding_length 
+				 FROM document_sequences 
+				 WHERE document_type = ? AND year = ? AND month = ?`,
+				[docType, year, month]
 			);
-			const nextNum = String(countRows[0].c + 1).padStart(3, '0');
-			const request_no = `MPR-${yymm}${nextNum}`;
+
+			if (seqRows.length > 0) {
+				prefix = seqRows[0].prefix || 'MPR-';
+				paddingLength = seqRows[0].padding_length || 3;
+				lastNumber = seqRows[0].last_number + 1;
+
+				await pool.execute(
+					`UPDATE document_sequences 
+					 SET last_number = ? 
+					 WHERE document_type = ? AND year = ? AND month = ?`,
+					[lastNumber, docType, year, month]
+				);
+			} else {
+				await pool.execute(
+					`INSERT INTO document_sequences 
+					 (document_type, prefix, year, month, last_number, padding_length) 
+					 VALUES (?, ?, ?, ?, ?, ?)`,
+					[docType, prefix, year, month, lastNumber, paddingLength]
+				);
+			}
+
+			const paddedNum = String(lastNumber).padStart(paddingLength, '0');
+			const request_no = `${prefix}${yymm}${paddedNum}`;
 
 			await pool.execute(
 				`INSERT INTO manpower_requests (
@@ -186,6 +216,7 @@ export const actions: Actions = {
 			);
 			return { success: true, message: 'Manpower request submitted successfully!' };
 		} catch (error) {
+			console.error('Error creating request:', error);
 			return fail(500, { success: false, message: 'Error submitting request' });
 		}
 	},

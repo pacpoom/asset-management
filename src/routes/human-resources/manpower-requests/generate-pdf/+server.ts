@@ -302,7 +302,7 @@ export const GET = async ({ url }) => {
 			displayHeaderFooter: true,
 			headerTemplate: '<span></span>',
 			footerTemplate: `
-        <div style="width: 100%; font-size: 8px; font-family: sans-serif; padding-left: 15mm; padding-right: 15mm; color: #555;">
+        <div style="width: 100%; font-size: 8px; font-family: sans-serif; padding-left: 15mm; padding-right: 15mm; padding-bottom: 10px; color: #555;">
             FM-HR-04-01 Rev.00 Effective date August 28, 2020
         </div>
     `,
