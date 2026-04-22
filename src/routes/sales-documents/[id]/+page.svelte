@@ -112,7 +112,7 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📎';
+		return '📁';
 	}
 
 	async function updateStatus(e: Event) {
@@ -195,7 +195,7 @@
 			>
 				{$t('Create Invoice (INV)')}
 			</a>
-		{:else if document.document_type === 'INV'}
+		{:else if document.document_type === 'INV' || document.document_type === 'D-INV'}
 			<a
 				href="/sales-documents/new?source_id={document.id}&target_type=BN"
 				class="rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600"

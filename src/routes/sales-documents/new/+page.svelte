@@ -250,27 +250,33 @@
 		};
 	});
 
-	// --- VAT Calculation Logic ---
+	// --- VAT Calculation Logic (Reflected as PDF) ---
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + (item.amount || 0), 0);
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
 	// Separate totals based on VAT type
 	$: excVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 0).reduce((sum, item) => sum + (item.amount || 0), 0);
 	$: incVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 1).reduce((sum, item) => sum + (item.amount || 0), 0);
-    // Non-VAT items (is_vat === 2) do not contribute to VAT base
+	$: nonVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 2).reduce((sum, item) => sum + (item.amount || 0), 0);
 
 	// Distribute discount proportionally
 	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
 	$: discountForIncVat = subtotalBeforeVat > 0 ? discountAmount * (incVatTotal / subtotalBeforeVat) : 0;
+	$: discountForNonVat = subtotalBeforeVat > 0 ? discountAmount * (nonVatTotal / subtotalBeforeVat) : 0;
 	
 	// Calculate VAT for each part
 	$: vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
 	$: vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
 	
+	// Base amounts
+	$: vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
+	$: nonVatableAmount = nonVatTotal - discountForNonVat;
+	$: amountBeforeVat = vatableAmount + nonVatableAmount;
+
 	$: vatAmount = vatFromExc + vatFromInc;
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + (item.wht_amount || 0), 0);
 	
-	// Grand Total adds VAT from EXCLUSIVE items only (since Inclusive is already in subtotal)
+	// Grand Total
 	$: grandTotal = totalAfterDiscount + vatFromExc - whtAmount;
 	
 	$: itemsJson = JSON.stringify(calculatedItems);
@@ -428,6 +434,7 @@
 				>
 					<option value="QT">{$t('Quotation (QT)')}</option>
 					<option value="BN">{$t('Billing Note (BN)')}</option>
+					<option value="D-INV">{$t('Draft Invoice (D-INV)')}</option>
 					<option value="INV">{$t('Invoice (INV)')}</option>
 					<option value="RE">{$t('Receipt (RE)')}</option>
 				</select>
@@ -716,11 +723,21 @@
 				</div>
 				
 				<div class="mt-2 flex items-center justify-between text-sm">
-					<span class="text-gray-600">{$t('Amount Before VAT') || 'Amount Before VAT'}</span>
-					<span class="font-medium text-gray-800">{formatNumber(totalAfterDiscount - vatFromInc)}</span>
+					<span class="text-gray-600">{$t('VatableAmount') || 'Vatable Amount'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(vatableAmount)}</span>
 				</div>
 
 				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('NonVatableAmount') || 'Non-VAT Amount'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(nonVatableAmount)}</span>
+				</div>
+
+				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('AmountBeforeVAT') || 'Amount Before VAT'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(amountBeforeVat)}</span>
+				</div>
+
+				<div class="mt-2 flex items-center justify-between text-sm border-t border-gray-200 pt-2">
 					<span class="text-gray-600">
 						{$t('Sales VAT')} 
 						<select

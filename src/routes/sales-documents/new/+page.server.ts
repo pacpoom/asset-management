@@ -49,6 +49,7 @@ async function generateDocumentNumber(docType: string, dateStr: string, connecti
 	switch (docType) {
 		case 'QT': prefix = 'QT-'; break;
 		case 'BN': prefix = 'BN-'; break;
+		case 'D-INV': prefix = 'D-INV-'; break;
 		case 'INV': prefix = 'INV-'; break;
 		case 'RE': prefix = 'RE-'; break;
 		default: prefix = 'DOC-';

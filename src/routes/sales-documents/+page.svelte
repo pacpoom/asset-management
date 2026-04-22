@@ -80,6 +80,8 @@
 				return 'Quotation';
 			case 'BN':
 				return 'Billing Note';
+			case 'D-INV':
+				return 'Draft Invoice';
 			case 'INV':
 				return 'Invoice';
 			case 'RE':
@@ -95,6 +97,8 @@
 				return 'text-purple-600 bg-purple-50';
 			case 'BN':
 				return 'text-orange-600 bg-orange-50';
+			case 'D-INV':
+				return 'text-cyan-600 bg-cyan-50';
 			case 'INV':
 				return 'text-blue-600 bg-blue-50';
 			case 'RE':
@@ -184,6 +188,7 @@
 				<option value="">{$t('All Types')}</option>
 				<option value="QT">{$t('Quotation (QT)')}</option>
 				<option value="BN">{$t('Billing Note (BN)')}</option>
+				<option value="D-INV">{$t('Draft Invoice (D-INV)')}</option>
 				<option value="INV">{$t('Invoice (INV)')}</option>
 				<option value="RE">{$t('Receipt (RE)')}</option>
 			</select>

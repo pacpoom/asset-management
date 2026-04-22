@@ -168,19 +168,25 @@
 		};
 	});
 
-	// --- VAT Calculation Logic (3 states) ---
+	// --- VAT Calculation Logic (Reflected as PDF) ---
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + item.amount, 0);
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
 	$: excVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 0).reduce((sum, item) => sum + item.amount, 0);
 	$: incVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 1).reduce((sum, item) => sum + item.amount, 0);
+	$: nonVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 2).reduce((sum, item) => sum + item.amount, 0);
 
 	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
 	$: discountForIncVat = subtotalBeforeVat > 0 ? discountAmount * (incVatTotal / subtotalBeforeVat) : 0;
+	$: discountForNonVat = subtotalBeforeVat > 0 ? discountAmount * (nonVatTotal / subtotalBeforeVat) : 0;
 	
 	$: vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
 	$: vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
 	
+	$: vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
+	$: nonVatableAmount = nonVatTotal - discountForNonVat;
+	$: amountBeforeVat = vatableAmount + nonVatableAmount;
+
 	$: vatAmount = vatFromExc + vatFromInc;
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
 	
@@ -600,11 +606,21 @@
 				</div>
 				
 				<div class="mt-2 flex items-center justify-between text-sm">
-					<span class="text-gray-600">{$t('Amount Before VAT') || 'Amount Before VAT'}</span>
-					<span class="font-medium text-gray-800">{formatNumber(totalAfterDiscount - vatFromInc)}</span>
+					<span class="text-gray-600">{$t('VatableAmount') || 'Vatable Amount'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(vatableAmount)}</span>
 				</div>
 
 				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('NonVatableAmount') || 'Non-VAT Amount'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(nonVatableAmount)}</span>
+				</div>
+
+				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('AmountBeforeVAT') || 'Amount Before VAT'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(amountBeforeVat)}</span>
+				</div>
+
+				<div class="mt-2 flex items-center justify-between text-sm border-t border-gray-200 pt-2">
 					<span class="text-gray-600">
 						{$t('Sales VAT')} 
 						<select

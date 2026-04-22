@@ -125,7 +125,7 @@ const pdfSpecificDict: Record<string, Record<string, string>> = {
 		BillingTo: 'ผู้วางบิล / Billing To',
 		ContractNo: 'เลขที่สัญญา / Contract No',
 		ProjectName: 'ชื่อโครงการ / Project Name',
-		ConfirmText: 'ข้าพเจ้าขอยืนยันว่าการบริการข้างต้นได้ดำเนินการเสร็จสิ้นและได้รับมอบในสภาพสมบูรณ์',
+		ConfirmText: 'ข้าพเจ้าขอยืนยันว่าการบริการข้างต้นได้ดำเนินการเสร็จสิ้นและได้รับมอบในสภาพสมบูรณ์<br/>I hereby confirm that the above services have been completed and received in good condition.',
 		VerifiedBy: 'ผู้ตรวจสอบ (Verified By)',
 		AuthorizedBy: 'ผู้อนุมัติ (Authorized By)',
 		CustomerBy: 'ลูกค้า (Customer By)'
@@ -270,6 +270,8 @@ function getDocumentTitle(type: string): { th: string; en: string } {
 			return { th: 'ใบเสนอราคา', en: 'QUOTATION' };
 		case 'BN':
 			return { th: 'ใบวางบิล', en: 'BILLING NOTE' };
+		case 'D-INV':
+			return { th: 'ใบแจ้งหนี้ (ฉบับร่าง)', en: 'DRAFT INVOICE' };
 		case 'INV':
 			return { th: 'ใบแจ้งหนี้', en: 'INVOICE' };
 		case 'RE':
@@ -522,6 +524,9 @@ function getInvoiceHtml(
                             (${tPdf('NetText', lang)}: ${netAmountText})
                         </div>
                     </td> 
+                    
+                    <td class="font-bold p-2 text-right border-t border-gray-400 whitespace-nowrap">${tPdf('Subtotal', lang)}</td>
+                    <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
                 </tr>
 
                 <tr>
@@ -590,7 +595,7 @@ function getInvoiceHtml(
 	}
 
 	const MAX_LINES_PER_PAGE = 18; 
-	const MAX_LINES_LAST_PAGE = 9; 
+	const MAX_LINES_LAST_PAGE = 10; 
 
 	interface PageInfo {
 		items: ItemData[];
