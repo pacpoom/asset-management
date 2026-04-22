@@ -24,13 +24,14 @@
 
 	// --- Extracted VAT logic to calculate vatAmt and vatFromInc cleanly ---
 	let vatBreakdown = $derived.by(() => {
-		if (!document || !items) return { vatAmt: 0, vatFromInc: 0 };
+		if (!document || !items) return { vatAmt: 0, vatFromInc: 0, vatableAmount: 0, nonVatableAmount: 0, amountBeforeVat: 0 };
 		const vatRate = Number(document.vat_rate || 0);
 		const discountAmount = Number(document.discount_amount || 0);
 
 		let subtotal = 0;
 		let excVatTotal = 0;
 		let incVatTotal = 0;
+		let nonVatTotal = 0;
 
 		for (const item of items) {
 			const amount = Number(item.line_total || 0);
@@ -39,25 +40,33 @@
 				incVatTotal += amount;
 			} else if (Number(item.is_vat) === 0) { // 0 = Exc. VAT
 				excVatTotal += amount;
+			} else if (Number(item.is_vat) === 2) { // 2 = Non-VAT
+				nonVatTotal += amount;
 			}
-            // 2 = Non-VAT, ignored for VAT totals
 		}
 
 		const discountForExcVat = subtotal > 0 ? discountAmount * (excVatTotal / subtotal) : 0;
 		const discountForIncVat = subtotal > 0 ? discountAmount * (incVatTotal / subtotal) : 0;
+		const discountForNonVat = subtotal > 0 ? discountAmount * (nonVatTotal / subtotal) : 0;
 
 		const vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
 		const vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+
+		const vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
+		const nonVatableAmount = nonVatTotal - discountForNonVat;
+		const amountBeforeVat = vatableAmount + nonVatableAmount;
 
 		let vatAmt = vatFromExc + vatFromInc;
 		if (vatAmt === 0 && Number(document.vat_amount || 0) > 0) {
 			vatAmt = Number(document.vat_amount || 0);
 		}
-		return { vatAmt, vatFromInc };
+		return { vatAmt, vatFromInc, vatableAmount, nonVatableAmount, amountBeforeVat };
 	});
 
 	let displayVatAmount = $derived(vatBreakdown.vatAmt);
-	let amountBeforeVat = $derived(Number(document?.total_after_discount || 0) - vatBreakdown.vatFromInc);
+	let vatableAmount = $derived(vatBreakdown.vatableAmount);
+	let nonVatableAmount = $derived(vatBreakdown.nonVatableAmount);
+	let amountBeforeVat = $derived(vatBreakdown.amountBeforeVat);
 
 	let displayWhtAmount = $derived.by(() => {
 		if (!document || !items) return 0;
@@ -112,7 +121,7 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📁';
+		return '📎';
 	}
 
 	async function updateStatus(e: Event) {
@@ -421,14 +430,23 @@
 			<span class="font-medium text-gray-800">{formatCurrency(document.subtotal)}</span>
 		</div>
 
-		<!-- Amount Before VAT Added Here -->
 		<div class="mt-1 flex items-center justify-between">
-			<span class="font-medium text-gray-600">{$t('Amount Before VAT') || 'Amount Before VAT'}:</span>
-			<span class="font-medium text-gray-800">{formatCurrency(amountBeforeVat)}</span>
+			<span class="font-medium text-gray-600">{$t('VatableAmount') || 'Vatable Amount'}:</span>
+			<span class="font-medium text-gray-800">{formatCurrency(vatableAmount)}</span>
 		</div>
 
 		<div class="mt-1 flex items-center justify-between">
-			<span class="font-medium text-gray-600">VAT ({Number(document.vat_rate ?? 0)}%):</span>
+			<span class="font-medium text-gray-600">{$t('NonVatableAmount') || 'Non-VAT Amount'}:</span>
+			<span class="font-medium text-gray-800">{formatCurrency(nonVatableAmount)}</span>
+		</div>
+
+		<div class="mt-1 flex items-center justify-between">
+			<span class="font-medium text-gray-600">{$t('AmountBeforeVAT') || 'Amount Before VAT'}:</span>
+			<span class="font-medium text-gray-800">{formatCurrency(amountBeforeVat)}</span>
+		</div>
+
+		<div class="mt-1 flex items-center justify-between border-t border-gray-100 pt-2">
+			<span class="font-medium text-gray-600">{$t('Sales VAT')} ({Number(document.vat_rate ?? 0)}%):</span>
 			<span class="font-medium text-gray-800">{formatCurrency(displayVatAmount)}</span>
 		</div>
 
