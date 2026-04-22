@@ -454,6 +454,7 @@ function getInvoiceHtml(
         </table>
     `;
 
+	// 🌟 ปรับปรุงหัวตารางตามต้องการ
 	const itemTableHead = `
     <thead>
         <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
@@ -461,9 +462,8 @@ function getInvoiceHtml(
             <th class="p-2 text-left">${tPdf('Description', lang)}</th>
             <th class="p-2 text-right w-12">${tPdf('Qty', lang)}</th>
             <th class="p-2 text-right w-20">${tPdf('UnitPrice', lang)}</th>
-            <th class="p-2 text-right w-16" style="color: #000;">EXC. VAT</th>
-            <th class="p-2 text-right w-16" style="color: #000;">NON VAT</th>
-            <th class="p-2 text-right w-16" style="color: #000;">VAT</th>
+            <th class="p-2 text-right w-24" style="color: #000;">${tPdf('NonVatableAmount', lang)}</th>
+            <th class="p-2 text-right w-24" style="color: #000;">${tPdf('VatableAmount', lang)}</th>
             <th class="p-2 text-center w-12 whitespace-nowrap" style="color: #000;">${tPdf('WHT', lang)}</th>
             <th class="p-2 text-right w-24">${tPdf('Total', lang)}</th>
         </tr>
@@ -644,15 +644,19 @@ function getInvoiceHtml(
 			const rowsHtml = pageInfo.items
 				.map(
 					(item, i) => {
-                        let excVat = '';
-                        let nonVat = '';
-                        let incVat = '';
+                        // 🌟 อัปเดตตรรกะการคำนวณและแสดงผลในตาราง
+                        let vatableAmt = 0;
+                        let nonVatAmt = 0;
                         const amt = item.amount || 0;
 
                         // 1 = Inc. VAT, 0 = Exc. VAT, 2 = Non-VAT
-                        if (Number(item.is_vat) === 0) excVat = formatNumber(amt);
-                        else if (Number(item.is_vat) === 2) nonVat = formatNumber(amt);
-                        else if (Number(item.is_vat) === 1) incVat = formatNumber(amt);
+                        if (Number(item.is_vat) === 0) {
+                            vatableAmt = amt;
+                        } else if (Number(item.is_vat) === 1) {
+                            vatableAmt = amt * 100 / (100 + vatRate);
+                        } else if (Number(item.is_vat) === 2) {
+                            nonVatAmt = amt;
+                        }
 
                         return `
                         <tr style="border-bottom: 1px solid #eee; color: #000;">
@@ -660,9 +664,8 @@ function getInvoiceHtml(
                             <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
                             <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
                             <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
-                            <td class="p-2 text-right" style="vertical-align: top;">${excVat}</td>
-                            <td class="p-2 text-right" style="vertical-align: top;">${nonVat}</td>
-                            <td class="p-2 text-right" style="vertical-align: top;">${incVat}</td>
+                            <td class="p-2 text-right" style="vertical-align: top;">${nonVatAmt > 0 ? formatNumber(nonVatAmt) : ''}</td>
+                            <td class="p-2 text-right" style="vertical-align: top;">${vatableAmt > 0 ? formatNumber(vatableAmt) : ''}</td>
                             <td class="p-2 text-center" style="font-weight: 500; vertical-align: top;">
                                 ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
                             </td>
