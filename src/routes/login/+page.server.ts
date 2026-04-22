@@ -4,6 +4,7 @@ import pool from '$lib/server/database';
 import bcrypt from 'bcrypt';
 import type { RowDataPacket } from 'mysql2';
 import { safeInternalRedirect } from '$lib/safeRedirect';
+import { dev } from '$app/environment'; // เพิ่มการนำเข้า dev เพื่อตรวจสอบ environment
 
 interface CompanyLogo extends RowDataPacket {
 	logo_path: string | null;
@@ -83,7 +84,7 @@ export const actions: Actions = {
 				path: '/',
 				httpOnly: true,
 				sameSite: 'strict',
-				secure: process.env.NODE_ENV === 'production',
+				secure: !dev, // แก้ไขจากการใช้ process.env เพื่อป้องกันข้อผิดพลาดในฝั่ง Edge/Cloudflare
 				maxAge: 60 * 60 * 24 * 7
 			});
 
@@ -91,7 +92,7 @@ export const actions: Actions = {
 				path: '/',
 				httpOnly: true,
 				sameSite: 'strict',
-				secure: process.env.NODE_ENV === 'production',
+				secure: !dev, // แก้ไขจากการใช้ process.env
 				maxAge: 60 * 60 * 24 * 7
 			});
 
@@ -102,7 +103,8 @@ export const actions: Actions = {
 		} catch (err) {
 			if (isRedirect(err)) throw err;
 			console.error(err);
-			return fail(500, {
+			// เปลี่ยนสถานะจาก 500 เป็น 400 เพื่อไม่ให้ SvelteKit ตัดเข้าหน้า Fallback Error
+			return fail(400, {
 				message: 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ โปรดลองใหม่อีกครั้ง',
 				identifier: identifier as string
 			});
