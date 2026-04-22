@@ -376,7 +376,8 @@
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Unit Price')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">VAT Status</th>
-					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Amount') || 'Amount'}</th>
+					<th class="w-28 px-4 py-4 text-right font-semibold text-gray-600">{$t('NonVatableAmount') || 'Non-VAT Amount'}</th>
+					<th class="w-28 px-4 py-4 text-right font-semibold text-gray-600">{$t('VatableAmount') || 'Vatable Amount'}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
 					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">{$t('Total')}</th>
 				</tr>
@@ -384,7 +385,11 @@
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#each items as item}
 					{@const amount = item.line_total}
-					{@const whtBase = Number(item.is_vat) === 1 ? item.line_total * 100 / (100 + Number(document.vat_rate || 7)) : item.line_total}
+					{@const isVat = Number(item.is_vat)}
+					{@const vatRate = Number(document.vat_rate || 7)}
+					{@const vatableAmt = isVat === 0 ? amount : (isVat === 1 ? amount * 100 / (100 + vatRate) : 0)}
+					{@const nonVatAmt = isVat === 2 ? amount : 0}
+					{@const whtBase = isVat === 1 ? amount * 100 / (100 + vatRate) : amount}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-4 py-4 text-gray-700"
 							><div class="font-medium text-gray-900">{item.description}</div></td
@@ -393,16 +398,19 @@
 						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>
 						<td class="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
 						<td class="px-4 py-4 text-center font-bold">
-                            {#if Number(item.is_vat) === 1}
+                            {#if isVat === 1}
                                 <span class="text-blue-600">Inc.</span>
-                            {:else if Number(item.is_vat) === 0}
+                            {:else if isVat === 0}
                                 <span class="text-orange-600">Exc.</span>
                             {:else}
                                 <span class="text-gray-500">None</span>
                             {/if}
 						</td>
 						<td class="px-4 py-4 text-right text-gray-700 font-medium">
-							{formatCurrency(amount)}
+							{nonVatAmt > 0 ? formatCurrency(nonVatAmt) : '-'}
+						</td>
+						<td class="px-4 py-4 text-right text-gray-700 font-medium">
+							{vatableAmt > 0 ? formatCurrency(vatableAmt) : '-'}
 						</td>
 						<td class="px-4 py-4 text-center font-bold text-red-600">
 							{parseFloat(item.wht_rate || '0') > 0 ? `${parseFloat(item.wht_rate)}%` : '-'}
