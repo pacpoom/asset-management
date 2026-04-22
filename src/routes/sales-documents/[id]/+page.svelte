@@ -22,9 +22,9 @@
 		companyData = data.company;
 	});
 
-	// --- Recalculate Logic with 3 VAT States ---
-	let displayVatAmount = $derived.by(() => {
-		if (!document || !items) return 0;
+	// --- Extracted VAT logic to calculate vatAmt and vatFromInc cleanly ---
+	let vatBreakdown = $derived.by(() => {
+		if (!document || !items) return { vatAmt: 0, vatFromInc: 0 };
 		const vatRate = Number(document.vat_rate || 0);
 		const discountAmount = Number(document.discount_amount || 0);
 
@@ -53,8 +53,11 @@
 		if (vatAmt === 0 && Number(document.vat_amount || 0) > 0) {
 			vatAmt = Number(document.vat_amount || 0);
 		}
-		return vatAmt;
+		return { vatAmt, vatFromInc };
 	});
+
+	let displayVatAmount = $derived(vatBreakdown.vatAmt);
+	let amountBeforeVat = $derived(Number(document?.total_after_discount || 0) - vatBreakdown.vatFromInc);
 
 	let displayWhtAmount = $derived.by(() => {
 		if (!document || !items) return 0;
@@ -109,7 +112,7 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📁';
+		return '📎';
 	}
 
 	async function updateStatus(e: Event) {
@@ -418,16 +421,10 @@
 			<span class="font-medium text-gray-800">{formatCurrency(document.subtotal)}</span>
 		</div>
 
-		{#if parseFloat(document.discount_amount) > 0}
-			<div class="flex items-center justify-between">
-				<span class="font-medium text-gray-600">{$t('Discount')}:</span>
-				<span class="font-medium text-red-600">- {formatCurrency(document.discount_amount)}</span>
-			</div>
-		{/if}
-
-		<div class="flex items-center justify-between border-t pt-2">
-			<span class="font-medium text-gray-600">{$t('Total After Discount')}:</span>
-			<span class="font-medium text-gray-800">{formatCurrency(document.total_after_discount)}</span>
+		<!-- Amount Before VAT Added Here -->
+		<div class="mt-1 flex items-center justify-between">
+			<span class="font-medium text-gray-600">{$t('Amount Before VAT') || 'Amount Before VAT'}:</span>
+			<span class="font-medium text-gray-800">{formatCurrency(amountBeforeVat)}</span>
 		</div>
 
 		<div class="mt-1 flex items-center justify-between">

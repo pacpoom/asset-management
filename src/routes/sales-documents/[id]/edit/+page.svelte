@@ -251,6 +251,17 @@
 	<title>{$t('Edit')} {$t('DocType_' + document?.document_type)} {document?.document_number}</title>
 </svelte:head>
 
+<!-- 🌟 หน้าจอ Loading หมุนๆ ตอนกำลัง Save -->
+{#if isSaving}
+	<div class="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm transition-opacity">
+		<div class="flex flex-col items-center rounded-xl bg-white px-10 py-8 shadow-2xl">
+			<div class="mb-5 h-14 w-14 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
+			<p class="text-xl font-bold text-gray-800">{$t('Saving...')}</p>
+			<p class="mt-1 text-sm text-gray-500">กำลังบันทึกข้อมูล กรุณารอสักครู่...</p>
+		</div>
+	</div>
+{/if}
+
 <div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6 mb-10">
 	<div class="mb-6 flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-800">
@@ -266,10 +277,19 @@
 		method="POST"
 		action="?/update"
 		enctype="multipart/form-data"
-		use:enhance={() => {
-			isSaving = true;
+		use:enhance={({ action }) => {
+            // 🌟 ตรวจสอบว่าเป็นการลบไฟล์หรือไม่
+            const isDeleting = action.search.includes('deleteAttachment');
+			if (!isDeleting) {
+                isSaving = true;
+            }
 			return async ({ update }) => {
-				await update();
+                // 🌟 หากเป็นการลบไฟล์ ปิดการรีเซ็ตฟอร์ม (reset: false) ข้อมูลที่กรอกไว้จะได้ไม่หาย
+                if (isDeleting) {
+                    await update({ reset: false });
+                } else {
+                    await update();
+                }
 				isSaving = false;
 			};
 		}}
@@ -547,6 +567,7 @@
 									>
 									<button
 										type="submit"
+										formnovalidate
 										formaction="?/deleteAttachment"
 										name="attachment_id"
 										value={file.id}
@@ -577,20 +598,12 @@
 					<span class="text-gray-600">{$t('Subtotal')}</span>
 					<span class="font-medium">{formatNumber(subtotalBeforeVat)}</span>
 				</div>
-				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">{$t('Discount')}</span><input
-						type="number"
-						name="discount_amount"
-						bind:value={discountAmount}
-						min="0"
-						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm shadow-sm"
-					/>
+				
+				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('Amount Before VAT') || 'Amount Before VAT'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(totalAfterDiscount - vatFromInc)}</span>
 				</div>
-				<div class="flex justify-between border-t border-gray-200 pt-2 text-sm">
-					<span class="text-gray-600">{$t('After Discount')}</span><span class="font-medium"
-						>{formatNumber(totalAfterDiscount)}</span
-					>
-				</div>
+
 				<div class="mt-2 flex items-center justify-between text-sm">
 					<span class="text-gray-600">
 						{$t('Sales VAT')} 

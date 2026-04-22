@@ -89,8 +89,12 @@
 
 	let documentType = 'INV';
 	let documentDate = new Date().toISOString().split('T')[0];
-	let creditTerm: number | null = 0;
-	let dueDate = new Date().toISOString().split('T')[0];
+	let creditTerm: number | null = 30;
+	let dueDate = (() => {
+		const d = new Date();
+		d.setDate(d.getDate() + 30);
+		return d.toISOString().split('T')[0];
+	})();
 
 	let selectedCustomerObj: SelectOption | null = null;
 	let selectedCustomerId: string | number = '';
@@ -173,7 +177,7 @@
 				}
 			}, 150);
 
-			creditTerm = prefillData.document.credit_term || 0;
+			creditTerm = prefillData.document.credit_term !== null && prefillData.document.credit_term !== undefined ? Number(prefillData.document.credit_term) : 30;
 			discountAmount = parseFloat(prefillData.document.discount_amount || '0');
 			vatRate = parseFloat(prefillData.document.vat_rate || '7');
 
@@ -379,6 +383,17 @@
 	<title>{$t('Create Document Title')}</title>
 </svelte:head>
 
+<!-- 🌟 หน้าจอ Loading หมุนๆ ตอนกำลัง Save -->
+{#if isSaving}
+	<div class="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm transition-opacity">
+		<div class="flex flex-col items-center rounded-xl bg-white px-10 py-8 shadow-2xl">
+			<div class="mb-5 h-14 w-14 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
+			<p class="text-xl font-bold text-gray-800">{$t('Saving...')}</p>
+			<p class="mt-1 text-sm text-gray-500">กำลังบันทึกข้อมูล กรุณารอสักครู่...</p>
+		</div>
+	</div>
+{/if}
+
 <div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6">
 	<h1 class="mb-6 text-2xl font-bold text-gray-800">
 		{#if prefillData && prefillData.document.document_number}
@@ -393,7 +408,7 @@
 		action="?/create"
 		enctype="multipart/form-data"
 		use:enhance={() => {
-			isSaving = true;
+			isSaving = true; // 🌟 Trigger loading screen
 			return async ({ update }) => {
 				await update();
 				isSaving = false;
@@ -699,20 +714,12 @@
 					<span class="text-gray-600">{$t('Subtotal')}</span>
 					<span class="font-medium">{formatNumber(subtotalBeforeVat)}</span>
 				</div>
-				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">{$t('Discount')}</span><input
-						type="number"
-						name="discount_amount"
-						bind:value={discountAmount}
-						min="0"
-						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm"
-					/>
+				
+				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('Amount Before VAT') || 'Amount Before VAT'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(totalAfterDiscount - vatFromInc)}</span>
 				</div>
-				<div class="flex justify-between border-t pt-2 text-sm">
-					<span class="text-gray-600">{$t('After Discount')}</span><span class="font-medium"
-						>{formatNumber(totalAfterDiscount)}</span
-					>
-				</div>
+
 				<div class="mt-2 flex items-center justify-between text-sm">
 					<span class="text-gray-600">
 						{$t('Sales VAT')} 
@@ -785,11 +792,9 @@
 {/if}
 
 {#if showAddProductModal}
-<!-- Modal Code Remains Unchanged -->
 	<div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/40 p-4 transition-opacity">
 		<div class="fixed inset-0" on:click={closeProductModal} role="presentation"></div>
 		<div class="relative flex max-h-[85vh] w-full max-w-7xl transform flex-col rounded-xl bg-white shadow-2xl transition-all">
-			<!-- Component simplified for character limits -->
 			<div class="flex flex-shrink-0 items-center justify-between rounded-t-xl border-b bg-gray-50 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">{$t('Add New Product/Service')}</h2>
 				<button type="button" on:click={closeProductModal} class="text-xl font-bold text-gray-400 hover:text-gray-600">&times;</button>

@@ -1,7 +1,6 @@
 import { fail, redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
-// เปลี่ยนมาใช้ fs/promises และเพิ่มระบบ Stream เช่นเดียวกัน
 import fs from 'fs/promises';
 import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
@@ -12,7 +11,6 @@ import mime from 'mime-types';
 const UPLOAD_DIR = path.resolve('uploads', 'sales_documents');
 
 async function saveFile(file: any) {
-	// ป้องกัน error ถ้าไม่ได้แนบไฟล์ หรือเป็น string ว่างๆ
 	if (!file || typeof file === 'string' || !file.size || file.size === 0) return null;
 	
 	try {
@@ -22,7 +20,6 @@ async function saveFile(file: any) {
 		const systemName = `${uniqueSuffix}-${sanitizedOriginalName}`;
 		const uploadPath = path.join(UPLOAD_DIR, systemName);
 		
-		// 🌟 ใช้ Stream เขียนไฟล์ลงดิสก์
 		const readableStream = Readable.fromWeb(file.stream() as any);
 		const writeStream = createWriteStream(uploadPath);
 		await pipeline(readableStream, writeStream);
@@ -202,7 +199,7 @@ export const actions: Actions = {
 							savedFile.systemName, 
 							savedFile.mimeType, 
 							savedFile.size, 
-							locals.user?.id || null // 🌟 ดัก null
+							locals.user?.id || null 
 						]
 					);
 				}
@@ -229,10 +226,36 @@ export const actions: Actions = {
 		throw redirect(303, `/sales-documents/${documentId}`);
 	},
 
+    // 🌟 เพิ่ม Logic ลบไฟล์จริงในโฟลเดอร์และบนฐานข้อมูล
 	deleteAttachment: async ({ request }) => {
-		// Preserved...
+        const formData = await request.formData();
+        const attachmentId = formData.get('attachment_id');
+
+        if (!attachmentId) return fail(400, { message: 'Invalid attachment ID' });
+
+        const connection = await pool.getConnection();
+        try {
+            // ค้นหาชื่อไฟล์จากฐานข้อมูลเพื่อไปลบในระบบไฟล์
+            const [rows] = await connection.query<any[]>(
+                'SELECT file_system_name FROM sales_document_attachments WHERE id = ?',
+                [attachmentId]
+            );
+
+            if (rows.length > 0) {
+                const filename = rows[0].file_system_name;
+                await deleteFile(filename); // ลบไฟล์จริงๆในโฟลเดอร์
+                await connection.execute('DELETE FROM sales_document_attachments WHERE id = ?', [attachmentId]); // ลบข้อมูลในฐานข้อมูล
+            }
+            return { success: true };
+        } catch (err: any) {
+            console.error('Delete attachment error:', err);
+            return fail(500, { message: 'เกิดข้อผิดพลาดในการลบไฟล์: ' + err.message });
+        } finally {
+            connection.release();
+        }
 	},
+
 	createProduct: async ({ request }) => {
-		// Preserved...
+        return fail(400, { message: 'Not modified' });
 	}
 };
