@@ -63,8 +63,6 @@ export const GET: RequestHandler = async ({ url }) => {
 			params.push(endDate);
 		}
 
-		whereClause += ` AND p.status >= 2 `;
-
 		if (ownerFilter) {
 			whereClause += ` AND c.container_owner = ? `;
 			params.push(ownerFilter);
@@ -108,7 +106,8 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		containerRows.forEach((row) => {
 			let statusText = 'Shipped Out';
-			if (row.status == 2) statusText = 'Received';
+			if (row.status == 1) statusText = 'LCB';
+			else if (row.status == 2) statusText = 'Received';
 			else if (row.status == 4) statusText = 'Returned';
 
 			let ownerText = '-';

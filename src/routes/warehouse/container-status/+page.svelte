@@ -3,7 +3,6 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { t, locale } from '$lib/i18n';
-	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 
 	const { data } = $props<{ data: PageData }>();
@@ -12,24 +11,10 @@
 	let startDate = $state(data.startDate ?? '');
 	let endDate = $state(data.endDate ?? '');
 	let ownerFilter = $state(data.ownerFilter ?? '');
-	let searchTimer: NodeJS.Timeout;
 
 	let ownerOptions = $derived(
 		data.owners ? data.owners.map((owner: string) => ({ value: owner, label: owner })) : []
 	);
-
-	let selectedOwnerObject = $derived(
-		ownerOptions.find((opt: { value: string; label: string }) => opt.value === ownerFilter) || null
-	);
-	function onOwnerSelect(detail: any) {
-		ownerFilter = detail.value;
-		handleSearchInput();
-	}
-
-	function onOwnerClear() {
-		ownerFilter = '';
-		handleSearchInput();
-	}
 
 	function buildQueryString(
 		search: string,
@@ -58,24 +43,22 @@
 		return `/warehouse/container-status/export?${query.join('&')}`;
 	}
 
-	function handleSearchInput() {
-		clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => {
-			const queryString = buildQueryString(
-				searchQuery,
-				startDate,
-				endDate,
-				ownerFilter,
-				data.limit.toString(),
-				'1'
-			);
+	function handleSearchInput(e?: Event) {
+		if (e) e.preventDefault();
+		const queryString = buildQueryString(
+			searchQuery,
+			startDate,
+			endDate,
+			ownerFilter,
+			data.limit.toString(),
+			'1'
+		);
 
-			goto(queryString, {
-				keepFocus: true,
-				noScroll: true,
-				replaceState: true
-			});
-		}, 400);
+		goto(queryString, {
+			keepFocus: true,
+			noScroll: true,
+			replaceState: true
+		});
 	}
 
 	function changeLimit(newLimit: string) {
@@ -176,7 +159,7 @@
 	<title>{$t('Container Status')}</title>
 </svelte:head>
 
-<div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+<div class="mb-6 flex flex-col items-start justify-between gap-4 xl:flex-row xl:items-center">
 	<div>
 		<h1 class="text-2xl font-bold text-gray-800">{$t('Container Status')}</h1>
 		<p class="mt-1 text-sm text-gray-500">
@@ -207,6 +190,93 @@
 				<p class="text-[10px] font-bold text-blue-600 uppercase">{$t('Total')}</p>
 				<p class="text-lg leading-none font-bold text-gray-900">
 					{data.totalCount.toLocaleString()}
+				</p>
+			</div>
+		</div>
+
+		<!-- Card LCB -->
+		<div
+			class="flex items-center gap-3 rounded-xl border border-orange-100 bg-orange-50 px-4 py-2 shadow-sm"
+		>
+			<div
+				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+					<line x1="4" y1="22" x2="4" y2="15"></line>
+				</svg>
+			</div>
+			<div>
+				<p class="text-[10px] font-bold text-orange-600 uppercase">{$t('Total LCB')}</p>
+				<p class="text-lg leading-none font-bold text-gray-900">
+					{(data.totalLCB || 0).toLocaleString()}
+				</p>
+			</div>
+		</div>
+
+		<!-- Card Total Received -->
+		<div
+			class="flex items-center gap-3 rounded-xl border border-green-100 bg-green-50 px-4 py-2 shadow-sm"
+		>
+			<div
+				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-100 text-green-600"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+					<polyline points="22 4 12 14.01 9 11.01"></polyline>
+				</svg>
+			</div>
+			<div>
+				<p class="text-[10px] font-bold text-green-600 uppercase">{$t('Total Received')}</p>
+				<p class="text-lg leading-none font-bold text-gray-900">
+					{(data.totalReceived || 0).toLocaleString()}
+				</p>
+			</div>
+		</div>
+
+		<!-- Card Total Returned -->
+		<div
+			class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 shadow-sm"
+		>
+			<div
+				class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<polyline points="9 14 4 9 9 4"></polyline>
+					<path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+				</svg>
+			</div>
+			<div>
+				<p class="text-[10px] font-bold text-gray-700 uppercase">{$t('Total Returned')}</p>
+				<p class="text-lg leading-none font-bold text-gray-900">
+					{(data.totalReturned || 0).toLocaleString()}
 				</p>
 			</div>
 		</div>
@@ -243,6 +313,7 @@
 	<form
 		method="GET"
 		action={$page.url.pathname}
+		onsubmit={handleSearchInput}
 		class="flex flex-col gap-4 sm:flex-row sm:items-end"
 	>
 		<input type="hidden" name="page" value="1" />
@@ -258,7 +329,6 @@
 					name="search"
 					id="search"
 					bind:value={searchQuery}
-					oninput={handleSearchInput}
 					placeholder={$t('ค้นหา Container No, Plan No, House BL, Model...')}
 					class="w-full rounded-lg border-gray-300 py-2.5 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 				/>
@@ -288,7 +358,6 @@
 				name="startDate"
 				id="startDate"
 				bind:value={startDate}
-				onchange={handleSearchInput}
 				class="w-full rounded-lg border-gray-300 py-2.5 text-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
 		</div>
@@ -302,7 +371,6 @@
 				name="endDate"
 				id="endDate"
 				bind:value={endDate}
-				onchange={handleSearchInput}
 				class="w-full rounded-lg border-gray-300 py-2.5 text-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
 		</div>
@@ -316,13 +384,34 @@
 					type="text"
 					id="ownerFilter"
 					bind:value={ownerFilter}
-					oninput={handleSearchInput}
 					placeholder="ค้นหา Container Owner..."
 					autocomplete="off"
 					class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
 					style="height: 42px;"
 				/>
 			</div>
+		</div>
+
+		<div class="w-full sm:w-auto">
+			<button
+				type="submit"
+				class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:w-auto"
+				style="height: 42px;"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+				>
+					<path
+						fill-rule="evenodd"
+						d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+						clip-rule="evenodd"
+					/>
+				</svg>
+				{$t('Search')}
+			</button>
 		</div>
 	</form>
 </div>
@@ -424,7 +513,6 @@
 						<td class="px-4 py-3 text-center text-xs text-gray-600">
 							{formatDateOnly(item.ata_date)}
 						</td>
-						<!-- เปลี่ยนเป็น formatDateTimeStr เพื่อให้แสดงเวลาด้วย -->
 						<td class="px-4 py-3 text-center text-xs font-semibold text-green-700">
 							{formatDateTimeStr(item.checkin_date)}
 						</td>
@@ -432,17 +520,21 @@
 						<td class="px-4 py-3 text-center">
 							<span
 								class="rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap
-            					{item.status == 2
-									? 'bg-blue-100 text-blue-800'
-									: item.status == 4
-										? 'bg-gray-100 text-gray-800'
-										: 'bg-green-100 text-green-800'}"
+            					{item.status == 1
+									? 'bg-orange-100 text-orange-800'
+									: item.status == 2
+										? 'bg-blue-100 text-blue-800'
+										: item.status == 4
+											? 'bg-gray-100 text-gray-800'
+											: 'bg-green-100 text-green-800'}"
 							>
-								{item.status == 2
-									? $t('Received')
-									: item.status == 4
-										? $t('Returned')
-										: $t('Shipped Out')}
+								{item.status == 1
+									? $t('LCB')
+									: item.status == 2
+										? $t('Received')
+										: item.status == 4
+											? $t('Returned')
+											: $t('Shipped Out')}
 							</span>
 						</td>
 					</tr>
