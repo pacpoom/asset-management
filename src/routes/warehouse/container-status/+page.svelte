@@ -103,15 +103,21 @@
 
 			const dateObj = new Date(dateVal);
 			if (isNaN(dateObj.getTime())) return '-';
-			// ใช้ timeZone UTC เพื่อให้แสดงเวลาตรงตามตัวเลขในฐานข้อมูล ไม่บวกเพิ่ม
-			return dateObj.toLocaleString($locale === 'th' ? 'th-TH' : 'en-GB', {
+			
+			// แยก format วันที่และเวลาเพื่อป้องกันมีเครื่องหมาย comma แทรก (ขึ้นอยู่กับเบราว์เซอร์)
+			const formattedDate = dateObj.toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-GB', {
 				timeZone: 'UTC',
 				year: 'numeric',
 				month: '2-digit',
-				day: '2-digit',
+				day: '2-digit'
+			});
+			const formattedTime = dateObj.toLocaleTimeString('en-GB', {
+				timeZone: 'UTC',
 				hour: '2-digit',
 				minute: '2-digit'
 			});
+
+			return `${formattedDate} ${formattedTime}`;
 		} catch (e) {
 			return '-';
 		}
@@ -449,7 +455,7 @@
 					>{$t('ATA Date')}</th
 				>
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
-					>{$t('Check-in Date')}</th
+					>{$t('Check-in Date/Time')}</th
 				>
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600"
 					>{$t('Status')}</th

@@ -93,7 +93,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			{ header: 'Vessel', key: 'vessel', width: 25 },
 			{ header: 'ETD Date', key: 'etd_date', width: 15 },
 			{ header: 'ATA Date', key: 'ata_date', width: 15 },
-			{ header: 'Check-in Date', key: 'checkin_date', width: 20 },
+			{ header: 'Check-in Date/Time', key: 'checkin_date', width: 22 },
 			{ header: 'Status', key: 'status', width: 15 }
 		];
 
@@ -121,6 +121,26 @@ export const GET: RequestHandler = async ({ url }) => {
 				ownerText = row.container_owner;
 			}
 
+			// จัดรูปแบบ Check-in Date ให้มีเวลาที่ชัดเจน ไม่มี comma ขั้นกลาง
+			let formattedCheckin = '-';
+			if (row.checkin_date) {
+				const dateObj = new Date(row.checkin_date);
+				if (!isNaN(dateObj.getTime())) {
+					const formattedDate = dateObj.toLocaleDateString('en-GB', {
+						timeZone: 'UTC',
+						year: 'numeric',
+						month: '2-digit',
+						day: '2-digit'
+					});
+					const formattedTime = dateObj.toLocaleTimeString('en-GB', {
+						timeZone: 'UTC',
+						hour: '2-digit',
+						minute: '2-digit'
+					});
+					formattedCheckin = `${formattedDate} ${formattedTime}`;
+				}
+			}
+
 			worksheet.addRow({
 				container_no: row.container_no || '-',
 				plan_no: row.plan_no || '-',
@@ -132,16 +152,7 @@ export const GET: RequestHandler = async ({ url }) => {
 				// ใช้ timeZone: 'UTC' เพื่อไม่ให้ถูกบวก 7 วัน/เวลาจะตรงกับค่าใน DB
 				etd_date: row.etd_date ? new Date(row.etd_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '-',
 				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '-',
-				checkin_date: row.checkin_date
-					? new Date(row.checkin_date).toLocaleString('en-GB', {
-							timeZone: 'UTC', // เปลี่ยนเป็น UTC แทน Asia/Bangkok
-							year: 'numeric',
-							month: '2-digit',
-							day: '2-digit',
-							hour: '2-digit',
-							minute: '2-digit'
-						})
-					: '-',
+				checkin_date: formattedCheckin,
 				status: statusText
 			});
 		});
