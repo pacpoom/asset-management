@@ -93,7 +93,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const uid = ev.source?.userId;
 		const st = ev.source?.type;
 		if (uid && st === 'user') {
-			console.info('[line-webhook] userId (use in Users / LINE_TEST_USER_ID):', uid, '| event:', ev.type);
+			console.info('[line-webhook] userId (bind in Users → line_user_id):', uid, '| event:', ev.type);
 		} else {
 			console.info('[line-webhook] event:', ev.type, JSON.stringify(ev.source ?? {}));
 		}

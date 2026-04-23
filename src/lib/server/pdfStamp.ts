@@ -99,10 +99,18 @@ function drawControlledBox(
 	font: PDFFont,
 	mainText: string,
 	subText: string | null,
-	options: { x: number; y: number; width: number; height: number; opacity?: number }
+	options: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		opacity?: number;
+		secondLineText?: string;
+	}
 ) {
 	const { x, y, width, height } = options;
 	const red = rgb(0.93, 0.08, 0.1);
+	const secondLineText = options.secondLineText || 'CONTROLLED';
 	const pad = Math.max(8, width * 0.04);
 	const outerRadius = Math.max(7, Math.min(width, height) * 0.09);
 	// Keep transparent background: no fill rectangle.
@@ -112,11 +120,11 @@ function drawControlledBox(
 	drawCenteredText(page, font, BRAND_TEXT, brandSize, y + height - pad - brandSize, x, width);
 
 	const mainSize = fitSize(font, mainText, width - pad * 2, height * 0.22, 13);
-	const ctrlSize = fitSize(font, 'CONTROLLED', width - pad * 2, height * 0.22, 13);
+	const ctrlSize = fitSize(font, secondLineText, width - pad * 2, height * 0.22, 13);
 	const mainY = y + height * 0.5 - mainSize / 2;
 	const ctrlY = y + height * 0.22;
 	drawCenteredText(page, font, mainText, mainSize, mainY, x, width);
-	drawCenteredText(page, font, 'CONTROLLED', ctrlSize, ctrlY, x, width);
+	drawCenteredText(page, font, secondLineText, ctrlSize, ctrlY, x, width);
 
 	if (subText) {
 		const subSize = fitSize(font, subText, width - pad * 2, height * 0.09, 7);
@@ -186,6 +194,28 @@ export async function buildDistributionControlledPdf(inputPath: string): Promise
 			color: rgb(0.93, 0.08, 0.1)
 		});
 	}
+
+	return Buffer.from(await pdf.save());
+}
+
+export async function buildCanceledDocumentPdf(inputPath: string): Promise<Buffer> {
+	const pdf = await loadPdf(inputPath);
+	if (!pdf) return await fs.readFile(inputPath);
+	const pages = pdf.getPages();
+	if (pages.length === 0) return Buffer.from(await pdf.save());
+	const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+	const first = pages[0];
+	const { width, height } = first.getSize();
+	const { x, y, boxWidth, boxHeight } = getPrimaryStampRect(width, height);
+	drawControlledBox(first, font, 'CANCELED', null, {
+		x,
+		y,
+		width: boxWidth,
+		height: boxHeight,
+		opacity: 0.7,
+		secondLineText: 'DOCUMENT'
+	});
 
 	return Buffer.from(await pdf.save());
 }

@@ -119,7 +119,11 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 	if (!locals.user && url.pathname !== '/login') {
 		const next = `${url.pathname}${url.search}`;
 		const dest = safeInternalRedirect(next);
-		const loginUrl = dest ? `/login?redirect=${encodeURIComponent(dest)}` : '/login';
+		// Omit ?redirect=/ — default post-login target is already `/` (login/+page.server.ts).
+		const loginUrl =
+			dest && dest !== '/'
+				? `/login?redirect=${encodeURIComponent(dest)}`
+				: '/login';
 		throw redirect(303, loginUrl);
 	}
 

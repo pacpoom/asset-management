@@ -1,6 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
-import type { RowDataPacket } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { fail, error as httpError } from '@sveltejs/kit';
 import ExcelJS from 'exceljs';
 import fs from 'fs/promises';
@@ -482,18 +482,10 @@ export const actions: Actions = {
 				});
 			}
 
-			await pool.execute(
+			const [insertRes] = await pool.execute<ResultSetHeader>(
 				`INSERT INTO document_master_list
 				 (doc_code, doc_name, doc_type, department_id, current_revision, effective_date, status, description)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-				 ON DUPLICATE KEY UPDATE
-				 doc_name = VALUES(doc_name),
-				 doc_type = VALUES(doc_type),
-				 department_id = VALUES(department_id),
-				 current_revision = VALUES(current_revision),
-				 effective_date = VALUES(effective_date),
-				 status = VALUES(status),
-				 description = VALUES(description)`,
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					docCode,
 					docName,
@@ -513,22 +505,14 @@ export const actions: Actions = {
 			);
 
 			if (attachment) {
-				const [idRows] = await pool.execute<RowDataPacket[]>(
-					`SELECT id, attached_file_system_name FROM document_master_list WHERE doc_code = ? LIMIT 1`,
-					[docCode]
-				);
-				const row = idRows[0];
-				if (row?.id != null) {
-					const prev = row.attached_file_system_name
-						? String(row.attached_file_system_name)
-						: null;
+				const newId = Number(insertRes.insertId || 0);
+				if (newId > 0) {
 					try {
 						const { systemName, originalName } = await saveMasterFile(attachment);
 						await pool.execute(
 							`UPDATE document_master_list SET attached_file_original_name = ?, attached_file_system_name = ? WHERE id = ?`,
-							[originalName, systemName, row.id]
+							[originalName, systemName, newId]
 						);
-						if (prev) await unlinkMasterFile(prev);
 					} catch (attachErr) {
 						console.error('Create attachment error:', attachErr);
 						return fail(500, { success: false, error: 'Saved master but failed to store file' });
@@ -537,7 +521,13 @@ export const actions: Actions = {
 			}
 
 			return { success: true, message: `Saved ${docCode} successfully` };
-		} catch (err) {
+		} catch (err: any) {
+			if (err?.code === 'ER_DUP_ENTRY') {
+				return fail(409, {
+					success: false,
+					error: 'Document with same Doc Code and Revision already exists'
+				});
+			}
 			console.error('Create document master error:', err);
 			return fail(500, { success: false, error: 'Failed to save document master' });
 		}

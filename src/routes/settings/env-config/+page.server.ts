@@ -59,17 +59,52 @@ const ENV_FIELDS = [
 		hint: 'เว้นว่างถ้าไม่ต้องการเปลี่ยน'
 	},
 	{
-		key: 'LINE_TEST_USER_ID',
-		label: 'LINE test user ID',
+		key: 'VENDOR_CONTRACT_RENEWAL_NOTIFY_EMAILS',
+		label: 'Contract renewal notify emails (ฝั่งซื้อ)',
 		secret: false,
-		group: 'line' as const,
-		hint: 'สำหรับทดสอบส่งข้อความ (ถ้ามี)'
+		group: 'renewal' as const,
+		hint: 'รายการอีเมลรับแจ้งเตือนต่อสัญญา คั่นด้วย , หรือ ;'
+	},
+	{
+		key: 'VENDOR_CONTRACT_RENEWAL_CHECK_INTERVAL_MINUTES',
+		label: 'Contract renewal check interval (minutes) (ฝั่งซื้อ)',
+		secret: false,
+		group: 'renewal' as const,
+		hint: 'ความถี่เช็คแจ้งเตือนในฝั่งเซิร์ฟเวอร์ (ค่าแนะนำ 60)'
+	},
+	{
+		key: 'VENDOR_CONTRACT_RENEWAL_NOTIFY_LINE_IDS',
+		label: 'Contract renewal notify LINE user IDs (ฝั่งซื้อ)',
+		secret: false,
+		group: 'renewal' as const,
+		hint: 'LINE userId (U…) แจ้งเตือนหมดสัญญา — หลายค่าคั่นด้วย , หรือ ;'
+	},
+	{
+		key: 'SALE_CONTRACT_RENEWAL_NOTIFY_EMAILS',
+		label: 'Contract renewal notify emails (ฝั่งขาย)',
+		secret: false,
+		group: 'renewal' as const,
+		hint: 'รายการอีเมลรับแจ้งเตือนต่อสัญญา คั่นด้วย , หรือ ;'
+	},
+	{
+		key: 'SALE_CONTRACT_RENEWAL_CHECK_INTERVAL_MINUTES',
+		label: 'Contract renewal check interval (minutes) (ฝั่งขาย)',
+		secret: false,
+		group: 'renewal' as const,
+		hint: 'ความถี่เช็คแจ้งเตือนในฝั่งเซิร์ฟเวอร์ (ค่าแนะนำ 60)'
+	},
+	{
+		key: 'SALE_CONTRACT_RENEWAL_NOTIFY_LINE_IDS',
+		label: 'Contract renewal notify LINE user IDs (ฝั่งขาย)',
+		secret: false,
+		group: 'renewal' as const,
+		hint: 'LINE userId (U…) แจ้งเตือนหมดสัญญา — หลายค่าคั่นด้วย , หรือ ;'
 	}
 ] as const;
 
-const MANAGED_KEYS = new Set(ENV_FIELDS.map((f) => f.key));
-const SECRET_KEYS = new Set(ENV_FIELDS.filter((f) => f.secret).map((f) => f.key));
-const KEY_ORDER = ENV_FIELDS.map((f) => f.key);
+const MANAGED_KEYS: Set<string> = new Set(ENV_FIELDS.map((f) => f.key));
+const SECRET_KEYS: Set<string> = new Set(ENV_FIELDS.filter((f) => f.secret).map((f) => f.key));
+const KEY_ORDER: string[] = ENV_FIELDS.map((f) => f.key);
 
 function quoteEnvValue(val: string): string {
 	if (val === '') return '""';
@@ -78,10 +113,7 @@ function quoteEnvValue(val: string): string {
 }
 
 /** Merge managed keys into `.env`; preserve comments and unknown keys */
-async function writeMergedEnv(
-	updates: Record<string, string>,
-	preserveSecret: (key: string) => string | undefined
-): Promise<void> {
+async function writeMergedEnv(updates: Record<string, string>): Promise<void> {
 	let lines: string[];
 	try {
 		const raw = await fs.readFile(ENV_PATH, 'utf8');
@@ -113,8 +145,10 @@ async function writeMergedEnv(
 		}
 		let val = updates[key] ?? '';
 		if (SECRET_KEYS.has(key) && val === '') {
-			const prev = preserveSecret(key);
-			if (prev !== undefined) val = prev;
+			// Keep the exact current file value for secret keys when the form leaves them blank.
+			out.push(line);
+			updatedKeys.add(key);
+			continue;
 		}
 		out.push(`${key}=${quoteEnvValue(val)}`);
 		updatedKeys.add(key);
@@ -123,10 +157,6 @@ async function writeMergedEnv(
 	for (const key of KEY_ORDER) {
 		if (updatedKeys.has(key)) continue;
 		let val = updates[key] ?? '';
-		if (SECRET_KEYS.has(key) && val === '') {
-			const prev = preserveSecret(key);
-			if (prev !== undefined) val = prev;
-		}
 		out.push(`${key}=${quoteEnvValue(val)}`);
 	}
 
@@ -159,7 +189,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			database: 'ฐานข้อมูล',
 			smtp: 'อีเมล (SMTP)',
 			app: 'แอปพลิเคชัน',
-			line: 'LINE Messaging'
+			line: 'LINE Messaging',
+			renewal: 'แจ้งเตือนต่อสัญญา (ฝั่งซื้อ / ฝั่งขาย)'
 		} as const
 	};
 };
@@ -177,13 +208,8 @@ export const actions: Actions = {
 			updates[key] = (form.get(key)?.toString() ?? '').trim();
 		}
 
-		const preserveSecret = (key: string): string | undefined => {
-			const v = env[key as keyof typeof env];
-			return v != null ? String(v) : undefined;
-		};
-
 		try {
-			await writeMergedEnv(updates, preserveSecret);
+			await writeMergedEnv(updates);
 		} catch (e: unknown) {
 			console.error('[env-config] write .env failed:', e);
 			const msg = e instanceof Error ? e.message : 'Write failed';

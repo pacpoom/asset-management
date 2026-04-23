@@ -19,7 +19,14 @@ interface DocumentMaster extends RowDataPacket {
 
 function formatEffectiveDate(value: string | Date | null | undefined): string {
 	if (value == null || value === '') return '';
-	const d = typeof value === 'string' ? new Date(value + (String(value).length <= 10 ? 'T12:00:00' : '')) : value;
+	const raw = String(value).trim();
+	let d: Date;
+	if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+		const [yy, mm, dd] = raw.split('-').map((v) => Number(v));
+		d = new Date(yy, mm - 1, dd);
+	} else {
+		d = value instanceof Date ? value : new Date(raw);
+	}
 	if (Number.isNaN(d.getTime())) return String(value);
 	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
@@ -30,11 +37,11 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	const search = (url.searchParams.get('search') || '').trim().toLowerCase();
 	const docType = (url.searchParams.get('doc_type') || '').trim();
 	const isoSection = (url.searchParams.get('iso_section') || '').trim();
-	const limitRaw = url.searchParams.get('limit') || '50';
+	const limitRaw = url.searchParams.get('limit') || '20';
 	const limitAll = limitRaw === 'all' || limitRaw === '';
 	const limitNum = limitAll ? null : Number(limitRaw);
 	const limit =
-		limitNum != null && [20, 50, 100, 200].includes(limitNum) ? limitNum : limitAll ? null : 50;
+		limitNum != null && [10, 20, 50, 100, 200].includes(limitNum) ? limitNum : limitAll ? null : 20;
 
 	const [documents] = await pool.execute<DocumentMaster[]>(`
 			SELECT

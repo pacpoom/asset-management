@@ -26,8 +26,8 @@
 	let selectedDept: string | null = null;
 	let tableSearchDraft = '';
 	let appliedSearch = '';
-	let displayLimitDraft: '20' | '50' | '100' | '200' | 'all' = '50';
-	let appliedDisplayLimit: '20' | '50' | '100' | '200' | 'all' = '50';
+	let displayLimitDraft: '10' | '20' | '50' | '100' | '200' | 'all' = '20';
+	let appliedDisplayLimit: '10' | '20' | '50' | '100' | '200' | 'all' = '20';
 	let isDeleting = false;
 	let statusUpdatingId: number | null = null;
 	let uploadingFileId: number | null = null;
@@ -292,13 +292,7 @@
 	}
 
 	function downloadImportTemplate() {
-		const rows: string[][] = [
-			['Document code', 'Document Name', 'Rev', 'Effective Date'],
-			['QP-IT-01', 'IT Security', '04', 'May 01, 2025'],
-			['QP-IT-02', 'IT Data Backup', '03', 'May 31, 2025']
-		];
-		const content = rows.map((r) => r.map(escapeCsvCell).join(',')).join('\r\n');
-		downloadTextFile('document_import_template.csv', content);
+		window.location.href = '/isodocs-control/document-list/template';
 	}
 
 	function downloadImportFileMaster() {
@@ -367,7 +361,14 @@
 
 	function formatEffectiveDate(dateString: string): string {
 		if (!dateString) return '-';
-		const date = new Date(dateString);
+		const raw = String(dateString).trim();
+		let date: Date;
+		if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+			const [yy, mm, dd] = raw.split('-').map((v) => Number(v));
+			date = new Date(yy, mm - 1, dd);
+		} else {
+			date = new Date(raw);
+		}
 		if (Number.isNaN(date.getTime())) return '-';
 		const months = [
 			'January',
@@ -615,6 +616,7 @@
 						bind:value={displayLimitDraft}
 						class="min-w-[76px] rounded border border-gray-300 bg-white px-2 py-1 pr-7 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 					>
+						<option value="10">10</option>
 						<option value="20">20</option>
 						<option value="50">50</option>
 						<option value="100">100</option>
@@ -689,7 +691,11 @@
 									<td class="whitespace-nowrap px-6 py-4 text-slate-600">{formatEffectiveDate(doc.effective_date)}</td>
 									<td class="w-[6.5rem] max-w-[6.5rem] px-2 py-3 whitespace-nowrap">
 										<select
-											class="w-full max-w-full rounded border border-slate-300 bg-white py-1 pl-1.5 pr-6 text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+											class={`w-full max-w-full rounded border py-1 pl-1.5 pr-6 text-xs font-medium focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 ${
+												masterListStatusSelectValue(doc.status) === 'inactive'
+													? 'border-red-300 bg-red-50 text-red-700'
+													: 'border-slate-300 bg-white text-slate-900'
+											}`}
 											value={masterListStatusSelectValue(doc.status)}
 											disabled={statusUpdatingId === doc.id || isDeleting || uploadingFileId !== null}
 											onchange={(e) =>

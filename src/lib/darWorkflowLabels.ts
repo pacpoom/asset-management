@@ -10,11 +10,12 @@ export {
 } from '$lib/isodocsDarPermissions';
 
 /** Role ในตาราง roles (หน้า /roles) */
+export const DAR_ROLE_USER = 'ISO_DOCS_USER';
 export const DAR_ROLE_MGR = 'ISO_DOCS_MGR';
 export const DAR_ROLE_VP = 'ISO_DOCS_VP';
 export const DAR_ROLE_QMR = 'ISODOCS_QMR';
 
-export const DAR_UI_WORKFLOW_LINE = `${DAR_ROLE_MGR} → ${DAR_ROLE_VP} → ${DAR_ROLE_QMR}`;
+export const DAR_UI_WORKFLOW_LINE = `${DAR_ROLE_USER} → ${DAR_ROLE_MGR} → ${DAR_ROLE_VP} → ${DAR_ROLE_QMR}`;
 
 export const DAR_UI_MGR_TITLE = `${DAR_ROLE_MGR} · Reviewed By`;
 export const DAR_UI_VP_TITLE = `${DAR_ROLE_VP} · Approved By`;

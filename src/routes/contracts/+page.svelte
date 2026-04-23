@@ -6,11 +6,12 @@
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 	import { t, locale } from '$lib/i18n';
+	import { formatOptionalDateTime } from '$lib/formatDateTime';
 
 	// --- Types ---
 	type Customer = { id: number; name: string };
 	type ContractType = { id: number; name: string };
-	type User = { id: number; username: string };
+	type User = { id: number; username: string; email: string | null };
 	type ContractDocument = {
 		id: number;
 		name: string;
@@ -24,11 +25,13 @@
 		contract_number: string | null;
 		customer_id: number | null;
 		owner_user_id: number | null;
+		renewal_notify_emails?: string | null;
 		contract_type_id: number | null;
 		start_date: string | Date | null;
 		end_date: string | Date | null;
 		contract_value: number | null;
 		status: string;
+		notice_datetime?: string | null;
 		customer_name?: string;
 		type_name?: string;
 		documents: ContractDocument[];
@@ -55,11 +58,18 @@
 	const contractTypeOptions = $derived(
 		contractTypes.map((ct: ContractType) => ({ value: ct.id, label: ct.name }))
 	);
-	const userOptions = $derived(users.map((u: User) => ({ value: u.id, label: u.username })));
+	const renewalEmailOptions = $derived(
+		users
+			.filter((u) => u.email?.trim())
+			.map((u) => ({ email: u.email as string, label: `${u.username} (${u.email})` }))
+	);
 
 	let selectedCustomerObj = $state<any>(null);
 	let selectedContractTypeObj = $state<any>(null);
-	let selectedUserObj = $state<any>(null);
+	let selectedRenewalNotifyEmails = $state<string[]>([]);
+	let renewalEmailSearch = $state('');
+	let showRenewalEmailDropdown = $state(false);
+	let contractValueDisplay = $state('');
 
 	// --- Handlers สำหรับ Select ---
 	function handleCustomerChange(event: any) {
@@ -74,12 +84,6 @@
 		currentContract.contract_type_id = selected ? selected.value : null;
 	}
 
-	function handleUserChange(event: any) {
-		const selected = event?.detail || null;
-		selectedUserObj = selected;
-		currentContract.owner_user_id = selected ? selected.value : null;
-	}
-
 	// --- Contract Form State ---
 	const createEmptyContract = (): Contract => ({
 		title: '',
@@ -91,6 +95,7 @@
 		end_date: '',
 		contract_value: null,
 		owner_user_id: null,
+		renewal_notify_emails: '',
 		documents: []
 	});
 	let currentContract = $state<Contract>(createEmptyContract());
@@ -118,13 +123,75 @@
 		return filtered;
 	});
 
+	const filteredRenewalEmailOptions = $derived.by(() => {
+		const q = renewalEmailSearch.trim().toLowerCase();
+		const matched = renewalEmailOptions.filter((opt) => {
+			if (selectedRenewalNotifyEmails.includes(opt.email)) return false;
+			if (!q) return true;
+			return opt.label.toLowerCase().includes(q) || opt.email.toLowerCase().includes(q);
+		});
+		return matched.slice(0, q ? 80 : 25);
+	});
+
+	function addRenewalNotifyEmail(email: string) {
+		if (!email || selectedRenewalNotifyEmails.includes(email)) return;
+		selectedRenewalNotifyEmails = [...selectedRenewalNotifyEmails, email];
+		renewalEmailSearch = '';
+		showRenewalEmailDropdown = true;
+	}
+
+	function removeRenewalNotifyEmail(email: string) {
+		selectedRenewalNotifyEmails = selectedRenewalNotifyEmails.filter((e) => e !== email);
+		showRenewalEmailDropdown = true;
+	}
+
+	function formatContractValueDisplay(raw: string): string {
+		const cleaned = String(raw || '').replace(/,/g, '').trim();
+		if (!cleaned) return '';
+		const [intPartRaw, decPartRaw] = cleaned.split('.');
+		const intPart = (intPartRaw || '').replace(/[^\d]/g, '');
+		const decPart = (decPartRaw || '').replace(/[^\d]/g, '');
+		if (!intPart && !decPart) return '';
+		const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+		return decPartRaw !== undefined ? `${intFormatted || '0'}.${decPart}` : intFormatted;
+	}
+
+	function setContractValueFromDisplay(raw: string) {
+		const normalized = String(raw || '').replace(/,/g, '').trim();
+		if (!normalized) {
+			currentContract.contract_value = null;
+			contractValueDisplay = '';
+			return;
+		}
+		const num = Number(normalized);
+		if (Number.isFinite(num)) {
+			currentContract.contract_value = num;
+			contractValueDisplay = formatContractValueDisplay(normalized);
+		}
+	}
+
+	function clickOutside(node: HTMLElement, callback: () => void) {
+		const handleClick = (event: MouseEvent) => {
+			if (node && !node.contains(event.target as Node) && !event.defaultPrevented) callback();
+		};
+		document.addEventListener('mousedown', handleClick, true);
+		return {
+			destroy() {
+				document.removeEventListener('mousedown', handleClick, true);
+			}
+		};
+	}
+
 	// --- Modal Functions ---
 	function openAddModal() {
 		isEditing = false;
 		currentContract = createEmptyContract();
 		selectedCustomerObj = null;
 		selectedContractTypeObj = null;
-		selectedUserObj = null;
+		selectedRenewalNotifyEmails = [];
+		renewalEmailSearch = '';
+		showRenewalEmailDropdown = false;
+		contractValueDisplay = '';
 		formError = null;
 		if (fileInput) fileInput.value = '';
 		modalElement?.showModal();
@@ -143,11 +210,24 @@
 		selectedContractTypeObj = contractTypeOptions.find(
 			(opt: any) => opt.value === contract.contract_type_id
 		);
-		selectedUserObj = userOptions.find((opt: any) => opt.value === contract.owner_user_id);
+		const renewalEmails = String(contract.renewal_notify_emails || '')
+			.split(/[;,]/g)
+			.map((v) => v.trim())
+			.filter(Boolean);
+		selectedRenewalNotifyEmails = renewalEmails;
+		renewalEmailSearch = '';
+		showRenewalEmailDropdown = false;
+		contractValueDisplay = formatContractValueDisplay(String(contract.contract_value ?? ''));
 
 		formError = null;
 		if (fileInput) fileInput.value = '';
 		modalElement?.showModal();
+	}
+
+	function openEditModalById(contractId: number) {
+		const contract = contracts.find((item) => item.id === contractId);
+		if (!contract) return;
+		openEditModal(contract);
 	}
 
 	function closeModal() {
@@ -255,11 +335,13 @@
 					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('Status')}</th>
 					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('Start Date')}</th>
 					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('End Date')}</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">Notice sent (GMT+7)</th>
+					<th class="px-6 py-3 text-center font-bold text-gray-600 uppercase">{$t('Docs')}</th>
 					<th class="px-6 py-3 text-center font-bold text-gray-600 uppercase">{$t('Actions')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
-				{#each filteredContracts as contract (contract.id)}
+				{#each filteredContracts as contract (`${contract.id}-${contract.contract_number || ''}`)}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-6 py-4"
 							><div class="font-medium text-gray-900">{contract.title}</div>
@@ -277,10 +359,12 @@
 						>
 						<td class="px-6 py-4 text-nowrap">{formatDate(contract.start_date)}</td>
 						<td class="px-6 py-4 text-nowrap">{formatDate(contract.end_date)}</td>
+						<td class="px-6 py-4 text-nowrap font-mono">{formatOptionalDateTime(contract.notice_datetime)}</td>
+						<td class="px-6 py-4 text-center">{contract.documents?.length || 0}</td>
 						<td class="px-6 py-4 text-center">
 							<div class="flex items-center justify-center gap-2">
 								<button
-									onclick={() => openEditModal(contract)}
+									onclick={() => openEditModalById(contract.id)}
 									class="text-blue-600 hover:text-blue-900"
 									aria-label={$t('Edit Contract')}>{@html Icon.edit}</button
 								>
@@ -295,7 +379,7 @@
 						</td>
 					</tr>
 				{:else}<tr
-						><td colspan="6" class="py-12 text-center text-gray-500"
+						><td colspan="8" class="py-12 text-center text-gray-500"
 							>{$t('No contract data found...')}</td
 						></tr
 					>{/each}
@@ -416,13 +500,14 @@
 						<label for="contract_value" class="text-sm font-medium text-gray-700"
 							>{$t('Contract Value (Baht)')}</label
 						><input
-							type="number"
-							step="0.01"
+							type="text"
 							id="contract_value"
-							name="contract_value"
-							bind:value={currentContract.contract_value}
+							inputmode="decimal"
+							value={contractValueDisplay}
+							oninput={(e) => setContractValueFromDisplay((e.currentTarget as HTMLInputElement).value)}
 							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
 						/>
+						<input type="hidden" name="contract_value" value={currentContract.contract_value ?? ''} />
 					</div>
 				</div>
 
@@ -450,20 +535,63 @@
 					</div>
 				</div>
 
+				<input type="hidden" name="owner_user_id" value="" />
+
 				<div>
-					<span class="mb-1 block text-sm font-medium text-gray-700">{$t('Owner (Internal)')}</span>
-					<input type="hidden" name="owner_user_id" value={currentContract.owner_user_id} />
-					<Select
-						items={userOptions}
-						value={selectedUserObj}
-						on:change={handleUserChange}
-						on:clear={() => handleUserChange(null)}
-						placeholder={$t('-- Search/Select Employee --')}
-						container={browser ? document.body : null}
-						--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-						--list="border-radius: 6px; font-size: 0.875rem;"
-						--itemIsActive="background: #e0f2fe;"
-					/>
+					<label for="renewal_notify_emails" class="text-sm font-medium text-gray-700">
+						Renewal Notice Emails (per contract)
+					</label>
+					<div class="relative" use:clickOutside={() => (showRenewalEmailDropdown = false)}>
+						<div class="mt-1 rounded-lg border border-gray-300 bg-white p-2">
+							<div class="mb-2 flex flex-wrap gap-2">
+								{#each selectedRenewalNotifyEmails as email (email)}
+									<button
+										type="button"
+										onclick={() => removeRenewalNotifyEmail(email)}
+										class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"
+									>
+										<span>{email}</span>
+										<span aria-hidden="true">x</span>
+									</button>
+								{/each}
+							</div>
+							<input
+								id="renewal_notify_emails"
+								type="text"
+								bind:value={renewalEmailSearch}
+								onfocus={() => (showRenewalEmailDropdown = true)}
+								oninput={() => (showRenewalEmailDropdown = true)}
+								onkeydown={() => (showRenewalEmailDropdown = true)}
+								placeholder={$t('-- Search/Select renewal notice emails --')}
+								class="w-full border-0 p-0 text-sm focus:ring-0"
+							/>
+						</div>
+						{#if showRenewalEmailDropdown}
+							<ul
+								class="absolute z-[10000] mt-1 max-h-52 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+							>
+								{#if filteredRenewalEmailOptions.length === 0}
+									<li class="px-3 py-2 text-gray-500">No emails found</li>
+								{:else}
+									{#each filteredRenewalEmailOptions as opt (opt.email)}
+										<li>
+											<button
+												type="button"
+												class="w-full px-3 py-2 text-left hover:bg-blue-50"
+												onclick={() => addRenewalNotifyEmail(opt.email)}
+											>
+												{opt.label}
+											</button>
+										</li>
+									{/each}
+								{/if}
+							</ul>
+						{/if}
+					</div>
+					{#each selectedRenewalNotifyEmails as email (email)}
+						<input type="hidden" name="renewal_notify_emails" value={email} />
+					{/each}
+					<p class="mt-1 text-xs text-gray-500">ค้นหา, เลือกหลายคน และกด x เพื่อลบได้</p>
 				</div>
 
 				<div class="pt-2">

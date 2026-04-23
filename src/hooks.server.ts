@@ -2,8 +2,14 @@ import type { Handle } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
 import { getUserPermissions, getUserRoleNames } from '$lib/server/auth';
+import { env } from '$env/dynamic/private';
+import { maybeNotifyVendorContractRenewals } from '$lib/server/vendorContractRenewalNotifier';
+import { maybeNotifySaleContractRenewals } from '$lib/server/saleContractRenewalNotifier';
 
 export const handle: Handle = async ({ event, resolve }) => {
+	void maybeNotifyVendorContractRenewals(pool, env);
+	void maybeNotifySaleContractRenewals(pool, env);
+
 	if (event.url.pathname === '/api/line/webhook') {
 		return resolve(event);
 	}
@@ -71,6 +77,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 			if (err?.status === 303 || err?.status === 302 || err?.location) {
 				throw err;
 			}
+			// If DB/session validation fails, clear stale cookies to avoid login redirect loop.
+			event.cookies.delete('session_id', { path: '/' });
+			event.cookies.delete('session_token', { path: '/' });
 			console.error('[hooks.server.ts] Database error during session check:', err);
 		}
 	}

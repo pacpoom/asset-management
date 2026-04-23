@@ -35,7 +35,7 @@ type AnnouncementAttachmentRow = RowDataPacket & {
 	sort_order: number;
 };
 
-const ANNOUNCEMENT_UPLOAD_DIR = path.join(process.cwd(), 'static', 'uploads', 'announcements');
+const ANNOUNCEMENT_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'announcements');
 
 async function saveUpload(file: File): Promise<{ url: string; name: string }> {
 	const ext = path.extname(file.name || '').toLowerCase();
@@ -183,9 +183,9 @@ export const actions: Actions = {
 					isActive,
 					startAt,
 					endAt,
-					imageUrl,
-					attachmentName,
-					attachmentUrl,
+					null,
+					null,
+					null,
 					locals.user?.id || null
 				]
 			);

@@ -83,8 +83,31 @@ const DAR_NO_NEW_RE = /^DAR No\. (\d+)\/(\d{4})$/;
 /** รูปแบบเดิม: DAR-YYYYMM-NNNN — ใช้ร่วมเพื่อนับลำดับต่อในปีเดียวกัน */
 const DAR_NO_LEGACY_RE = /^DAR-(\d{4})(\d{2})-(\d+)$/;
 
+/** Parse form `datetime-local` or legacy date string → MySQL DATETIME `YYYY-MM-DD HH:mm:ss` (local). */
+function parseRequestTimestampForDb(raw: string): string | null {
+	const s = raw.trim();
+	if (!s) return null;
+	let d: Date;
+	if (s.includes('T')) {
+		d = new Date(s);
+	} else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+		d = new Date(`${s}T00:00:00`);
+	} else {
+		d = new Date(s);
+	}
+	if (Number.isNaN(d.getTime())) return null;
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function nowDatetimeLocalValue(): string {
+	const d = new Date();
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 async function generateDarNo(connection: any, requestDate: string) {
-	const date = new Date(requestDate);
+	const date = new Date(requestDate.includes('T') ? requestDate : `${requestDate}T00:00:00`);
 	const year = date.getFullYear();
 	const yearStr = String(year);
 
@@ -152,7 +175,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		documents,
 		requester,
-		today: new Date().toISOString().slice(0, 10)
+		today: nowDatetimeLocalValue()
 	};
 };
 
@@ -166,10 +189,11 @@ export const actions: Actions = {
 		const documentTypeScope = formData.getAll('document_type_scope').map((value) => String(value));
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
 
-		if (!requestType || !requestDate) {
+		const requestTimestampDb = parseRequestTimestampForDb(requestDate);
+		if (!requestType || !requestTimestampDb) {
 			return fail(400, {
 				success: false,
-				message: 'Request type and request date are required.'
+				message: 'Request type and request date/time are required.'
 			});
 		}
 
@@ -219,7 +243,7 @@ export const actions: Actions = {
 					JSON.stringify(documentTypeScope),
 					locals.user?.id || null,
 					locals.user?.full_name || null,
-					requestDate,
+					requestTimestampDb,
 					remark || null
 				]
 			);

@@ -2,6 +2,9 @@ import { fail, redirect, error } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth'; // Assuming permission checks are needed
+import { toYmdDateInputBangkokOrNull } from '$lib/bangkokCalendarDate';
+import { env } from '$env/dynamic/private';
+import { maybeNotifyVendorContractRenewals } from '$lib/server/vendorContractRenewalNotifier';
 import type { RowDataPacket } from 'mysql2';
 import fs from 'fs/promises';
 import path from 'path';
@@ -21,8 +24,10 @@ interface VendorContract extends RowDataPacket {
 	contract_value: number | null;
 	owner_user_id: number | null;
 	renewal_notice_days: number | null;
+	renewal_notify_emails: string | null;
 	created_at: string;
 	updated_at: string;
+	notice_datetime: string | null;
 	// Joined fields
 	vendor_name?: string;
 	owner_name?: string;
@@ -47,11 +52,13 @@ interface VendorContractDocument extends RowDataPacket {
 interface Vendor extends RowDataPacket {
 	id: number;
 	name: string;
+	company_name: string | null;
 }
 
 interface User extends RowDataPacket {
 	id: number;
 	full_name: string; // Assuming 'full_name' exists in users table
+	email: string | null;
 }
 
 interface ContractType extends RowDataPacket {
@@ -183,14 +190,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
             SELECT
                 vc.id, vc.title, vc.contract_number, vc.vendor_id, vc.contract_type_id,
                 vc.status, vc.start_date, vc.end_date, vc.contract_value, vc.owner_user_id,
-                vc.renewal_notice_days, vc.created_at, vc.updated_at,
-                v.name as vendor_name,
+                vc.renewal_notice_days, vc.renewal_notify_emails, vc.created_at, vc.updated_at,
+                DATE_FORMAT(CONVERT_TZ(vcrn.latest_notified_at, '+00:00', '+07:00'), '%Y-%m-%d %H:%i:%s') AS notice_datetime,
+                COALESCE(NULLIF(TRIM(v.company_name), ''), v.name) AS vendor_name,
                 u.full_name as owner_name,
                 ct.name as type_name
             FROM vendor_contracts vc
             LEFT JOIN vendors v ON vc.vendor_id = v.id
             LEFT JOIN users u ON vc.owner_user_id = u.id
             LEFT JOIN contract_types ct ON vc.contract_type_id = ct.id
+            LEFT JOIN (
+                SELECT vendor_contract_id, MAX(notified_at) AS latest_notified_at
+                FROM vendor_contract_renewal_notifications
+                GROUP BY vendor_contract_id
+            ) vcrn ON vcrn.vendor_contract_id = vc.id
         `;
 		const countQueryBase = `
             SELECT COUNT(vc.id) as total
@@ -208,10 +221,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			whereClause += ` AND (
                 vc.title LIKE ? OR
                 vc.contract_number LIKE ? OR
-                v.name LIKE ?
+                v.name LIKE ? OR
+                v.company_name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm);
 		}
 		if (filterStatus) {
 			whereClause += ` AND vc.status = ? `;
@@ -262,20 +276,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// Attach documents to contracts
 		const contractsWithDocs = contractRows.map((contract) => ({
 			...contract,
-			// Format dates for display consistency (optional, can be done client-side)
-			start_date: contract.start_date
-				? new Date(contract.start_date).toISOString().split('T')[0]
-				: null,
-			end_date: contract.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : null,
+			start_date: toYmdDateInputBangkokOrNull(contract.start_date as string | Date | null),
+			end_date: toYmdDateInputBangkokOrNull(contract.end_date as string | Date | null),
 			documents: docsMap.get(contract.id) || []
 		}));
 
 		// Fetch related data for dropdowns
 		const [vendors] = await pool.execute<Vendor[]>(
-			'SELECT id, name FROM vendors ORDER BY name ASC'
+			`SELECT id, name, company_name FROM vendors
+			 ORDER BY COALESCE(NULLIF(TRIM(company_name), ''), name) ASC`
 		);
 		const [users] = await pool.execute<User[]>(
-			'SELECT id, full_name FROM users ORDER BY full_name ASC'
+			'SELECT id, full_name, email FROM users ORDER BY full_name ASC'
 		); // Use full_name
 		const [contractTypes] = await pool.execute<ContractType[]>(
 			'SELECT id, name FROM contract_types ORDER BY name ASC'
@@ -325,7 +337,12 @@ export const actions: Actions = {
 			end_date: nullIfEmpty(formData.get('end_date')),
 			contract_value: nullIfEmpty(formData.get('contract_value')),
 			owner_user_id: nullIfEmpty(formData.get('owner_user_id')),
-			renewal_notice_days: nullIfEmpty(formData.get('renewal_notice_days')) ?? 30 // Default 30
+			renewal_notice_days: nullIfEmpty(formData.get('renewal_notice_days')) ?? 30, // Default 30
+			renewal_notify_emails: formData
+				.getAll('renewal_notify_emails')
+				.map((v) => v.toString().trim())
+				.filter(Boolean)
+				.join(',')
 		};
 
 		// --- Validation ---
@@ -362,7 +379,7 @@ export const actions: Actions = {
 			if (contractId) {
 				const sql = `UPDATE vendor_contracts SET
                     title = ?, contract_number = ?, vendor_id = ?, contract_type_id = ?, status = ?,
-                    start_date = ?, end_date = ?, contract_value = ?, owner_user_id = ?, renewal_notice_days = ?
+                    start_date = ?, end_date = ?, contract_value = ?, owner_user_id = ?, renewal_notice_days = ?, renewal_notify_emails = ?
                     WHERE id = ?`;
 				await connection.execute(sql, [
 					data.title,
@@ -375,13 +392,14 @@ export const actions: Actions = {
 					data.contract_value,
 					data.owner_user_id,
 					data.renewal_notice_days,
+					data.renewal_notify_emails || null,
 					contractId
 				]);
 			} else {
 				const sql = `INSERT INTO vendor_contracts
                     (title, contract_number, vendor_id, contract_type_id, status, start_date, end_date,
-                     contract_value, owner_user_id, renewal_notice_days)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                     contract_value, owner_user_id, renewal_notice_days, renewal_notify_emails)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 				const [result] = await connection.execute<any>(sql, [
 					data.title,
 					data.contract_number,
@@ -392,7 +410,8 @@ export const actions: Actions = {
 					data.end_date,
 					data.contract_value,
 					data.owner_user_id,
-					data.renewal_notice_days
+					data.renewal_notice_days,
+					data.renewal_notify_emails || null
 				]);
 				contractId = result.insertId;
 			}
@@ -431,20 +450,29 @@ export const actions: Actions = {
 
 			await connection.commit();
 
+			// Re-check renewal notifications immediately (global hook throttles to once per interval otherwise).
+			void maybeNotifyVendorContractRenewals(pool, env, { bypassThrottle: true });
+
 			// Fetch the newly saved/updated contract with documents to return
 			// Use baseQuery which is defined in the load function scope (accessible here)
 			const baseQuery = `
                 SELECT
                     vc.id, vc.title, vc.contract_number, vc.vendor_id, vc.contract_type_id,
                     vc.status, vc.start_date, vc.end_date, vc.contract_value, vc.owner_user_id,
-                    vc.renewal_notice_days, vc.created_at, vc.updated_at,
-                    v.name as vendor_name,
+                    vc.renewal_notice_days, vc.renewal_notify_emails, vc.created_at, vc.updated_at,
+                    DATE_FORMAT(CONVERT_TZ(vcrn.latest_notified_at, '+00:00', '+07:00'), '%Y-%m-%d %H:%i:%s') AS notice_datetime,
+                    COALESCE(NULLIF(TRIM(v.company_name), ''), v.name) AS vendor_name,
                     u.full_name as owner_name,
                     ct.name as type_name
                 FROM vendor_contracts vc
                 LEFT JOIN vendors v ON vc.vendor_id = v.id
                 LEFT JOIN users u ON vc.owner_user_id = u.id
                 LEFT JOIN contract_types ct ON vc.contract_type_id = ct.id
+                LEFT JOIN (
+                    SELECT vendor_contract_id, MAX(notified_at) AS latest_notified_at
+                    FROM vendor_contract_renewal_notifications
+                    GROUP BY vendor_contract_id
+                ) vcrn ON vcrn.vendor_contract_id = vc.id
             `;
 			const [finalContractRows] = await pool.query<VendorContract[]>(
 				`${baseQuery} WHERE vc.id = ?`,
@@ -452,6 +480,12 @@ export const actions: Actions = {
 			);
 			let finalContract = finalContractRows[0];
 			finalContract.documents = await getContractDocuments(contractId); // Get updated doc list
+			finalContract.start_date = toYmdDateInputBangkokOrNull(
+				finalContract.start_date as string | Date | null
+			);
+			finalContract.end_date = toYmdDateInputBangkokOrNull(
+				finalContract.end_date as string | Date | null
+			);
 
 			return {
 				action: 'saveContract',

@@ -5,7 +5,11 @@ import path from 'path';
 import fs from 'fs/promises';
 import pool from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
-import { buildDistributionControlledPdf, buildOriginalControlledPdf } from '$lib/server/pdfStamp';
+import {
+	buildCanceledDocumentPdf,
+	buildDistributionControlledPdf,
+	buildOriginalControlledPdf
+} from '$lib/server/pdfStamp';
 import { PERM_ISODOCS_DAR_QMR } from '$lib/isodocsDarPermissions';
 
 const MASTER_UPLOAD_DIR = path.resolve('uploads', 'isodocs', 'document-master');
@@ -14,6 +18,7 @@ type DocRow = RowDataPacket & {
 	id: number;
 	attached_file_original_name: string | null;
 	attached_file_system_name: string | null;
+	status: string | null;
 };
 
 function contentTypeByExt(ext: string): string {
@@ -35,7 +40,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 	if (!id) throw error(400, 'Invalid document id');
 
 	const [rows] = await pool.execute<DocRow[]>(
-		`SELECT id, attached_file_original_name, attached_file_system_name
+		`SELECT id, attached_file_original_name, attached_file_system_name, status
 		 FROM document_master_list
 		 WHERE id = ?
 		 LIMIT 1`,
@@ -63,9 +68,14 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 		lowerRole.includes('qmr') ||
 		roleNames.some((n) => n.includes('qmr'));
 
+	const normalizedStatus = String(row.status || '').toLowerCase();
+	// Some DBs still fallback cancelled docs to inactive (enum doesn't include 'cancelled').
+	const isCancelled = normalizedStatus === 'cancelled' || normalizedStatus === 'inactive';
 	const bodyBuffer =
 		ext !== '.pdf'
 			? await fs.readFile(fullPath)
+			: isCancelled
+				? await buildCanceledDocumentPdf(fullPath)
 			: isQmrUser
 				? await buildOriginalControlledPdf(fullPath)
 				: await buildDistributionControlledPdf(fullPath);

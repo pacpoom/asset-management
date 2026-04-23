@@ -4,6 +4,8 @@ import { writeFile, mkdir, unlink, stat, readFile } from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
 import type { RowDataPacket } from 'mysql2';
+import { env } from '$env/dynamic/private';
+import { maybeNotifySaleContractRenewals } from '$lib/server/saleContractRenewalNotifier';
 
 interface Customer extends RowDataPacket {
 	id: number;
@@ -13,6 +15,7 @@ interface Customer extends RowDataPacket {
 interface User extends RowDataPacket {
 	id: number;
 	username: string;
+	email: string | null;
 }
 
 interface ContractType extends RowDataPacket {
@@ -34,6 +37,7 @@ interface Contract extends RowDataPacket {
 	contract_number: string | null;
 	customer_id: number | null;
 	owner_user_id: number | null;
+	renewal_notify_emails: string | null;
 	contract_type_id: number | null;
 	start_date: string | Date | null;
 	end_date: string | Date | null;
@@ -46,6 +50,7 @@ interface Contract extends RowDataPacket {
 	customer_name: string;
 	owner_name: string;
 	type_name: string;
+	notice_datetime: string | null;
 }
 
 // กำหนด Path สำหรับอัปโหลด: ย้ายไปเก็บที่ root directory ของ Project/uploads/contracts
@@ -58,6 +63,7 @@ const UPLOAD_DIR = path.resolve('uploads', 'contracts');
 const getContractQuery = `
     SELECT
         c.*,
+        DATE_FORMAT(CONVERT_TZ(scrn.latest_notified_at, '+00:00', '+07:00'), '%Y-%m-%d %H:%i:%s') AS notice_datetime,
         cust.name as customer_name,
         u.username as owner_name, -- [CHECK] ดึงจาก users
         ct.name as type_name
@@ -65,6 +71,11 @@ const getContractQuery = `
     LEFT JOIN customers cust ON c.customer_id = cust.id
     LEFT JOIN users u ON c.owner_user_id = u.id
     LEFT JOIN contract_types ct ON c.contract_type_id = ct.id
+    LEFT JOIN (
+        SELECT contract_id, MAX(notified_at) AS latest_notified_at
+        FROM sale_contract_renewal_notifications
+        GROUP BY contract_id
+    ) scrn ON scrn.contract_id = c.id
 `;
 
 // Helper: ดึงเอกสารทั้งหมดของสัญญา
@@ -106,7 +117,7 @@ export async function load({ locals }) {
 			// ดึงรายชื่อลูกค้าเพื่อใช้ใน Dropdown
 			db.query<Customer[]>('SELECT id, name FROM customers ORDER BY name ASC'),
 
-			db.query<User[]>('SELECT id, username FROM users ORDER BY username ASC'),
+			db.query<User[]>('SELECT id, username, email FROM users ORDER BY username ASC'),
 
 			// ดึงประเภทสัญญา
 			db.query<ContractType[]>('SELECT id, name FROM contract_types ORDER BY name ASC')
@@ -172,7 +183,12 @@ export const actions: Actions = {
 			start_date: nullIfEmpty(formData.get('start_date') as string),
 			end_date: nullIfEmpty(formData.get('end_date') as string),
 			contract_value: nullIfEmpty(formData.get('contract_value') as string),
-			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string)
+			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string),
+			renewal_notify_emails: formData
+				.getAll('renewal_notify_emails')
+				.map((v) => v.toString().trim())
+				.filter(Boolean)
+				.join(',')
 		};
 
 		let newContractId: number | undefined;
@@ -180,8 +196,8 @@ export const actions: Actions = {
 		try {
 			const contractSql = `
                 INSERT INTO contracts
-                (title, contract_number, customer_id, contract_type_id, status, start_date, end_date, contract_value, owner_user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (title, contract_number, customer_id, contract_type_id, status, start_date, end_date, contract_value, owner_user_id, renewal_notify_emails)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 			const [contractResult] = await db.query(contractSql, [
 				data.title,
@@ -192,7 +208,8 @@ export const actions: Actions = {
 				data.start_date,
 				data.end_date,
 				data.contract_value,
-				data.owner_user_id
+				data.owner_user_id,
+				data.renewal_notify_emails || null
 			]);
 
 			// @ts-ignore
@@ -245,6 +262,8 @@ export const actions: Actions = {
 				}))
 			};
 
+			void maybeNotifySaleContractRenewals(db, env, { bypassThrottle: true });
+
 			return {
 				success: true,
 				source: 'cud',
@@ -287,7 +306,12 @@ export const actions: Actions = {
 			start_date: nullIfEmpty(formData.get('start_date') as string),
 			end_date: nullIfEmpty(formData.get('end_date') as string),
 			contract_value: nullIfEmpty(formData.get('contract_value') as string),
-			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string)
+			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string),
+			renewal_notify_emails: formData
+				.getAll('renewal_notify_emails')
+				.map((v) => v.toString().trim())
+				.filter(Boolean)
+				.join(',')
 		};
 
 		const uploadedFilePaths: string[] = [];
@@ -295,7 +319,7 @@ export const actions: Actions = {
 			const sql = `
                 UPDATE contracts SET
                 title = ?, contract_number = ?, customer_id = ?, contract_type_id = ?,
-                status = ?, start_date = ?, end_date = ?, contract_value = ?, owner_user_id = ?
+                status = ?, start_date = ?, end_date = ?, contract_value = ?, owner_user_id = ?, renewal_notify_emails = ?
                 WHERE id = ?
             `;
 			await db.query(sql, [
@@ -308,6 +332,7 @@ export const actions: Actions = {
 				data.end_date,
 				data.contract_value,
 				data.owner_user_id,
+				data.renewal_notify_emails || null,
 				id
 			]);
 
@@ -369,6 +394,8 @@ export const actions: Actions = {
 					uploaded_at: d.uploaded_at
 				}))
 			};
+
+			void maybeNotifySaleContractRenewals(db, env, { bypassThrottle: true });
 
 			return {
 				success: true,
