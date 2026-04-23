@@ -35,49 +35,43 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		query += ` ORDER BY created_at DESC`;
 		const [requests]: any = await pool.execute(query, params);
 
-		const [sections]: any = await pool.execute(
-			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section ASC`
+		// 🌟 1. เปลี่ยนมาดึงข้อมูล Divisions และ Sections จากตาราง Master Data แทน
+		const [divisions]: any = await pool.execute(
+			`SELECT division_name FROM divisions WHERE status = 'Active' ORDER BY division_name ASC`
 		);
+		const [sections]: any = await pool.execute(
+			`SELECT section_name FROM sections WHERE status = 'Active' ORDER BY section_name ASC`
+		);
+
+		// 🌟 2. ดึง Job Positions (รองรับสถานะที่เป็นทั้งเลข 1 และตัวหนังสือ 'Active')
 		const [positions]: any = await pool.execute(
-			`SELECT position_name FROM job_positions ORDER BY position_name ASC`
+			`SELECT position_name FROM job_positions WHERE status = 1 OR status = 'Active' ORDER BY position_name ASC`
 		);
 
 		const [usersList]: any = await pool.execute(
 			`SELECT full_name FROM users WHERE full_name IS NOT NULL ORDER BY full_name ASC`
 		);
-		const [divisions]: any = await pool.execute(
-			`SELECT DISTINCT division FROM employees WHERE division IS NOT NULL AND division != '-' ORDER BY division ASC`
-		);
 
+		// กลุ่มงานยังคงดึงจากพนักงานเหมือนเดิม (ถ้าอนาคตมี Master Data ค่อยมาเปลี่ยนได้ครับ)
 		const [groups]: any = await pool.execute(
 			`SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-' ORDER BY emp_group ASC`
 		);
 
 		const [company]: any = await pool.execute(`SELECT logo_path FROM company LIMIT 1`);
 
+		// 🌟 3. ส่งข้อมูลกลับไปหน้าบ้าน (และ Map ชื่อคอลัมน์ให้ตรงกับ Master Data)
+		// (ลบ return ที่ซ้ำซ้อนออกให้แล้วครับ)
 		return {
 			requests: requests,
-			sections: sections.map((s: any) => s.section),
+			divisions: divisions.map((d: any) => d.division_name), // เปลี่ยนเป็นดึงจาก division_name
+			sections: sections.map((s: any) => s.section_name), // เปลี่ยนเป็นดึงจาก section_name
 			positions: positions.map((p: any) => p.position_name),
 			usersList: usersList.map((u: any) => u.full_name),
-			divisions: divisions.map((d: any) => d.division),
 			groups: groups.map((g: any) => g.emp_group),
 			searchQuery: search,
 			statusFilter: statusFilter,
 			user: user,
 			companyLogo: company.length > 0 ? company[0].logo_path : null
-		};
-
-		return {
-			requests: requests,
-			sections: sections.map((s: any) => s.section),
-			positions: positions.map((p: any) => p.position_name),
-			usersList: usersList.map((u: any) => u.full_name),
-			divisions: divisions.map((d: any) => d.division),
-			groups: groups.map((g: any) => g.emp_group),
-			searchQuery: search,
-			statusFilter: statusFilter,
-			user: user
 		};
 	} catch (error) {
 		console.error('Error loading manpower requests:', error);
@@ -85,6 +79,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			requests: [],
 			sections: [],
 			positions: [],
+			divisions: [],
 			searchQuery: search,
 			statusFilter: 'All',
 			user: locals.user

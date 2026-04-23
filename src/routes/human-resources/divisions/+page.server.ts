@@ -7,60 +7,79 @@ export const load: PageServerLoad = async () => {
 		const [divisions]: any = await pool.execute(
 			'SELECT * FROM divisions ORDER BY division_name ASC'
 		);
-		return { divisions };
+		const [sections]: any = await pool.execute('SELECT * FROM sections ORDER BY section_name ASC');
+		const [rawPositions]: any = await pool.execute(
+			'SELECT * FROM job_positions ORDER BY position_name ASC'
+		);
+
+		// 🌟 1. ดักแปลงร่าง Status ของ Position จากเลข 1/0 ให้เป็น Active/Inactive ก่อนส่งให้หน้าบ้าน
+		const positions = rawPositions.map((pos: any) => ({
+			...pos,
+			status: pos.status == 1 || pos.status === 'Active' ? 'Active' : 'Inactive'
+		}));
+
+		return { divisions, sections, positions };
 	} catch (error) {
-		console.error('Error loading divisions:', error);
-		return { divisions: [] };
+		return { divisions: [], sections: [], positions: [] };
 	}
 };
 
 export const actions: Actions = {
 	save: async ({ request }) => {
 		const data = await request.formData();
+		const tab = data.get('tab')?.toString();
 		const id = data.get('id')?.toString();
-		const division_name = data.get('division_name')?.toString()?.trim();
+		const name = data.get('name')?.toString()?.trim();
 		const description = data.get('description')?.toString()?.trim() || null;
-		const status = data.get('status')?.toString() || 'Active';
+		const status = data.get('status')?.toString() || 'Active'; // จะได้ 'Active' หรือ 'Inactive' จากหน้าเว็บ
 
-		if (!division_name) {
-			return fail(400, { success: false, message: 'กรุณากรอกชื่อหน่วยงาน (Division Name)' });
+		if (!name) return fail(400, { success: false, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+
+		let table = 'divisions',
+			col = 'division_name';
+		let finalStatus: string | number = status; // 🌟 2. ตัวแปรเก็บค่า Status ที่พร้อมบันทึกลง Database
+
+		if (tab === 'section') {
+			table = 'sections';
+			col = 'section_name';
+		}
+		if (tab === 'position') {
+			table = 'job_positions';
+			col = 'position_name';
+			// 🌟 3. ถ้ากำลังเซฟหน้า Position ให้แปลง Active/Inactive กลับเป็น 1/0
+			finalStatus = status === 'Active' ? 1 : 0;
 		}
 
 		try {
 			if (id) {
 				await pool.execute(
-					'UPDATE divisions SET division_name = ?, description = ?, status = ? WHERE id = ?',
-					[division_name, description, status, id]
+					`UPDATE ${table} SET ${col} = ?, description = ?, status = ? WHERE id = ?`,
+					[name, description, finalStatus, id]
 				);
-				return { success: true, message: 'อัปเดตข้อมูลสำเร็จ!' };
 			} else {
-				// กรณีเพิ่มข้อมูลใหม่
-				await pool.execute(
-					'INSERT INTO divisions (division_name, description, status) VALUES (?, ?, ?)',
-					[division_name, description, status]
-				);
-				return { success: true, message: 'เพิ่มข้อมูลสำเร็จ!' };
+				await pool.execute(`INSERT INTO ${table} (${col}, description, status) VALUES (?, ?, ?)`, [
+					name,
+					description,
+					finalStatus
+				]);
 			}
-		} catch (error: any) {
-			console.error('Save Division Error:', error);
-			if (error.code === 'ER_DUP_ENTRY') {
-				return fail(400, { success: false, message: 'ชื่อหน่วยงานนี้มีอยู่ในระบบแล้ว' });
-			}
-			return fail(500, { success: false, message: 'เกิดข้อผิดพลาดในระบบฐานข้อมูล' });
+			return { success: true, message: 'บันทึกสำเร็จ' };
+		} catch (error) {
+			console.error(error);
+			return fail(400, { success: false, message: 'ข้อมูลซ้ำหรือผิดพลาด' });
 		}
 	},
-
 	delete: async ({ request }) => {
+		// ... (ส่วนของ delete ใช้โค้ดเดิมได้เลยครับ)
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
-
-		if (!id) return fail(400, { success: false, message: 'ไม่พบ ID ที่ต้องการลบ' });
-
+		const tab = data.get('tab')?.toString();
+		let table = tab === 'section' ? 'sections' : tab === 'position' ? 'job_positions' : 'divisions';
 		try {
-			await pool.execute('DELETE FROM divisions WHERE id = ?', [id]);
-			return { success: true, message: 'ลบข้อมูลสำเร็จ!' };
+			await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
+			return { success: true, message: 'ลบข้อมูลสำเร็จ' };
 		} catch (error) {
-			return fail(500, { success: false, message: 'ไม่สามารถลบได้ เนื่องจากข้อมูลถูกใช้งานอยู่' });
+			return fail(500, { success: false, message: 'ไม่สามารถลบได้ ข้อมูลกำลังถูกใช้งาน' });
 		}
 	}
 };
