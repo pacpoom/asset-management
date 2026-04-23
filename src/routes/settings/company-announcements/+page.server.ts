@@ -37,6 +37,15 @@ type AnnouncementAttachmentRow = RowDataPacket & {
 
 const ANNOUNCEMENT_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'announcements');
 
+/** `datetime-local` → MySQL DATETIME (`YYYY-MM-DD HH:mm:ss`). */
+function formDatetimeLocalToMysql(raw: string | null | undefined): string | null {
+	const s = (raw ?? '').trim();
+	if (!s) return null;
+	let v = s.includes('T') ? s.replace('T', ' ') : s;
+	if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(v)) v = `${v}:00`;
+	return v;
+}
+
 async function saveUpload(file: File): Promise<{ url: string; name: string }> {
 	const ext = path.extname(file.name || '').toLowerCase();
 	const safeExt = ext && ext.length <= 10 ? ext : '';
@@ -110,8 +119,8 @@ export const actions: Actions = {
 		const content = (fd.get('content')?.toString() || '').trim();
 		const isPinned = fd.get('is_pinned')?.toString() === '1' ? 1 : 0;
 		const isActive = fd.get('is_active')?.toString() === '0' ? 0 : 1;
-		const startAt = (fd.get('start_at')?.toString() || '').trim() || null;
-		const endAt = (fd.get('end_at')?.toString() || '').trim() || null;
+		const startAt = formDatetimeLocalToMysql(fd.get('start_at')?.toString());
+		const endAt = formDatetimeLocalToMysql(fd.get('end_at')?.toString());
 		const imageFiles = fd
 			.getAll('image_files')
 			.filter((v): v is File => v instanceof File && v.size > 0);
@@ -205,7 +214,11 @@ export const actions: Actions = {
 			return { success: true, message: 'Announcement created.' };
 		} catch (err: any) {
 			console.error('save company-announcements error', err);
-			return fail(500, { success: false, message: err?.sqlMessage || 'Failed to save announcement.' });
+			const detail = err?.sqlMessage || err?.message;
+			return fail(500, {
+				success: false,
+				message: detail ? `Failed to save announcement. ${detail}` : 'Failed to save announcement.'
+			});
 		}
 	},
 
