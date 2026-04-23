@@ -104,7 +104,8 @@
 
 			const dateObj = new Date(dateVal);
 			if (isNaN(dateObj.getTime())) return '-';
-			return dateObj.toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-GB');
+			// ใช้ timeZone UTC เพื่อไม่ให้ถูกบวก 7 ชั่วโมงตาม local browser
+			return dateObj.toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-GB', { timeZone: 'UTC' });
 		} catch (e) {
 			return '-';
 		}
@@ -119,7 +120,9 @@
 
 			const dateObj = new Date(dateVal);
 			if (isNaN(dateObj.getTime())) return '-';
+			// ใช้ timeZone UTC เพื่อให้แสดงเวลาตรงตามตัวเลขในฐานข้อมูล ไม่บวกเพิ่ม
 			return dateObj.toLocaleString($locale === 'th' ? 'th-TH' : 'en-GB', {
+				timeZone: 'UTC',
 				year: 'numeric',
 				month: '2-digit',
 				day: '2-digit',

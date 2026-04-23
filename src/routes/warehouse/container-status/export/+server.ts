@@ -130,11 +130,12 @@ export const GET: RequestHandler = async ({ url }) => {
 				owner: ownerText,
 				house_bl: row.house_bl || '-',
 				vessel: row.vessel || '-',
-				etd_date: row.etd_date ? new Date(row.etd_date).toLocaleDateString('en-GB') : '-',
-				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB') : '-',
+				// ใช้ timeZone: 'UTC' เพื่อไม่ให้ถูกบวก 7 วัน/เวลาจะตรงกับค่าใน DB
+				etd_date: row.etd_date ? new Date(row.etd_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '-',
+				ata_date: row.ata_date ? new Date(row.ata_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '-',
 				checkin_date: row.checkin_date
 					? new Date(row.checkin_date).toLocaleString('en-GB', {
-							timeZone: 'Asia/Bangkok',
+							timeZone: 'UTC', // เปลี่ยนเป็น UTC แทน Asia/Bangkok
 							year: 'numeric',
 							month: '2-digit',
 							day: '2-digit',
