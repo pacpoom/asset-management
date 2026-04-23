@@ -27,7 +27,7 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-	default: async ({ request }) => {
+	default: async ({ request, locals }) => {
 		const formData = await request.formData();
 
 		const container_order_plan_id = formData.get('container_order_plan_id');
@@ -36,20 +36,34 @@ export const actions: Actions = {
 		const destination = formData.get('destination');
 		const remarks = formData.get('remarks');
 
-		if (!container_order_plan_id || !pulling_date) {
-			return fail(400, { message: 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน' });
+		// 🌟 รับค่า shop ที่เพิ่งเพิ่มมาจากฟอร์ม
+		const shop = formData.get('shop');
+
+		const user_id = locals.user?.id || 1;
+
+		if (!container_order_plan_id || !pulling_date || !shop) {
+			return fail(400, { message: 'กรุณากรอกข้อมูลที่จำเป็น (Container, Date, Shop) ให้ครบถ้วน' });
 		}
 
 		try {
 			const dateCode = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 			const randomCode = Math.floor(1000 + Math.random() * 9000);
-			const pulling_plan_no = `PL-${dateCode}-${randomCode}`;
+			const pulling_plan_no = `PULL${dateCode}${randomCode}`;
 
 			await cymspool.execute(
 				`INSERT INTO container_pulling_plans 
-				(pulling_plan_no, container_order_plan_id, plan_type, pulling_date, destination, remarks, status, created_at, updated_at) 
-				VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
-				[pulling_plan_no, container_order_plan_id, plan_type, pulling_date, destination, remarks]
+				(pulling_plan_no, container_order_plan_id, plan_type, pulling_date, shop, destination, remarks, status, user_id, created_at, updated_at) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
+				[
+					pulling_plan_no,
+					container_order_plan_id,
+					plan_type,
+					pulling_date,
+					shop, // ✅ ใส่ค่า shop ตรงนี้
+					destination,
+					remarks,
+					user_id
+				]
 			);
 		} catch (error) {
 			console.error('Database Error in Create Action:', error);

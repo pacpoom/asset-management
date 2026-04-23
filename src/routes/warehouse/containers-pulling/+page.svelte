@@ -4,14 +4,18 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
-	let { data } = $props();
+	let { data, form } = $props();
 	let plans = $derived(data.plans || []);
 	let deletingId = $state<number | null>(null);
 
-	// สถานะ Modal
+	// สถานะ Modals
 	let showPrintModal = $state(false);
 	let showImportModal = $state(false);
 	let todayDate = new Date().toISOString().split('T')[0];
+
+	// 🌟 ตัวแปรสำหรับ Delete Modal
+	let showDeleteModal = $state(false);
+	let planToDelete = $state<any>(null);
 
 	function formatPlanType(type: string) {
 		if (!type) return { label: '-', class: '' };
@@ -71,6 +75,12 @@
 			return rangeWithDots;
 		})()
 	);
+
+	// 🌟 ฟังก์ชันเปิด Modal ยืนยันการลบ
+	function openDeleteModal(plan: any) {
+		planToDelete = plan;
+		showDeleteModal = true;
+	}
 </script>
 
 <svelte:head>
@@ -132,7 +142,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity"
 	>
 		<div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
-			<form method="GET" action="/warehouse/containers-pulling/report" target="_blank">
+			<form
+				method="GET"
+				action="/warehouse/containers-pulling/report"
+				target="_blank"
+				onsubmit={() => setTimeout(() => (showPrintModal = false), 100)}
+			>
 				<div
 					class="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-6 py-4"
 				>
@@ -196,7 +211,6 @@
 					</button>
 					<button
 						type="submit"
-						onclick={() => (showPrintModal = false)}
 						class="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
 					>
 						<span class="material-symbols-outlined text-[18px]" aria-hidden="true"
@@ -285,6 +299,68 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+{#if showDeleteModal}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity"
+	>
+		<div class="w-full max-w-sm overflow-hidden rounded-xl bg-white text-center shadow-2xl">
+			<div class="p-6">
+				<div
+					class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100"
+				>
+					<span class="material-symbols-outlined text-3xl text-red-600">warning</span>
+				</div>
+				<h3 class="mb-2 text-lg font-bold text-gray-800">{$t('Confirm Deletion?')}</h3>
+				<p class="text-sm text-gray-600">
+					{$t('Are you sure you want to delete plan')} <br />
+					<strong class="text-gray-900">{planToDelete?.pulling_plan_no}</strong>?
+				</p>
+			</div>
+			<div class="flex justify-center gap-3 border-t border-gray-100 bg-gray-50/80 px-6 py-4">
+				<button
+					type="button"
+					onclick={() => {
+						showDeleteModal = false;
+						planToDelete = null;
+					}}
+					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-100"
+				>
+					{$t('Cancel')}
+				</button>
+				<form
+					method="POST"
+					action="?/delete"
+					class="w-full"
+					use:enhance={() => {
+						deletingId = planToDelete.id;
+						return async ({ result, update }) => {
+							deletingId = null;
+							showDeleteModal = false;
+							if (result.type === 'success') {
+								update();
+							} else if (result.type === 'failure') {
+								alert((result.data as any)?.message || $t('เกิดข้อผิดพลาด'));
+							}
+						};
+					}}
+				>
+					<input type="hidden" name="id" value={planToDelete?.id} />
+					<button
+						type="submit"
+						disabled={deletingId === planToDelete?.id}
+						class="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
+					>
+						{#if deletingId === planToDelete?.id}
+							<div class="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+						{/if}
+						{$t('Confirm Delete')}
+					</button>
+				</form>
+			</div>
 		</div>
 	</div>
 {/if}
@@ -411,9 +487,10 @@
 						</td>
 						<td class="px-4 py-3 text-center whitespace-nowrap">
 							<div class="flex items-center justify-center gap-2">
-								<button
+								<a
+									href="/warehouse/containers-pulling/edit/{plan.id}"
 									aria-label={$t('Edit')}
-									class="rounded-md bg-blue-50 p-1.5 text-blue-500 shadow-sm hover:bg-blue-100 hover:text-blue-700"
+									class="inline-block rounded-md bg-blue-50 p-1.5 text-blue-500 shadow-sm transition-colors hover:bg-blue-100 hover:text-blue-700"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -429,53 +506,30 @@
 											d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
 										/></svg
 									>
-								</button>
+								</a>
+
 								{#if plan.status === 1}
-									<form
-										method="POST"
-										action="?/delete"
-										use:enhance={(e) => {
-											if (!confirm($t('คุณต้องการลบใช่หรือไม่?'))) {
-												e.cancel();
-												return;
-											}
-											deletingId = plan.id;
-											return async ({ result, update }) => {
-												deletingId = null;
-												if (result.type === 'success') update();
-												else alert($t('เกิดข้อผิดพลาด'));
-											};
-										}}
+									<button
+										type="button"
+										aria-label={$t('Delete')}
+										onclick={() => openDeleteModal(plan)}
+										class="rounded-md bg-red-50 p-1.5 text-red-500 shadow-sm transition-colors hover:bg-red-100 hover:text-red-700"
 									>
-										<input type="hidden" name="id" value={plan.id} />
-										<button
-											type="submit"
-											aria-label={$t('Delete')}
-											disabled={deletingId === plan.id}
-											class="rounded-md bg-red-50 p-1.5 text-red-500 hover:bg-red-100 hover:text-red-700 disabled:opacity-50"
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											aria-hidden="true"
+											><path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+											/></svg
 										>
-											{#if deletingId === plan.id}
-												<div
-													class="h-4 w-4 animate-spin rounded-full border-b-2 border-red-600"
-												></div>
-											{:else}
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-4 w-4"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="currentColor"
-													aria-hidden="true"
-													><path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-													/></svg
-												>
-											{/if}
-										</button>
-									</form>
+									</button>
 								{/if}
 							</div>
 						</td>

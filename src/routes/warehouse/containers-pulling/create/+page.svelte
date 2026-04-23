@@ -106,6 +106,23 @@
 		</div>
 
 		<div>
+			<label for="shop" class="mb-2 block text-sm font-bold text-gray-700">{$t('Shop')} *</label>
+			<select
+				id="shop"
+				name="shop"
+				required
+				class="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+			>
+				<option value="" disabled selected>{$t('-- Select Shop --')}</option>
+				<option value="SKD">SKD</option>
+				<option value="MOQ">MOQ</option>
+				<option value="KD">KD</option>
+				<option value="BA">BA</option>
+				<option value="EA">EA</option>
+			</select>
+		</div>
+
+		<div>
 			<label for="destination" class="mb-2 block text-sm font-bold text-gray-700">
 				{$t('Destination')}
 			</label>
