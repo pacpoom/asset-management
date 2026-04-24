@@ -45,7 +45,7 @@
  <div class="flex items-center justify-between">
   <div>
    <h1 class="text-2xl font-bold text-gray-800">ข่าวสารบริษัท</h1>
-   <p class="text-sm text-gray-500">ประกาศและอัปเดตล่าสุดจากบริษัท</p>
+   <p class="text-sm text-gray-500">ประกาศและอัปเดตล่าสุดจากบริษัท V2</p>
   </div>
  </div>
 
