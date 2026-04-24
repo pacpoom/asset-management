@@ -81,13 +81,17 @@
 		if (!dateVal) return '-';
 
 		try {
-			// แปลงเป็น String ก่อนเพื่อเช็คค่า 0000-00-00
-			const strVal = String(dateVal);
+			let strVal = String(dateVal);
 			if (strVal.startsWith('0000-00-00')) return '-';
 
-			const dateObj = new Date(dateVal);
+			// แก้ปัญหา Safari/iOS parse string 'YYYY-MM-DD HH:mm:ss' ไม่ได้
+			if (typeof dateVal === 'string' && strVal.includes(' ') && !strVal.includes('T')) {
+				strVal = strVal.replace(' ', 'T');
+			}
+
+			const dateObj = new Date(strVal !== String(dateVal) ? strVal : dateVal);
 			if (isNaN(dateObj.getTime())) return '-';
-			// ใช้ timeZone UTC เพื่อไม่ให้ถูกบวก 7 ชั่วโมงตาม local browser
+
 			return dateObj.toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-GB', { timeZone: 'UTC' });
 		} catch (e) {
 			return '-';
@@ -98,26 +102,30 @@
 		if (!dateVal) return '-';
 
 		try {
-			const strVal = String(dateVal);
+			let strVal = String(dateVal);
 			if (strVal.startsWith('0000-00-00')) return '-';
 
-			const dateObj = new Date(dateVal);
+			// แก้ปัญหา Safari/iOS parse string 'YYYY-MM-DD HH:mm:ss' ไม่ได้
+			if (typeof dateVal === 'string' && strVal.includes(' ') && !strVal.includes('T')) {
+				strVal = strVal.replace(' ', 'T');
+			}
+
+			const dateObj = new Date(strVal !== String(dateVal) ? strVal : dateVal);
 			if (isNaN(dateObj.getTime())) return '-';
 			
-			// แยก format วันที่และเวลาเพื่อป้องกันมีเครื่องหมาย comma แทรก (ขึ้นอยู่กับเบราว์เซอร์)
+			// แยก format วันที่
 			const formattedDate = dateObj.toLocaleDateString($locale === 'th' ? 'th-TH' : 'en-GB', {
 				timeZone: 'UTC',
 				year: 'numeric',
 				month: '2-digit',
 				day: '2-digit'
 			});
-			const formattedTime = dateObj.toLocaleTimeString('en-GB', {
-				timeZone: 'UTC',
-				hour: '2-digit',
-				minute: '2-digit'
-			});
+			
+			// ดึงเวลาตรงๆ จาก Date Object โดยใช้ UTC (เพื่อรับประกันว่าเวลาแสดงผลได้ชัวร์ 100% ไม่พึ่งพา toLocaleTimeString)
+			const hh = String(dateObj.getUTCHours()).padStart(2, '0');
+			const mm = String(dateObj.getUTCMinutes()).padStart(2, '0');
 
-			return `${formattedDate} ${formattedTime}`;
+			return `${formattedDate} ${hh}:${mm}`;
 		} catch (e) {
 			return '-';
 		}
