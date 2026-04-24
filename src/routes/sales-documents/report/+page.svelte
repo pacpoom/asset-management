@@ -466,7 +466,7 @@
 				<p class="hidden text-sm text-gray-700 sm:block">
 					{$t('Showing page')} <span class="font-medium">{data.currentPage}</span>
 					{$t('of')} <span class="font-medium">{data.totalPages}</span>
-					(รวม {data.totalCount} รายการ)
+					({$t('Total')} {data.totalCount} {$t('entries')})
 				</p>
 			{/if}
 		</div>
