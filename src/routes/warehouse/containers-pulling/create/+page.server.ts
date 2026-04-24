@@ -36,7 +36,6 @@ export const actions: Actions = {
 		const destination = formData.get('destination');
 		const remarks = formData.get('remarks');
 
-		// 🌟 รับค่า shop ที่เพิ่งเพิ่มมาจากฟอร์ม
 		const shop = formData.get('shop');
 
 		const user_id = locals.user?.id || 1;
@@ -46,9 +45,32 @@ export const actions: Actions = {
 		}
 
 		try {
-			const dateCode = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-			const randomCode = Math.floor(1000 + Math.random() * 9000);
-			const pulling_plan_no = `PULL${dateCode}${randomCode}`;
+			const d = new Date();
+			const yy = d.getFullYear().toString().slice(-2);
+			const mm = String(d.getMonth() + 1).padStart(2, '0');
+			const dd = String(d.getDate()).padStart(2, '0');
+			const dateCode = `${yy}${mm}${dd}`;
+			const prefix = `PULL${dateCode}`;
+
+			const [latestRows]: any = await cymspool.execute(
+				`SELECT pulling_plan_no FROM container_pulling_plans 
+				 WHERE pulling_plan_no LIKE ? 
+				 ORDER BY pulling_plan_no DESC LIMIT 1`,
+				[`${prefix}%`]
+			);
+
+			let nextNum = 1;
+			if (latestRows.length > 0 && latestRows[0].pulling_plan_no) {
+				const lastNo = latestRows[0].pulling_plan_no;
+				const lastRunningStr = lastNo.slice(-4);
+				const lastRunningNum = parseInt(lastRunningStr, 10);
+				if (!isNaN(lastRunningNum)) {
+					nextNum = lastRunningNum + 1;
+				}
+			}
+
+			const runningCode = String(nextNum).padStart(4, '0');
+			const pulling_plan_no = `${prefix}${runningCode}`;
 
 			await cymspool.execute(
 				`INSERT INTO container_pulling_plans 
@@ -59,7 +81,7 @@ export const actions: Actions = {
 					container_order_plan_id,
 					plan_type,
 					pulling_date,
-					shop, // ✅ ใส่ค่า shop ตรงนี้
+					shop,
 					destination,
 					remarks,
 					user_id

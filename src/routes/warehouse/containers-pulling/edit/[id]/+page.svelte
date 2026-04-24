@@ -7,7 +7,6 @@
 	let { data, form } = $props();
 	let isSubmitting = $state(false);
 
-	// เตรียมตัวเลือกตู้คอนเทนเนอร์
 	let containerOptions = $derived(
 		data.availablePlans.map((p: any) => ({
 			value: p.id,
@@ -15,7 +14,6 @@
 		}))
 	);
 
-	// ตั้งค่าเริ่มต้นให้ Select (ตัวที่เลือกไว้อยู่แล้ว)
 	let selectedContainer = $state<any>({
 		value: data.plan.container_order_plan_id,
 		label: `${data.plan.container_no || 'N/A'} (${$t('Plan')}: ${data.plan.plan_no})`

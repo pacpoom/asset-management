@@ -5,7 +5,6 @@ import { cymspool } from '$lib/server/database';
 export const load: PageServerLoad = async ({ params }) => {
 	const { id } = params;
 
-	// 🌟 1. ดึงข้อมูลแผนที่จะแก้ไขมาแสดง
 	const [rows]: any = await cymspool.execute(
 		`SELECT p.*, op.plan_no, c.container_no 
 		 FROM container_pulling_plans p
@@ -19,7 +18,6 @@ export const load: PageServerLoad = async ({ params }) => {
 		throw redirect(303, '/warehouse/containers-pulling');
 	}
 
-	// 🌟 2. ดึงรายการตู้ที่มีในสต็อกมาเผื่อกรณีเปลี่ยนตู้ (เหมือนหน้า Create)
 	const [availablePlans]: any = await cymspool.execute(
 		`SELECT op.id, op.plan_no, c.container_no 
 		 FROM container_order_plans op 
@@ -41,14 +39,59 @@ export const actions: Actions = {
 		const plan_id = f.get('container_order_plan_id');
 		const p_date = f.get('pulling_date');
 		const status = f.get('status');
-		const order = f.get('pulling_order');
+		const orderRaw = f.get('pulling_order');
+
+		const new_order = orderRaw ? parseInt(orderRaw as string, 10) : null;
 
 		if (!plan_id || !p_date) {
 			return fail(400, { message: 'Required fields missing' });
 		}
 
 		try {
-			// 🌟 อัปเดตข้อมูลแผนการเบิก
+			const [oldData]: any = await cymspool.execute(
+				`SELECT pulling_order, DATE(pulling_date) as old_date, shop 
+				 FROM container_pulling_plans WHERE id = ?`,
+				[id]
+			);
+
+			if (oldData.length > 0) {
+				const old_order = oldData[0].pulling_order;
+				const old_shop = oldData[0].shop;
+				const old_date_str = new Date(oldData[0].old_date).toISOString().split('T')[0];
+
+				if (new_order !== null) {
+					if (old_order === null || old_date_str !== p_date) {
+						await cymspool.execute(
+							`UPDATE container_pulling_plans 
+							 SET pulling_order = pulling_order + 1 
+							 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order >= ? AND id != ?`,
+							[p_date, old_shop, new_order, id]
+						);
+					} else if (new_order < old_order) {
+						await cymspool.execute(
+							`UPDATE container_pulling_plans 
+							 SET pulling_order = pulling_order + 1 
+							 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order >= ? AND pulling_order < ? AND id != ?`,
+							[p_date, old_shop, new_order, old_order, id]
+						);
+					} else if (new_order > old_order) {
+						await cymspool.execute(
+							`UPDATE container_pulling_plans 
+							 SET pulling_order = pulling_order - 1 
+							 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order > ? AND pulling_order <= ? AND id != ?`,
+							[p_date, old_shop, old_order, new_order, id]
+						);
+					}
+				} else if (old_order !== null) {
+					await cymspool.execute(
+						`UPDATE container_pulling_plans 
+						 SET pulling_order = pulling_order - 1 
+						 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order > ? AND id != ?`,
+						[old_date_str, old_shop, old_order, id]
+					);
+				}
+			}
+
 			await cymspool.execute(
 				`UPDATE container_pulling_plans 
 				 SET container_order_plan_id = ?, 
@@ -67,7 +110,7 @@ export const actions: Actions = {
 					f.get('destination'),
 					f.get('remarks'),
 					status,
-					order || null,
+					new_order,
 					id
 				]
 			);
