@@ -61,7 +61,8 @@ interface ItemData {
 	unit_price: number;
 	line_total: number;
 	wht_rate?: number;
-	is_vat?: number | boolean;
+	wht_amount?: number;
+	vat_type?: number;
 }
 
 const pdfSpecificDict: Record<string, Record<string, string>> = {
@@ -207,24 +208,30 @@ function getInvoiceHtml(
 
 	let calculatedWhtAmt = 0;
 	const activeRates = new Set<number>();
+	let hasIncVat = false;
 
+	// ✅ แก้ไข: ดึงยอด wht_amount จาก Database โดยตรงเพื่อความแม่นยำ 100%
 	itemsData.forEach((item) => {
 		const rate = Number(item.wht_rate || 0);
 		if (rate > 0) {
 			activeRates.add(rate);
-			calculatedWhtAmt += (Number(item.line_total) * rate) / 100;
+			calculatedWhtAmt += Number(item.wht_amount || 0);
+		}
+		if (item.vat_type == 1) {
+			hasIncVat = true;
 		}
 	});
 
 	const ratesArray = Array.from(activeRates);
 	const whtRateText = ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
-
 	const whtAmt = calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
-	const netAmount = totalAfterDiscount + vatAmt - whtAmt;
+	// ✅ แก้ไข: ดึงยอดสุทธิมาจาก total_amount ของเอกสารใน DB โดยตรง (ไม่เอามาบวก VAT เองซ้ำ)
+	const netAmount = Number(docData.total_amount || 0);
 	const netAmountText = bahttext(netAmount);
 
 	const docTitle = getDocumentTitle(docData.document_type);
+	const vatLabel = hasIncVat ? `${tPdf('VAT', lang)} (${vatRate}%) (Inc)` : `${tPdf('VAT', lang)} (${vatRate}%)`;
 
 	const formatNumber = (num: number | string) => {
 		const val = typeof num === 'string' ? parseFloat(num) : num;
@@ -355,7 +362,7 @@ function getInvoiceHtml(
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VAT', lang)} (${vatRate}%)</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${vatLabel}</td>
                     <td class="p-2 text-right">${formatNumber(vatAmt)}</td>
                 </tr>
 
@@ -372,7 +379,6 @@ function getInvoiceHtml(
         </table>
     `;
 
-	// เพิ่มลายเซ็น PurchasedBy เข้าไปตรงกลาง
 	const signatureBlock = `
         <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
             <div style="text-align: center; width: 30%;">
@@ -453,14 +459,21 @@ function getInvoiceHtml(
 
 			const rowsHtml = pageInfo.items
 				.map(
-					(item, i) => `
+					(item, i) => {
+						// กำหนดการแสดงผลของ VAT
+						let vatDisplay = '-';
+						if (item.vat_type == 1) vatDisplay = 'Inc';
+						else if (item.vat_type == 2) vatDisplay = 'Exc';
+						else if (item.vat_type == 3) vatDisplay = 'Non';
+
+						return `
     <tr style="border-bottom: 1px solid #eee;">
         <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
         <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
         <td class="p-2 text-center" style="color: #2563eb; font-weight: 500; vertical-align: top;">
-            ${item.is_vat ? '7%' : '-'}
+            ${vatDisplay}
         </td>
         <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
@@ -468,6 +481,7 @@ function getInvoiceHtml(
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.line_total)}</td>
     </tr>
 `
+					}
 				)
 				.join('');
 
@@ -590,7 +604,7 @@ export const GET = async ({ url, fetch }) => {
 
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
-            SELECT description, quantity, unit_price, line_total, wht_rate, is_vat
+            SELECT description, quantity, unit_price, line_total, wht_rate, wht_amount, vat_type
             FROM purchase_document_items 
             WHERE document_id = ? 
             ORDER BY item_order ASC

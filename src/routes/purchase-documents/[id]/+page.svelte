@@ -341,12 +341,11 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
-					<th class="px-4 py-4 text-left font-semibold text-gray-600"
-						>{$t('Product/Description')}</th
-					>
+					<th class="px-4 py-4 text-left font-semibold text-gray-600">{$t('Product/Description')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Qty')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Cost/Unit')}</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">{$t('VAT Type')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
 					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">{$t('Total')}</th>
 				</tr>
@@ -355,12 +354,27 @@
 				{#each items as item}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-4 py-4 text-gray-700">
-							<!-- 🌟 ใช้ whitespace-pre-wrap เพื่อให้สามารถโชว์บรรทัดที่เคาะลงมาเหมือนตอนเป็น Textarea -->
 							<div class="font-medium text-gray-900 whitespace-pre-wrap leading-relaxed">{item.description}</div>
 						</td>
 						<td class="px-4 py-4 text-center text-gray-700">{item.quantity}</td>
 						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>
 						<td class="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
+						
+						<!-- แสดง VAT Type -->
+						<td class="px-4 py-4 text-center font-bold text-blue-600">
+							{#if item.vat_type == 1}
+								Inc Vat
+							{:else if item.vat_type == 2}
+								Exc Vat
+							{:else if item.vat_type == 3}
+								Non Vat
+							{:else if item.is_vat}
+								Exc Vat <!-- รองรับข้อมูลเดิม -->
+							{:else}
+								Non Vat
+							{/if}
+						</td>
+
 						<td class="px-4 py-4 text-center font-bold text-red-600">
 							{parseFloat(item.wht_rate || '0') > 0 ? `${parseFloat(item.wht_rate)}%` : '-'}
 						</td>
@@ -368,7 +382,8 @@
 							<div class="font-medium text-gray-900">{formatCurrency(item.line_total)}</div>
 							{#if parseFloat(item.wht_rate || '0') > 0}
 								<div class="mt-0.5 text-[10px] text-red-500">
-									(-{formatCurrency((item.line_total * parseFloat(item.wht_rate)) / 100)})
+									<!-- ใช้อ้างอิงตัวแปร wht_amount จาก DB แทนการคำนวณสด เพื่อให้ตรงกับทั้งระบบ -->
+									(-{formatCurrency(item.wht_amount || (item.line_total * parseFloat(item.wht_rate)) / 100)})
 								</div>
 							{/if}
 						</td>

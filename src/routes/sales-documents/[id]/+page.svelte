@@ -22,6 +22,71 @@
 		companyData = data.company;
 	});
 
+	// --- Extracted VAT logic to calculate vatAmt and vatFromInc cleanly ---
+	let vatBreakdown = $derived.by(() => {
+		if (!document || !items) return { vatAmt: 0, vatFromInc: 0, vatableAmount: 0, nonVatableAmount: 0, amountBeforeVat: 0 };
+		const vatRate = Number(document.vat_rate || 0);
+		const discountAmount = Number(document.discount_amount || 0);
+
+		let subtotal = 0;
+		let excVatTotal = 0;
+		let incVatTotal = 0;
+		let nonVatTotal = 0;
+
+		for (const item of items) {
+			const amount = Number(item.line_total || 0);
+			subtotal += amount;
+			if (Number(item.is_vat) === 1) { // 1 = Inc. VAT
+				incVatTotal += amount;
+			} else if (Number(item.is_vat) === 0) { // 0 = Exc. VAT
+				excVatTotal += amount;
+			} else if (Number(item.is_vat) === 2) { // 2 = Non-VAT
+				nonVatTotal += amount;
+			}
+		}
+
+		const discountForExcVat = subtotal > 0 ? discountAmount * (excVatTotal / subtotal) : 0;
+		const discountForIncVat = subtotal > 0 ? discountAmount * (incVatTotal / subtotal) : 0;
+		const discountForNonVat = subtotal > 0 ? discountAmount * (nonVatTotal / subtotal) : 0;
+
+		const vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+		const vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+
+		const vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
+		const nonVatableAmount = nonVatTotal - discountForNonVat;
+		const amountBeforeVat = vatableAmount + nonVatableAmount;
+
+		let vatAmt = vatFromExc + vatFromInc;
+		if (vatAmt === 0 && Number(document.vat_amount || 0) > 0) {
+			vatAmt = Number(document.vat_amount || 0);
+		}
+		return { vatAmt, vatFromInc, vatableAmount, nonVatableAmount, amountBeforeVat };
+	});
+
+	let displayVatAmount = $derived(vatBreakdown.vatAmt);
+	let vatableAmount = $derived(vatBreakdown.vatableAmount);
+	let nonVatableAmount = $derived(vatBreakdown.nonVatableAmount);
+	let amountBeforeVat = $derived(vatBreakdown.amountBeforeVat);
+
+	let displayWhtAmount = $derived.by(() => {
+		if (!document || !items) return 0;
+		const vatRate = Number(document.vat_rate || 0);
+		let calculatedWhtAmt = 0;
+
+		for (const item of items) {
+			const rawLineTotal = Number(item.line_total || 0);
+			const rate = Number(item.wht_rate || 0);
+			if (rate > 0) {
+				let whtBase = rawLineTotal;
+				if (Number(item.is_vat) === 1 && vatRate > 0) { // Inc VAT
+					whtBase = rawLineTotal * 100 / (100 + vatRate);
+				}
+				calculatedWhtAmt += whtBase * (rate / 100);
+			}
+		}
+		return calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(document.wht_amount || document.withholding_tax_amount || 0);
+	});
+
 	const formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
 		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
@@ -56,7 +121,7 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📁';
+		return '📎';
 	}
 
 	async function updateStatus(e: Event) {
@@ -139,7 +204,7 @@
 			>
 				{$t('Create Invoice (INV)')}
 			</a>
-		{:else if document.document_type === 'INV'}
+		{:else if document.document_type === 'INV' || document.document_type === 'D-INV'}
 			<a
 				href="/sales-documents/new?source_id={document.id}&target_type=BN"
 				class="rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600"
@@ -310,15 +375,21 @@
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Qty')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
 					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Unit Price')}</th>
-					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">Inc. VAT</th>
-					<th class="w-32 px-4 py-4 text-right font-semibold text-gray-600">{$t('Amount') || 'Amount'}</th>
+					<th class="w-24 px-4 py-4 text-center font-semibold text-blue-600">VAT Status</th>
+					<th class="w-28 px-4 py-4 text-right font-semibold text-gray-600">{$t('NonVatableAmount') || 'Non-VAT Amount'}</th>
+					<th class="w-28 px-4 py-4 text-right font-semibold text-gray-600">{$t('VatableAmount') || 'Vatable Amount'}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-red-600">WHT</th>
 					<th class="w-40 px-4 py-4 text-right font-semibold text-gray-600">{$t('Total')}</th>
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
 				{#each items as item}
-					{@const amount = item.is_vat ? item.line_total * 100 / (100 + Number(document.vat_rate || 7)) : item.line_total}
+					{@const amount = item.line_total}
+					{@const isVat = Number(item.is_vat)}
+					{@const vatRate = Number(document.vat_rate || 7)}
+					{@const vatableAmt = isVat === 0 ? amount : (isVat === 1 ? amount * 100 / (100 + vatRate) : 0)}
+					{@const nonVatAmt = isVat === 2 ? amount : 0}
+					{@const whtBase = isVat === 1 ? amount * 100 / (100 + vatRate) : amount}
 					<tr class="transition-colors hover:bg-gray-50">
 						<td class="px-4 py-4 text-gray-700"
 							><div class="font-medium text-gray-900">{item.description}</div></td
@@ -326,11 +397,20 @@
 						<td class="px-4 py-4 text-center text-gray-700">{item.quantity}</td>
 						<td class="px-4 py-4 text-center text-gray-600">{item.unit_symbol || '-'}</td>
 						<td class="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
-						<td class="px-4 py-4 text-center font-bold text-blue-600">
-							{item.is_vat ? '✓' : '-'}
+						<td class="px-4 py-4 text-center font-bold">
+                            {#if isVat === 1}
+                                <span class="text-blue-600">Inc.</span>
+                            {:else if isVat === 0}
+                                <span class="text-orange-600">Exc.</span>
+                            {:else}
+                                <span class="text-gray-500">None</span>
+                            {/if}
 						</td>
 						<td class="px-4 py-4 text-right text-gray-700 font-medium">
-							{formatCurrency(amount)}
+							{nonVatAmt > 0 ? formatCurrency(nonVatAmt) : '-'}
+						</td>
+						<td class="px-4 py-4 text-right text-gray-700 font-medium">
+							{vatableAmt > 0 ? formatCurrency(vatableAmt) : '-'}
 						</td>
 						<td class="px-4 py-4 text-center font-bold text-red-600">
 							{parseFloat(item.wht_rate || '0') > 0 ? `${parseFloat(item.wht_rate)}%` : '-'}
@@ -339,7 +419,7 @@
 							<div class="font-bold text-gray-900">{formatCurrency(item.line_total)}</div>
 							{#if parseFloat(item.wht_rate || '0') > 0}
 								<div class="mt-0.5 text-[10px] text-red-500 font-medium">
-									(-{formatCurrency((amount * parseFloat(item.wht_rate)) / 100)})
+									(-{formatCurrency((whtBase * parseFloat(item.wht_rate)) / 100)})
 								</div>
 							{/if}
 						</td>
@@ -354,28 +434,31 @@
 	<h2 class="border-b pb-2 text-lg font-semibold text-gray-700">{$t('Financial Summary')}</h2>
 	<div class="mt-3 w-full space-y-2 text-sm">
 		<div class="flex items-center justify-between">
-			<span class="font-medium text-gray-600">{$t('Subtotal')} <span class="text-xs text-gray-400">({$t('Before VAT') || 'Before VAT'})</span>:</span>
+			<span class="font-medium text-gray-600">{$t('Subtotal')}:</span>
 			<span class="font-medium text-gray-800">{formatCurrency(document.subtotal)}</span>
 		</div>
 
-		{#if parseFloat(document.discount_amount) > 0}
-			<div class="flex items-center justify-between">
-				<span class="font-medium text-gray-600">{$t('Discount')}:</span>
-				<span class="font-medium text-red-600">- {formatCurrency(document.discount_amount)}</span>
-			</div>
-		{/if}
-
-		<div class="flex items-center justify-between border-t pt-2">
-			<span class="font-medium text-gray-600">{$t('Total After Discount')}:</span>
-			<span class="font-medium text-gray-800">{formatCurrency(document.total_after_discount)}</span>
+		<div class="mt-1 flex items-center justify-between">
+			<span class="font-medium text-gray-600">{$t('VatableAmount') || 'Vatable Amount'}:</span>
+			<span class="font-medium text-gray-800">{formatCurrency(vatableAmount)}</span>
 		</div>
 
 		<div class="mt-1 flex items-center justify-between">
-			<span class="font-medium text-gray-600">VAT ({Number(document.vat_rate ?? 0)}%):</span>
-			<span class="font-medium text-gray-800">{formatCurrency(document.vat_amount)}</span>
+			<span class="font-medium text-gray-600">{$t('NonVatableAmount') || 'Non-VAT Amount'}:</span>
+			<span class="font-medium text-gray-800">{formatCurrency(nonVatableAmount)}</span>
 		</div>
 
-		{#if parseFloat(document.withholding_tax_amount || document.wht_amount || '0') > 0}
+		<div class="mt-1 flex items-center justify-between">
+			<span class="font-medium text-gray-600">{$t('AmountBeforeVAT') || 'Amount Before VAT'}:</span>
+			<span class="font-medium text-gray-800">{formatCurrency(amountBeforeVat)}</span>
+		</div>
+
+		<div class="mt-1 flex items-center justify-between border-t border-gray-100 pt-2">
+			<span class="font-medium text-gray-600">{$t('Sales VAT')} ({Number(document.vat_rate ?? 0)}%):</span>
+			<span class="font-medium text-gray-800">{formatCurrency(displayVatAmount)}</span>
+		</div>
+
+		{#if displayWhtAmount > 0}
 			{@const activeWhtRates = [
 				...new Set(
 					items.map((i: any) => parseFloat(i.wht_rate || '0')).filter((r: number) => r > 0)
@@ -388,7 +471,7 @@
 						: 'Total'}):</span
 				>
 				<span class="font-medium text-red-600"
-					>- {formatCurrency(document.withholding_tax_amount || document.wht_amount)}</span
+					>- {formatCurrency(displayWhtAmount)}</span
 				>
 			</div>
 		{/if}

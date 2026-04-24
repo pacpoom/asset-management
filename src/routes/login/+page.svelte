@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { navigating } from '$app/stores';
+	import { enhance } from '$app/forms'; // นำเข้า enhance
 	import type { ActionData, PageData } from './$types';
 	import { onMount } from 'svelte';
 	import { slide, fade, scale } from 'svelte/transition';
@@ -7,7 +7,8 @@
 
 	const { form, data } = $props<{ form: ActionData; data: PageData }>();
 
-	const isLoading = $derived($navigating?.type === 'form');
+	// ใช้ state จัดการ loading แทนการใช้ $navigating เพื่อความเสถียรเมื่อใช้คู่กับ enhance
+	let isLoading = $state(false);
 
 	let isMounted = $state(false);
 	onMount(() => {
@@ -56,7 +57,19 @@
 				<p class="mt-2 text-gray-500">Login to your Core Business System</p>
 			</div>
 
-			<form method="POST" action="?/login" class="space-y-6">
+			<!-- เพิ่ม use:enhance เพื่อป้องกันการทำ Full Page Reload -->
+			<form 
+				method="POST" 
+				action="?/login" 
+				class="space-y-6"
+				use:enhance={() => {
+					isLoading = true;
+					return async ({ update }) => {
+						await update();
+						isLoading = false;
+					};
+				}}
+			>
 				<input type="hidden" name="redirect" value={data.redirectTarget} />
 				<div>
 					<label for="identifier" class="mb-2 block text-sm font-medium text-gray-700"
@@ -93,13 +106,6 @@
 				</div>
 
 				<div>
-					<!-- <div class="mb-2 flex items-center justify-between">
-						<label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-						<a href="/forgot-password" class="text-sm text-blue-600 hover:underline"
-							>Forgot Password?</a
-						>
-					</div> -->
-
 					<div class="relative">
 						<span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 							<svg

@@ -3,7 +3,6 @@ import type { PageServerLoad } from './$types';
 import { cymspool } from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
 import type { RowDataPacket } from 'mysql2';
-import pool from '$lib/server/database';
 
 interface ContainerData extends RowDataPacket {
 	id: number;
@@ -69,16 +68,18 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(endDate);
 		}
 
-		whereClause += ` AND p.status >= 2 `;
-
 		if (ownerFilter) {
 			whereClause += ` AND c.container_owner = ? `;
 			params.push(ownerFilter);
 		}
 
-		// ใช้การนับจำนวนปกติ ลบการ join กับ container_stocks ออก
+		// ใช้การนับจำนวนปกติ ลบการ join กับ container_stocks ออก พร้อมนับยอด LCB (status=1), Total Received (status>=2) และ Total Returned (status=4)
 		const countSql = `
-			SELECT COUNT(*) as total
+			SELECT 
+				COUNT(*) as total,
+				SUM(CASE WHEN p.status = 1 THEN 1 ELSE 0 END) as total_lcb,
+				SUM(CASE WHEN p.status >= 2 THEN 1 ELSE 0 END) as total_received,
+				SUM(CASE WHEN p.status = 4 THEN 1 ELSE 0 END) as total_returned
             FROM container_order_plans p
             LEFT JOIN containers c ON p.container_id = c.id 
             ${whereClause}
@@ -87,6 +88,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const [countResult] = await cymspool.query<any[]>(countSql, params);
 
 		const totalCount = countResult[0].total || 0;
+		const totalLCB = Number(countResult[0].total_lcb) || 0;
+		const totalReceived = Number(countResult[0].total_received) || 0;
+		const totalReturned = Number(countResult[0].total_returned) || 0;
 		const totalPages = Math.ceil(totalCount / limit);
 
 		// ลบการ join กับ container_stocks และ GROUP BY ออก
@@ -109,6 +113,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		return {
 			containers: containerRows,
 			totalCount,
+			totalLCB,
+			totalReceived,
+			totalReturned,
 			currentPage: page,
 			totalPages,
 			limit,

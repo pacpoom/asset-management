@@ -121,7 +121,7 @@
 						unit_price: parseFloat(item.unit_price || '0'),
 						line_total: parseFloat(item.line_total || '0'),
 						wht_rate: parseFloat(item.wht_rate || '0'),
-						is_vat: item.is_vat !== undefined ? !!item.is_vat : true
+						is_vat: item.is_vat !== undefined ? Number(item.is_vat) : 1
 					};
 				});
 			}
@@ -149,43 +149,48 @@
 		selectedJobOrderId = selected ? selected.value : '';
 	}
 
-	// Dynamic calculation logic mapped with Amount and Inc VAT
 	$: calculatedItems = items.map(item => {
 		const rawLineTotal = (item.quantity || 0) * (item.unit_price || 0);
 		let amount = rawLineTotal;
-		let itemVatAmt = 0;
 		
-		if (item.is_vat && vatRate > 0) {
-			amount = rawLineTotal * 100 / (100 + vatRate);
-			itemVatAmt = rawLineTotal - amount;
+		let whtBase = rawLineTotal;
+		if (Number(item.is_vat) === 1 && vatRate > 0) {
+			whtBase = rawLineTotal * 100 / (100 + vatRate);
 		}
 		
-		const whtAmt = amount * (item.wht_rate / 100);
+		const whtAmt = whtBase * (item.wht_rate / 100);
 		
 		return {
 			...item,
 			line_total: rawLineTotal,
 			amount: amount,
-			item_vat: itemVatAmt,
 			wht_amount: whtAmt
 		};
 	});
 
-	// --- FIX: VAT Calculation Logic ---
-	// คิด Subtotal จาก Amount ก่อนภาษี
+	// --- VAT Calculation Logic (Reflected as PDF) ---
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + item.amount, 0);
-	
-	// นำยอดรวมมาหักส่วนลดก่อน
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
-	// คำนวณ VAT จากยอดทั้งหมดเสมอ (ไม่ขึ้นอยู่กับว่าติ๊กหรือไม่ติ๊กแล้ว)
-	$: vatAmount = (totalAfterDiscount * vatRate) / 100;
+	$: excVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 0).reduce((sum, item) => sum + item.amount, 0);
+	$: incVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 1).reduce((sum, item) => sum + item.amount, 0);
+	$: nonVatTotal = calculatedItems.filter(item => Number(item.is_vat) === 2).reduce((sum, item) => sum + item.amount, 0);
+
+	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
+	$: discountForIncVat = subtotalBeforeVat > 0 ? discountAmount * (incVatTotal / subtotalBeforeVat) : 0;
+	$: discountForNonVat = subtotalBeforeVat > 0 ? discountAmount * (nonVatTotal / subtotalBeforeVat) : 0;
 	
-	// คำนวณ WHT รวม
+	$: vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+	$: vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+	
+	$: vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
+	$: nonVatableAmount = nonVatTotal - discountForNonVat;
+	$: amountBeforeVat = vatableAmount + nonVatableAmount;
+
+	$: vatAmount = vatFromExc + vatFromInc;
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + item.wht_amount, 0);
 	
-	// ยอดสรุปสุดท้าย
-	$: grandTotal = totalAfterDiscount + vatAmount - whtAmount;
+	$: grandTotal = totalAfterDiscount + vatFromExc - whtAmount;
 	
 	$: itemsJson = JSON.stringify(calculatedItems);
 
@@ -201,7 +206,7 @@
 				unit_price: 0,
 				line_total: 0,
 				wht_rate: 0,
-				is_vat: true
+				is_vat: 1
 			}
 		];
 	}
@@ -223,14 +228,14 @@
 			items[index].unit_price = parseFloat(product.price) || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate) || 0;
-			items[index].is_vat = true;
+			items[index].is_vat = 1;
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
 			items[index].unit_id = null;
 			items[index].wht_rate = 0;
-			items[index].is_vat = true;
+			items[index].is_vat = 1;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -246,14 +251,22 @@
 
 	let isSaving = false;
 
-	// Modal สร้างสินค้า ...
-	let showAddProductModal = false;
-	let isSavingProduct = false;
 </script>
 
 <svelte:head>
 	<title>{$t('Edit')} {$t('DocType_' + document?.document_type)} {document?.document_number}</title>
 </svelte:head>
+
+<!-- 🌟 หน้าจอ Loading หมุนๆ ตอนกำลัง Save -->
+{#if isSaving}
+	<div class="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm transition-opacity">
+		<div class="flex flex-col items-center rounded-xl bg-white px-10 py-8 shadow-2xl">
+			<div class="mb-5 h-14 w-14 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
+			<p class="text-xl font-bold text-gray-800">{$t('Saving...')}</p>
+			<p class="mt-1 text-sm text-gray-500">กำลังบันทึกข้อมูล กรุณารอสักครู่...</p>
+		</div>
+	</div>
+{/if}
 
 <div class="mx-auto max-w-7xl rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-6 mb-10">
 	<div class="mb-6 flex items-center justify-between">
@@ -270,16 +283,24 @@
 		method="POST"
 		action="?/update"
 		enctype="multipart/form-data"
-		use:enhance={() => {
-			isSaving = true;
+		use:enhance={({ action }) => {
+            // 🌟 ตรวจสอบว่าเป็นการลบไฟล์หรือไม่
+            const isDeleting = action.search.includes('deleteAttachment');
+			if (!isDeleting) {
+                isSaving = true;
+            }
 			return async ({ update }) => {
-				await update();
+                // 🌟 หากเป็นการลบไฟล์ ปิดการรีเซ็ตฟอร์ม (reset: false) ข้อมูลที่กรอกไว้จะได้ไม่หาย
+                if (isDeleting) {
+                    await update({ reset: false });
+                } else {
+                    await update();
+                }
 				isSaving = false;
 			};
 		}}
 	>
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-			<!-- Top Fields... -->
             <div class="relative z-[60]">
 				<label for="document_type_display" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Document Type (Cannot be changed)')}</label
@@ -408,22 +429,22 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs text-gray-500 uppercase">
 						<tr>
-							<th class="w-32 px-4 py-2 text-left font-medium">{$t('Product/Service')}</th>
+							<th class="w-20 px-3 py-2 text-left font-medium">{$t('Product/Service')}</th>
 							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
-							<th class="w-20 px-3 py-2 text-right">{$t('Qty')}</th>
-							<th class="w-20 px-3 py-2 text-center">{$t('Unit')}</th>
-							<th class="w-24 px-3 py-2 text-right">{$t('Unit Price')}</th>
-							<th class="w-20 px-3 py-2 text-center text-blue-600 cursor-help" title="Include VAT">Inc. VAT</th>
+							<th class="w-25 px-3 py-2 text-right">{$t('Qty')}</th>
+							<th class="w-25 px-3 py-2 text-center">{$t('Unit')}</th>
+							<th class="w-35 px-3 py-2 text-right">{$t('Unit Price')}</th>
+							<th class="w-25 px-2 py-2 text-center text-blue-600">VAT Status</th>
 							<th class="w-28 px-3 py-2 text-right text-gray-700">{$t('Amount') || 'Amount'}</th>
 							<th class="w-20 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
 							<th class="w-28 px-3 py-2 text-right">{$t('Total')}</th>
-							<th class="w-10 px-3 py-2"></th>
+							<th class="w-3 px-3 py-2"></th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each calculatedItems as item, index}
 							<tr>
-								<td class="w-20 px-4 py-2" style="min-width: 180px; max-width: 250px;">
+								<td class="w-20 px-3 py-2" style="min-width: 150px; max-width: 200px;">
 									<Select
 										items={productOptions}
 										value={item.product_object}
@@ -471,15 +492,15 @@
 										required
 									/>
 								</td>
-								<td class="px-1 py-1 text-center align-middle">
-									<div class="flex items-center justify-center h-full pt-1">
-										<input 
-											type="checkbox" 
-											bind:checked={items[index].is_vat} 
-											class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" 
-											title="Include VAT" 
-										/>
-									</div>
+								<td class="px-1 py-2 text-center align-middle">
+									<select
+										bind:value={items[index].is_vat}
+										class="w-full rounded-md border-gray-300 py-1.5 px-1 text-center text-xs font-medium focus:border-blue-500 focus:ring-blue-500 {items[index].is_vat === 1 ? 'text-blue-600 bg-blue-50' : items[index].is_vat === 0 ? 'text-orange-600 bg-orange-50' : 'text-gray-600 bg-gray-50'}"
+									>
+										<option value={1}>Inc. VAT</option>
+										<option value={0}>Exc. VAT</option>
+										<option value={2}>Non-VAT</option>
+									</select>
 								</td>
 								<td class="px-2 py-2 text-right font-medium text-gray-700 bg-gray-50/50">
 									{formatNumber(item.amount)}
@@ -552,6 +573,7 @@
 									>
 									<button
 										type="submit"
+										formnovalidate
 										formaction="?/deleteAttachment"
 										name="attachment_id"
 										value={file.id}
@@ -579,24 +601,26 @@
 
 			<div class="h-fit w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">{$t('Subtotal')} <span class="text-xs text-gray-400">({$t('Before VAT') || 'Before VAT'})</span></span>
+					<span class="text-gray-600">{$t('Subtotal')}</span>
 					<span class="font-medium">{formatNumber(subtotalBeforeVat)}</span>
 				</div>
-				<div class="flex items-center justify-between text-sm">
-					<span class="text-gray-600">{$t('Discount')}</span><input
-						type="number"
-						name="discount_amount"
-						bind:value={discountAmount}
-						min="0"
-						class="w-24 rounded-md border-gray-300 py-1 text-right text-sm shadow-sm"
-					/>
-				</div>
-				<div class="flex justify-between border-t border-gray-200 pt-2 text-sm">
-					<span class="text-gray-600">{$t('After Discount')}</span><span class="font-medium"
-						>{formatNumber(totalAfterDiscount)}</span
-					>
-				</div>
+				
 				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('VatableAmount') || 'Vatable Amount'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(vatableAmount)}</span>
+				</div>
+
+				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('NonVatableAmount') || 'Non-VAT Amount'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(nonVatableAmount)}</span>
+				</div>
+
+				<div class="mt-2 flex items-center justify-between text-sm">
+					<span class="text-gray-600">{$t('AmountBeforeVAT') || 'Amount Before VAT'}</span>
+					<span class="font-medium text-gray-800">{formatNumber(amountBeforeVat)}</span>
+				</div>
+
+				<div class="mt-2 flex items-center justify-between text-sm border-t border-gray-200 pt-2">
 					<span class="text-gray-600">
 						{$t('Sales VAT')} 
 						<select
@@ -608,7 +632,7 @@
 							<option value={7}>7%</option>
 						</select>
 					</span>
-					<span class="font-medium text-green-600">+{formatNumber(vatAmount)}</span>
+					<span class="font-medium text-gray-800">{formatNumber(vatAmount)}</span>
 					<input type="hidden" name="vat_amount" value={vatAmount} />
 				</div>
 				<div class="flex items-center justify-between border-b border-gray-200 pb-2 text-sm text-red-600">

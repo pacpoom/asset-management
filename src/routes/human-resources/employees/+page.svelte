@@ -65,9 +65,9 @@
 		selectedIds = [];
 	});
 
-	let uniqueDivisions = $derived(
-		[...new Set(employees.map((e: any) => e.dis).filter((v: any) => v && v !== '-'))].sort()
-	);
+	// let uniqueDivisions = $derived(
+	// 	[...new Set(employees.map((e: any) => e.dis).filter((v: any) => v && v !== '-'))].sort()
+	// );
 	let uniqueSections = $derived(
 		[...new Set(employees.map((e: any) => e.section).filter((v: any) => v && v !== '-'))].sort()
 	);
@@ -90,18 +90,30 @@
 	let isSaving = $state(false);
 	let isDeleting = $state(false);
 
-	function parseDateToInput(dateStr: string) {
-		if (!dateStr || dateStr === '-') return '';
+	function parseDateToInput(dateStr: any) {
+		if (!dateStr || typeof dateStr !== 'string' || dateStr === '-') return '';
+
 		const parts = dateStr.split('/');
-		if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-		return '';
+		if (parts.length === 3) {
+			return `${parts[2]}-${parts[1]}-${parts[0]}`;
+		}
+		return dateStr;
 	}
 
 	function openModal(mode: 'view' | 'edit', item: any) {
 		modalMode = mode;
 		selectedItem = { ...item };
 		selectedItem.start_date = parseDateToInput(item.start_date);
-		selectedItem.start_ih = parseDateToInput(item.start_ih);
+
+		if (mode === 'view') {
+			selectedItem.stats = {
+				late: item.late_count || 0,
+				absent: item.absent_count || 0,
+				leave: item.leave_count || 0,
+				ot: item.ot_hours || 0,
+				balance: item.leave_balance || 15
+			};
+		}
 	}
 
 	function closeModal() {
@@ -318,8 +330,8 @@
 							>
 						</div>
 					</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Start TC')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Start IH')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Start Date')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Phone Number')}</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
 						onclick={() => toggleSort('tenure')}
@@ -388,7 +400,7 @@
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.citizen_id || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.start_date}</td>
-						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.start_ih}</td>
+						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.phone_number || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.tenure}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.dis}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.section}</td>
@@ -511,7 +523,7 @@
 		>
 			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'view' ? $t('รายละเอียดพนักงาน (View)') : $t('แก้ไขข้อมูลพนักงาน (Edit)')}
+					{modalMode === 'view' ? $t('Employee Details (View)') : $t('Edit employee information')}
 				</h2>
 				<button type="button" onclick={closeModal} class="text-gray-400 hover:text-gray-600">
 					<span class="material-symbols-outlined">close</span>
@@ -523,6 +535,7 @@
 					id="employeeForm"
 					method="POST"
 					action="?/save"
+					enctype="multipart/form-data"
 					use:enhance={() => {
 						isSaving = true;
 						return async ({ update }) => {
@@ -531,6 +544,82 @@
 						};
 					}}
 				>
+					{#if modalMode === 'view'}
+						<div
+							class="mb-6 flex flex-col items-center gap-4 border-b pb-6 md:flex-row md:items-start"
+						>
+							{#if selectedItem.profile_image_path}
+								<img
+									src={selectedItem.profile_image_path}
+									alt="Profile"
+									class="h-24 w-24 rounded-full border-2 border-gray-200 object-cover shadow-sm"
+								/>
+							{:else}
+								<div
+									class="flex h-24 w-24 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-100 text-gray-400"
+								>
+									<span class="material-symbols-outlined text-[48px]">person</span>
+								</div>
+							{/if}
+							<div class="text-center md:text-left">
+								<h3 class="text-xl font-bold text-gray-900">{selectedItem.emp_name}</h3>
+								<p class="text-sm font-medium text-blue-600">Emp_ID : {selectedItem.emp_id}</p>
+							</div>
+						</div>
+						<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
+							<div class="rounded-lg border border-yellow-100 bg-yellow-50 p-3 text-center">
+								<p class="text-xs font-bold text-yellow-600">{$t('Late')}</p>
+								<p class="text-xl font-black text-yellow-700">{selectedItem?.stats?.late ?? 0}</p>
+							</div>
+							<div class="rounded-lg border border-red-100 bg-red-50 p-3 text-center">
+								<p class="text-xs font-bold text-red-600">{$t('Absent')}</p>
+								<p class="text-xl font-black text-red-700">{selectedItem?.stats?.absent ?? 0}</p>
+							</div>
+							<div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-center">
+								<p class="text-xs font-bold text-blue-600">{$t('Leave')}</p>
+								<p class="text-xl font-black text-blue-700">{selectedItem?.stats?.leave ?? 0}</p>
+							</div>
+							<div class="rounded-lg border border-purple-100 bg-purple-50 p-3 text-center">
+								<p class="text-xs font-bold text-purple-600">{$t('OT')}</p>
+								<p class="text-xl font-black text-purple-700">{selectedItem.stats.ot}</p>
+							</div>
+							<div class="rounded-lg border border-green-100 bg-green-50 p-3 text-center">
+								<p class="text-xs font-bold text-green-600">{$t('leave balance')}</p>
+								<p class="text-xl font-black text-green-700">
+									{(selectedItem?.stats?.balance ?? 30) - (selectedItem?.stats?.leave ?? 0)}
+								</p>
+							</div>
+						</div>
+					{/if}
+
+					{#if modalMode === 'edit'}
+						<div class="mb-4">
+							<label class="mb-1 block text-sm font-semibold text-gray-700">
+								{$t('รูปถ่ายพนักงาน')}
+								<input type="file" name="employee_photo" class="mt-2 block" />
+							</label>
+							<div class="flex items-center gap-4">
+								{#if selectedItem.profile_image_path}
+									<img
+										src={selectedItem.profile_image_path}
+										class="h-12 w-12 rounded-full border object-cover"
+										alt="preview"
+									/>
+								{/if}
+								<input
+									type="file"
+									name="profile_image"
+									accept="image/*"
+									class="w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold hover:file:bg-gray-200"
+								/>
+								<input
+									type="hidden"
+									name="existing_image_path"
+									value={selectedItem.profile_image_path || ''}
+								/>
+							</div>
+						</div>
+					{/if}
 					<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 						<div>
 							<label for="emp_id" class="mb-1 block text-sm font-semibold text-gray-700"
@@ -597,7 +686,7 @@
 						</div>
 						<div>
 							<label for="start_date" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('วันเริ่มงาน TC')}</label
+								>{$t('Start Date')}</label
 							>
 							<input
 								id="start_date"
@@ -612,14 +701,14 @@
 							/>
 						</div>
 						<div>
-							<label for="start_ih" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('Start IH')}</label
+							<label for="phone_number" class="mb-1 block text-sm font-semibold text-gray-700"
+								>{$t('phone_number')}</label
 							>
 							<input
-								id="start_ih"
-								type="date"
-								name="start_ih"
-								bind:value={selectedItem.start_ih}
+								id="phone_number"
+								type="text"
+								name="phone_number"
+								bind:value={selectedItem.phone_number}
 								readonly={modalMode === 'view'}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
 								'view'
@@ -630,7 +719,7 @@
 
 						<div>
 							<label for="tenure" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('อายุงาน')}</label
+								>{$t('Tenure')}</label
 							>
 							<input
 								id="tenure"
@@ -647,7 +736,7 @@
 
 						<div>
 							<label for="dis" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('Division (Dis.)')}</label
+								>{$t('Division')}</label
 							>
 							{#if modalMode === 'view'}
 								<input
@@ -665,8 +754,8 @@
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								>
 									<option value="-">{$t('- ไม่ระบุ -')}</option>
-									{#each uniqueDivisions as val}
-										<option value={val}>{val}</option>
+									{#each data.divisions as div}
+										<option value={div.division_name}>{div.division_name}</option>
 									{/each}
 								</select>
 							{/if}

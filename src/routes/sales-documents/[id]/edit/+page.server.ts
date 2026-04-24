@@ -2,20 +2,28 @@ import { fail, redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import fs from 'fs/promises';
+import { createWriteStream } from 'fs';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import path from 'path';
 import mime from 'mime-types';
 
 const UPLOAD_DIR = path.resolve('uploads', 'sales_documents');
 
-async function saveFile(file: File) {
-	if (!file || file.size === 0) return null;
+async function saveFile(file: any) {
+	if (!file || typeof file === 'string' || !file.size || file.size === 0) return null;
+	
 	try {
 		await fs.mkdir(UPLOAD_DIR, { recursive: true });
 		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
 		const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
 		const systemName = `${uniqueSuffix}-${sanitizedOriginalName}`;
 		const uploadPath = path.join(UPLOAD_DIR, systemName);
-		await fs.writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
+		
+		const readableStream = Readable.fromWeb(file.stream() as any);
+		const writeStream = createWriteStream(uploadPath);
+		await pipeline(readableStream, writeStream);
+
 		return {
 			systemName,
 			originalName: file.name,
@@ -140,23 +148,9 @@ export const actions: Actions = {
                  vat_rate = ?, vat_amount = ?, withholding_tax_rate = ?, withholding_tax_amount = ?, wht_amount = ?, total_amount = ?
                  WHERE id = ?`,
 				[
-					document_date,
-					credit_term,
-					due_date,
-					customer_id,
-					customer_contact_id,
-					job_order_id,
-					reference_doc,
-					notes,
-					subtotal,
-					discount_amount,
-					total_after_discount,
-					vat_rate,
-					vat_amount,
-					wht_rate,
-					wht_amount,
-					wht_amount,
-					total_amount,
+					document_date, credit_term, due_date, customer_id, customer_contact_id, job_order_id, reference_doc, notes,
+					subtotal, discount_amount, total_after_discount,
+					vat_rate, vat_amount, wht_rate, wht_amount, wht_amount, total_amount,
 					documentId
 				]
 			);
@@ -170,7 +164,8 @@ export const actions: Actions = {
 				for (const [index, item] of items.entries()) {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
-					const isVat = item.is_vat === false ? 0 : 1;
+					
+					const isVat = item.is_vat !== undefined ? Number(item.is_vat) : 1;
 					
 					let baseAmount = lineTotal;
 					if (isVat === 1 && vat_rate > 0) {
@@ -183,23 +178,14 @@ export const actions: Actions = {
                         (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, is_vat) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
-							documentId,
-							item.product_id || null,
-							item.description,
-							item.quantity,
-							item.unit_id || null,
-							item.unit_price,
-							lineTotal,
-							lineWhtRate,
-							lineWhtAmount,
-							index,
-							isVat
+							documentId, item.product_id || null, item.description, item.quantity, item.unit_id || null,
+							item.unit_price, lineTotal, lineWhtRate, lineWhtAmount, index, isVat
 						]
 					);
 				}
 			}
 
-			const files = formData.getAll('attachments') as File[];
+			const files = formData.getAll('attachments');
 			for (const file of files) {
 				const savedFile = await saveFile(file);
 				if (savedFile) {
@@ -208,15 +194,24 @@ export const actions: Actions = {
                         (document_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
                         VALUES (?, ?, ?, ?, ?, ?)`,
 						[
-							documentId,
-							savedFile.originalName,
-							savedFile.systemName,
-							savedFile.mimeType,
-							savedFile.size,
-							locals.user?.id
+							documentId, 
+							savedFile.originalName, 
+							savedFile.systemName, 
+							savedFile.mimeType, 
+							savedFile.size, 
+							locals.user?.id || null 
 						]
 					);
 				}
+			}
+
+			const [docRows] = await connection.execute<any[]>(
+				'SELECT document_type FROM sales_documents WHERE id = ?',
+				[documentId]
+			);
+			
+			if (docRows.length > 0 && docRows[0].document_type === 'INV' && job_order_id) {
+				await connection.execute(`UPDATE job_orders SET job_status = 'Completed' WHERE id = ?`, [job_order_id]);
 			}
 
 			await connection.commit();
@@ -231,10 +226,36 @@ export const actions: Actions = {
 		throw redirect(303, `/sales-documents/${documentId}`);
 	},
 
+    // 🌟 เพิ่ม Logic ลบไฟล์จริงในโฟลเดอร์และบนฐานข้อมูล
 	deleteAttachment: async ({ request }) => {
-		//...
+        const formData = await request.formData();
+        const attachmentId = formData.get('attachment_id');
+
+        if (!attachmentId) return fail(400, { message: 'Invalid attachment ID' });
+
+        const connection = await pool.getConnection();
+        try {
+            // ค้นหาชื่อไฟล์จากฐานข้อมูลเพื่อไปลบในระบบไฟล์
+            const [rows] = await connection.query<any[]>(
+                'SELECT file_system_name FROM sales_document_attachments WHERE id = ?',
+                [attachmentId]
+            );
+
+            if (rows.length > 0) {
+                const filename = rows[0].file_system_name;
+                await deleteFile(filename); // ลบไฟล์จริงๆในโฟลเดอร์
+                await connection.execute('DELETE FROM sales_document_attachments WHERE id = ?', [attachmentId]); // ลบข้อมูลในฐานข้อมูล
+            }
+            return { success: true };
+        } catch (err: any) {
+            console.error('Delete attachment error:', err);
+            return fail(500, { message: 'เกิดข้อผิดพลาดในการลบไฟล์: ' + err.message });
+        } finally {
+            connection.release();
+        }
 	},
+
 	createProduct: async ({ request }) => {
-		//...
+        return fail(400, { message: 'Not modified' });
 	}
 };

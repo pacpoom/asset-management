@@ -86,18 +86,12 @@ export const load: PageServerLoad = async ({ url }) => {
 
 		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
 		const [vendorContacts] = await pool.query('SELECT id, vendor_id, name, position, email, phone FROM vendor_contacts ORDER BY name ASC');
-		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, purchase_unit_id as unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC');
+		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC');
 		const [units] = await pool.query('SELECT id, symbol, name FROM units ORDER BY symbol ASC');
-		
 		const [jobOrders] = await pool.query('SELECT id, job_number, customer_id, vendor_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC');
-		
 		const [categories] = await pool.query('SELECT id, name FROM product_categories ORDER BY name');
 		const [accounts] = await pool.query('SELECT id, account_code, account_name FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code');
-
-		// 🌟 ดึงข้อมูลที่อยู่จัดส่ง
 		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
-		
-		// 🌟 ดึงข้อมูลสัญญา Vendor Contracts
 		const [vendorContractsData] = await pool.query('SELECT id, vendor_id, title, contract_number FROM vendor_contracts WHERE status = "Active" ORDER BY title ASC');
 
 		return {
@@ -126,10 +120,7 @@ export const actions: Actions = {
 		const vendor_id = formData.get('vendor_id');
 		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null;
 		const contract_id = formData.get('contract_id')?.toString() || null;
-		
-		// 🌟 รับค่าที่อยู่จัดส่งที่เพิ่มเข้ามา
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
-		
 		const job_id = formData.get('job_id')?.toString() || null;
 
 		const document_date = formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
@@ -146,7 +137,6 @@ export const actions: Actions = {
 		const total_after_discount = parseFloat(formData.get('total_after_discount')?.toString() || '0');
 		const vat_rate = parseFloat(formData.get('vat_rate')?.toString() || '0');
 		const vat_amount = parseFloat(formData.get('vat_amount')?.toString() || '0');
-
 		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
 		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
@@ -175,20 +165,29 @@ export const actions: Actions = {
 			const documentId = result.insertId;
 
 			const items = JSON.parse(itemsJson);
+			const subtotalNum = subtotal;
+			const discountRatio = subtotalNum > 0 ? (discount_amount / subtotalNum) : 0;
+
 			if (items.length > 0) {
 				for (const [index, item] of items.entries()) {
 					const lineWhtRate = parseFloat(item.wht_rate || '0');
 					const lineTotal = parseFloat(item.line_total || '0');
-					const lineWhtAmount = lineTotal * (lineWhtRate / 100);
-					const isVat = item.is_vat === false ? 0 : 1;
+					const vatType = parseInt(item.vat_type || '2'); // 1=Inc, 2=Exc, 3=Non
+
+					// คำนวณฐาน WHT ฝั่ง Backend ให้ตรงกับ Frontend
+					let baseForWht = lineTotal * (1 - discountRatio);
+					if (vatType === 1) { // ถ้าเป็น Inc Vat ให้ถอด VAT ออกก่อน
+						baseForWht = baseForWht * 100 / (100 + vat_rate);
+					}
+					const lineWhtAmount = baseForWht * (lineWhtRate / 100);
 
 					await connection.execute(
 						`INSERT INTO purchase_document_items 
-                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, is_vat) 
+                        (document_id, product_id, description, quantity, unit_id, unit_price, line_total, wht_rate, wht_amount, item_order, vat_type) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 						[
 							documentId, item.product_id || null, item.description, item.quantity, item.unit_id || null,
-							item.unit_price, lineTotal, lineWhtRate, lineWhtAmount, index, isVat
+							item.unit_price, lineTotal, lineWhtRate, lineWhtAmount, index, vatType
 						]
 					);
 				}
@@ -221,7 +220,6 @@ export const actions: Actions = {
 		}
 	},
 
-	// 🌟 เพิ่ม Actions สำหรับการจัดการสถานที่จัดส่งผ่าน Modal
 	createAddress: async ({ request }) => {
 		const formData = await request.formData();
 		const name = formData.get('name')?.toString()?.trim();

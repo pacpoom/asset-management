@@ -960,11 +960,18 @@
 
 			<div class="overflow-y-auto bg-gray-50/30 p-6">
 				<div class="mb-6 flex items-start justify-between border-b-2 border-gray-800 pb-4">
-					<div>
-						<h1 class="text-xl font-black tracking-wider uppercase">Outsource Requisition Form</h1>
-						<p class="text-sm font-medium text-gray-600">
-							{$t('ใบขออัตรากำลังสำหรับพนักงานรับเหมาแรงงาน')}
-						</p>
+					<div class="flex items-center gap-4">
+						{#if data.companyLogo}
+							<img src={data.companyLogo} alt="Company Logo" class="h-16 w-auto object-contain" />
+						{/if}
+						<div>
+							<h1 class="text-xl font-black tracking-wider uppercase">
+								Outsource Requisition Form
+							</h1>
+							<p class="text-sm font-medium text-gray-600">
+								{$t('ใบขออัตรากำลังสำหรับพนักงานรับเหมาแรงงาน')}
+							</p>
+						</div>
 					</div>
 					<div class="text-right">
 						<p class="text-sm text-gray-500">{$t('Req.No. / เลขที่ใบขอ')}</p>

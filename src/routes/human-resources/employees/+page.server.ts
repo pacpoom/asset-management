@@ -2,50 +2,86 @@ import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 import ExcelJS from 'exceljs';
 import { fail } from '@sveltejs/kit';
+import path from 'path';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 
 export const load: PageServerLoad = async ({ url }) => {
 	const search = url.searchParams.get('search') || '';
 
 	try {
 		let query = `
-			SELECT 
-				e.emp_id, 
-				e.citizen_id, 
-				e.emp_name, 
-				IFNULL(e.subcontractor, '-') as subcontractor,
-				IFNULL(DATE_FORMAT(e.start_date, '%d/%m/%Y'), '-') as start_date,
-				IFNULL(DATE_FORMAT(e.start_ih, '%d/%m/%Y'), '-') as start_ih,
-				IFNULL(e.tenure, '-') as tenure,
-				IFNULL(e.division, '-') as dis, 
-				IFNULL(e.section, '-') as section, 
-				IFNULL(e.emp_group, '-') as emp_group, 
-				IFNULL(e.project, '-') as project, 
-				e.status,
-				IFNULL(jp.position_name, '-') as position_name
-			FROM employees e
-			LEFT JOIN job_positions jp ON e.position_id = jp.id
-		`;
+		SELECT 
+			e.*, 
+			jp.position_name,
+			(SELECT COUNT(*) FROM attendance_logs al 
+			WHERE al.emp_id = e.emp_id 
+			AND MONTH(al.work_date) = MONTH(CURRENT_DATE()) 
+			AND YEAR(al.work_date) = YEAR(CURRENT_DATE()) 
+			AND al.is_late = 1) as late_count,
+
+			(SELECT COUNT(*) FROM attendance_logs al 
+			WHERE al.emp_id = e.emp_id 
+			AND MONTH(al.work_date) = MONTH(CURRENT_DATE()) 
+			AND YEAR(al.work_date) = YEAR(CURRENT_DATE()) 
+			AND al.status = 'Absent') as absent_count,
+
+			(SELECT IFNULL(SUM(DATEDIFF(IFNULL(lr.end_date, lr.leave_date), lr.leave_date) + 1), 0) 
+			FROM leave_records lr 
+			WHERE lr.emp_id = e.emp_id 
+			AND YEAR(lr.leave_date) = YEAR(CURRENT_DATE()) 
+			AND lr.status = 'Approved') as leave_used
+
+		FROM employees e
+		LEFT JOIN job_positions jp ON e.position_id = jp.id
+		WHERE 1=1
+	`;
 
 		const params: any[] = [];
 
 		if (search) {
-			query += ` WHERE e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?`;
+			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?)`;
 			const searchPattern = `%${search.trim().replace(/[\s+]+/g, '%')}%`;
-
 			params.push(searchPattern, searchPattern, searchPattern, searchPattern);
 		}
 
 		query += ` ORDER BY e.emp_id ASC`;
 
 		const [employees]: any = await pool.execute(query, params);
+		const [divisions]: any = await pool.execute(
+			"SELECT division_name FROM divisions WHERE status = 'Active' ORDER BY division_name ASC"
+		);
+
+		const formattedEmployees = employees.map((emp: any) => {
+			const rawDate = emp.start_date || emp.start_ih;
+			let finalDate = '-';
+
+			if (rawDate) {
+				const d = new Date(rawDate);
+				if (!isNaN(d.getTime())) {
+					const year = d.getFullYear();
+					const month = String(d.getMonth() + 1).padStart(2, '0');
+					const day = String(d.getDate()).padStart(2, '0');
+
+					finalDate = `${year}-${month}-${day}`;
+				} else {
+					finalDate = rawDate;
+				}
+			}
+
+			return {
+				...emp,
+				start_date: finalDate
+			};
+		});
 
 		return {
-			employees: employees,
+			employees: formattedEmployees,
+			divisions: divisions,
 			searchQuery: search
 		};
 	} catch (error) {
 		console.error('Error loading employees:', error);
-		return { employees: [], searchQuery: search };
+		return { employees: [], divisions: [], searchQuery: search };
 	}
 };
 
@@ -141,7 +177,8 @@ export const actions: Actions = {
 
 		const subcontractor = data.get('subcontractor')?.toString() || null;
 		let start_date = data.get('start_date')?.toString() || null;
-		let start_ih = data.get('start_ih')?.toString() || null;
+
+		const phone_number = data.get('phone_number')?.toString() || null;
 		const tenure = data.get('tenure')?.toString() || null;
 		const division = data.get('dis')?.toString() || null;
 		const section = data.get('section')?.toString() || null;
@@ -152,6 +189,24 @@ export const actions: Actions = {
 
 		if (!emp_id || !emp_name)
 			return fail(400, { success: false, message: 'ข้อมูล ID และชื่อพนักงานห้ามว่าง' });
+
+		const file = data.get('profile_image') as File;
+		const existing_path = data.get('existing_image_path')?.toString() || '';
+		let profile_image_path = existing_path;
+
+		if (file && file.size > 0) {
+			try {
+				const uploadDir = path.join(process.cwd(), 'static', 'uploads', 'profiles');
+				if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+
+				const fileName = `${emp_id}-${Date.now()}-${file.name}`;
+				const filePath = path.join(uploadDir, fileName);
+				writeFileSync(filePath, Buffer.from(await file.arrayBuffer()));
+				profile_image_path = `/uploads/profiles/${fileName}`;
+			} catch (err) {
+				console.error('File Upload Error:', err);
+			}
+		}
 
 		try {
 			let positionId = null;
@@ -172,7 +227,7 @@ export const actions: Actions = {
 
 			await pool.execute(
 				`UPDATE employees SET 
-				citizen_id = ?, emp_name = ?, subcontractor = ?, start_date = ?, start_ih = ?, tenure = ?, 
+				citizen_id = ?, emp_name = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, tenure = ?, 
 				division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
 				WHERE emp_id = ?`,
 				[
@@ -180,7 +235,8 @@ export const actions: Actions = {
 					emp_name,
 					subcontractor,
 					start_date,
-					start_ih,
+					phone_number,
+					profile_image_path,
 					tenure,
 					division,
 					section,
@@ -200,6 +256,7 @@ export const actions: Actions = {
 	},
 
 	delete: async ({ request }) => {
+		// (ใช้โค้ดเดิม)
 		const data = await request.formData();
 		const emp_id = data.get('emp_id')?.toString();
 
