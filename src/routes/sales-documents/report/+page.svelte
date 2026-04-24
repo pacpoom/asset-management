@@ -35,8 +35,10 @@
 		if (startDate) query.push(`startDate=${encodeURIComponent(startDate)}`);
 		if (endDate) query.push(`endDate=${encodeURIComponent(endDate)}`);
 		if (docTypeFilter) query.push(`docType=${encodeURIComponent(docTypeFilter)}`);
-		// สร้าง URL นำทางไปยัง Route ของ Export ที่เราจะสร้างใหม่
-		return `/sales-report/export?${query.join('&')}`;
+		
+		// อ้างอิงโฟลเดอร์ปัจจุบันแบบอัตโนมัติ เพื่อป้องกันปัญหา 404 Not Found 
+		const basePath = $page.url.pathname.endsWith('/') ? $page.url.pathname.slice(0, -1) : $page.url.pathname;
+		return `${basePath}/export?${query.join('&')}`;
 	}
 
 	function handleSearchInput(e?: Event) {
@@ -203,7 +205,6 @@
 			</div>
 		</div>
 
-		<!-- ปุ่ม Export ใหม่ -->
 		<a
 			href={getExportUrl()}
 			target="_blank"
@@ -372,7 +373,6 @@
 							{formatCurrency(item.line_total)}
 						</td>
 						
-						<!-- Columns -->
 						<td class="px-4 py-3 text-center text-xs text-gray-600 whitespace-nowrap">
 							{#if item.is_vat == 1}
 								<span class="rounded bg-blue-50 px-2 py-0.5 text-blue-700">VAT 7%</span>
@@ -410,7 +410,7 @@
 			{/if}
 		</tbody>
 		
-		<!-- เพิ่ม Grand Total ที่ส่วนท้ายของตาราง -->
+		<!-- Grand Total -->
 		{#if data.sales.length > 0}
 			<tfoot class="bg-blue-50/50 border-t-2 border-blue-200">
 				<tr>

@@ -64,13 +64,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(docTypeFilter);
 		}
 
-		// คำนวณจำนวนข้อมูลทั้งหมด และผลรวมยอดขาย
+		// คำนวณจำนวนข้อมูลทั้งหมด และผลรวมยอดขาย พร้อมยอด Vat, Non-Vat และ WHT สำหรับโชว์บน Dashboard
 		const countSql = `
 			SELECT 
 				COUNT(*) as total,
 				SUM(sdi.line_total) as total_amount,
 				SUM(CASE WHEN sd.status = 'Paid' THEN sdi.line_total ELSE 0 END) as total_paid,
-				SUM(CASE WHEN sd.status = 'Draft' THEN sdi.line_total ELSE 0 END) as total_draft
+				SUM(CASE WHEN sd.status = 'Draft' THEN sdi.line_total ELSE 0 END) as total_draft,
+				SUM(CASE WHEN sdi.is_vat = 1 THEN sdi.line_total ELSE 0 END) as total_vatable,
+				SUM(CASE WHEN sdi.is_vat = 0 THEN sdi.line_total ELSE 0 END) as total_non_vatable,
+				SUM(sdi.line_total * sdi.wht_rate / 100) as total_wht
             FROM sales_document_items sdi
             JOIN sales_documents sd ON sdi.document_id = sd.id
 			LEFT JOIN customers c ON sd.customer_id = c.id
@@ -84,9 +87,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const totalAmount = Number(countResult[0].total_amount) || 0;
 		const totalPaid = Number(countResult[0].total_paid) || 0;
 		const totalDraft = Number(countResult[0].total_draft) || 0;
+		const totalVatable = Number(countResult[0].total_vatable) || 0;
+		const totalNonVatable = Number(countResult[0].total_non_vatable) || 0;
+		const totalWht = Number(countResult[0].total_wht) || 0;
 		const totalPages = Math.ceil(totalCount / limit);
 
-		// ดึงข้อมูลรายการขาย (Sales Details) และคำนวณ wht_amount จาก wht_rate ทันที
+		// ดึงข้อมูลรายการขาย (Sales Details)
 		const dataSql = `
             SELECT 
 				sdi.id as item_id,
@@ -120,6 +126,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			totalAmount,
 			totalPaid,
 			totalDraft,
+			totalVatable,
+			totalNonVatable,
+			totalWht,
 			currentPage: page,
 			totalPages,
 			limit,

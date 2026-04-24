@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { cymspool } from '$lib/server/database';
+import { pool } from '$lib/server/database';
 // import { checkPermission } from '$lib/server/auth';
 import ExcelJS from 'exceljs';
 
@@ -80,7 +80,7 @@ export const GET: RequestHandler = async ({ url }) => {
             ORDER BY sd.document_date DESC, sd.document_number DESC, sdi.item_order ASC
         `;
 
-		const [salesRows] = await cymspool.query<any[]>(dataSql, params);
+		const [salesRows] = await pool.query<any[]>(dataSql, params);
 
 		const workbook = new ExcelJS.Workbook();
 		const worksheet = workbook.addWorksheet('Sales Report');
