@@ -58,45 +58,45 @@
 	>
 		<input type="hidden" name="id" value={id} />
 		<div>
-			<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">Title</label>
-			<input name="title" bind:value={title} required class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+			<label for="ca-title" class="mb-1 block text-xs font-semibold uppercase text-gray-500">Title</label>
+			<input id="ca-title" name="title" bind:value={title} required class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
 		</div>
 		<div>
-			<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">Content</label>
-			<textarea name="content" bind:value={content} required rows="5" class="w-full rounded border border-gray-300 px-3 py-2 text-sm"></textarea>
+			<label for="ca-content" class="mb-1 block text-xs font-semibold uppercase text-gray-500">Content</label>
+			<textarea id="ca-content" name="content" bind:value={content} required rows="5" class="w-full rounded border border-gray-300 px-3 py-2 text-sm"></textarea>
 		</div>
 		<div class="grid grid-cols-1 gap-3 md:grid-cols-4">
 			<div>
-				<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">Pinned</label>
-				<select name="is_pinned" bind:value={isPinned} class="w-full rounded border border-gray-300 px-3 py-2 text-sm">
+				<label for="ca-pinned" class="mb-1 block text-xs font-semibold uppercase text-gray-500">Pinned</label>
+				<select id="ca-pinned" name="is_pinned" bind:value={isPinned} class="w-full rounded border border-gray-300 px-3 py-2 text-sm">
 					<option value="0">No</option>
 					<option value="1">Yes</option>
 				</select>
 			</div>
 			<div>
-				<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">Status</label>
-				<select name="is_active" bind:value={isActive} class="w-full rounded border border-gray-300 px-3 py-2 text-sm">
+				<label for="ca-status" class="mb-1 block text-xs font-semibold uppercase text-gray-500">Status</label>
+				<select id="ca-status" name="is_active" bind:value={isActive} class="w-full rounded border border-gray-300 px-3 py-2 text-sm">
 					<option value="1">Active</option>
 					<option value="0">Inactive</option>
 				</select>
 			</div>
 			<div>
-				<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">Start at</label>
-				<input type="datetime-local" name="start_at" bind:value={startAt} class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+				<label for="ca-start-at" class="mb-1 block text-xs font-semibold uppercase text-gray-500">Start at</label>
+				<input id="ca-start-at" type="datetime-local" name="start_at" bind:value={startAt} class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
 			</div>
 			<div>
-				<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">End at</label>
-				<input type="datetime-local" name="end_at" bind:value={endAt} class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+				<label for="ca-end-at" class="mb-1 block text-xs font-semibold uppercase text-gray-500">End at</label>
+				<input id="ca-end-at" type="datetime-local" name="end_at" bind:value={endAt} class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
 			</div>
 		</div>
 		<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
 			<div>
-				<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">Images (multiple)</label>
-				<input type="file" name="image_files" accept="image/*" multiple class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+				<label for="ca-image-files" class="mb-1 block text-xs font-semibold uppercase text-gray-500">Images (multiple)</label>
+				<input id="ca-image-files" type="file" name="image_files" accept="image/*" multiple class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
 			</div>
 			<div>
-				<label class="mb-1 block text-xs font-semibold uppercase text-gray-500">Attachments (multiple)</label>
-				<input type="file" name="attachment_files" multiple class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+				<label for="ca-attachment-files" class="mb-1 block text-xs font-semibold uppercase text-gray-500">Attachments (multiple)</label>
+				<input id="ca-attachment-files" type="file" name="attachment_files" multiple class="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
 			</div>
 		</div>
 		{#if id}

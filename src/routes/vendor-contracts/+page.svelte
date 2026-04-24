@@ -4,6 +4,8 @@
 	import { slide, fade } from 'svelte/transition';
 	import { invalidateAll, goto } from '$app/navigation';
 	import { t, locale } from '$lib/i18n';
+	import { toYmdDateInputBangkok } from '$lib/bangkokCalendarDate';
+	import { formatOptionalDateTime } from '$lib/formatDateTime';
 
 	type VendorContract = PageData['contracts'][0];
 	type VendorContractDocument = VendorContract['documents'][0];
@@ -14,6 +16,10 @@
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let contracts = $state<VendorContract[]>(data.contracts || []);
+
+	$effect(() => {
+		contracts = data.contracts || [];
+	});
 
 	let modalMode = $state<'add' | 'edit' | null>(null);
 	let selectedContract = $state<Partial<VendorContract> | null>(null);
@@ -41,16 +47,79 @@
 	// --- Custom Searchable Select State ---
 	let vendorSearch = $state('');
 	let showVendorDropdown = $state(false);
-	let ownerSearch = $state('');
-	let showOwnerDropdown = $state(false);
-
-	let filteredVendors = $derived(
-		data.vendors.filter((v) => v.name.toLowerCase().includes(vendorSearch.toLowerCase()))
+	let showRenewalEmailDropdown = $state(false);
+	let selectedRenewalNotifyEmails = $state<string[]>([]);
+	let renewalEmailSearch = $state('');
+	let contractValueDisplay = $state('');
+	const renewalEmailOptions = $derived(
+		data.users
+			.filter((u) => u.email?.trim())
+			.map((u) => ({ email: u.email as string, label: `${u.full_name} (${u.email})` }))
 	);
 
-	let filteredUsers = $derived(
-		data.users.filter((u) => u.full_name.toLowerCase().includes(ownerSearch.toLowerCase()))
-	);
+	function vendorOptionLabel(v: Vendor): string {
+		const company = v.company_name?.trim();
+		const contact = v.name?.trim();
+		if (company && contact) return `${company} (${contact})`;
+		return company || contact || '';
+	}
+
+	let filteredVendors = $derived.by(() => {
+		const q = vendorSearch.trim().toLowerCase();
+		if (!q) return data.vendors;
+		return data.vendors.filter((v) => {
+			const hay = [v.company_name, v.name].filter(Boolean).join(' ').toLowerCase();
+			return hay.includes(q);
+		});
+	});
+
+	let filteredRenewalEmailOptions = $derived.by(() => {
+		const q = renewalEmailSearch.trim().toLowerCase();
+		const matched = renewalEmailOptions.filter((opt) => {
+			if (selectedRenewalNotifyEmails.includes(opt.email)) return false;
+			if (!q) return true;
+			return opt.label.toLowerCase().includes(q) || opt.email.toLowerCase().includes(q);
+		});
+		return matched.slice(0, q ? 80 : 25);
+	});
+
+	function addRenewalNotifyEmail(email: string) {
+		if (!email || selectedRenewalNotifyEmails.includes(email)) return;
+		selectedRenewalNotifyEmails = [...selectedRenewalNotifyEmails, email];
+		renewalEmailSearch = '';
+		showRenewalEmailDropdown = true;
+	}
+
+	function removeRenewalNotifyEmail(email: string) {
+		selectedRenewalNotifyEmails = selectedRenewalNotifyEmails.filter((e) => e !== email);
+		showRenewalEmailDropdown = true;
+	}
+
+	function formatContractValueDisplay(raw: string): string {
+		const cleaned = String(raw || '').replace(/,/g, '').trim();
+		if (!cleaned) return '';
+		const [intPartRaw, decPartRaw] = cleaned.split('.');
+		const intPart = (intPartRaw || '').replace(/[^\d]/g, '');
+		const decPart = (decPartRaw || '').replace(/[^\d]/g, '');
+		if (!intPart && !decPart) return '';
+		const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+		return decPartRaw !== undefined ? `${intFormatted || '0'}.${decPart}` : intFormatted;
+	}
+
+	function setContractValueFromDisplay(raw: string) {
+		const normalized = String(raw || '').replace(/,/g, '').trim();
+		if (!selectedContract) return;
+		if (!normalized) {
+			selectedContract.contract_value = null as any;
+			contractValueDisplay = '';
+			return;
+		}
+		const num = Number(normalized);
+		if (Number.isFinite(num)) {
+			selectedContract.contract_value = num as any;
+			contractValueDisplay = formatContractValueDisplay(normalized);
+		}
+	}
 
 	const contractStatuses = ['Draft', 'Active', 'Expired', 'Terminated'];
 
@@ -75,7 +144,7 @@
 		uploadError = null;
 		documentsForSelectedContract = [];
 		showVendorDropdown = false;
-		showOwnerDropdown = false;
+		showRenewalEmailDropdown = false;
 
 		if (fileInputRef) {
 			fileInputRef.value = '';
@@ -87,12 +156,23 @@
 
 			selectedContract.vendor_id = selectedContract.vendor_id ?? ('' as any);
 			selectedContract.contract_type_id = selectedContract.contract_type_id ?? ('' as any);
-			selectedContract.owner_user_id = selectedContract.owner_user_id ?? ('' as any);
-			selectedContract.end_date = selectedContract.end_date ?? '';
+			selectedContract.start_date = toYmdDateInputBangkok(
+				contract.start_date as string | Date | null | undefined
+			);
+			selectedContract.end_date = toYmdDateInputBangkok(
+				contract.end_date as string | Date | null | undefined
+			);
 
 			// Initial search text for dropdowns
-			vendorSearch = contract.vendor_name || data.vendors.find((v) => v.id === contract.vendor_id)?.name || '';
-			ownerSearch = contract.owner_name || data.users.find((u) => u.id === contract.owner_user_id)?.full_name || '';
+			const vMatch = data.vendors.find((v) => v.id === contract.vendor_id);
+			vendorSearch = vMatch ? vendorOptionLabel(vMatch) : contract.vendor_name || '';
+			const renewalEmails = String(contract.renewal_notify_emails || '')
+				.split(/[;,]/g)
+				.map((v) => v.trim())
+				.filter(Boolean);
+			selectedRenewalNotifyEmails = renewalEmails;
+			renewalEmailSearch = '';
+			contractValueDisplay = formatContractValueDisplay(String(contract.contract_value ?? ''));
 
 			documentsForSelectedContract = contract.documents ? [...contract.documents] : [];
 		} else {
@@ -101,14 +181,15 @@
 				vendor_id: '' as any,
 				contract_type_id: '' as any,
 				status: 'Draft',
-				start_date: new Date().toISOString().split('T')[0],
+				start_date: toYmdDateInputBangkok(new Date()),
 				end_date: '',
 				contract_value: null,
-				owner_user_id: '' as any,
 				renewal_notice_days: 30
 			} as Partial<VendorContract>;
 			vendorSearch = '';
-			ownerSearch = '';
+			selectedRenewalNotifyEmails = [];
+			renewalEmailSearch = '';
+			contractValueDisplay = '';
 		}
 	}
 
@@ -129,18 +210,6 @@
 		messageTimeout = setTimeout(() => {
 			globalMessage = null;
 		}, duration);
-	}
-
-	function formatDateTime(isoString: string | Date | null | undefined): string {
-		if (!isoString) return '-';
-		try {
-			return new Date(isoString).toLocaleString($locale === 'th' ? 'th-TH' : 'en-US', {
-				dateStyle: 'short',
-				timeStyle: 'short'
-			});
-		} catch {
-			return 'Invalid Date';
-		}
 	}
 
 	function formatDate(isoString: string | Date | null | undefined): string {
@@ -198,33 +267,8 @@
 		goto(url.toString(), { keepFocus: true });
 	}
 
-	// --- Reactive Effects ---
+	// --- Reactive Effects (saveContract handled in use:enhance to avoid await update() hanging) ---
 	$effect.pre(() => {
-		if (form?.action === 'saveContract') {
-			if (form.success && form.savedContract) {
-				const saved = form.savedContract as VendorContract;
-				if (modalMode === 'add') {
-					contracts = [saved, ...contracts];
-				} else if (modalMode === 'edit') {
-					contracts = contracts.map((c) => (c.id === saved.id ? saved : c));
-				}
-				closeModal();
-				showGlobalMessage({
-					success: true,
-					text: (form.message as string) ?? 'Success',
-					type: 'success'
-				});
-				invalidateAll();
-			} else if (form.message) {
-				showGlobalMessage({
-					success: false,
-					text: (form.message as string) ?? 'Error',
-					type: 'error'
-				});
-			}
-			(form as any).action = undefined;
-		}
-
 		if (form?.action === 'deleteContract') {
 			if (form.success && form.deletedId) {
 				contracts = contracts.filter((c) => c.id !== form.deletedId);
@@ -409,7 +453,7 @@
 		>
 			<option value="">{$t('-- All Vendors --')}</option>
 			{#each data.vendors as vendor (vendor.id)}
-				<option value={String(vendor.id)}>{vendor.name}</option>
+				<option value={String(vendor.id)}>{vendorOptionLabel(vendor)}</option>
 			{/each}
 		</select>
 	</div>
@@ -425,6 +469,7 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Status')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Start Date')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('End Date')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">Notice sent (GMT+7)</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Docs')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
@@ -432,7 +477,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if contracts.length === 0}
 				<tr>
-					<td colspan="8" class="py-12 text-center text-gray-500">
+					<td colspan="9" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery || data.filters.status || data.filters.vendor}
 							{$t('No vendor contracts found matching criteria')}
 						{:else}
@@ -474,6 +519,9 @@
 						>
 						<td class="whitespace-nowrap px-4 py-3 text-gray-600"
 							>{formatDate(contract.end_date)}</td
+						>
+						<td class="whitespace-nowrap px-4 py-3 font-mono text-gray-600"
+							>{formatOptionalDateTime(contract.notice_datetime)}</td
 						>
 						<td class="px-4 py-3 text-center text-gray-500">
 							{contract.documents?.length || 0}
@@ -608,9 +656,51 @@
 				enctype="multipart/form-data"
 				use:enhance={() => {
 					isSavingContract = true;
-					return async ({ update }) => {
-						await update();
-						isSavingContract = false;
+					return async ({ result, update }) => {
+						try {
+							// reset/invalidateAll: false — default update() triggers invalidateAll and can stall the callback with multipart + modal binds
+							await update({ reset: false, invalidateAll: false });
+						} finally {
+							isSavingContract = false;
+						}
+						if (result.type === 'success' && result.data) {
+							const d = result.data as {
+								action?: string;
+								success?: boolean;
+								message?: string;
+								savedContract?: VendorContract;
+							};
+							if (d.action === 'saveContract' && d.success && d.savedContract) {
+								const saved = d.savedContract;
+								if (modalMode === 'add') {
+									contracts = [saved, ...contracts];
+								} else if (modalMode === 'edit') {
+									contracts = contracts.map((c) => (c.id === saved.id ? saved : c));
+								}
+								closeModal();
+								showGlobalMessage({
+									success: true,
+									text: d.message ?? 'Success',
+									type: 'success'
+								});
+								queueMicrotask(() => void invalidateAll());
+							} else if (d.action === 'saveContract' && d.message) {
+								showGlobalMessage({
+									success: false,
+									text: d.message,
+									type: 'error'
+								});
+							}
+						} else if (result.type === 'failure' && result.data) {
+							const d = result.data as { action?: string; message?: string };
+							if (d.action === 'saveContract' && d.message) {
+								showGlobalMessage({
+									success: false,
+									text: d.message,
+									type: 'error'
+								});
+							}
+						}
 					};
 				}}
 				class="flex-1 overflow-y-auto"
@@ -685,7 +775,7 @@
 														class="w-full cursor-pointer select-none py-2 pl-3 pr-9 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
 														onclick={() => {
 															selectedContract.vendor_id = vendor.id as any;
-															vendorSearch = vendor.name;
+															vendorSearch = vendorOptionLabel(vendor);
 															showVendorDropdown = false;
 														}}
 													>
@@ -694,7 +784,7 @@
 																? 'font-semibold'
 																: 'font-normal'}"
 														>
-															{vendor.name}
+															{vendorOptionLabel(vendor)}
 														</span>
 													</button>
 												</li>
@@ -739,13 +829,14 @@
 								<label for="contract_value" class="mb-1 block text-sm font-medium"
 									>{$t('Contract Value (Baht)')}</label
 								><input
-									type="number"
-									step="0.01"
-									name="contract_value"
+									type="text"
 									id="contract_value"
-									bind:value={selectedContract.contract_value}
+									inputmode="decimal"
+									value={contractValueDisplay}
+									oninput={(e) => setContractValueFromDisplay((e.currentTarget as HTMLInputElement).value)}
 									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
+								<input type="hidden" name="contract_value" value={selectedContract.contract_value ?? ''} />
 							</div>
 						</div>
 
@@ -774,67 +865,7 @@
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<!-- OWNER SEARCHABLE SELECT -->
-							<div class="relative" use:clickOutside={() => (showOwnerDropdown = false)}>
-								<label for="owner_search" class="mb-1 block text-sm font-medium"
-									>{$t('Owner (Internal)')}</label
-								>
-								<input type="hidden" name="owner_user_id" value={selectedContract.owner_user_id} />
-								<input
-									type="text"
-									id="owner_search"
-									autocomplete="off"
-									placeholder={$t('-- Search Owner --')}
-									bind:value={ownerSearch}
-									onfocus={() => (showOwnerDropdown = true)}
-									oninput={() => {
-										showOwnerDropdown = true;
-										selectedContract.owner_user_id = '' as any;
-									}}
-									class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-								/>
-								{#if showOwnerDropdown}
-									<ul
-										class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
-									>
-										<li class="relative">
-											<button
-												type="button"
-												class="w-full cursor-pointer select-none py-2 pl-3 pr-9 text-left text-gray-500 hover:bg-gray-100"
-												onclick={() => {
-													selectedContract.owner_user_id = '' as any;
-													ownerSearch = '';
-													showOwnerDropdown = false;
-												}}
-											>
-												{$t('-- None --')}
-											</button>
-										</li>
-										{#each filteredUsers as user (user.id)}
-											<li class="relative">
-												<button
-													type="button"
-													class="w-full cursor-pointer select-none py-2 pl-3 pr-9 text-left text-gray-900 hover:bg-blue-600 hover:text-white"
-													onclick={() => {
-														selectedContract.owner_user_id = user.id as any;
-														ownerSearch = user.full_name;
-														showOwnerDropdown = false;
-													}}
-												>
-													<span
-														class="block truncate {selectedContract.owner_user_id === user.id
-															? 'font-semibold'
-															: 'font-normal'}"
-													>
-														{user.full_name}
-													</span>
-												</button>
-											</li>
-										{/each}
-									</ul>
-								{/if}
-							</div>
-
+							<input type="hidden" name="owner_user_id" value="" />
 							<div>
 								<label for="renewal_notice_days" class="mb-1 block text-sm font-medium"
 									>{$t('Renewal Notice (Days)')}</label
@@ -871,6 +902,63 @@
 							/>
 						</div>
 
+						<div class="relative" use:clickOutside={() => (showRenewalEmailDropdown = false)}>
+							<label for="renewal_notify_emails" class="mb-1 block text-sm font-medium">
+								Renewal Notice Emails (per contract)
+							</label>
+							<div class="rounded-md border border-gray-300 bg-white p-2">
+								<div class="mb-2 flex flex-wrap gap-2">
+									{#each selectedRenewalNotifyEmails as email (email)}
+										<button
+											type="button"
+											onclick={() => removeRenewalNotifyEmail(email)}
+											class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"
+										>
+											<span>{email}</span>
+											<span aria-hidden="true">x</span>
+										</button>
+									{/each}
+								</div>
+								<input
+									id="renewal_notify_emails"
+									type="text"
+									bind:value={renewalEmailSearch}
+									onfocus={() => (showRenewalEmailDropdown = true)}
+									oninput={() => (showRenewalEmailDropdown = true)}
+									onkeydown={() => (showRenewalEmailDropdown = true)}
+									placeholder={$t('-- Search/Select renewal notice emails --')}
+									class="w-full border-0 p-0 text-sm focus:ring-0"
+								/>
+							</div>
+							{#if showRenewalEmailDropdown}
+								<ul
+									class="absolute z-[10000] mt-1 max-h-52 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+								>
+									{#if filteredRenewalEmailOptions.length === 0}
+										<li class="px-3 py-2 text-gray-500">No emails found</li>
+									{:else}
+										{#each filteredRenewalEmailOptions as opt (opt.email)}
+											<li>
+												<button
+													type="button"
+													class="w-full px-3 py-2 text-left hover:bg-blue-50"
+													onclick={() => addRenewalNotifyEmail(opt.email)}
+												>
+													{opt.label}
+												</button>
+											</li>
+										{/each}
+									{/if}
+								</ul>
+							{/if}
+							{#each selectedRenewalNotifyEmails as email (email)}
+								<input type="hidden" name="renewal_notify_emails" value={email} />
+							{/each}
+							<p class="mt-1 text-xs text-gray-500">
+								ค้นหา, เลือกหลายคน และกด x เพื่อลบได้
+							</p>
+						</div>
+
 						{#if form?.message && !form.success && form.action === 'saveContract'}
 							<div class="rounded-md bg-red-50 p-3 text-sm text-red-600">
 								<p><strong>{$t('Error:')}</strong> {form.message}</p>
@@ -900,7 +988,7 @@
 												title={doc.file_original_name}>{doc.file_original_name}</a
 											>
 											<span class="block text-xs text-gray-400"
-												>v{doc.version} | {formatDateTime(doc.uploaded_at)}</span
+												>v{doc.version} | {formatOptionalDateTime(doc.uploaded_at)}</span
 											>
 										</div>
 									</div>

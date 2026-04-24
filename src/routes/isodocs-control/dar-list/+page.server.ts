@@ -142,6 +142,32 @@ function parseDocumentTypeScope(scopeJson: unknown): string[] {
 
 const DOC_TYPE_CODES = new Set(['QM', 'QP', 'WI', 'STD', 'EIS', 'FM', 'SD', 'ED']);
 
+async function applyCancelledStatusWithFallback(connection: PoolConnection, masterId: number) {
+	try {
+		await connection.execute(
+			`UPDATE document_master_list
+			 SET status = 'cancelled'
+			 WHERE id = ?`,
+			[masterId]
+		);
+	} catch (e: any) {
+		// Some environments still use status enum without 'cancelled' in document_master_list.
+		if (
+			e?.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' ||
+			e?.code === 'WARN_DATA_TRUNCATED'
+		) {
+			await connection.execute(
+				`UPDATE document_master_list
+				 SET status = 'inactive'
+				 WHERE id = ?`,
+				[masterId]
+			);
+			return;
+		}
+		throw e;
+	}
+}
+
 function inferDocTypeFromText(text: string): string | null {
 	const upper = String(text || '').toUpperCase();
 	const m = upper.match(/\b(QM|QP|WI|STD|EIS|FM|SD|ED)\b/);
@@ -660,7 +686,7 @@ export const actions: Actions = {
 			 SET reviewer_comment = ?,
 				reviewer_approve = ?,
 				reviewer_name = ?,
-				reviewer_date = NOW(),
+						reviewer_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 HOUR),
 				status = ?
 			 WHERE id = ?`,
 			[comment || null, approve, locals.user?.full_name || null, nextStatus, id]
@@ -719,7 +745,7 @@ export const actions: Actions = {
 			 SET approver_comment = ?,
 				approver_approve = ?,
 				approver_name = ?,
-				approver_date = NOW(),
+						approver_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 HOUR),
 				status = ?
 			 WHERE id = ?`,
 			[comment || null, approve, locals.user?.full_name || null, nextStatus, id]
@@ -800,7 +826,7 @@ export const actions: Actions = {
 					`UPDATE dar_requests
 					 SET document_controller_comment = ?,
 						register_name = ?,
-						register_date = NOW(),
+						register_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 HOUR),
 						status = 'rejected'
 					 WHERE id = ?`,
 					[comment || null, locals.user?.full_name || null, id]
@@ -895,7 +921,15 @@ export const actions: Actions = {
 				}
 
 				if (requestType === 'new_document') {
-					const partsFromCode = extractDocCodeParts(requestedCode);
+					const manualCode = requestedCode;
+					const partsFromCode = manualCode ? extractDocCodeParts(manualCode) : null;
+					if (manualCode && !partsFromCode) {
+						await connection.rollback();
+						return fail(400, {
+							success: false,
+							message: `Invalid document code format: ${manualCode} (expected AA-BB-NN...)`
+						});
+					}
 					const isoSectionCode = (requesterIsoSection || partsFromCode?.isoSectionCode || '').trim().toUpperCase();
 					const scopeType = String(scopeTypes[0] || '').trim().toUpperCase();
 					const codeType = String(partsFromCode?.docType || '').trim().toUpperCase();
@@ -925,22 +959,26 @@ export const actions: Actions = {
 					}
 
 					const prefix = `${docType}-${isoSectionCode}`;
-					const [samePrefixRows] = await connection.execute<RowDataPacket[]>(
-						`SELECT doc_code
-						 FROM document_master_list
-						 WHERE UPPER(doc_code) LIKE UPPER(?)`,
-						[`${prefix}-%`]
-					);
-					let maxRunning = 0;
-					let maxWidth = Math.max(partsFromCode?.runningWidth || 2, 2);
-					for (const row of samePrefixRows) {
-						const found = extractDocCodeParts(String(row.doc_code || ''));
-						if (!found) continue;
-						maxRunning = Math.max(maxRunning, found.runningNo);
-						maxWidth = Math.max(maxWidth, found.runningWidth);
+					let nextCode = manualCode;
+					let nextRunning = partsFromCode?.runningNo || 0;
+					if (!nextCode) {
+						const [samePrefixRows] = await connection.execute<RowDataPacket[]>(
+							`SELECT doc_code
+							 FROM document_master_list
+							 WHERE UPPER(doc_code) LIKE UPPER(?)`,
+							[`${prefix}-%`]
+						);
+						let maxRunning = 0;
+						let maxWidth = Math.max(partsFromCode?.runningWidth || 2, 2);
+						for (const row of samePrefixRows) {
+							const found = extractDocCodeParts(String(row.doc_code || ''));
+							if (!found) continue;
+							maxRunning = Math.max(maxRunning, found.runningNo);
+							maxWidth = Math.max(maxWidth, found.runningWidth);
+						}
+						nextRunning = maxRunning + 1;
+						nextCode = `${prefix}-${String(nextRunning).padStart(maxWidth, '0')}`;
 					}
-					const nextRunning = maxRunning + 1;
-					const nextCode = `${prefix}-${String(nextRunning).padStart(maxWidth, '0')}`;
 					const departmentId = await resolveDepartmentIdByIsoSectionCode(
 						connection,
 						isoSectionCode
@@ -957,13 +995,30 @@ export const actions: Actions = {
 						});
 					}
 					const effectiveDate = toDateOnly(String(item.effective_date || ''));
+					const revisionRaw = String(item.revision || '').trim();
+					const finalRevision = revisionRaw
+						? String(parseRevisionNumber(revisionRaw)).padStart(2, '0')
+						: '00';
 
-					const [insertMaster] = await connection.execute<ResultSetHeader>(
-						`INSERT INTO document_master_list
-						 (doc_code, doc_name, doc_type, department_id, current_revision, effective_date, status, description)
-						 VALUES (?, ?, ?, ?, ?, ?, 'active', NULL)`,
-						[nextCode, requestedName, docType, departmentId, '00', effectiveDate]
-					);
+					let insertMaster: ResultSetHeader;
+					try {
+						const [insertRes] = await connection.execute<ResultSetHeader>(
+							`INSERT INTO document_master_list
+							 (doc_code, doc_name, doc_type, department_id, current_revision, effective_date, status, description)
+							 VALUES (?, ?, ?, ?, ?, ?, 'active', NULL)`,
+							[nextCode, requestedName, docType, departmentId, finalRevision, effectiveDate]
+						);
+						insertMaster = insertRes;
+					} catch (e: any) {
+						if (e?.code === 'ER_DUP_ENTRY') {
+							await connection.rollback();
+							return fail(400, {
+								success: false,
+								message: `Document ${nextCode} Rev.${finalRevision} already exists`
+							});
+						}
+						throw e;
+					}
 					const newMasterId = Number(insertMaster.insertId);
 					if (newMasterId > 0) {
 						await connection.execute(
@@ -972,12 +1027,34 @@ export const actions: Actions = {
 							 WHERE id = ?`,
 							[nextCode, newMasterId, Number(item.id)]
 						);
-						await upsertDocumentRunningMaster(
-							connection,
-							docType,
-							isoSectionCode,
-							nextRunning
-						);
+						if (nextRunning > 0) {
+							await upsertDocumentRunningMaster(
+								connection,
+								docType,
+								isoSectionCode,
+								nextRunning
+							);
+						}
+
+						// Keep rolling 3 revisions for the same doc_no (N-3 policy).
+						// Example: when rev 04 is registered, rev 01 and older are auto-cancelled.
+						const newRevNo = parseRevisionNumber(finalRevision);
+						const cancelThreshold = newRevNo - 3;
+						if (cancelThreshold >= 0) {
+							const [olderRows] = await connection.execute<RowDataPacket[]>(
+								`SELECT id, current_revision
+								 FROM document_master_list
+								 WHERE UPPER(doc_code) = UPPER(?)
+								   AND id <> ?`,
+								[nextCode, newMasterId]
+							);
+							for (const r of olderRows) {
+								const revNo = parseRevisionNumber(String(r.current_revision || '0'));
+								if (revNo <= cancelThreshold) {
+									await applyCancelledStatusWithFallback(connection, Number(r.id));
+								}
+							}
+						}
 						await copyFirstDarAttachmentToDocumentMaster(
 							connection,
 							Number(item.id),
@@ -992,7 +1069,7 @@ export const actions: Actions = {
 				`UPDATE dar_requests
 				 SET document_controller_comment = ?,
 					register_name = ?,
-					register_date = NOW(),
+					register_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 HOUR),
 					status = 'registered'
 				 WHERE id = ?`,
 				[comment || null, locals.user?.full_name || null, id]

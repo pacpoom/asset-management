@@ -29,9 +29,16 @@
 
 	function formatDate(dateString: string | null): string {
 		if (!dateString) return '____/____/________';
-		const date = new Date(dateString);
-		if (Number.isNaN(date.getTime())) return '____/____/________';
-		return date.toISOString().slice(0, 10);
+		const raw = String(dateString).trim();
+		if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+		const match = raw.match(/^(\d{4}-\d{2}-\d{2})[ T]/);
+		if (match) return match[1];
+		const d = new Date(raw);
+		if (Number.isNaN(d.getTime())) return '____/____/________';
+		const yyyy = d.getFullYear();
+		const mm = String(d.getMonth() + 1).padStart(2, '0');
+		const dd = String(d.getDate()).padStart(2, '0');
+		return `${yyyy}-${mm}-${dd}`;
 	}
 
 	$: scope = parseScope(data.request.document_type_scope);
@@ -134,7 +141,7 @@
 					<div>ผู้ร้องดำเนินการ: {data.request.requester_name || '-'}</div>
 					<div>ตำแหน่ง: {data.request.requester_position || '-'}</div>
 					<div>ฝ่าย: {data.request.requester_department || '-'}</div>
-					<div>วันที่: {formatDate(data.request.request_date)}</div>
+					<div>วันที่: {formatOptionalDateTime(data.request.request_date)}</div>
 				</div>
 			</div>
 		</section>

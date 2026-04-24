@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS document_master_list (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    doc_code VARCHAR(100) NOT NULL UNIQUE COMMENT 'Document code e.g. QP-IT-01',
+    doc_code VARCHAR(100) NOT NULL COMMENT 'Document code e.g. QP-IT-01',
     doc_name VARCHAR(255) NOT NULL COMMENT 'Document name',
     doc_type VARCHAR(50) NOT NULL COMMENT 'Document type: QM, QP, WI, STD, EIS, FM, SD, ED',
     department_id INT UNSIGNED NOT NULL COMMENT 'Department/Section ID',
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS document_master_list (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
     INDEX idx_doc_code (doc_code),
+    UNIQUE KEY uq_doc_code_revision (doc_code, current_revision),
     INDEX idx_department (department_id),
     INDEX idx_doc_type (doc_type),
     INDEX idx_status (status),

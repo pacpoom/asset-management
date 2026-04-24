@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
 import { formatDarNoDisplay } from '$lib/darNoFormat';
+import { formatOptionalDateTime } from '$lib/formatDateTime';
 import { checkPermission } from '$lib/server/auth';
 import pool from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
@@ -22,8 +23,8 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	checkPermission(locals, 'view isodocs');
 
 	const auditSearch = (url.searchParams.get('audit_search') || '').trim().toLowerCase();
-	const auditLimitRaw = Number(url.searchParams.get('audit_limit') || 50);
-	const auditLimit = [20, 50, 100, 200].includes(auditLimitRaw) ? auditLimitRaw : 50;
+	const auditLimitRaw = Number(url.searchParams.get('audit_limit') || 20);
+	const auditLimit = [10, 20, 50, 100, 200].includes(auditLimitRaw) ? auditLimitRaw : 20;
 
 	const [isoRows] = await pool.execute<AuditRow[]>(
 		`SELECT
@@ -225,7 +226,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
 	for (const row of rows) {
 		ws.addRow({
-			created_at: row.created_at ? new Date(String(row.created_at)).toLocaleString() : '',
+			created_at: formatOptionalDateTime(row.created_at),
 			user_name: row.user_name || '-',
 			action: row.action || '-',
 			department_name: row.department_name || '-',

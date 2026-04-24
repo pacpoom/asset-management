@@ -73,6 +73,13 @@
 				</h2>
 				<div class="grid gap-5 sm:grid-cols-1">
 					{#each fields as field (field.key)}
+						{#if group === 'renewal' && field.key === 'SALE_CONTRACT_RENEWAL_NOTIFY_EMAILS'}
+							<div class="my-1 border-t-2 border-dashed border-slate-300 pt-4">
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									ตั้งค่าแจ้งเตือนฝั่งขาย
+								</p>
+							</div>
+						{/if}
 						<div>
 							<label for={field.key} class="mb-1 block text-sm font-medium text-slate-700">
 								{field.label}

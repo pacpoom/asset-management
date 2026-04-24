@@ -14,6 +14,10 @@
 	import { get } from 'svelte/store';
 
 	export let data: PageData;
+	let searchDraft = '';
+	let appliedSearch = '';
+	let displayLimitDraft: '10' | '20' | '50' | '100' | '200' | 'all' = '20';
+	let appliedDisplayLimit: '10' | '20' | '50' | '100' | '200' | 'all' = '20';
 
 	const statusColors: Record<string, string> = {
 		submitted: 'bg-yellow-100 text-yellow-800',
@@ -25,9 +29,16 @@
 
 	function formatDate(dateString: string | null): string {
 		if (!dateString) return '-';
-		const date = new Date(dateString);
-		if (Number.isNaN(date.getTime())) return '-';
-		return date.toISOString().slice(0, 10);
+		const raw = String(dateString).trim();
+		if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+		const match = raw.match(/^(\d{4}-\d{2}-\d{2})[ T]/);
+		if (match) return match[1];
+		const d = new Date(raw);
+		if (Number.isNaN(d.getTime())) return '-';
+		const yyyy = d.getFullYear();
+		const mm = String(d.getMonth() + 1).padStart(2, '0');
+		const dd = String(d.getDate()).padStart(2, '0');
+		return `${yyyy}-${mm}-${dd}`;
 	}
 
 	function parseScope(value: string | null): string[] {
@@ -59,6 +70,34 @@
 		{} as Record<number, typeof data.items>
 	);
 
+	$: filteredRequests = data.requests.filter((request) => {
+		const q = appliedSearch.trim().toLowerCase();
+		if (!q) return true;
+		const firstItem = (itemsByRequest[request.id] || [])[0];
+		const hay = [
+			request.dar_no,
+			request.requester_name,
+			request.request_type,
+			request.status,
+			firstItem?.document_name,
+			firstItem?.document_code,
+			firstItem?.revision
+		]
+			.map((v) => String(v || '').toLowerCase())
+			.join(' ');
+		return hay.includes(q);
+	});
+
+	$: limitedRequests =
+		appliedDisplayLimit === 'all'
+			? filteredRequests
+			: filteredRequests.slice(0, Number.parseInt(appliedDisplayLimit, 10));
+
+	function applyFilters() {
+		appliedSearch = searchDraft.trim();
+		appliedDisplayLimit = displayLimitDraft;
+	}
+
 	$: attachmentsByItem = data.attachments.reduce(
 		(map, att) => {
 			if (!map[att.dar_request_item_id]) map[att.dar_request_item_id] = [];
@@ -88,6 +127,58 @@
 </script>
 
 <div class="mx-auto max-w-7xl space-y-4 p-4">
+	<div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+		<div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+			<div class="md:col-span-2">
+				<label for="dar-search" class="mb-1 block text-xs font-semibold text-slate-500">Search</label>
+				<input
+					id="dar-search"
+					type="text"
+					bind:value={searchDraft}
+					placeholder="Search DAR no, requestor, document name, revision..."
+					class="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					on:keydown={(e) => e.key === 'Enter' && applyFilters()}
+				/>
+			</div>
+			<div>
+				<label for="dar-limit" class="mb-1 block text-xs font-semibold text-slate-500">Display limit</label>
+				<select
+					id="dar-limit"
+					bind:value={displayLimitDraft}
+					class="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				>
+					<option value="10">10</option>
+					<option value="20">20</option>
+					<option value="50">50</option>
+					<option value="100">100</option>
+					<option value="200">200</option>
+					<option value="all">All</option>
+				</select>
+			</div>
+			<div class="flex items-end gap-2">
+				<button
+					type="button"
+					on:click={applyFilters}
+					class="rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+				>
+					Apply
+				</button>
+				<button
+					type="button"
+					on:click={() => {
+						searchDraft = '';
+						appliedSearch = '';
+						displayLimitDraft = '20';
+						appliedDisplayLimit = '20';
+					}}
+					class="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+				>
+					Reset
+				</button>
+			</div>
+		</div>
+	</div>
+
 	<div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
 		<div class="flex items-center justify-between">
 			<div>
@@ -103,30 +194,49 @@
 		</div>
 	</div>
 
-	{#if data.requests.length === 0}
+	{#if limitedRequests.length === 0}
 		<div class="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
 			No DAR requests found.
 		</div>
 	{:else}
-		{#each data.requests as request (request.id)}
+		<div class="rounded-lg border border-slate-200 bg-slate-50 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+			<div class="grid grid-cols-12 gap-2">
+				<div class="col-span-3">DAR No.</div>
+				<div class="col-span-4">Document Name</div>
+				<div class="col-span-2">Revision</div>
+				<div class="col-span-2">Status</div>
+				<div class="col-span-1 text-right">Action</div>
+			</div>
+		</div>
+		{#each limitedRequests as request (request.id)}
 			<div class="rounded-lg border border-slate-200 bg-white shadow-sm">
 				<button
 					type="button"
 					on:click={() => toggleRequest(request.id)}
 					class="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-slate-50"
 				>
-					<div>
-						<div class="flex items-center gap-2">
-							<p class="font-mono font-bold text-slate-900">{formatDarNoDisplay(request.dar_no)}</p>
-							<span class={`rounded-full px-3 py-1 text-xs font-semibold ${statusColors[request.status] || 'bg-slate-100 text-slate-700'}`}>
-								{request.status}
-							</span>
+					<div class="w-full">
+						<div class="grid grid-cols-12 items-center gap-2">
+							<div class="col-span-3 font-mono font-bold text-slate-900">{formatDarNoDisplay(request.dar_no)}</div>
+							<div class="col-span-4 truncate text-sm text-slate-800">
+								{(itemsByRequest[request.id] || [])[0]?.document_name || '-'}
+							</div>
+							<div class="col-span-2 text-sm text-slate-700">
+								Rev.{(itemsByRequest[request.id] || [])[0]?.revision || '-'}
+							</div>
+							<div class="col-span-2">
+								<span class={`rounded-full px-3 py-1 text-xs font-semibold ${statusColors[request.status] || 'bg-slate-100 text-slate-700'}`}>
+									{request.status}
+								</span>
+							</div>
+							<div class="col-span-1 text-right text-sm text-slate-500">
+								{expandedRequestId === request.id ? 'Hide' : 'Show'}
+							</div>
 						</div>
 						<p class="mt-1 text-sm text-slate-600">
-							{requestTypeLabel(request.request_type)} • Requestor: {request.requester_name || '-'} • {formatDate(request.request_date)}
+							{requestTypeLabel(request.request_type)} • Requestor: {request.requester_name || '-'} • {formatOptionalDateTime(request.request_date)}
 						</p>
 					</div>
-					<span class="text-sm text-slate-500">{expandedRequestId === request.id ? 'Hide' : 'Show'}</span>
 				</button>
 
 				{#if expandedRequestId === request.id}

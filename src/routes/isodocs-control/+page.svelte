@@ -1,35 +1,59 @@
 <script lang="ts">
 	import type { ActionData, PageData } from './$types';
 	import { formatDarNoDisplay } from '$lib/darNoFormat';
+	import { formatOptionalDateTime } from '$lib/formatDateTime';
 	import { t } from '$lib/i18n';
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 	type Document = PageData['documents'][0];
 
-	function statusBadgeClass(status: string) {
-		switch (status) {
-			case 'active':
-			case 'approved':
-			case 'original_controlled':
-				return 'bg-green-100 text-green-700 border-green-200';
-			case 'pending':
-				return 'bg-amber-100 text-amber-700 border-amber-200';
-			case 'rejected':
-				return 'bg-red-100 text-red-700 border-red-200';
-			case 'distribution_controlled':
-				return 'bg-blue-100 text-blue-700 border-blue-200';
-			case 'distribution_uncontrolled':
-				return 'bg-indigo-100 text-indigo-700 border-indigo-200';
-			case 'cancelled':
-				return 'bg-gray-100 text-gray-700 border-gray-200';
-			default:
-				return 'bg-slate-100 text-slate-700 border-slate-200';
-		}
+	/** Master list + latest DAR row — prefer in-flight DAR step for the status column */
+	function documentWorkflowDisplay(doc: Document) {
+		const d = doc.latest_dar_status;
+		if (d === 'submitted') return 'Issuer submitted';
+		if (d === 'reviewed') return 'Mgr reviewed';
+		if (d === 'approved') return 'VP approved';
+		if (d === 'rejected') return 'Rejected';
+		if (d === 'registered') return 'QMR controlled';
+		const m = String(doc.status || '').toLowerCase();
+		if (m === 'draft') return 'Temp';
+		if (m === 'active') return 'Approved';
+		if (m === 'inactive') return 'Inactive';
+		if (m === 'obsolete') return 'Obsolete';
+		if (m === 'superseded') return 'Superseded';
+		return doc.status || '—';
 	}
 
-	function statusLabel(status: string) {
-		if (status === 'original_controlled' || status === 'active') return 'Approved';
-		return status.replaceAll('_', ' ');
+	function workflowBadgeClass(doc: Document) {
+		const d = doc.latest_dar_status;
+		if (d === 'submitted') return 'bg-amber-100 text-amber-900 border-amber-200';
+		if (d === 'reviewed') return 'bg-yellow-100 text-yellow-900 border-yellow-200';
+		if (d === 'approved') return 'bg-green-100 text-green-900 border-green-200';
+		if (d === 'rejected') return 'bg-red-100 text-red-800 border-red-200';
+		if (d === 'registered') return 'bg-blue-100 text-blue-900 border-blue-200';
+		const m = String(doc.status || '').toLowerCase();
+		if (m === 'active') return 'bg-green-100 text-green-700 border-green-200';
+		if (m === 'draft') return 'bg-slate-100 text-slate-800 border-slate-200';
+		if (m === 'inactive') return 'bg-gray-100 text-gray-700 border-gray-200';
+		return 'bg-slate-100 text-slate-700 border-slate-200';
+	}
+
+	function auditActionLabel(action: string | null | undefined): string {
+		const a = String(action || '').trim().toLowerCase();
+		if (a === 'dar_registered_qmr') return 'QMR controlled';
+		return String(action || '-');
+	}
+
+	function auditActionClass(action: string | null | undefined): string {
+		const a = String(action || '').trim().toLowerCase();
+		if (a === 'dar_registered_qmr') {
+			return 'rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700';
+		}
+		return 'text-gray-700';
+	}
+
+	function formatAuditTime(value: string | null | undefined): string {
+		return formatOptionalDateTime(value);
 	}
 </script>
 
@@ -40,6 +64,12 @@
 			<p class="mt-1 text-sm text-gray-500">ISO document list, workflow, and audit log</p>
 		</div>
 	</div>
+
+	{#if data.scopeNotice}
+		<div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+			{data.scopeNotice}
+		</div>
+	{/if}
 
 	{#if form?.message}
 		<div
@@ -94,11 +124,21 @@
 					name="status"
 					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
 				>
-					<option value="">All</option>
-					<option value="active" selected={data.filters.status === 'active'}>Approved</option>
-					<option value="draft" selected={data.filters.status === 'draft'}>Draft</option>
-					<option value="obsolete" selected={data.filters.status === 'obsolete'}>Obsolete</option>
-					<option value="superseded" selected={data.filters.status === 'superseded'}>Superseded</option>
+					<option value="">All statuses</option>
+					<optgroup label="Master list">
+						<option value="draft" selected={data.filters.status === 'draft'}>Temp (draft)</option>
+						<option value="active" selected={data.filters.status === 'active'}>Approved (active)</option>
+						<option value="inactive" selected={data.filters.status === 'inactive'}>Inactive</option>
+						<option value="obsolete" selected={data.filters.status === 'obsolete'}>Obsolete</option>
+						<option value="superseded" selected={data.filters.status === 'superseded'}>Superseded</option>
+					</optgroup>
+					<optgroup label="DAR workflow (latest per doc)">
+						<option value="dar_submitted" selected={data.filters.status === 'dar_submitted'}>Issuer submitted</option>
+						<option value="dar_reviewed" selected={data.filters.status === 'dar_reviewed'}>Mgr reviewed</option>
+						<option value="dar_approved" selected={data.filters.status === 'dar_approved'}>VP approved</option>
+						<option value="dar_registered" selected={data.filters.status === 'dar_registered'}>QMR controlled</option>
+						<option value="dar_rejected" selected={data.filters.status === 'dar_rejected'}>DAR rejected</option>
+					</optgroup>
 				</select>
 			</div>
 
@@ -160,52 +200,6 @@
 	</div>
 
 	<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-		<div class="mb-3 flex items-center justify-between">
-			<h2 class="text-lg font-semibold text-gray-800">Documents</h2>
-			<div class="text-xs text-gray-500">
-				Latest {data.documents.length} items from Document Master List
-			</div>
-		</div>
-
-		<div class="overflow-x-auto">
-			<table class="min-w-full divide-y divide-gray-200 text-sm">
-				<thead class="bg-gray-50">
-					<tr>
-						<th class="px-3 py-2 text-left font-semibold text-gray-600">Doc No</th>
-						<th class="px-3 py-2 text-left font-semibold text-gray-600">Title</th>
-						<th class="px-3 py-2 text-left font-semibold text-gray-600">Version</th>
-						<th class="px-3 py-2 text-left font-semibold text-gray-600">Effective Date</th>
-						<th class="px-3 py-2 text-left font-semibold text-gray-600">Status</th>
-						<th class="px-3 py-2 text-left font-semibold text-gray-600">Updated At</th>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-gray-100 bg-white">
-					{#if data.documents.length === 0}
-						<tr>
-							<td colspan="6" class="px-3 py-6 text-center text-gray-500">No documents found.</td>
-						</tr>
-					{:else}
-						{#each data.documents as doc}
-							<tr>
-								<td class="px-3 py-2 font-semibold text-gray-700">{doc.doc_no}</td>
-								<td class="px-3 py-2">{doc.title}</td>
-								<td class="px-3 py-2">{doc.version}</td>
-								<td class="px-3 py-2 text-gray-600">{doc.effective_date ? new Date(doc.effective_date).toLocaleDateString() : '-'}</td>
-								<td class="px-3 py-2">
-									<span class="rounded-full border px-2 py-0.5 text-xs font-semibold capitalize {statusBadgeClass(doc.status)}">
-										{statusLabel(doc.status)}
-									</span>
-								</td>
-								<td class="px-3 py-2 text-gray-600">{new Date(doc.updated_at).toLocaleString()}</td>
-							</tr>
-						{/each}
-					{/if}
-				</tbody>
-			</table>
-		</div>
-	</div>
-
-	<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
 		<div class="mb-3 flex flex-wrap items-end justify-between gap-3">
 			<h2 class="text-lg font-semibold text-gray-800">Audit Log</h2>
 			<form method="GET" class="flex w-full flex-wrap items-end justify-end gap-2 lg:w-auto">
@@ -225,6 +219,7 @@
 				<div>
 					<label for="audit_limit" class="mb-1 block text-xs font-semibold text-gray-500">Display limit</label>
 					<select id="audit_limit" name="audit_limit" class="min-w-[76px] rounded border border-gray-300 px-2 pr-7 py-1 text-sm">
+						<option value="10" selected={data.filters.auditLimit === 10}>10</option>
 						<option value="20" selected={data.filters.auditLimit === 20}>20</option>
 						<option value="50" selected={data.filters.auditLimit === 50}>50</option>
 						<option value="100" selected={data.filters.auditLimit === 100}>100</option>
@@ -233,7 +228,7 @@
 				</div>
 				<button type="submit" class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">Search</button>
 				<a
-					href={`/isodocs-control/audit-log-export?audit_search=${encodeURIComponent(data.filters.auditSearch || '')}&audit_limit=${encodeURIComponent(String(data.filters.auditLimit || 50))}`}
+					href={`/isodocs-control/audit-log-export?audit_search=${encodeURIComponent(data.filters.auditSearch || '')}&audit_limit=${encodeURIComponent(String(data.filters.auditLimit || 20))}`}
 					class="rounded border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100"
 				>
 					Download Excel
@@ -262,9 +257,11 @@
 					{:else}
 						{#each data.auditLogs as log}
 							<tr>
-								<td class="px-3 py-2 text-gray-600">{new Date(log.created_at).toLocaleString()}</td>
+								<td class="px-3 py-2 text-gray-600">{formatAuditTime(log.created_at)}</td>
 								<td class="px-3 py-2 text-gray-700">{log.user_name || '-'}</td>
-								<td class="px-3 py-2 text-gray-700">{log.action}</td>
+								<td class="px-3 py-2">
+									<span class={auditActionClass(log.action)}>{auditActionLabel(log.action)}</span>
+								</td>
 								<td class="px-3 py-2 text-gray-700">{log.department_name || '-'}</td>
 								<td class="px-3 py-2 text-gray-700">{log.document_type || '-'}</td>
 								<td class="px-3 py-2 text-gray-700">{log.document_name || '-'}</td>

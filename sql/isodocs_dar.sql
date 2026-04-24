@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS dar_requests (
     requester_name VARCHAR(255) NULL,
     requester_position VARCHAR(255) NULL,
     requester_department VARCHAR(255) NULL,
-    request_date DATE NOT NULL,
+    request_date DATETIME NOT NULL,
     remark TEXT NULL,
     reviewer_comment TEXT NULL,
     reviewer_approve TINYINT(1) NULL,

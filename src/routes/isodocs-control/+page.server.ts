@@ -3,6 +3,8 @@ import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
 import { userHasAdminRole } from '$lib/userRole';
+import { PERM_ISODOCS_DAR_QMR } from '$lib/isodocsDarPermissions';
+import { DAR_ROLE_QMR } from '$lib/darWorkflowLabels';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import fs from 'fs/promises';
 import path from 'path';
@@ -69,6 +71,8 @@ interface MasterListDocument extends RowDataPacket {
 	description: string | null;
 	updated_at: string;
 	effective_date: string | null;
+	/** Latest DAR linked to this master (`dar_requests.status`), if any */
+	latest_dar_status: string | null;
 }
 interface DarStatusSummary extends RowDataPacket {
 	submitted_count: number;
@@ -198,6 +202,64 @@ async function writeAuditLog(
 		 VALUES (?, ?, ?, ?)`,
 		[isoDocumentId, userId, action, remark]
 	);
+}
+
+function parseRevisionForRetention(versionRaw: string | null | undefined): number {
+	const digits = String(versionRaw || '').replace(/[^\d]/g, '');
+	const n = Number(digits);
+	return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Keep only rolling 3 latest revisions for the same logical document.
+ * Example: approve rev 03 => auto-cancel rev 00. approve rev 04 => auto-cancel rev 01.
+ */
+async function autoCancelOldRevisionsNMinus3(
+	connection: PoolConnection,
+	currentDoc: {
+		id: number;
+		doc_no: string;
+		version: string;
+	},
+	actorUserId: number
+): Promise<number> {
+	const currentRev = parseRevisionForRetention(currentDoc.version);
+	const threshold = currentRev - 3;
+	if (threshold < 0) return 0;
+
+	const [candidates] = await connection.execute<RowDataPacket[]>(
+		`SELECT id, doc_no, version, status
+		 FROM iso_documents
+		 WHERE id <> ?
+		   AND UPPER(doc_no) = UPPER(?)
+		   AND status IN ('original_controlled', 'approved', 'distribution_controlled', 'distribution_uncontrolled')`,
+		[currentDoc.id, currentDoc.doc_no]
+	);
+
+	let cancelledCount = 0;
+	for (const row of candidates) {
+		const rev = parseRevisionForRetention(String(row.version || '0'));
+		if (rev > threshold) continue;
+
+		const targetId = Number(row.id);
+		await connection.execute(
+			`UPDATE iso_documents
+			 SET status = 'cancelled',
+				 current_approval_step_no = NULL
+			 WHERE id = ?`,
+			[targetId]
+		);
+		await writeAuditLog(
+			connection,
+			targetId,
+			actorUserId,
+			'auto_cancel_n_minus_3',
+			`Auto-cancel by N-3 retention after QMR approved ${currentDoc.doc_no} rev ${currentDoc.version}`
+		);
+		cancelledCount++;
+	}
+
+	return cancelledCount;
 }
 
 type FlowStepRecipientRow = RowDataPacket & {
@@ -359,6 +421,21 @@ async function notifyQmrOnDocumentApproved(
 	);
 }
 
+function canSeeAllDocumentMasters(
+	user: {
+		role: string;
+		roleNames?: string[];
+	} | null,
+	perms: Set<string>
+): boolean {
+	if (!user) return false;
+	if (userHasAdminRole(user)) return true;
+	if (perms.has(PERM_ISODOCS_DAR_QMR)) return true;
+	const rn = (user.roleNames || []).map((n) => String(n).toUpperCase());
+	if (rn.includes(DAR_ROLE_QMR.toUpperCase())) return true;
+	return String(user.role || '').toUpperCase() === DAR_ROLE_QMR.toUpperCase();
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
 	checkPermission(locals, 'view isodocs');
 	const isAdmin = locals.user ? userHasAdminRole(locals.user) : false;
@@ -368,17 +445,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const search = (url.searchParams.get('search') || '').trim();
 	const status = (url.searchParams.get('status') || '').trim().toLowerCase();
 	const auditSearch = (url.searchParams.get('audit_search') || '').trim();
-	const auditLimitRaw = Number(url.searchParams.get('audit_limit') || 50);
-	const auditLimit = [20, 50, 100, 200].includes(auditLimitRaw) ? auditLimitRaw : 50;
+	const auditLimitRaw = Number(url.searchParams.get('audit_limit') || 20);
+	const auditLimit = [10, 20, 50, 100, 200].includes(auditLimitRaw) ? auditLimitRaw : 20;
 
-	const statusFilter = [
-		'active',
-		'draft',
-		'obsolete',
-		'superseded'
-	].includes(status)
-		? status
-		: '';
+	const MASTER_STATUSES = new Set(['active', 'inactive', 'draft', 'obsolete', 'superseded']);
+	const DAR_STATUS_KEYS = new Set(['submitted', 'reviewed', 'approved', 'registered', 'rejected']);
+
+	let statusFilterMaster: string | null = null;
+	let statusFilterDar: string | null = null;
+	if (status.startsWith('dar_')) {
+		const dar = status.slice(4);
+		if (DAR_STATUS_KEYS.has(dar)) statusFilterDar = dar;
+	} else if (MASTER_STATUSES.has(status)) {
+		statusFilterMaster = status;
+	}
 
 	let whereClause = ' WHERE 1=1 ';
 	const params: (string | number)[] = [];
@@ -389,9 +469,48 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		params.push(q, q, q);
 	}
 
-	if (statusFilter) {
+	if (statusFilterMaster) {
 		whereClause += ' AND dml.status = ? ';
-		params.push(statusFilter);
+		params.push(statusFilterMaster);
+	}
+	if (statusFilterDar) {
+		whereClause += ' AND latest_dar.dar_status = ? ';
+		params.push(statusFilterDar);
+	}
+
+	const seeAllMasters = canSeeAllDocumentMasters(locals.user, permissionSet);
+	let scopeNotice: string | null = null;
+	if (!seeAllMasters && locals.user) {
+		let isoSec = (locals.user.iso_section || '').trim();
+		let deptId: number | null = null;
+		try {
+			const [uRows] = await pool.query<RowDataPacket[]>(
+				`SELECT COALESCE(u.iso_section, '') AS iso_section, u.department_id
+				 FROM users u WHERE u.id = ? LIMIT 1`,
+				[locals.user.id]
+			);
+			if (uRows?.[0]) {
+				const rawIso = String(uRows[0].iso_section || '').trim();
+				if (rawIso) isoSec = rawIso;
+				const did = uRows[0].department_id;
+				deptId = did != null && !Number.isNaN(Number(did)) ? Number(did) : null;
+			}
+		} catch {
+			// ignore
+		}
+
+		if (isoSec) {
+			whereClause += ` AND UPPER(TRIM(?)) = UPPER(SUBSTRING_INDEX(SUBSTRING_INDEX(dml.doc_code, '-', 2), '-', -1)) `;
+			params.push(isoSec);
+			scopeNotice = `Showing documents for Iso_Section (BB): ${isoSec}`;
+		} else if (deptId != null) {
+			whereClause += ' AND dml.department_id = ? ';
+			params.push(deptId);
+			scopeNotice = `Showing documents for your department only`;
+		} else {
+			whereClause += ' AND 1 = 0 ';
+			scopeNotice = 'No unit scope on your profile — no documents shown. Ask admin to set Iso_Section or department.';
+		}
 	}
 
 	const [documents] = await pool.query<MasterListDocument[]>(
@@ -403,11 +522,23 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			dml.status,
 			dml.description,
 			dml.effective_date,
-			dml.updated_at
+			dml.updated_at,
+			latest_dar.dar_status AS latest_dar_status
 		 FROM document_master_list dml
+		 LEFT JOIN (
+			SELECT di.document_master_id, dr.status AS dar_status
+			FROM dar_request_items di
+			INNER JOIN dar_requests dr ON dr.id = di.dar_request_id
+			INNER JOIN (
+				SELECT di2.document_master_id, MAX(dr2.id) AS max_id
+				FROM dar_request_items di2
+				INNER JOIN dar_requests dr2 ON dr2.id = di2.dar_request_id
+				GROUP BY di2.document_master_id
+			) x ON x.document_master_id = di.document_master_id AND dr.id = x.max_id
+		) latest_dar ON latest_dar.document_master_id = dml.id
 		 ${whereClause}
 		 ORDER BY dml.updated_at DESC, dml.id DESC
-		 LIMIT 10`,
+		 LIMIT 20`,
 		params
 	);
 	const [darStatusRows] = await pool.execute<DarStatusSummary[]>(
@@ -446,7 +577,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		 LEFT JOIN iso_document_types t ON t.id = d.iso_document_type_id
 		 LEFT JOIN users u ON u.id = l.user_id
 		 ORDER BY l.created_at DESC, l.id DESC
-		 LIMIT 50`
+		 LIMIT 20`
 	);
 	const [darAuditRows] = await pool.execute<RowDataPacket[]>(
 		`SELECT *
@@ -599,7 +730,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			WHERE dr.register_date IS NOT NULL
 		) x
 		ORDER BY x.created_at DESC
-		LIMIT 50`
+		LIMIT 20`
 	);
 	const combinedAuditLogs: IsoDocumentAuditLog[] = [...auditLogs, ...(darAuditRows as IsoDocumentAuditLog[])]
 		.sort((a, b) => new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime())
@@ -621,9 +752,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		})
 		.slice(0, auditLimit);
 
+	const filterStatusParam = statusFilterDar
+		? `dar_${statusFilterDar}`
+		: statusFilterMaster || '';
+
 	return {
 		documents,
 		auditLogs: combinedAuditLogs,
+		scopeNotice,
 		showDebug,
 		debugAuth: {
 			role: locals.user?.role || null,
@@ -649,7 +785,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		},
 		filters: {
 			search,
-			status: statusFilter,
+			status: filterStatusParam,
 			auditSearch,
 			auditLimit
 		},
@@ -1152,7 +1288,7 @@ export const actions: Actions = {
 			await connection.beginTransaction();
 
 			const [docRows] = await connection.execute<IsoDocument[]>(
-				`SELECT id, status, iso_approval_flow_id, current_approval_step_no
+				`SELECT id, doc_no, title, version, status, iso_document_type_id, department_id, iso_approval_flow_id, current_approval_step_no
 				 FROM iso_documents
 				 WHERE id = ?
 				 LIMIT 1`,
@@ -1275,6 +1411,24 @@ export const actions: Actions = {
 						[id]
 					);
 					const docNo = String(docMeta[0]?.doc_no || `#${id}`);
+					const autoCancelledCount = await autoCancelOldRevisionsNMinus3(
+						connection,
+						{
+							id,
+							doc_no: docNo,
+							version: String(doc.version || '0')
+						},
+						locals.user.id
+					);
+					if (autoCancelledCount > 0) {
+						await writeAuditLog(
+							connection,
+							id,
+							locals.user.id,
+							'stamp_n_minus_3',
+							`N-3 retention applied: auto-cancelled ${autoCancelledCount} old revision(s)`
+						);
+					}
 					await notifyQmrOnDocumentApproved(connection, docNo, id);
 				} else {
 					const nextStepNo = Number((nextRows as any[])[0].step_no);

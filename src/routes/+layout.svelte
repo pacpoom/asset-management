@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutServerData } from './$types';
+	import { goto } from '$app/navigation';
 	import { page, navigating } from '$app/stores';
 	import { slide, fade, fly } from 'svelte/transition';
 	import { Toaster } from 'svelte-sonner';
@@ -118,13 +119,116 @@
 		return null;
 	}
 
+	/** ไม่ให้รวมกับ effect ที่สังเกต `$navigating` — ถ้ารวม ทุกครั้งที่ navigate จะเคลียร์เมนูที่เปิดไว้ตอน sidebar ไม่ถูก pin */
 	$effect(() => {
 		if ($navigating) {
 			isSidebarOpen = false;
 		}
+	});
+
+	$effect(() => {
 		if (!isSidebarPinned) {
 			openMenuIds = new Set<number>();
 			isAdminMenuOpen = false;
+		}
+	});
+
+	const ADMIN_SECTION_ROUTES = [
+		'/users',
+		'/roles',
+		'/permissions',
+		'/menus',
+		'/settings/translations',
+		'/settings/company-announcements',
+		'/settings/env-config'
+	] as const;
+
+	const SYSTEM_MANAGEMENT_ROOT_TITLE_KEYS = new Set([
+		'system management',
+		'configuration',
+		'settings',
+		'system config'
+	]);
+
+	function isSystemManagementRootMenu(menu: Menu, level: number): boolean {
+		if (level !== 0) return false;
+		const title = menu.title.trim().toLowerCase();
+		return SYSTEM_MANAGEMENT_ROOT_TITLE_KEYS.has(title);
+	}
+
+	function isLinkActiveFor(href: string | null, currentPath: string): boolean {
+		if (!href) return false;
+		const current = currentPath.replace(/\/$/, '');
+		const targetHref = href.trim().replace(/\/$/, '');
+
+		if (targetHref === '') {
+			return current === '';
+		}
+		if (current === targetHref) {
+			return true;
+		}
+		if (current.startsWith(targetHref + '/')) {
+			let hasMoreSpecificMenu = false;
+
+			function checkSpecific(menus: Menu[] | undefined) {
+				if (!menus) return;
+				for (const m of menus) {
+					if (m.route) {
+						const route = m.route.replace(/\/$/, '');
+						if (
+							route.length > targetHref.length &&
+							(current === route || current.startsWith(route + '/'))
+						) {
+							hasMoreSpecificMenu = true;
+						}
+					}
+					if (m.children) checkSpecific(m.children);
+				}
+			}
+
+			checkSpecific(data.menus);
+			return !hasMoreSpecificMenu;
+		}
+
+		return false;
+	}
+
+	/** เปิดเมนูแม่เฉพาะเมื่อ path ตรงกับเมนูย่อย/ลูกหลาน — ไม่บังคับเปิดจาก route ของ parent ลำพัง (เช่น /isodocs-control) เพื่อไม่ให้ $effect หลัง goto เปิดเมนูทับการหุบจากคลิกตรงกลาง */
+	function collectAncestorMenuIdsForOpen(menus: Menu[] | undefined, pathname: string): Set<number> {
+		const ids = new Set<number>();
+		const pathNorm = pathname.replace(/\/$/, '') || '';
+
+		function walk(items: Menu[]): boolean {
+			let any = false;
+			for (const m of items) {
+				let activeHere = false;
+				if (m.children?.length) {
+					if (walk(m.children)) {
+						ids.add(m.id);
+						activeHere = true;
+					}
+				} else if (m.route && isLinkActiveFor(m.route, pathNorm)) {
+					activeHere = true;
+				}
+				if (activeHere) any = true;
+			}
+			return any;
+		}
+
+		walk(menus ?? []);
+		return ids;
+	}
+
+	$effect(() => {
+		void $page.url.pathname;
+		void data.menus;
+		const path = $page.url.pathname.replace(/\/$/, '');
+		const required = collectAncestorMenuIdsForOpen(data.menus, path);
+		const prev = untrack(() => openMenuIds);
+		openMenuIds = new Set([...required, ...prev]);
+
+		if (ADMIN_SECTION_ROUTES.some((r) => isLinkActiveFor(r, path))) {
+			isAdminMenuOpen = true;
 		}
 	});
 
@@ -142,41 +246,7 @@
 	}
 
 	function isLinkActive(href: string | null) {
-		if (!href) return false;
-
-		const currentPath = $page.url.pathname.replace(/\/$/, '');
-		const targetHref = href.trim().replace(/\/$/, '');
-
-		if (targetHref === '') {
-			return currentPath === '';
-		}
-		if (currentPath === targetHref) {
-			return true;
-		}
-		if (currentPath.startsWith(targetHref + '/')) {
-			let hasMoreSpecificMenu = false;
-
-			function checkSpecific(menus: Menu[] | undefined) {
-				if (!menus) return;
-				for (const m of menus) {
-					if (m.route) {
-						const route = m.route.replace(/\/$/, '');
-						if (
-							route.length > targetHref.length &&
-							(currentPath === route || currentPath.startsWith(route + '/'))
-						) {
-							hasMoreSpecificMenu = true;
-						}
-					}
-					if (m.children) checkSpecific(m.children);
-				}
-			}
-
-			checkSpecific(data.menus);
-			return !hasMoreSpecificMenu;
-		}
-
-		return false;
+		return isLinkActiveFor(href, $page.url.pathname.replace(/\/$/, ''));
 	}
 
 	function isMenuSectionActive(menu: Menu): boolean {
@@ -201,13 +271,21 @@
 		return checkChildren(menu.children);
 	}
 
+	const systemManagementRootMenu = $derived(
+		(data.menus ?? []).find((m) => isSystemManagementRootMenu(m, 0)) ?? null
+	);
+
+	const systemManagementChildren = $derived(systemManagementRootMenu?.children ?? []);
+
 	const isAdminSectionActive = $derived(
 		isLinkActive('/users') ||
 			isLinkActive('/roles') ||
 			isLinkActive('/permissions') ||
 			isLinkActive('/menus') ||
+			isLinkActive('/settings/translations') ||
 			isLinkActive('/settings/company-announcements') ||
-			isLinkActive('/settings/env-config')
+			isLinkActive('/settings/env-config') ||
+			(systemManagementRootMenu ? isMenuSectionActive(systemManagementRootMenu) : false)
 	);
 
 	function canSeeRolesPage(user: LayoutServerData['user']): boolean {
@@ -234,6 +312,12 @@
 		return user.permissions?.includes('manage settings') ?? false;
 	}
 
+	function canSeeTranslationsPage(user: LayoutServerData['user']): boolean {
+		if (!user) return false;
+		if (userHasAdminRole(user)) return true;
+		return user.permissions?.includes('manage settings') ?? false;
+	}
+
 	function canSeeUsersControl(user: LayoutServerData['user']): boolean {
 		if (!user) return false;
 		return canManageUsers(user);
@@ -250,6 +334,7 @@
 			canSeeRolesPage(user) ||
 			canSeePermissionsPage(user) ||
 			canSeeMenuManagementPage(user) ||
+			canSeeTranslationsPage(user) ||
 			canSeeCompanyAnnouncementsPage(user) ||
 			canSeeEnvConfig(user)
 		);
@@ -257,10 +342,14 @@
 
 	function shouldHideTopLevelMenu(menu: Menu, level: number): boolean {
 		if (level !== 0) return false;
-		if (!canSeeSystemManagement(data.user)) return false;
+		if (isSystemManagementRootMenu(menu, level)) return true;
 		const title = menu.title.trim().toLowerCase();
 		const route = menu.route?.trim().toLowerCase() ?? '';
-		return title === 'settings' || title.includes('setting') || route.startsWith('/settings');
+		return (
+			title === 'settings' ||
+			title.includes('setting') ||
+			route.startsWith('/settings')
+		);
 	}
 
 	const companyLogoSrc = $derived(isCompanyLogoBroken ? favicon : '/logo/company-logo.png');
@@ -290,15 +379,20 @@
 						{#if menu.route}
 							{#if menu.children && menu.children.length > 0}
 								{#if isSidebarExpanded || isSidebarOpen}
-									<div class="group relative">
+									<div class="group relative flex w-full min-w-0 items-center">
 										<a
 											href={menu.route}
-											onclick={() => toggleMenu(menu.id)}
-											class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 {isLinkActive(
+											onclick={(e) => {
+												e.preventDefault();
+												// สลับเปิด/หุบ + ไปหน้า parent — จากเมนูย่อยกลับมาจะหุบและโหลดหน้า main ในคลิกเดียว (ลูกศรขวา = หุบ/ขยายอย่างเดียว ไม่สลับ route)
+												toggleMenu(menu.id);
+												goto(menu.route);
+											}}
+											class="flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 pr-10 transition-colors duration-150 {isLinkActive(
 												menu.route
 											)
 												? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
-												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} pr-8 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 											title={$t(menu.title)}
 										>
 											<span
@@ -306,13 +400,14 @@
 												>{menu.icon || 'folder'}</span
 											>
 											<span
-												class="leading-snug font-medium whitespace-normal transition-all duration-100"
+												class="min-w-0 flex-1 leading-snug font-medium whitespace-normal"
 												>{$t(menu.title)}</span
 											>
 										</a>
 										<button
 											type="button"
 											onclick={(event) => {
+												event.preventDefault();
 												event.stopPropagation();
 												toggleMenu(menu.id);
 											}}
@@ -339,13 +434,13 @@
 								{:else}
 									<a
 										href={menu.route}
-										onclick={() => {
-											// When sidebar is collapsed on desktop, clicking a parent menu should expand it
-											// so the user can see its submenus immediately.
+										onclick={(e) => {
+											e.preventDefault();
 											isSidebarPinned = true;
 											toggleMenu(menu.id);
+											goto(menu.route);
 										}}
-										class="group flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
+										class="group flex w-full min-w-0 items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isLinkActive(
 											menu.route
 										)
 											? 'bg-blue-100 text-blue-700'
@@ -388,19 +483,24 @@
 							{/if}
 						{:else if menu.children && menu.children.length > 0}
 							{#if !(isSidebarExpanded || isSidebarOpen) && !isFlyout}
-								<div
+								<button
+									type="button"
 									class="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 {isMenuSectionActive(
 										menu
 									)
 										? 'bg-blue-100 text-blue-700'
 										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
 									title={$t(menu.title)}
+									onclick={() => {
+										isSidebarPinned = true;
+										toggleMenu(menu.id);
+									}}
 								>
 									<span
 										class="material-symbols-outlined h-6 w-6 flex-shrink-0 transition-transform group-hover:scale-110"
 										>{menu.icon || 'folder'}</span
 									>
-								</div>
+								</button>
 							{:else}
 								<button
 									type="button"
@@ -606,7 +706,28 @@
 
 								{#if isSidebarExpanded && isAdminMenuOpen}
 									<ul class="space-y-1 pt-1 pl-5" transition:slide>
-										{#if canSeeUsersControl(data.user)}
+										{#if systemManagementChildren.length > 0}
+											{#each systemManagementChildren as sm}
+												{#if sm.route}
+													<li>
+														<a
+															href={sm.route}
+															class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+																sm.route
+															)
+																? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+																: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+															title={$t(sm.title)}
+															><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+																>{sm.icon || 'folder'}</span
+															><span class="text-sm leading-snug font-medium whitespace-normal"
+																>{$t(sm.title)}</span
+															></a
+														>
+													</li>
+												{/if}
+											{/each}
+										{:else if canSeeUsersControl(data.user)}
 											<li>
 												<a
 													href="/users"
@@ -624,7 +745,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeRolesPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeRolesPage(data.user)}
 											<li>
 												<a
 													href="/roles"
@@ -642,7 +763,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeePermissionsPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeePermissionsPage(data.user)}
 											<li>
 												<a
 													href="/permissions"
@@ -660,7 +781,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeMenuManagementPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeMenuManagementPage(data.user)}
 											<li>
 												<a
 													href="/menus"
@@ -677,7 +798,25 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeCompanyAnnouncementsPage(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeTranslationsPage(data.user)}
+											<li>
+												<a
+													href="/settings/translations"
+													class="flex items-center gap-3 rounded-lg px-3 py-3 transition-colors {isLinkActive(
+														'/settings/translations'
+													)
+														? 'bg-blue-600 text-white shadow-md hover:bg-blue-700'
+														: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+													title={$t('Translations Management')}
+													><span class="material-symbols-outlined h-6 w-6 flex-shrink-0"
+														>translate</span
+													><span class="text-sm leading-snug font-medium whitespace-normal"
+														>{$t('Translations Management')}</span
+													></a
+												>
+											</li>
+										{/if}
+										{#if systemManagementChildren.length === 0 && canSeeCompanyAnnouncementsPage(data.user)}
 											<li>
 												<a
 													href="/settings/company-announcements"
@@ -695,7 +834,7 @@
 												>
 											</li>
 										{/if}
-										{#if canSeeEnvConfig(data.user)}
+										{#if systemManagementChildren.length === 0 && canSeeEnvConfig(data.user)}
 											<li>
 												<a
 													href="/settings/env-config"
