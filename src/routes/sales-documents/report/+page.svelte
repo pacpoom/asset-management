@@ -204,31 +204,6 @@
 				</p>
 			</div>
 		</div>
-
-		<a
-			href={getExportUrl()}
-			target="_blank"
-			class="ml-auto flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-5 w-5"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-				<polyline points="14 2 14 8 20 8"></polyline>
-				<path d="M8 13h2"></path>
-				<path d="M8 17h2"></path>
-				<path d="M14 13h2"></path>
-				<path d="M14 17h2"></path>
-			</svg>
-			{$t('Export')}
-		</a>
 	</div>
 </div>
 
@@ -295,10 +270,11 @@
 			/>
 		</div>
 
-		<div class="w-full sm:w-auto">
+		<!-- แก้ไขให้ปุ่ม Search และ Export เรียงอยู่ด้วยกัน -->
+		<div class="flex w-full gap-2 sm:w-auto">
 			<button
 				type="submit"
-				class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:w-auto"
+				class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:flex-none"
 				style="height: 42px;"
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -306,6 +282,32 @@
 				</svg>
 				{$t('Search')}
 			</button>
+
+			<a
+				href={getExportUrl()}
+				target="_blank"
+				class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 sm:flex-none"
+				style="height: 42px;"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+					<polyline points="14 2 14 8 20 8"></polyline>
+					<path d="M8 13h2"></path>
+					<path d="M8 17h2"></path>
+					<path d="M14 13h2"></path>
+					<path d="M14 17h2"></path>
+				</svg>
+				{$t('Export')}
+			</a>
 		</div>
 	</form>
 </div>
