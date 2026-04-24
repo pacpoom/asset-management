@@ -152,7 +152,6 @@
 					class="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-6 py-4"
 				>
 					<h3 class="flex items-center gap-2 text-lg font-bold text-gray-800">
-						<span class="material-symbols-outlined text-blue-500" aria-hidden="true">print</span>
 						{$t('Print Pulling Report')}
 					</h3>
 					<button
@@ -166,7 +165,7 @@
 				</div>
 				<div class="p-6">
 					<p class="mb-5 text-sm text-gray-600">
-						{$t('Please select a date to generate the report for.')}
+						{$t('Please select a date to generate the report for')}
 					</p>
 
 					<div class="mb-4">
@@ -368,31 +367,17 @@
 <div class="mb-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
 	<form method="GET" class="flex flex-wrap items-end gap-4">
 		<input type="hidden" name="limit" value={data.pagination.limit} />
-		<div class="flex gap-2">
-			<div class="w-40">
-				<label for="dateFrom" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-					>{$t('Date (From)')}</label
-				>
-				<input
-					id="dateFrom"
-					type="date"
-					name="dateFrom"
-					value={data.dateFrom}
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-				/>
-			</div>
-			<div class="w-40">
-				<label for="dateTo" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
-					>{$t('Date (To)')}</label
-				>
-				<input
-					id="dateTo"
-					type="date"
-					name="dateTo"
-					value={data.dateTo}
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-				/>
-			</div>
+		<div class="w-48">
+			<label for="pullingDateFilter" class="mb-1 block text-xs font-bold text-gray-500 uppercase"
+				>{$t('Pulling Date')}</label
+			>
+			<input
+				id="pullingDateFilter"
+				type="date"
+				name="pullingDate"
+				value={data.pullingDate}
+				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+			/>
 		</div>
 
 		<div class="w-40">
@@ -422,7 +407,7 @@
 				type="text"
 				name="search"
 				value={data.searchQuery}
-				placeholder={$t('Search...')}
+				placeholder={$t('Search Pulling Plan No or Container No')}
 				class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
 			/>
 		</div>
@@ -442,8 +427,8 @@
 		<table class="w-full min-w-[1200px] text-left text-sm text-gray-600">
 			<thead class="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase">
 				<tr>
-					<th class="px-4 py-3">{$t('Pulling Plan No.')}</th>
-					<th class="px-4 py-3">{$t('Container No.')}</th>
+					<th class="px-4 py-3">{$t('Pulling Plan No')}</th>
+					<th class="px-4 py-3">{$t('Container No')}</th>
 					<th class="px-4 py-3">{$t('Model')}</th>
 					<th class="px-4 py-3">{$t('Type')}</th>
 					<th class="px-4 py-3">{$t('Plan Type')}</th>

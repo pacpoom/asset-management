@@ -19,10 +19,16 @@
 		label: `${data.plan.container_no || 'N/A'} (${$t('Plan')}: ${data.plan.plan_no})`
 	});
 
-	// ฟอร์แมตวันที่ให้ลงช่อง input date ได้ (YYYY-MM-DD)
-	let formattedDate = data.plan.pulling_date
-		? new Date(data.plan.pulling_date).toISOString().split('T')[0]
-		: '';
+	function getLocalYYYYMMDD(dateString: any) {
+		if (!dateString) return '';
+		const d = new Date(dateString);
+		const year = d.getFullYear();
+		const month = String(d.getMonth() + 1).padStart(2, '0');
+		const day = String(d.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
+	let formattedDate = $state(getLocalYYYYMMDD(data.plan.pulling_date));
 </script>
 
 <svelte:head>
