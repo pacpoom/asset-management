@@ -6,8 +6,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	// 🌟 1. รับค่า Filter ที่ส่งมาจาก URL
 	const search = url.searchParams.get('search') || '';
 	const statusFilter = url.searchParams.get('status') || 'All';
-	const dateFrom = url.searchParams.get('dateFrom') || '';
-	const dateTo = url.searchParams.get('dateTo') || '';
+	const pullingDate = url.searchParams.get('pullingDate') || '';
 
 	try {
 		// 🌟 2. สร้างเงื่อนไข SQL เหมือนหน้าตารางหลักเป๊ะ (แต่ไม่มี LIMIT แบ่งหน้า)
@@ -23,9 +22,9 @@ export const GET: RequestHandler = async ({ url }) => {
 			whereClause += ` AND p.status = ?`;
 			params.push(statusFilter);
 		}
-		if (dateFrom && dateTo) {
-			whereClause += ` AND p.pulling_date BETWEEN ? AND ?`;
-			params.push(dateFrom, dateTo);
+		if (pullingDate) {
+			whereClause += ` AND DATE(p.pulling_date) = ?`;
+			params.push(pullingDate);
 		}
 
 		const query = `

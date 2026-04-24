@@ -5,8 +5,9 @@ import { cymspool } from '$lib/server/database';
 export const load: PageServerLoad = async ({ url }) => {
 	const search = url.searchParams.get('search') || '';
 	const statusFilter = url.searchParams.get('status') || 'All';
-	const dateFrom = url.searchParams.get('dateFrom') || '';
-	const dateTo = url.searchParams.get('dateTo') || '';
+
+	const pullingDate = url.searchParams.get('pullingDate') || '';
+
 	const limit = Math.max(1, parseInt(url.searchParams.get('limit') || '10'));
 	const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
 	const offset = (page - 1) * limit;
@@ -23,9 +24,10 @@ export const load: PageServerLoad = async ({ url }) => {
 			where += ` AND p.status = ?`;
 			params.push(statusFilter);
 		}
-		if (dateFrom && dateTo) {
-			where += ` AND p.pulling_date BETWEEN ? AND ?`;
-			params.push(dateFrom, dateTo);
+
+		if (pullingDate) {
+			where += ` AND DATE(p.pulling_date) = ?`;
+			params.push(pullingDate);
 		}
 
 		const [count]: any = await cymspool.execute(
@@ -43,8 +45,7 @@ export const load: PageServerLoad = async ({ url }) => {
 			plans: rows,
 			searchQuery: search,
 			statusFilter,
-			dateFrom,
-			dateTo,
+			pullingDate,
 			pagination: { page, limit, totalItems, totalPages: Math.ceil(totalItems / limit) }
 		};
 	} catch (e) {
@@ -52,8 +53,7 @@ export const load: PageServerLoad = async ({ url }) => {
 			plans: [],
 			searchQuery: '',
 			statusFilter: 'All',
-			dateFrom: '',
-			dateTo: '',
+			pullingDate: '',
 			pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 1 }
 		};
 	}

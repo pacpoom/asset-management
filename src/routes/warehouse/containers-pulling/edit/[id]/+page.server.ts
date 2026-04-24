@@ -48,46 +48,60 @@ export const actions: Actions = {
 		}
 
 		try {
+			// ดึงข้อมูลคิวเดิมมาก่อน
 			const [oldData]: any = await cymspool.execute(
-				`SELECT pulling_order, DATE(pulling_date) as old_date, shop 
+				`SELECT pulling_order, pulling_date 
 				 FROM container_pulling_plans WHERE id = ?`,
 				[id]
 			);
 
 			if (oldData.length > 0) {
 				const old_order = oldData[0].pulling_order;
-				const old_shop = oldData[0].shop;
-				const old_date_str = new Date(oldData[0].old_date).toISOString().split('T')[0];
 
+				// จัดการ Timezone ให้เป๊ะตามหน้าจอ
+				const oldD = new Date(oldData[0].pulling_date);
+				const old_date_str = `${oldD.getFullYear()}-${String(oldD.getMonth() + 1).padStart(2, '0')}-${String(oldD.getDate()).padStart(2, '0')}`;
+
+				// 🌟 1. ลุกออกจากเก้าอี้ก่อน (เคลียร์ที่นั่งตัวเอง)
+				await cymspool.execute(
+					`UPDATE container_pulling_plans SET pulling_order = NULL WHERE id = ?`,
+					[id]
+				);
+
+				// 🌟 2. เลื่อนคิวของใบอื่น (เอา AND shop = ? ออก เพื่อให้ดันคิวรวมกันทั้งวัน)
 				if (new_order !== null) {
 					if (old_order === null || old_date_str !== p_date) {
 						await cymspool.execute(
 							`UPDATE container_pulling_plans 
 							 SET pulling_order = pulling_order + 1 
-							 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order >= ? AND id != ?`,
-							[p_date, old_shop, new_order, id]
+							 WHERE DATE(pulling_date) = ? AND pulling_order >= ? AND id != ?
+							 ORDER BY pulling_order DESC`,
+							[p_date, new_order, id]
 						);
 					} else if (new_order < old_order) {
 						await cymspool.execute(
 							`UPDATE container_pulling_plans 
 							 SET pulling_order = pulling_order + 1 
-							 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order >= ? AND pulling_order < ? AND id != ?`,
-							[p_date, old_shop, new_order, old_order, id]
+							 WHERE DATE(pulling_date) = ? AND pulling_order >= ? AND pulling_order < ? AND id != ?
+							 ORDER BY pulling_order DESC`,
+							[p_date, new_order, old_order, id]
 						);
 					} else if (new_order > old_order) {
 						await cymspool.execute(
 							`UPDATE container_pulling_plans 
 							 SET pulling_order = pulling_order - 1 
-							 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order > ? AND pulling_order <= ? AND id != ?`,
-							[p_date, old_shop, old_order, new_order, id]
+							 WHERE DATE(pulling_date) = ? AND pulling_order > ? AND pulling_order <= ? AND id != ?
+							 ORDER BY pulling_order ASC`,
+							[p_date, old_order, new_order, id]
 						);
 					}
 				} else if (old_order !== null) {
 					await cymspool.execute(
 						`UPDATE container_pulling_plans 
 						 SET pulling_order = pulling_order - 1 
-						 WHERE DATE(pulling_date) = ? AND shop = ? AND pulling_order > ? AND id != ?`,
-						[old_date_str, old_shop, old_order, id]
+						 WHERE DATE(pulling_date) = ? AND pulling_order > ? AND id != ?
+						 ORDER BY pulling_order ASC`,
+						[old_date_str, old_order, id]
 					);
 				}
 			}
