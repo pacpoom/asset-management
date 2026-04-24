@@ -22,8 +22,11 @@ ENV KD_USER=root
 ENV KD_PASSWORD=Anji@12345
 ENV KD_DATABASE=bt_db
 
-COPY . .
+COPY package*.json ./
 RUN npm install
+
+COPY . .
+
 RUN mkdir -p static/uploads
 RUN npm run build
 
