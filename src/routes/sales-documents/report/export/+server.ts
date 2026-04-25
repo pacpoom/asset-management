@@ -55,7 +55,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			params.push(docTypeFilter);
 		}
 
-		// ดึงข้อมูลรายการขายตามฟิลเตอร์ทั้งหมด แบบไม่แบ่งหน้า (No Pagination)
+		// ดึงข้อมูลรายการขายสำหรับการ Export Excel
 		const dataSql = `
             SELECT 
 				sdi.id as item_id,
@@ -65,7 +65,31 @@ export const GET: RequestHandler = async ({ url }) => {
 				sdi.line_total,
 				sdi.is_vat,
 				sdi.wht_rate,
-				(sdi.line_total * sdi.wht_rate / 100) as wht_amount,
+				
+				CASE 
+					WHEN sdi.is_vat = 0 THEN sdi.line_total 
+					WHEN sdi.is_vat = 1 THEN sdi.line_total * 100 / 107
+					ELSE 0 
+				END as vatable_amt,
+				
+				CASE 
+					WHEN sdi.is_vat = 2 THEN sdi.line_total 
+					ELSE 0 
+				END as non_vatable_amt,
+				
+				CASE 
+					WHEN sdi.is_vat = 0 THEN sdi.line_total * 0.07
+					WHEN sdi.is_vat = 1 THEN sdi.line_total * 7 / 107
+					ELSE 0 
+				END as vat_amt,
+				
+				CASE
+					WHEN sdi.is_vat = 0 THEN sdi.line_total * sdi.wht_rate / 100
+					WHEN sdi.is_vat = 1 THEN (sdi.line_total * 100 / 107) * sdi.wht_rate / 100
+					WHEN sdi.is_vat = 2 THEN sdi.line_total * sdi.wht_rate / 100
+					ELSE 0
+				END as wht_amt,
+				
 				sd.document_number,
 				sd.document_date,
 				sd.document_type,
@@ -85,7 +109,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		const workbook = new ExcelJS.Workbook();
 		const worksheet = workbook.addWorksheet('Sales Report');
 
-		// ตั้งค่าหัวคอลัมน์ (Headers)
+		// ตั้งค่าหัวคอลัมน์ (Headers) เพิ่มคอลัมน์ VAT เพื่อความชัดเจน
 		worksheet.columns = [
 			{ header: 'Doc Date', key: 'document_date', width: 15 },
 			{ header: 'Doc No.', key: 'document_number', width: 20 },
@@ -99,6 +123,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			{ header: 'VAT Status', key: 'vat_status', width: 15 },
 			{ header: 'Non-VAT Amt', key: 'non_vat_amt', width: 15 },
 			{ header: 'Vatable Amt', key: 'vatable_amt', width: 15 },
+			{ header: 'VAT Amt', key: 'vat_amt', width: 15 },
 			{ header: 'WHT Amt', key: 'wht_amt', width: 15 },
 			{ header: 'Net Total', key: 'net_total', width: 20 },
 			{ header: 'Status', key: 'status', width: 15 }
@@ -115,22 +140,28 @@ export const GET: RequestHandler = async ({ url }) => {
 		let sumTotal = 0;
 		let sumNonVat = 0;
 		let sumVatable = 0;
+		let sumVat = 0;
 		let sumWht = 0;
 		let sumNetTotal = 0;
 
 		// ลูปเขียนข้อมูล
 		salesRows.forEach((row) => {
-			const isVat = row.is_vat == 1;
+			const isVatType = row.is_vat;
+			let vatStatusLabel = 'No VAT';
+			if (isVatType == 0) vatStatusLabel = 'Exclude VAT';
+			if (isVatType == 1) vatStatusLabel = 'Include VAT';
+
 			const lineTotal = Number(row.line_total) || 0;
-			const whtAmt = Number(row.wht_amount) || 0;
-			
-			const nonVatAmt = !isVat ? lineTotal : 0;
-			const vatableAmt = isVat ? lineTotal : 0;
-			const netTotal = (isVat ? lineTotal * 1.07 : lineTotal) - whtAmt;
+			const vatableAmt = Number(row.vatable_amt) || 0;
+			const nonVatAmt = Number(row.non_vatable_amt) || 0;
+			const vatAmt = Number(row.vat_amt) || 0;
+			const whtAmt = Number(row.wht_amt) || 0;
+			const netTotal = vatableAmt + nonVatAmt + vatAmt - whtAmt;
 
 			sumTotal += lineTotal;
 			sumNonVat += nonVatAmt;
 			sumVatable += vatableAmt;
+			sumVat += vatAmt;
 			sumWht += whtAmt;
 			sumNetTotal += netTotal;
 
@@ -144,9 +175,10 @@ export const GET: RequestHandler = async ({ url }) => {
 				quantity: Number(row.quantity),
 				unit_price: Number(row.unit_price),
 				line_total: lineTotal,
-				vat_status: isVat ? 'VAT 7%' : 'Non-VAT',
+				vat_status: vatStatusLabel,
 				non_vat_amt: nonVatAmt,
 				vatable_amt: vatableAmt,
+				vat_amt: vatAmt,
 				wht_amt: whtAmt,
 				net_total: netTotal,
 				status: row.status || '-'
@@ -159,6 +191,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			line_total: sumTotal,
 			non_vat_amt: sumNonVat,
 			vatable_amt: sumVatable,
+			vat_amt: sumVat,
 			wht_amt: sumWht,
 			net_total: sumNetTotal
 		});
@@ -171,7 +204,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		};
 
 		// ตั้งค่า Format ตัวเลขทศนิยมให้ตรงใน Excel
-		['G', 'H', 'I', 'K', 'L', 'M', 'N'].forEach(col => {
+		['G', 'H', 'I', 'K', 'L', 'M', 'N', 'O'].forEach(col => {
 			worksheet.getColumn(col).numFmt = '#,##0.00';
 		});
 

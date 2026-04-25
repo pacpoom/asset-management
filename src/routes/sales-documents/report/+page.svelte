@@ -36,7 +36,6 @@
 		if (endDate) query.push(`endDate=${encodeURIComponent(endDate)}`);
 		if (docTypeFilter) query.push(`docType=${encodeURIComponent(docTypeFilter)}`);
 		
-		// อ้างอิงโฟลเดอร์ปัจจุบันแบบอัตโนมัติ เพื่อป้องกันปัญหา 404 Not Found 
 		const basePath = $page.url.pathname.endsWith('/') ? $page.url.pathname.slice(0, -1) : $page.url.pathname;
 		return `${basePath}/export?${query.join('&')}`;
 	}
@@ -153,9 +152,9 @@
 				</svg>
 			</div>
 			<div>
-				<p class="text-[10px] font-bold text-blue-600 uppercase">{$t('Total Value')}</p>
+				<p class="text-[10px] font-bold text-blue-600 uppercase">{$t('Net Total Value')}</p>
 				<p class="text-lg leading-none font-bold text-gray-900">
-					฿{formatCurrency(data.totalAmount)}
+					฿{formatCurrency(data.totalNet)}
 				</p>
 			</div>
 		</div>
@@ -207,7 +206,6 @@
 	</div>
 </div>
 
-<!-- ฟอร์มค้นหา -->
 <div class="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
 	<form method="GET" action={$page.url.pathname} onsubmit={handleSearchInput} class="flex flex-col gap-4 sm:flex-row sm:items-end">
 		<input type="hidden" name="page" value="1" />
@@ -270,7 +268,6 @@
 			/>
 		</div>
 
-		<!-- แก้ไขให้ปุ่ม Search และ Export เรียงอยู่ด้วยกัน -->
 		<div class="flex w-full gap-2 sm:w-auto">
 			<button
 				type="submit"
@@ -289,16 +286,7 @@
 				class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 sm:flex-none"
 				style="height: 42px;"
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
 					<polyline points="14 2 14 8 20 8"></polyline>
 					<path d="M8 13h2"></path>
@@ -328,6 +316,7 @@
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600">{$t('VAT Status')}</th>
 				<th class="px-4 py-3 text-right font-semibold whitespace-nowrap text-gray-600">{$t('Non-VAT Amt')}</th>
 				<th class="px-4 py-3 text-right font-semibold whitespace-nowrap text-gray-600">{$t('Vatable Amt')}</th>
+				<th class="px-4 py-3 text-right font-semibold whitespace-nowrap text-gray-600">{$t('VAT')}</th>
 				<th class="px-4 py-3 text-right font-semibold whitespace-nowrap text-gray-600">{$t('WHT')}</th>
 				<th class="px-4 py-3 text-right font-semibold whitespace-nowrap text-gray-600">{$t('Net Total')}</th>
 				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600">{$t('Status')}</th>
@@ -336,7 +325,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.sales.length === 0}
 				<tr>
-					<td colspan="14" class="py-12 text-center text-gray-500">
+					<td colspan="15" class="py-12 text-center text-gray-500">
 						{$t('ไม่พบข้อมูลรายการขายที่ตรงกับเงื่อนไขการค้นหา')}
 					</td>
 				</tr>
@@ -376,23 +365,28 @@
 						</td>
 						
 						<td class="px-4 py-3 text-center text-xs text-gray-600 whitespace-nowrap">
-							{#if item.is_vat == 1}
-								<span class="rounded bg-blue-50 px-2 py-0.5 text-blue-700">VAT 7%</span>
+							{#if item.is_vat == 0}
+								<span class="rounded bg-blue-50 px-2 py-0.5 text-blue-700">Exclude VAT</span>
+							{:else if item.is_vat == 1}
+								<span class="rounded bg-purple-50 px-2 py-0.5 text-purple-700">Include VAT</span>
 							{:else}
-								<span class="rounded bg-gray-100 px-2 py-0.5 text-gray-600">Non-VAT</span>
+								<span class="rounded bg-gray-100 px-2 py-0.5 text-gray-600">No VAT</span>
 							{/if}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-gray-700">
-							{formatCurrency(item.is_vat == 0 ? item.line_total : 0)}
+							{formatCurrency(item.non_vatable_amt)}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-gray-700">
-							{formatCurrency(item.is_vat == 1 ? item.line_total : 0)}
+							{formatCurrency(item.vatable_amt)}
+						</td>
+						<td class="px-4 py-3 text-right font-medium text-gray-700">
+							{formatCurrency(item.vat_amt)}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-red-600">
-							{formatCurrency(item.wht_amount || 0)}
+							{formatCurrency(item.wht_amt)}
 						</td>
 						<td class="px-4 py-3 text-right font-bold text-green-700">
-							{formatCurrency((item.is_vat == 1 ? Number(item.line_total) * 1.07 : Number(item.line_total)) - Number(item.wht_amount || 0))}
+							{formatCurrency(Number(item.vatable_amt) + Number(item.non_vatable_amt) + Number(item.vat_amt) - Number(item.wht_amt))}
 						</td>
 
 						<td class="px-4 py-3 text-center">
@@ -429,11 +423,14 @@
 					<td class="px-4 py-4 text-right font-bold text-gray-800">
 						{formatCurrency(data.totalVatable)}
 					</td>
+					<td class="px-4 py-4 text-right font-bold text-gray-800">
+						{formatCurrency(data.totalVat)}
+					</td>
 					<td class="px-4 py-4 text-right font-bold text-red-600">
 						{formatCurrency(data.totalWht)}
 					</td>
 					<td class="px-4 py-4 text-right font-bold text-green-700 text-base">
-						{formatCurrency(Number(data.totalNonVatable) + (Number(data.totalVatable) * 1.07) - Number(data.totalWht))}
+						{formatCurrency(data.totalNet)}
 					</td>
 					<td class="px-4 py-4"></td>
 				</tr>
