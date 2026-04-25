@@ -144,6 +144,9 @@ export const GET: RequestHandler = async ({ url }) => {
 		let sumWht = 0;
 		let sumNetTotal = 0;
 
+		// ฟังก์ชันช่วยปัดเศษให้เหลือ 2 ตำแหน่งแบบมีนัยสำคัญ
+		const round2 = (num: any) => Number(Number(num || 0).toFixed(2));
+
 		// ลูปเขียนข้อมูล
 		salesRows.forEach((row) => {
 			const isVatType = row.is_vat;
@@ -151,19 +154,21 @@ export const GET: RequestHandler = async ({ url }) => {
 			if (isVatType == 0) vatStatusLabel = 'Exclude VAT';
 			if (isVatType == 1) vatStatusLabel = 'Include VAT';
 
-			const lineTotal = Number(row.line_total) || 0;
-			const vatableAmt = Number(row.vatable_amt) || 0;
-			const nonVatAmt = Number(row.non_vatable_amt) || 0;
-			const vatAmt = Number(row.vat_amt) || 0;
-			const whtAmt = Number(row.wht_amt) || 0;
-			const netTotal = vatableAmt + nonVatAmt + vatAmt - whtAmt;
+			// แปลงค่าและปัดเศษทศนิยมให้เป็น 2 ตำแหน่งเป๊ะๆ
+			const lineTotal = round2(row.line_total);
+			const vatableAmt = round2(row.vatable_amt);
+			const nonVatAmt = round2(row.non_vatable_amt);
+			const vatAmt = round2(row.vat_amt);
+			const whtAmt = round2(row.wht_amt);
+			const netTotal = round2(vatableAmt + nonVatAmt + vatAmt - whtAmt);
 
-			sumTotal += lineTotal;
-			sumNonVat += nonVatAmt;
-			sumVatable += vatableAmt;
-			sumVat += vatAmt;
-			sumWht += whtAmt;
-			sumNetTotal += netTotal;
+			// สะสมยอดรวม (ใช้ round2 ครอบอีกทีเพื่อป้องกัน Floating point bug ใน JS)
+			sumTotal = round2(sumTotal + lineTotal);
+			sumNonVat = round2(sumNonVat + nonVatAmt);
+			sumVatable = round2(sumVatable + vatableAmt);
+			sumVat = round2(sumVat + vatAmt);
+			sumWht = round2(sumWht + whtAmt);
+			sumNetTotal = round2(sumNetTotal + netTotal);
 
 			worksheet.addRow({
 				document_date: row.document_date ? new Date(row.document_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '-',
@@ -172,8 +177,8 @@ export const GET: RequestHandler = async ({ url }) => {
 				customer_name: row.customer_name || '-',
 				job_number: row.job_number || '-',
 				description: row.description || '-',
-				quantity: Number(row.quantity),
-				unit_price: Number(row.unit_price),
+				quantity: round2(row.quantity),
+				unit_price: round2(row.unit_price),
 				line_total: lineTotal,
 				vat_status: vatStatusLabel,
 				non_vat_amt: nonVatAmt,
@@ -203,7 +208,8 @@ export const GET: RequestHandler = async ({ url }) => {
 			fgColor: { argb: 'FFE8F4FF' } // สีฟ้าอ่อนเพื่อเน้นยอดรวม
 		};
 
-		// ตั้งค่า Format ตัวเลขทศนิยมให้ตรงใน Excel
+		// ตั้งค่า Format ตัวเลขทศนิยมให้แสดงแบบบัญชีใน Excel 
+		// (แม้ค่าจะถูกปัดเศษเป็น 2 หลักแล้ว แต่ก็ควรจัด format เพื่อให้มีเครื่องหมายคอมม่าและแสดง .00 เสมอ)
 		['G', 'H', 'I', 'K', 'L', 'M', 'N', 'O'].forEach(col => {
 			worksheet.getColumn(col).numFmt = '#,##0.00';
 		});
