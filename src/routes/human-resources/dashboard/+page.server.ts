@@ -16,7 +16,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	const groupFilter = url.searchParams.get('group') || 'All';
 
 	try {
-		// 🌟 1. ดึงข้อมูล Section/Group สำหรับทำ Dropdown
 		const [sectionsRows]: any = await pool.execute(
 			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
 		);
@@ -24,7 +23,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			`SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-' ORDER BY emp_group`
 		);
 
-		// 🌟 2. เตรียมเงื่อนไข Filter พนักงาน
 		let empWhere = '';
 		let filterParams: any[] = [];
 
@@ -37,7 +35,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			filterParams.push(groupFilter);
 		}
 
-		// 🌟 3. Query สรุปยอด % Att. ตาม Section / Group (สำหรับหลอดด้านขวา)
 		const summaryQuery = `
 			SELECT 
 				IFNULL(e.section, '-') as section,
@@ -55,13 +52,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			...filterParams
 		]);
 
-		// คำนวณเปอร์เซ็นต์ % Att.
 		const processedSummary = departmentSummary.map((row: any) => {
 			const percent = row.active_emp > 0 ? Math.round((row.attendance / row.active_emp) * 100) : 0;
 			return { ...row, percent_att: percent };
 		});
 
-		// 🌟 4. Query ตารางรายการลงเวลา
 		let logQuery = `
 			SELECT 
 				al.emp_id, 
@@ -94,7 +89,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const [recentLogs]: any = await pool.execute(logQuery, logParams);
 
-		// 🌟 5. Query สถิติรวม 4 กล่องบน (นำ Filter มาใช้ด้วย)
 		const statsQuery = `
 			SELECT 
 				COUNT(al.id) as total_scanned,
@@ -280,14 +274,10 @@ export const actions: Actions = {
 				const inMins = timeToMins(timeInRaw);
 				let outMins = timeOutRaw ? timeToMins(timeOutRaw) : 0;
 
-				// 🌟 เพิ่ม Logic ตัดการสแกนซ้ำภายใน 60 นาที
 				if (timeOutRaw) {
-					// หาความห่างของเวลาเข้าและออก
 					let diff = outMins - inMins;
-					// ถ้าเป็นกะดึก (ข้ามวัน) ให้บวก 24 ชม. (1440 นาที)
 					if (diff < 0) diff += 1440;
 
-					// ถ้าน้อยกว่า 60 นาที ให้ถือว่าเป็นการสแกนลั่น ให้ลบเวลาออกทิ้งไป
 					if (diff < 60) {
 						timeOutRaw = null;
 						outMins = 0;

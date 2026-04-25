@@ -3,13 +3,11 @@ import { cymspool } from '$lib/server/database';
 import * as xlsx from 'xlsx';
 
 export const GET: RequestHandler = async ({ url }) => {
-	// 🌟 1. รับค่า Filter ที่ส่งมาจาก URL
 	const search = url.searchParams.get('search') || '';
 	const statusFilter = url.searchParams.get('status') || 'All';
 	const pullingDate = url.searchParams.get('pullingDate') || '';
 
 	try {
-		// 🌟 2. สร้างเงื่อนไข SQL เหมือนหน้าตารางหลักเป๊ะ (แต่ไม่มี LIMIT แบ่งหน้า)
 		let whereClause = `WHERE 1=1`;
 		const params: any[] = [];
 
@@ -40,9 +38,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		const [rows]: any = await cymspool.execute(query, params);
 
-		// 🌟 3. สร้างข้อมูลใส่ Excel (ส่วนหัว + ข้อมูล)
 		const worksheetData = [
-			// หัวคอลัมน์ Excel
 			[
 				'Pulling Plan No.',
 				'Container No.',
@@ -56,7 +52,6 @@ export const GET: RequestHandler = async ({ url }) => {
 			]
 		];
 
-		// วนลูปยัดข้อมูลลง Excel
 		rows.forEach((row: any) => {
 			let statusText = 'Unknown';
 			if (row.status === 1) statusText = 'Planned';
@@ -80,7 +75,6 @@ export const GET: RequestHandler = async ({ url }) => {
 			]);
 		});
 
-		// 🌟 4. สร้างไฟล์ Excel และกำหนดความกว้างคอลัมน์
 		const workbook = xlsx.utils.book_new();
 		const worksheet = xlsx.utils.aoa_to_sheet(worksheetData);
 
@@ -99,7 +93,6 @@ export const GET: RequestHandler = async ({ url }) => {
 		xlsx.utils.book_append_sheet(workbook, worksheet, 'Export Data');
 		const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-		// 🌟 5. ส่งไฟล์กลับไปให้ดาวน์โหลด
 		return new Response(buffer, {
 			headers: {
 				'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

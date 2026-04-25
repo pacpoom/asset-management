@@ -156,13 +156,6 @@
 				/>
 			</label>
 		</form>
-
-		<!-- <button
-			class="flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-700"
-		>
-			<span class="material-symbols-outlined text-[18px]">add</span>
-			{$t('จำลองสแกนนิ้ว')}
-		</button> -->
 	</div>
 </div>
 

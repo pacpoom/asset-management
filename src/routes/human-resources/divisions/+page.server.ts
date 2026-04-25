@@ -11,8 +11,6 @@ export const load: PageServerLoad = async () => {
 		const [rawPositions]: any = await pool.execute(
 			'SELECT * FROM job_positions ORDER BY position_name ASC'
 		);
-
-		// 🌟 1. ดักแปลงร่าง Status ของ Position จากเลข 1/0 ให้เป็น Active/Inactive ก่อนส่งให้หน้าบ้าน
 		const positions = rawPositions.map((pos: any) => ({
 			...pos,
 			status: pos.status == 1 || pos.status === 'Active' ? 'Active' : 'Inactive'
@@ -31,13 +29,13 @@ export const actions: Actions = {
 		const id = data.get('id')?.toString();
 		const name = data.get('name')?.toString()?.trim();
 		const description = data.get('description')?.toString()?.trim() || null;
-		const status = data.get('status')?.toString() || 'Active'; // จะได้ 'Active' หรือ 'Inactive' จากหน้าเว็บ
+		const status = data.get('status')?.toString() || 'Active';
 
 		if (!name) return fail(400, { success: false, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
 
 		let table = 'divisions',
 			col = 'division_name';
-		let finalStatus: string | number = status; // 🌟 2. ตัวแปรเก็บค่า Status ที่พร้อมบันทึกลง Database
+		let finalStatus: string | number = status;
 
 		if (tab === 'section') {
 			table = 'sections';
@@ -46,7 +44,6 @@ export const actions: Actions = {
 		if (tab === 'position') {
 			table = 'job_positions';
 			col = 'position_name';
-			// 🌟 3. ถ้ากำลังเซฟหน้า Position ให้แปลง Active/Inactive กลับเป็น 1/0
 			finalStatus = status === 'Active' ? 1 : 0;
 		}
 
@@ -70,7 +67,6 @@ export const actions: Actions = {
 		}
 	},
 	delete: async ({ request }) => {
-		// ... (ส่วนของ delete ใช้โค้ดเดิมได้เลยครับ)
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 		const tab = data.get('tab')?.toString();
