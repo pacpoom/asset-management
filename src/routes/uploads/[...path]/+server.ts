@@ -10,10 +10,12 @@ export async function GET({ locals, params }) {
         throw error(401, 'Unauthorized');
     }
 
-    const filePath = path.resolve('uploads', params.path);
+    // Normalize path to prevent directory traversal and handle leading slashes safely
+    const safePath = path.normalize(params.path).replace(/^(\.\.[\/\\])+/, '');
+    const filePath = path.join(process.cwd(), 'uploads', safePath);
 
     if (!fs.existsSync(filePath)) {
-        throw error(404, 'Not Found');
+        throw error(404, `Not Found: ${filePath}`);
     }
 
     try {
