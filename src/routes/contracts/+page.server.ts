@@ -194,6 +194,21 @@ export const actions: Actions = {
 		let newContractId: number | undefined;
 		const uploadedFilePaths: string[] = [];
 		try {
+			// ตรวจสอบ contract_number ซ้ำ (ถ้ามีค่า)
+			if (data.contract_number) {
+				const [existingRows] = await db.query(
+					'SELECT id FROM contracts WHERE contract_number = ?',
+					[data.contract_number]
+				);
+				// @ts-ignore
+				if (existingRows.length > 0) {
+					return fail(409, {
+						error: `เลขที่สัญญา "${data.contract_number}" ถูกใช้งานแล้ว กรุณาใช้เลขที่ไม่ซ้ำ`,
+						source: 'cud'
+					});
+				}
+			}
+
 			const contractSql = `
                 INSERT INTO contracts
                 (title, contract_number, customer_id, contract_type_id, status, start_date, end_date, contract_value, owner_user_id, renewal_notify_emails)
@@ -269,7 +284,7 @@ export const actions: Actions = {
 				source: 'cud',
 				newContract: JSON.parse(JSON.stringify(newContract))
 			};
-		} catch (e) {
+		} catch (e: any) {
 			console.error('Database transaction failed:', e);
 
 			for (const fullPath of uploadedFilePaths) {
@@ -278,6 +293,17 @@ export const actions: Actions = {
 				} catch (unlinkError) {
 					console.error('Failed to unlink orphaned file:', unlinkError);
 				}
+			}
+
+			// จัดการ error เลขที่สัญญาซ้ำจากฐานข้อมูล (UNIQUE constraint)
+			if (
+				e.code === 'ER_DUP_ENTRY' &&
+				e.message?.includes('contract_number')
+			) {
+				return fail(409, {
+					error: `เลขที่สัญญา "${data.contract_number}" ถูกใช้งานแล้ว กรุณาใช้เลขที่ไม่ซ้ำ`,
+					source: 'cud'
+				});
 			}
 
 			return fail(500, { error: 'บันทึกข้อมูลสัญญาไม่สำเร็จ', source: 'cud' });
@@ -316,6 +342,21 @@ export const actions: Actions = {
 
 		const uploadedFilePaths: string[] = [];
 		try {
+			// ตรวจสอบ contract_number ซ้ำ (ถ้ามีค่า) — ยกเว้นตัวเอง
+			if (data.contract_number) {
+				const [existingRows] = await db.query(
+					'SELECT id FROM contracts WHERE contract_number = ? AND id != ?',
+					[data.contract_number, id]
+				);
+				// @ts-ignore
+				if (existingRows.length > 0) {
+					return fail(409, {
+						error: `เลขที่สัญญา "${data.contract_number}" ถูกใช้งานแล้ว กรุณาใช้เลขที่ไม่ซ้ำ`,
+						source: 'cud'
+					});
+				}
+			}
+
 			const sql = `
                 UPDATE contracts SET
                 title = ?, contract_number = ?, customer_id = ?, contract_type_id = ?,
@@ -337,42 +378,58 @@ export const actions: Actions = {
 			]);
 
 			if (validFiles.length > 0) {
-				// @ts-ignore
-				const [versionRows] = await db.query(
-					'SELECT MAX(version) as max_version FROM contract_documents WHERE contract_id = ?',
-					[id]
-				);
-				// @ts-ignore
-				const lastVersionResult = versionRows[0];
-				const baseVersion = lastVersionResult?.max_version || 0;
+				// ดึงเอกสารที่มีอยู่แล้วเพื่อเช็คไฟล์ซ้ำ
+				const existingDocs = await getContractDocuments(id);
 
-				let currentVersion = baseVersion;
+				// กรองเฉพาะไฟล์ใหม่ที่ยังไม่มีในระบบ (เทียบชื่อไฟล์ + ขนาดไฟล์)
+				const newFiles = validFiles.filter((file) => {
+					const isDuplicate = existingDocs.some(
+						(doc) => doc.file_original_name === file.name && Number(doc.file_size_bytes) === file.size
+					);
+					if (isDuplicate) {
+						console.log(`Skipping duplicate file: ${file.name} (size: ${file.size})`);
+					}
+					return !isDuplicate;
+				});
 
-				await ensureUploadDir();
-				const docSql = `
-                    INSERT INTO contract_documents
-                    (contract_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id, version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                `;
+				if (newFiles.length > 0) {
+					// @ts-ignore
+					const [versionRows] = await db.query(
+						'SELECT MAX(version) as max_version FROM contract_documents WHERE contract_id = ?',
+						[id]
+					);
+					// @ts-ignore
+					const lastVersionResult = versionRows[0];
+					const baseVersion = lastVersionResult?.max_version || 0;
 
-				for (const file of validFiles) {
-					currentVersion++;
-					const fileMimeType = mime.lookup(file.name) || file.type || 'application/octet-stream';
-					const uniqueFilename = `${crypto.randomUUID()}-${file.name}`;
-					const fullFilePath = path.join(UPLOAD_DIR, uniqueFilename);
+					let currentVersion = baseVersion;
 
-					await writeFile(fullFilePath, Buffer.from(await file.arrayBuffer()));
-					uploadedFilePaths.push(fullFilePath);
+					await ensureUploadDir();
+					const docSql = `
+                        INSERT INTO contract_documents
+                        (contract_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id, version)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    `;
 
-					await db.query(docSql, [
-						id,
-						file.name,
-						uniqueFilename,
-						fileMimeType,
-						file.size,
-						userId,
-						currentVersion
-					]);
+					for (const file of newFiles) {
+						currentVersion++;
+						const fileMimeType = mime.lookup(file.name) || file.type || 'application/octet-stream';
+						const uniqueFilename = `${crypto.randomUUID()}-${file.name}`;
+						const fullFilePath = path.join(UPLOAD_DIR, uniqueFilename);
+
+						await writeFile(fullFilePath, Buffer.from(await file.arrayBuffer()));
+						uploadedFilePaths.push(fullFilePath);
+
+						await db.query(docSql, [
+							id,
+							file.name,
+							uniqueFilename,
+							fileMimeType,
+							file.size,
+							userId,
+							currentVersion
+						]);
+					}
 				}
 			}
 
@@ -402,7 +459,7 @@ export const actions: Actions = {
 				source: 'cud',
 				updatedContract: JSON.parse(JSON.stringify(updatedContract))
 			};
-		} catch (e) {
+		} catch (e: any) {
 			console.error('Database update failed:', e);
 
 			for (const fullPath of uploadedFilePaths) {
@@ -411,6 +468,17 @@ export const actions: Actions = {
 				} catch (unlinkError) {
 					console.error('Failed to unlink orphaned file after update failure:', unlinkError);
 				}
+			}
+
+			// จัดการ error เลขที่สัญญาซ้ำจากฐานข้อมูล (UNIQUE constraint)
+			if (
+				e.code === 'ER_DUP_ENTRY' &&
+				e.message?.includes('contract_number')
+			) {
+				return fail(409, {
+					error: `เลขที่สัญญา "${data.contract_number}" ถูกใช้งานแล้ว กรุณาใช้เลขที่ไม่ซ้ำ`,
+					source: 'cud'
+				});
 			}
 
 			return fail(500, { error: 'อัปเดตข้อมูลสัญญาไม่สำเร็จ', source: 'cud' });
@@ -457,6 +525,52 @@ export const actions: Actions = {
 		} catch (e) {
 			console.error('Failed to delete contract:', e);
 			return fail(500, { error: 'ลบสัญญาไม่สำเร็จ' });
+		}
+	},
+
+	deleteDocument: async ({ request }) => {
+		const formData = await request.formData();
+		const document_id = formData.get('document_id') as string;
+
+		if (!document_id) {
+			return fail(400, { error: 'ไม่พบ ID เอกสาร' });
+		}
+		const documentId = parseInt(document_id);
+
+		try {
+			// Find the document to get the file name
+			// @ts-ignore
+			const [docRows]: [{ file_system_name: string }[]] = await db.query(
+				'SELECT file_system_name FROM contract_documents WHERE id = ?',
+				[documentId]
+			);
+			
+			if (docRows.length === 0) {
+				return fail(404, { error: 'ไม่พบเอกสาร' });
+			}
+			
+			const fileSystemName = docRows[0].file_system_name;
+
+			// Delete from database
+			await db.query('DELETE FROM contract_documents WHERE id = ?', [documentId]);
+
+			// Delete from filesystem
+			if (fileSystemName) {
+				try {
+					const fullPath = path.join(UPLOAD_DIR, fileSystemName);
+					await unlink(fullPath);
+				} catch (e) {
+					// @ts-ignore
+					if (e.code !== 'ENOENT') {
+						console.error(`Failed to delete file: ${fileSystemName}`, e);
+					}
+				}
+			}
+
+			return { success: true, deletedDocumentId: documentId };
+		} catch (e) {
+			console.error(`Error deleting document ID ${documentId}:`, e);
+			return fail(500, { error: 'ลบเอกสารไม่สำเร็จ' });
 		}
 	},
 
