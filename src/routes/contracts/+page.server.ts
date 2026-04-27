@@ -195,7 +195,7 @@ export const actions: Actions = {
 		let newContractId: number | undefined;
 		const uploadedFilePaths: string[] = [];
 		try {
-			// ตรวจสอบ contract_number_Dupplicted ซ้ำ (ถ้ามีค่า)
+			// ตรวจสอบ contract_number ซ้ำ (ถ้ามีค่า)
 			if (data.contract_number) {
 				const [existingRows] = await db.query(
 					'SELECT id FROM contracts WHERE contract_number = ?',
