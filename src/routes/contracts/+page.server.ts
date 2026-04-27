@@ -10,6 +10,7 @@ import { maybeNotifySaleContractRenewals } from '$lib/server/saleContractRenewal
 interface Customer extends RowDataPacket {
 	id: number;
 	name: string;
+	company_name: string | null;
 }
 
 interface User extends RowDataPacket {
@@ -114,8 +115,8 @@ export async function load({ locals }) {
 			// ดึงข้อมูลสัญญาพร้อม Join ชื่อลูกค้าและชื่อผู้ดูแล
 			db.query<Contract[]>(`${getContractQuery} ORDER BY c.created_at DESC`),
 
-			// ดึงรายชื่อลูกค้าเพื่อใช้ใน Dropdown
-			db.query<Customer[]>('SELECT id, name FROM customers ORDER BY name ASC'),
+			// ดึงรายชื่อลูกค้าเพื่อใช้ใน Dropdown (ดึง company_name มาด้วย)
+			db.query<Customer[]>('SELECT id, name, company_name FROM customers ORDER BY company_name ASC, name ASC'),
 
 			db.query<User[]>('SELECT id, username, email FROM users ORDER BY username ASC'),
 

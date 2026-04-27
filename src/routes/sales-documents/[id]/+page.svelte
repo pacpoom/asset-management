@@ -121,7 +121,7 @@
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-		return '📎';
+		return '📁';
 	}
 
 	async function updateStatus(e: Event) {
@@ -485,8 +485,58 @@
 
 <div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 	<div class="h-full rounded-lg border bg-white p-4 shadow-sm">
-		<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">{$t('Notes')}</h3>
-		<p class="text-sm whitespace-pre-wrap text-gray-600">{document.notes || $t('No notes.')}</p>
+		{#if document.job_order_id}
+			<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">{$t('Shipment Details')} / {$t('Job Order Reference')}</h3>
+			<div class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm text-gray-600 xl:grid-cols-3">
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('HBL')} / {$t('BL Number')}</span>
+					<span class="font-medium text-gray-800">{document.jo_bl_number || '-'}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('MBL')}</span>
+					<span class="font-medium text-gray-800">{document.jo_mbl || '-'}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('Port/Location')}</span>
+					<span class="font-medium text-gray-800">{document.jo_location || '-'}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('ETD')}</span>
+					<span class="font-medium text-gray-800">{formatDate(document.jo_etd)}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('ETA')}</span>
+					<span class="font-medium text-gray-800">{formatDate(document.jo_eta)}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('Liner/Carrier')}</span>
+					<span class="font-medium text-gray-800">{document.jo_liner_name || '-'}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('Quantity')}</span>
+					<span class="font-medium text-gray-800">{document.jo_quantity || '0'}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('Weight')} (KGS)</span>
+					<span class="font-medium text-gray-800">{document.jo_weight || '0.00'}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('Volume')} (CBM)</span>
+					<span class="font-medium text-gray-800">{document.jo_kgs_volume || '0.00'}</span>
+				</div>
+				<div>
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('CCL')}</span>
+					<span class="font-medium text-gray-800">{document.jo_ccl || '-'}</span>
+				</div>
+				<div class="col-span-2 xl:col-span-2">
+					<span class="block text-xs font-semibold uppercase text-gray-500">{$t('Invoice Note')}</span>
+					<span class="font-medium text-gray-800">{document.jo_invoice_note || '-'}</span>
+				</div>
+			</div>
+		{:else}
+			<h3 class="mb-3 border-b pb-2 text-lg font-semibold text-gray-700">{$t('Notes')}</h3>
+			<p class="text-sm whitespace-pre-wrap text-gray-600">{document.notes || $t('No notes.')}</p>
+		{/if}
 	</div>
 
 	<div class="h-full rounded-lg border bg-white p-4 shadow-sm">

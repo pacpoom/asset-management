@@ -9,7 +9,7 @@
 	import { formatOptionalDateTime } from '$lib/formatDateTime';
 
 	// --- Types ---
-	type Customer = { id: number; name: string };
+	type Customer = { id: number; name: string; company_name: string | null };
 	type ContractType = { id: number; name: string };
 	type User = { id: number; username: string; email: string | null };
 	type ContractDocument = {
@@ -52,8 +52,14 @@
 	let contractToDelete = $state<Contract | null>(null);
 	let isDeleting = $state(false);
 
+	// จัดรูปแบบชื่อลูกค้าใน Dropdown โดยส่ง company_name และ name เข้าไปด้วยเพื่อให้ Custom Slot ใช้งานได้
 	const customerOptions = $derived(
-		customers.map((c: Customer) => ({ value: c.id, label: c.name }))
+		customers.map((c: Customer) => ({ 
+			value: c.id, 
+			label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
+			company_name: c.company_name,
+			name: c.name
+		}))
 	);
 	const contractTypeOptions = $derived(
 		contractTypes.map((ct: ContractType) => ({ value: ct.id, label: ct.name }))
@@ -318,7 +324,7 @@
 			>
 				<option value="">{$t('-- All Customers --')}</option>
 				{#each customers as customer (customer.id)}<option value={customer.id}
-						>{customer.name}</option
+						>{customer.company_name ? `${customer.company_name} (${customer.name})` : customer.name}</option
 					>{/each}
 			</select>
 		</div>
@@ -390,7 +396,7 @@
 
 <dialog
 	bind:this={modalElement}
-	class="w-full max-w-4xl rounded-lg p-0 shadow-2xl backdrop:bg-black/50"
+	class="w-full max-w-6xl rounded-lg p-0 shadow-2xl backdrop:bg-black/50"
 >
 	<form
 		method="POST"
@@ -463,7 +469,31 @@
 							on:clear={() => handleCustomerChange(null)}
 							placeholder={$t('-- Search/Select Customer --')}
 							container={browser ? document.body : null}
-						/>
+						>
+							<!-- ปรับรูปแบบให้แสดงผล Company กับ Name แบบ 2 บรรทัดตอนคลิกเลือกแล้ว -->
+							<svelte:fragment slot="selection" let:selection>
+								<div class="flex flex-col leading-tight pt-0.5">
+									{#if selection?.company_name}
+										<span class="font-medium text-gray-800">{selection.company_name}</span>
+										<span class="text-xs text-gray-500">{selection.name}</span>
+									{:else}
+										<span class="font-medium text-gray-800">{selection?.label}</span>
+									{/if}
+								</div>
+							</svelte:fragment>
+							
+							<!-- ปรับรูปแบบให้แสดงผล Company กับ Name แบบ 2 บรรทัดใน Dropdown -->
+							<svelte:fragment slot="item" let:item>
+								<div class="flex flex-col py-1 leading-tight">
+									{#if item?.company_name}
+										<span class="font-medium text-gray-800">{item.company_name}</span>
+										<span class="text-xs text-gray-500">{item.name}</span>
+									{:else}
+										<span class="font-medium text-gray-800">{item?.label}</span>
+									{/if}
+								</div>
+							</svelte:fragment>
+						</Select>
 					</div>
 					<div>
 						<span class="mb-1 block text-sm font-medium text-gray-700">{$t('Contract Type *')}</span
@@ -717,16 +747,20 @@
 {/if}
 
 <style>
-	dialog.max-w-4xl {
+	dialog.max-w-6xl {
 		margin: 4rem auto 0;
 		overflow-y: auto;
 		max-height: calc(100vh - 8rem);
 	}
 	:global(div.svelte-select) {
-		min-height: 38px;
+		min-height: 44px; /* ปรับความสูงขั้นต่ำเผื่อ 2 บรรทัด */
+		height: auto;
 		border: 1px solid #d1d5db !important;
 		border-radius: 0.375rem !important;
 		margin-top: 0.25rem;
+	}
+	:global(div.svelte-select .selection) {
+		align-items: flex-start !important; /* จัดให้ข้อความเริ่มจากด้านบน */
 	}
 	:global(div.svelte-select .list) {
 		border-radius: 0.375rem;
