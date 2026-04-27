@@ -5,7 +5,6 @@
 
 	let { data, form } = $props();
 
-	// 🌟 1. เพิ่มตัวแปรสำหรับเลือกแท็บ
 	let activeTab = $state<'division' | 'section' | 'position'>('division');
 
 	// สถานะ Modal (อิงตามโค้ดเดิมของคุณ)
@@ -13,8 +12,6 @@
 	let selectedItem = $state<any>(null);
 	let itemToDelete = $state<any>(null);
 	let isSaving = $state(false);
-
-	// 🌟 2. คำนวณข้อมูลที่จะแสดงตามแท็บที่เลือก
 	let currentData = $derived(() => {
 		if (activeTab === 'section') return data.sections || [];
 		if (activeTab === 'position') return data.positions || [];
@@ -26,7 +23,6 @@
 		if (mode === 'edit') {
 			selectedItem = {
 				...item,
-				// ดึงชื่อมาใส่ใน field 'name' เพื่อใช้ร่วมกันใน Modal เดียว
 				name: item.division_name || item.section_name || item.position_name
 			};
 		} else {

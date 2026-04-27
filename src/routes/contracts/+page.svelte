@@ -253,6 +253,35 @@
 		}
 	}
 
+	async function deleteDocument(docId: number) {
+		if (!confirm($t('Are you sure you want to delete this document?'))) return;
+		
+		const data = new FormData();
+		data.append('document_id', docId.toString());
+
+		try {
+			const response = await fetch('?/deleteDocument', {
+				method: 'POST',
+				body: data,
+				headers: {
+					'x-sveltekit-action': 'true'
+				}
+			});
+			
+			const result = await response.json();
+			if (result.type === 'success') {
+				// อัปเดต UI ทันที
+				currentContract.documents = currentContract.documents.filter(d => d.id !== docId);
+				invalidateAll();
+			} else {
+				alert($t('Failed to delete document'));
+			}
+		} catch (e) {
+			console.error('Failed to delete document', e);
+			alert($t('Failed to delete document'));
+		}
+	}
+
 	const Icon = {
 		plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>`,
 		edit: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" /><path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 1 10 6H4.75A.25.25 0 0 0 4.5 6.25v10.5c0 .138.112.25.25.25h10.5A.25.25 0 0 0 15.5 16V9a.75.75 0 0 1 1.5 0v7A1.75 1.75 0 0 1 15.25 17.75H4.75A1.75 1.75 0 0 1 3 16V5.75Z" /></svg>`,
@@ -656,13 +685,23 @@
 										{formatDate(doc.uploaded_at)}
 									</div>
 								</div>
-								<a
-									href="/uploads/contracts/{doc.system_name}"
-									target="_blank"
-									download={doc.name}
-									class="rounded-full p-1 text-green-600 transition hover:bg-green-50 hover:text-green-800"
-									aria-label={$t('Download file')}>{@html Icon.download}</a
-								>
+								<div class="flex items-center">
+									<a
+										href="/uploads/contracts/{doc.system_name}"
+										target="_blank"
+										download={doc.name}
+										class="rounded-full p-1 text-green-600 transition hover:bg-green-50 hover:text-green-800"
+										aria-label={$t('Download file')}>{@html Icon.download}</a
+									>
+									<button
+										type="button"
+										onclick={() => deleteDocument(doc.id)}
+										class="rounded-full p-1 text-red-500 transition hover:bg-red-50 hover:text-red-700"
+										aria-label={$t('Delete file')}
+									>
+										{@html Icon.delete}
+									</button>
+								</div>
 							</li>{/each}
 					</ul>
 				{:else}<p class="text-sm text-gray-500 italic">{$t('No documents uploaded yet.')}</p>{/if}
