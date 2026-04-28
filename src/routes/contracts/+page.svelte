@@ -432,16 +432,23 @@
 		enctype="multipart/form-data"
 		action={isEditing ? '?/update' : '?/create'}
 		use:enhance={() => {
+			if (isLoading) return; // ป้องกัน double-submit
 			isLoading = true;
 			formError = null;
 			return async ({ update, result }) => {
-				await update({ reset: false });
 				isLoading = false;
 
 				if (result.type === 'success') {
+					await update({ reset: false }); // re-fetch ข้อมูลเมื่อสำเร็จเท่านั้น
 					closeModal();
 				} else if (result.type === 'failure') {
-					formError = result.data?.error as string;
+					formError = (result.data?.error as string) || $t('An error occurred. Please try again.');
+				} else if (result.type === 'error') {
+					// Network error หรือ server crash (เช่น Docker restart)
+					formError = $t('Connection error. Please check your connection and try again.');
+				} else if (result.type === 'redirect') {
+					// Session หมดอายุ → redirect ไป login
+					formError = $t('Your session has expired. Please refresh the page and log in again.');
 				}
 			};
 		}}
