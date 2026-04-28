@@ -57,6 +57,24 @@ export const load = async ({ url }) => {
 			ORDER BY total DESC
 		`, [startDate, endDate]);
 
+		// ดึงข้อมูล Status แยกตาม Customer
+		const [customerStats]: any = await pool.query(`
+			SELECT 
+				c.id as customer_id,
+				COALESCE(c.company_name, c.name) as customer_name,
+				COUNT(j.id) as total,
+				SUM(CASE WHEN j.job_status = 'Pending' THEN 1 ELSE 0 END) as pending,
+				SUM(CASE WHEN j.job_status = 'In Progress' THEN 1 ELSE 0 END) as in_progress,
+				SUM(CASE WHEN j.job_status = 'Completed' THEN 1 ELSE 0 END) as completed,
+				SUM(CASE WHEN j.job_status = 'Cancelled' THEN 1 ELSE 0 END) as cancelled
+			FROM job_orders j
+			LEFT JOIN customers c ON j.customer_id = c.id
+			WHERE j.job_date BETWEEN ? AND ?
+			GROUP BY c.id, c.company_name, c.name
+			ORDER BY total DESC
+			LIMIT 15
+		`, [startDate, endDate]);
+
 		// กรอง Recent Jobs ด้วยช่วงเดือนที่เลือก
 		const [recentJobs]: any = await pool.query(`
 			SELECT j.id, j.job_type, j.service_type, j.job_date, j.job_status, j.amount, j.currency, 
@@ -90,6 +108,7 @@ export const load = async ({ url }) => {
 				cancelled_jobs: 0
 			},
 			ownerStats: JSON.parse(JSON.stringify(ownerStats)),
+			customerStats: JSON.parse(JSON.stringify(customerStats)),
 			jobTypeStats: JSON.parse(JSON.stringify(jobTypeStats)),
 			recentJobs: JSON.parse(JSON.stringify(recentJobs)),
 			alerts: JSON.parse(JSON.stringify(alerts)),
@@ -106,6 +125,7 @@ export const load = async ({ url }) => {
 				cancelled_jobs: 0
 			},
 			ownerStats: [],
+			customerStats: [],
 			jobTypeStats: [],
 			recentJobs: [],
 			alerts: [],

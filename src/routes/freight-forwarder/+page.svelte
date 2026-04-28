@@ -6,6 +6,7 @@
 	export let data;
 	$: stats = data.stats;
 	$: ownerStats = data.ownerStats || [];
+	$: customerStats = data.customerStats || [];
 	$: jobTypeStats = data.jobTypeStats || [];
 	$: recentJobs = data.recentJobs || [];
 	$: alerts = data.alerts || [];
@@ -424,6 +425,146 @@
 				<p class="text-[10px] text-gray-400">{$t('Real-time data updated from the database.')}</p>
 			</div>
 		</div>
+	</div>
+
+	<!-- Status by Customer Section -->
+	<div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+		<div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+			<div>
+				<h2 class="text-base font-bold text-gray-800">{$t('Status by Customer')}</h2>
+				<p class="mt-0.5 text-xs text-gray-400">{$t('Job status breakdown per customer')}</p>
+			</div>
+			<span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-600">
+				{customerStats.length}
+				{$t('customers')}
+			</span>
+		</div>
+
+		{#if customerStats.length === 0}
+			<div class="flex flex-col items-center justify-center py-16 text-gray-400">
+				<span class="material-symbols-outlined mb-3" style="font-size:40px">groups</span>
+				<p class="text-sm">{$t('No data available')}</p>
+			</div>
+		{:else}
+			<!-- Header row -->
+			<div
+				class="grid grid-cols-12 gap-2 border-b border-gray-100 bg-gray-50 px-6 py-2 text-[10px] font-bold tracking-wider text-gray-400 uppercase"
+			>
+				<div class="col-span-4">{$t('Customer')}</div>
+				<div class="col-span-2 text-center">{$t('Total')}</div>
+				<div class="col-span-2 text-center text-blue-500">{$t('Pending')}</div>
+				<div class="col-span-2 text-center text-yellow-500">{$t('In Progress')}</div>
+				<div class="col-span-1 text-center text-green-500">{$t('Done')}</div>
+				<div class="col-span-1 text-center text-red-400">{$t('Cancel')}</div>
+			</div>
+
+			<div class="divide-y divide-gray-50">
+				{#each customerStats as customer, i}
+					{@const color = getColor(i)}
+					<div
+						class="grid grid-cols-12 items-center gap-2 px-6 py-3.5 transition-colors hover:bg-gray-50"
+					>
+						<!-- Customer name + avatar -->
+						<div class="col-span-4 flex min-w-0 items-center gap-3">
+							<div
+								class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full {color.bg} text-xs font-bold text-white shadow-sm"
+							>
+								{getOwnerInitials(customer.customer_name || 'Unknown')}
+							</div>
+							<div class="min-w-0">
+								<p class="truncate text-sm font-semibold text-gray-800">
+									{customer.customer_name || $t('Unknown')}
+								</p>
+								<!-- Mini stacked bar -->
+								<div class="mt-1 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+									{#if customer.pending > 0}
+										<div
+											class="h-full bg-blue-400"
+											style="width:{getBarWidth(customer.pending, customer.total)}"
+										></div>
+									{/if}
+									{#if customer.in_progress > 0}
+										<div
+											class="h-full bg-yellow-400"
+											style="width:{getBarWidth(customer.in_progress, customer.total)}"
+										></div>
+									{/if}
+									{#if customer.completed > 0}
+										<div
+											class="h-full bg-green-400"
+											style="width:{getBarWidth(customer.completed, customer.total)}"
+										></div>
+									{/if}
+									{#if customer.cancelled > 0}
+										<div
+											class="h-full bg-red-300"
+											style="width:{getBarWidth(customer.cancelled, customer.total)}"
+										></div>
+									{/if}
+								</div>
+							</div>
+						</div>
+
+						<!-- Total -->
+						<div class="col-span-2 text-center">
+							<span class="text-lg font-bold text-gray-800">{customer.total}</span>
+						</div>
+
+						<!-- Pending -->
+						<div class="col-span-2 text-center">
+							{#if customer.pending > 0}
+								<span
+									class="inline-flex items-center justify-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700"
+								>
+									{customer.pending}
+								</span>
+							{:else}
+								<span class="text-xs text-gray-300">—</span>
+							{/if}
+						</div>
+
+						<!-- In Progress -->
+						<div class="col-span-2 text-center">
+							{#if customer.in_progress > 0}
+								<span
+									class="inline-flex items-center justify-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-bold text-yellow-700"
+								>
+									{customer.in_progress}
+								</span>
+							{:else}
+								<span class="text-xs text-gray-300">—</span>
+							{/if}
+						</div>
+
+						<!-- Completed -->
+						<div class="col-span-1 text-center">
+							{#if customer.completed > 0}
+								<span
+									class="inline-flex items-center justify-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700"
+								>
+									{customer.completed}
+								</span>
+							{:else}
+								<span class="text-xs text-gray-300">—</span>
+							{/if}
+						</div>
+
+						<!-- Cancelled -->
+						<div class="col-span-1 text-center">
+							{#if customer.cancelled > 0}
+								<span
+									class="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600"
+								>
+									{customer.cancelled}
+								</span>
+							{:else}
+								<span class="text-xs text-gray-300">—</span>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
 	</div>
 
 	<!-- Job Type + Recent Jobs Row -->

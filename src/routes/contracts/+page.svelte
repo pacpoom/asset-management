@@ -724,7 +724,7 @@
 						class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
 					></div>
 					<span>{$t('Saving...')}</span>{:else}{@html Icon.plus}<span
-						>{isEditing ? $t('Save Changes') : $t('Create Contract')}</span
+						>{$t('Save')}</span
 					>{/if}
 			</button>
 		</div>
