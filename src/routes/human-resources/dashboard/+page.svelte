@@ -128,8 +128,7 @@
 
 		<form
 			method="POST"
-			action="?/importScannerLog"
-			enctype="multipart/form-data"
+			action="?/syncZKTeco"
 			use:enhance={() => {
 				isSubmitting = true;
 				return async ({ update }) => {
@@ -139,22 +138,14 @@
 			}}
 			class="flex"
 		>
-			<label
-				class="flex cursor-pointer items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 {isSubmitting
-					? 'cursor-not-allowed opacity-50'
-					: ''}"
+			<button
+				type="submit"
+				disabled={isSubmitting}
+				class="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
 			>
-				<span class="material-symbols-outlined text-[18px]">fingerprint</span>
-				{$t('ดึงข้อมูลสแกนนิ้ว (CSV)')}
-				<input
-					type="file"
-					name="file"
-					accept=".csv, .txt"
-					class="hidden"
-					disabled={isSubmitting}
-					onchange={(e) => e.currentTarget.form?.requestSubmit()}
-				/>
-			</label>
+				<span class="material-symbols-outlined text-[18px]">cell_wifi</span>
+				{$t('ซิงค์ข้อมูลสแกนนิ้ว (ZKTeco)')}
+			</button>
 		</form>
 	</div>
 </div>

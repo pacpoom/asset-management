@@ -33,6 +33,7 @@
 		status: string;
 		notice_datetime?: string | null;
 		customer_name?: string;
+		owner_name?: string;
 		type_name?: string;
 		documents: ContractDocument[];
 	};
@@ -54,8 +55,8 @@
 
 	// จัดรูปแบบชื่อลูกค้าใน Dropdown โดยส่ง company_name และ name เข้าไปด้วยเพื่อให้ Custom Slot ใช้งานได้
 	const customerOptions = $derived(
-		customers.map((c: Customer) => ({ 
-			value: c.id, 
+		customers.map((c: Customer) => ({
+			value: c.id,
 			label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
 			company_name: c.company_name,
 			name: c.name
@@ -152,7 +153,9 @@
 	}
 
 	function formatContractValueDisplay(raw: string): string {
-		const cleaned = String(raw || '').replace(/,/g, '').trim();
+		const cleaned = String(raw || '')
+			.replace(/,/g, '')
+			.trim();
 		if (!cleaned) return '';
 		const [intPartRaw, decPartRaw] = cleaned.split('.');
 		const intPart = (intPartRaw || '').replace(/[^\d]/g, '');
@@ -163,7 +166,9 @@
 	}
 
 	function setContractValueFromDisplay(raw: string) {
-		const normalized = String(raw || '').replace(/,/g, '').trim();
+		const normalized = String(raw || '')
+			.replace(/,/g, '')
+			.trim();
 		if (!normalized) {
 			currentContract.contract_value = null;
 			contractValueDisplay = '';
@@ -255,7 +260,7 @@
 
 	async function deleteDocument(docId: number) {
 		if (!confirm($t('Are you sure you want to delete this document?'))) return;
-		
+
 		const data = new FormData();
 		data.append('document_id', docId.toString());
 
@@ -267,11 +272,11 @@
 					'x-sveltekit-action': 'true'
 				}
 			});
-			
+
 			const result = await response.json();
 			if (result.type === 'success') {
 				// อัปเดต UI ทันที
-				currentContract.documents = currentContract.documents.filter(d => d.id !== docId);
+				currentContract.documents = currentContract.documents.filter((d) => d.id !== docId);
 				invalidateAll();
 			} else {
 				alert($t('Failed to delete document'));
@@ -353,7 +358,9 @@
 			>
 				<option value="">{$t('-- All Customers --')}</option>
 				{#each customers as customer (customer.id)}<option value={customer.id}
-						>{customer.company_name ? `${customer.company_name} (${customer.name})` : customer.name}</option
+						>{customer.company_name
+							? `${customer.company_name} (${customer.name})`
+							: customer.name}</option
 					>{/each}
 			</select>
 		</div>
@@ -371,6 +378,7 @@
 					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('Start Date')}</th>
 					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('End Date')}</th>
 					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">Notice sent (GMT+7)</th>
+					<th class="px-6 py-3 text-left font-bold text-gray-600 uppercase">{$t('Registered By')}</th>
 					<th class="px-6 py-3 text-center font-bold text-gray-600 uppercase">{$t('Docs')}</th>
 					<th class="px-6 py-3 text-center font-bold text-gray-600 uppercase">{$t('Actions')}</th>
 				</tr>
@@ -394,7 +402,10 @@
 						>
 						<td class="px-6 py-4 text-nowrap">{formatDate(contract.start_date)}</td>
 						<td class="px-6 py-4 text-nowrap">{formatDate(contract.end_date)}</td>
-						<td class="px-6 py-4 text-nowrap font-mono">{formatOptionalDateTime(contract.notice_datetime)}</td>
+						<td class="px-6 py-4 font-mono text-nowrap"
+							>{formatOptionalDateTime(contract.notice_datetime)}</td
+						>
+						<td class="px-6 py-4">{contract.owner_name ?? '-'}</td>
 						<td class="px-6 py-4 text-center">{contract.documents?.length || 0}</td>
 						<td class="px-6 py-4 text-center">
 							<div class="flex items-center justify-center gap-2">
@@ -414,7 +425,7 @@
 						</td>
 					</tr>
 				{:else}<tr
-						><td colspan="8" class="py-12 text-center text-gray-500"
+						><td colspan="9" class="py-12 text-center text-gray-500"
 							>{$t('No contract data found...')}</td
 						></tr
 					>{/each}
@@ -508,7 +519,7 @@
 						>
 							<!-- ปรับรูปแบบให้แสดงผล Company กับ Name แบบ 2 บรรทัดตอนคลิกเลือกแล้ว -->
 							<svelte:fragment slot="selection" let:selection>
-								<div class="flex flex-col leading-tight pt-0.5">
+								<div class="flex flex-col pt-0.5 leading-tight">
 									{#if selection?.company_name}
 										<span class="font-medium text-gray-800">{selection.company_name}</span>
 										<span class="text-xs text-gray-500">{selection.name}</span>
@@ -517,7 +528,7 @@
 									{/if}
 								</div>
 							</svelte:fragment>
-							
+
 							<!-- ปรับรูปแบบให้แสดงผล Company กับ Name แบบ 2 บรรทัดใน Dropdown -->
 							<svelte:fragment slot="item" let:item>
 								<div class="flex flex-col py-1 leading-tight">
@@ -570,10 +581,15 @@
 							id="contract_value"
 							inputmode="decimal"
 							value={contractValueDisplay}
-							oninput={(e) => setContractValueFromDisplay((e.currentTarget as HTMLInputElement).value)}
+							oninput={(e) =>
+								setContractValueFromDisplay((e.currentTarget as HTMLInputElement).value)}
 							class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:ring-blue-500"
 						/>
-						<input type="hidden" name="contract_value" value={currentContract.contract_value ?? ''} />
+						<input
+							type="hidden"
+							name="contract_value"
+							value={currentContract.contract_value ?? ''}
+						/>
 					</div>
 				</div>
 
@@ -601,7 +617,7 @@
 					</div>
 				</div>
 
-				<input type="hidden" name="owner_user_id" value="" />
+				<input type="hidden" name="owner_user_id" value={currentContract.owner_user_id ?? ''} />
 
 				<div>
 					<label for="renewal_notify_emails" class="text-sm font-medium text-gray-700">
@@ -730,9 +746,7 @@
 				{#if isLoading}<div
 						class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
 					></div>
-					<span>{$t('Saving...')}</span>{:else}{@html Icon.plus}<span
-						>{$t('Save')}</span
-					>{/if}
+					<span>{$t('Saving...')}</span>{:else}{@html Icon.plus}<span>{$t('Save')}</span>{/if}
 			</button>
 		</div>
 	</form>

@@ -12,6 +12,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	const empFilter = url.searchParams.get('emp_id') || 'All';
 	const search = url.searchParams.get('search') || '';
 
+	const sectionFilter = url.searchParams.get('section') || 'All';
 	const yearMonthStr = `${selectedYear}-${selectedMonth}`;
 
 	try {
@@ -19,7 +20,11 @@ export const load: PageServerLoad = async ({ url }) => {
 			`SELECT emp_id, emp_name FROM employees ORDER BY emp_name ASC`
 		);
 
-		// 🌟 1. แก้ไข: เปลี่ยนเป็น INNER JOIN เพื่อตัดพนักงานเก่า/พนักงานไม่มีตัวตน ออกไปจากหน้าจอนี้
+		const [sectionsRows]: any = await pool.execute(
+			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
+		);
+		const sections = sectionsRows.map((s: any) => s.section);
+
 		let logQuery = `
 			SELECT 
 				al.*, 
@@ -36,6 +41,11 @@ export const load: PageServerLoad = async ({ url }) => {
 			WHERE DATE_FORMAT(al.work_date, '%Y-%m') = ?
 		`;
 		const params: any[] = [yearMonthStr];
+
+		if (sectionFilter !== 'All') {
+			logQuery += ` AND e.section = ?`;
+			params.push(sectionFilter);
+		}
 
 		if (empFilter !== 'All') {
 			logQuery += ` AND al.emp_id = ?`;
@@ -59,7 +69,6 @@ export const load: PageServerLoad = async ({ url }) => {
 		const processedLogs = logs.map((log: any) => {
 			let lateMins = 0;
 
-			// ตอนนี้นับยอดคน จะได้เฉพาะพนักงานที่มีตัวตนอยู่จริง (167 คน) แน่นอน
 			if (log.status === 'Present') {
 				unique_emps.add(log.emp_id);
 			}
@@ -81,12 +90,14 @@ export const load: PageServerLoad = async ({ url }) => {
 		return {
 			logs: processedLogs,
 			employees: employees,
+			sections: sections,
 			selectedMonth,
 			selectedYear,
 			empFilter,
+			sectionFilter,
 			searchQuery: search,
 			stats: {
-				total_days: unique_emps.size, // ยอด 167 คนจะตรงเป๊ะครับ
+				total_days: unique_emps.size,
 				total_late_mins,
 				total_ot_hours: Math.round(total_ot_hours * 100) / 100
 			}
@@ -119,7 +130,6 @@ export const actions: Actions = {
 			await workbook.xlsx.load(arrayBuffer);
 			const worksheet = workbook.worksheets[0];
 
-			// 🌟 2. อัปเกรดระบบจัดกลุ่มเวลา: รวบรวมเวลาทั้งหมดของพนักงาน 1 คนใน 1 วันมากองรวมกันก่อน
 			const scansMap = new Map<string, string[]>();
 
 			for (let i = 2; i <= worksheet.rowCount; i++) {
@@ -133,12 +143,10 @@ export const actions: Actions = {
 
 				const dateParts = work_date_raw.split('/');
 				if (dateParts.length !== 3) continue;
-				const safe_date = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; // แปลงเป็น YYYY-MM-DD
+				const safe_date = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
 
-				// จับเวลามาต่อกันเป็น String เช่น "2026-04-20 07:27:00"
 				const datetime_str = `${safe_date} ${time_str}:00`;
 
-				// โยนเวลาเข้ากระเป๋าของพนักงานคนนั้นๆ ตามวันที่
 				const key = `${emp_id}_${safe_date}`;
 				if (!scansMap.has(key)) {
 					scansMap.set(key, []);
@@ -146,11 +154,9 @@ export const actions: Actions = {
 				scansMap.get(key)!.push(datetime_str);
 			}
 
-			// 🌟 3. นำข้อมูลที่จัดกลุ่มแล้วมาหา "เวลาเข้า" และ "เวลาออก" ที่แท้จริง
 			for (const [key, times] of scansMap.entries()) {
 				const [emp_id, safe_date] = key.split('_');
 
-				// เรียงลำดับเวลาจากน้อยไปมาก
 				times.sort();
 
 				const timeInStr = times[0];
