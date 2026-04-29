@@ -184,7 +184,7 @@ export const actions: Actions = {
 			start_date: nullIfEmpty(formData.get('start_date') as string),
 			end_date: nullIfEmpty(formData.get('end_date') as string),
 			contract_value: nullIfEmpty(formData.get('contract_value') as string),
-			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string),
+			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string) || userId,
 			renewal_notify_emails: formData
 				.getAll('renewal_notify_emails')
 				.map((v) => v.toString().trim())
@@ -333,7 +333,7 @@ export const actions: Actions = {
 			start_date: nullIfEmpty(formData.get('start_date') as string),
 			end_date: nullIfEmpty(formData.get('end_date') as string),
 			contract_value: nullIfEmpty(formData.get('contract_value') as string),
-			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string),
+			owner_user_id: nullIfEmpty(formData.get('owner_user_id') as string) || userId,
 			renewal_notify_emails: formData
 				.getAll('renewal_notify_emails')
 				.map((v) => v.toString().trim())

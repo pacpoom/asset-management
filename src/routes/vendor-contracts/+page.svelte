@@ -470,6 +470,7 @@
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Start Date')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('End Date')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">Notice sent (GMT+7)</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Registered By')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Docs')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
@@ -477,7 +478,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if contracts.length === 0}
 				<tr>
-					<td colspan="9" class="py-12 text-center text-gray-500">
+					<td colspan="10" class="py-12 text-center text-gray-500">
 						{#if data.searchQuery || data.filters.status || data.filters.vendor}
 							{$t('No vendor contracts found matching criteria')}
 						{:else}
@@ -523,6 +524,7 @@
 						<td class="whitespace-nowrap px-4 py-3 font-mono text-gray-600"
 							>{formatOptionalDateTime(contract.notice_datetime)}</td
 						>
+						<td class="px-4 py-3 text-gray-600">{contract.owner_name ?? '-'}</td>
 						<td class="px-4 py-3 text-center text-gray-500">
 							{contract.documents?.length || 0}
 						</td>
@@ -865,7 +867,7 @@
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<input type="hidden" name="owner_user_id" value="" />
+							<input type="hidden" name="owner_user_id" value={selectedContract.owner_user_id ?? ''} />
 							<div>
 								<label for="renewal_notice_days" class="mb-1 block text-sm font-medium"
 									>{$t('Renewal Notice (Days)')}</label
