@@ -6,6 +6,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	const month = url.searchParams.get('month');
 	const year = url.searchParams.get('year');
 	const search = url.searchParams.get('search') || '';
+	const sectionFilter = url.searchParams.get('section') || 'All';
 
 	let query = `
 		SELECT 
@@ -28,6 +29,11 @@ export const GET: RequestHandler = async ({ url }) => {
 		WHERE MONTH(al.work_date) = ? AND YEAR(al.work_date) = ?
 	`;
 	const params: any[] = [month, year];
+
+	if (sectionFilter !== 'All') {
+		query += ` AND e.section = ?`;
+		params.push(sectionFilter);
+	}
 
 	if (search) {
 		query += ` AND (al.emp_id LIKE ? OR IFNULL(e.emp_name, al.emp_name) LIKE ?)`;

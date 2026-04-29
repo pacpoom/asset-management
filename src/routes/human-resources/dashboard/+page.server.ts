@@ -350,5 +350,103 @@ export const actions: Actions = {
 			console.error('CSV Import Error:', error);
 			return { success: false, message: 'ไฟล์ CSV ไม่ถูกต้อง หรืออ่านไม่ได้' };
 		}
+	},
+
+	syncZKTeco: async () => {
+		const ZKLib = (await import('node-zklib')).default;
+
+		// const ips = ['192.168.115.200'];
+		const ips = ['192.168.115.69', '192.168.115.70', '192.168.115.71'];
+
+		let totalImported = 0;
+		let logMessages: string[] = [];
+
+		for (const ip of ips) {
+			// const zkInstance = new ZKLib(ip, 4370, 10000, 4000);
+			const zkInstance = new ZKLib(ip, 4370, 120000, 4000);
+
+			try {
+				await zkInstance.createSocket();
+				console.log(`Connected to ZKTeco: ${ip}`);
+
+				const machineInfo = await zkInstance.getInfo();
+
+				if (!machineInfo || machineInfo.logCounts === 0) {
+					console.log(`⏭[${ip}] เครื่องว่างเปล่า ไม่มีข้อมูลสแกนนิ้ว ข้ามการดึง!`);
+					logMessages.push(`${ip}: ไม่มีข้อมูล`);
+					await zkInstance.disconnect();
+					continue;
+				}
+
+				console.log(`[${ip}] มีข้อมูล ${machineInfo.logCounts} รายการ กำลังดึง...`);
+				const logs = await zkInstance.getAttendances();
+
+				if (!logs.data || logs.data.length === 0) {
+					logMessages.push(`${ip}: ไม่มีข้อมูลใหม่`);
+					await zkInstance.disconnect();
+					continue;
+				}
+
+				let machineCount = 0;
+
+				for (const log of logs.data) {
+					const raw_id = log.deviceUserId?.toString().trim();
+					if (!raw_id) continue;
+
+					// console.log(`เครื่องสแกนส่งรหัสนี้มานะ: "${raw_id}"`);
+
+					const recordDate = new Date(log.recordTime);
+					const work_date = recordDate.toISOString().split('T')[0];
+					const timeInStr = recordDate.toLocaleTimeString('th-TH', {
+						hour12: false,
+						hour: '2-digit',
+						minute: '2-digit'
+					});
+					const scanInDateTime = `${work_date} ${timeInStr}:00`;
+
+					const [empRows]: any = await pool.execute(
+						'SELECT emp_id, emp_name FROM employees WHERE citizen_id = ? OR emp_id = ? LIMIT 1',
+						[raw_id, raw_id]
+					);
+
+					if (empRows.length === 0) continue;
+					const emp = empRows[0];
+
+					const inMins = recordDate.getHours() * 60 + recordDate.getMinutes();
+					let shiftType = 'Day';
+					let isLate = inMins > 460 ? 1 : 0;
+
+					await pool.execute(
+						`INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, is_late, status)
+						VALUES (?, ?, ?, ?, ?, ?, 'Present')
+						ON DUPLICATE KEY UPDATE 
+						scan_in_time = IF(scan_in_time IS NULL, VALUES(scan_in_time), scan_in_time),
+						status = 'Present'`,
+						[emp.emp_id, emp.emp_name, work_date, shiftType, scanInDateTime, isLate]
+					);
+
+					machineCount++;
+					totalImported++;
+				}
+
+				await zkInstance.disconnect();
+				logMessages.push(`${ip}: สำเร็จ (${machineCount})`);
+			} catch (error) {
+				console.error(`Error connecting to ZKTeco ${ip}:`, error);
+				logMessages.push(`${ip}: เชื่อมต่อไม่ได้`);
+			}
+		}
+
+		if (totalImported > 0) {
+			return {
+				success: true,
+				message: `ดึงข้อมูลสำเร็จรวม ${totalImported} รายการ [${logMessages.join(', ')}]`
+			};
+		} else {
+			return {
+				success: false,
+				message: `ไม่มีข้อมูลใหม่หรือเชื่อมต่อไม่ได้ [${logMessages.join(', ')}]`
+			};
+		}
 	}
 };

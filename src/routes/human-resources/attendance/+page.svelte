@@ -41,7 +41,17 @@
 			: { value: 'All', label: `-- ${$t('พนักงานทั้งหมด')} --` }
 	);
 
-	// 🌟 ระบบ Pagination 10, 50, 100, 200
+	let sectionOptions = $derived([
+		{ value: 'All', label: `-- ${$t('ทุกแผนก')} --` },
+		...(data.sections || []).map((s: string) => ({ value: s, label: s }))
+	]);
+
+	let selectedSection = $state(
+		data.sectionFilter && data.sectionFilter !== 'All'
+			? { value: data.sectionFilter, label: data.sectionFilter }
+			: { value: 'All', label: `-- ${$t('ทุกแผนก')} --` }
+	);
+
 	let currentPage = $state(1);
 	let itemsPerPage = $state(10);
 	let totalPages = $derived(Math.ceil(logs.length / itemsPerPage) || 1);
@@ -66,7 +76,7 @@
 		{/if}
 
 		<a
-			href="/human-resources/attendance/export?month={data.selectedMonth}&year={data.selectedYear}&search={data.searchQuery}"
+			href="/human-resources/attendance/export?month={data.selectedMonth}&year={data.selectedYear}&search={data.searchQuery}&section={data.sectionFilter}"
 			data-sveltekit-reload
 			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
 		>
@@ -123,6 +133,18 @@
 				value={data.selectedYear}
 				class="w-24 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
 			/>
+		</div>
+
+		<div class="z-50 min-w-[200px] flex-1 sm:flex-none">
+			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('Section')}</div>
+			<Select
+				items={sectionOptions}
+				bind:value={selectedSection}
+				placeholder={$t('-- ทุกแผนก --')}
+				container={browser ? document.body : null}
+				class="svelte-select-custom"
+			/>
+			<input type="hidden" name="section" value={selectedSection?.value || 'All'} />
 		</div>
 
 		<div class="z-50 min-w-[250px] flex-1 sm:flex-none">
