@@ -336,7 +336,7 @@ export const actions: Actions = {
 			start_date: nullIfEmpty(formData.get('start_date')),
 			end_date: nullIfEmpty(formData.get('end_date')),
 			contract_value: nullIfEmpty(formData.get('contract_value')),
-			owner_user_id: nullIfEmpty(formData.get('owner_user_id')),
+			owner_user_id: nullIfEmpty(formData.get('owner_user_id')) || userId,
 			renewal_notice_days: nullIfEmpty(formData.get('renewal_notice_days')) ?? 30, // Default 30
 			renewal_notify_emails: formData
 				.getAll('renewal_notify_emails')
