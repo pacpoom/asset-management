@@ -325,6 +325,14 @@
 					</div>
 				{/if}
 				<div class="text-sm">
+					<span class="font-semibold text-gray-600">{$t('Contract No')}:</span>
+					<span class="font-medium text-gray-800">{document.contract_number || '-'}</span>
+				</div>
+				<div class="text-sm">
+					<span class="font-semibold text-gray-600">{$t('Project Name')}:</span>
+					<span class="font-medium text-gray-800">{document.project_name || '-'}</span>
+				</div>
+				<div class="text-sm">
 					<span class="font-semibold text-gray-600">{$t('Reference')}:</span>
 					<span class="font-medium text-gray-800">{document.reference_doc || '-'}</span>
 				</div>

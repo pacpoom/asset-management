@@ -25,11 +25,15 @@ export const load: PageServerLoad = async ({ params }) => {
                    jo.weight as jo_weight,
                    jo.kgs_volume as jo_kgs_volume,
                    jo.ccl as jo_ccl,
-                   jo.invoice_no as jo_invoice_note
+                   jo.invoice_no as jo_invoice_note,
+                   COALESCE(ct.contract_number, vct.contract_number) as contract_number,
+                   COALESCE(ct.title, vct.title) as project_name
             FROM sales_documents sd
             LEFT JOIN customers c ON sd.customer_id = c.id
             LEFT JOIN users u ON sd.created_by_user_id = u.id
             LEFT JOIN job_orders jo ON sd.job_order_id = jo.id
+            LEFT JOIN contracts ct ON jo.contract_id = ct.id
+            LEFT JOIN vendor_contracts vct ON jo.vendor_contract_id = vct.id
             WHERE sd.id = ?
         `,
 			[id]

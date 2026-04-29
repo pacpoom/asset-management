@@ -1,4 +1,5 @@
 import { type Actions, fail } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
 import db from '$lib/server/database';
 import { writeFile, mkdir, unlink, stat, readFile } from 'fs/promises';
 import path from 'path';
@@ -98,6 +99,38 @@ async function ensureUploadDir() {
 	}
 }
 
+// Helper: เลือก user id ที่มีอยู่จริงตาม FK ของ contract_documents.uploaded_by_user_id
+async function resolveExistingUserId(...candidateIds: Array<string | number | null | undefined>) {
+	const normalized = candidateIds
+		.map((v) => (v === '' || v === null || v === undefined ? null : Number(v)))
+		.filter((v): v is number => v !== null && Number.isInteger(v) && v > 0);
+
+	if (normalized.length === 0) return null;
+
+	const uniqueIds = [...new Set(normalized)];
+	const placeholders = uniqueIds.map(() => '?').join(', ');
+	let rows: RowDataPacket[] = [];
+
+	// โปรดักชันจริงของระบบนี้ FK ชี้ไปที่ users_new
+	try {
+		const [usersNewRows] = await db.query<RowDataPacket[]>(
+			`SELECT id FROM users_new WHERE id IN (${placeholders}) ORDER BY FIELD(id, ${placeholders}) LIMIT 1`,
+			[...uniqueIds, ...uniqueIds]
+		);
+		rows = usersNewRows;
+	} catch (e: any) {
+		// เผื่อบาง environment ยังใช้ users ตารางเดิม
+		if (e?.code !== 'ER_NO_SUCH_TABLE') throw e;
+		const [usersRows] = await db.query<RowDataPacket[]>(
+			`SELECT id FROM users WHERE id IN (${placeholders}) ORDER BY FIELD(id, ${placeholders}) LIMIT 1`,
+			[...uniqueIds, ...uniqueIds]
+		);
+		rows = usersRows;
+	}
+
+	return rows[0]?.id ? Number(rows[0].id) : null;
+}
+
 // Helper: แปลงค่าว่างเป็น null
 function nullIfEmpty(value: string | number | null | undefined) {
 	if (value === '' || value === undefined) {
@@ -107,8 +140,7 @@ function nullIfEmpty(value: string | number | null | undefined) {
 	return value;
 }
 
-/** @type {import('./$types').PageServerLoad} */
-export async function load({ locals }) {
+export const load: PageServerLoad = async ({ locals }) => {
 	try {
 		// ดึงข้อมูลหลักจากฐานข้อมูล โดยใช้ Promise.all เพื่อความรวดเร็ว
 		const [contractsResult, customersResult, usersResult, contractTypesResult] = await Promise.all([
@@ -159,13 +191,13 @@ export async function load({ locals }) {
 			error: 'ไม่สามารถโหลดข้อมูลสัญญาได้'
 		});
 	}
-}
+};
 
 export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const files = formData.getAll('contractFiles') as File[];
-		const userId = locals.user?.id || 1;
+		const userId = Number(locals.user?.id ?? 0) || null;
 
 		const validFiles = files.filter((f) => f && f.size > 0);
 		if (validFiles.length === 0) {
@@ -236,6 +268,8 @@ export const actions: Actions = {
 			}
 
 			await ensureUploadDir();
+			const uploadUserId = await resolveExistingUserId(data.owner_user_id, userId);
+
 			const docSql = `
                 INSERT INTO contract_documents
                 (contract_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id, version)
@@ -256,7 +290,7 @@ export const actions: Actions = {
 					uniqueFilename,
 					fileMimeType,
 					file.size,
-					userId
+					uploadUserId
 				]);
 			}
 
@@ -316,7 +350,7 @@ export const actions: Actions = {
 		const id = formData.get('id') as string;
 		const files = formData.getAll('contractFiles') as File[];
 		// @ts-ignore
-		const userId = locals.user?.id || 1;
+		const userId = Number(locals.user?.id ?? 0) || null;
 
 		if (!id) {
 			return fail(400, { error: 'ไม่พบ ID สัญญา', source: 'cud' });
@@ -394,6 +428,17 @@ export const actions: Actions = {
 				});
 
 				if (newFiles.length > 0) {
+					const [contractRows] = await db.query<RowDataPacket[]>(
+						'SELECT owner_user_id FROM contracts WHERE id = ? LIMIT 1',
+						[id]
+					);
+					const contractOwnerUserId = contractRows[0]?.owner_user_id ?? null;
+					const uploadUserId = await resolveExistingUserId(
+						userId,
+						data.owner_user_id,
+						contractOwnerUserId
+					);
+
 					// @ts-ignore
 					const [versionRows] = await db.query(
 						'SELECT MAX(version) as max_version FROM contract_documents WHERE contract_id = ?',
@@ -427,7 +472,7 @@ export const actions: Actions = {
 							uniqueFilename,
 							fileMimeType,
 							file.size,
-							userId,
+							uploadUserId,
 							currentVersion
 						]);
 					}
