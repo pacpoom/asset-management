@@ -405,7 +405,7 @@
 
 					<!-- ส่วน Checkbox สำหรับเลือก Cost Center หลายอัน -->
 					<div class="col-span-1 sm:col-span-2">
-						<label class="mb-1 block text-sm font-medium text-gray-700">{$t('Linked Cost Centers')}</label>
+						<div class="mb-1 block text-sm font-medium text-gray-700">{$t('Linked Cost Centers')}</div>
 						<p class="mb-2 text-xs text-gray-500">{$t('Select one or more cost centers for this account.')}</p>
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border border-gray-300 p-3 max-h-48 overflow-y-auto bg-gray-50">
 							{#if data.availableCostCenters && data.availableCostCenters.length > 0}
