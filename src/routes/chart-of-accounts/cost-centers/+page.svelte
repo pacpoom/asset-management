@@ -5,13 +5,13 @@
 	import { invalidateAll, goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 
-	type ChartOfAccount = PageData['accounts'][0];
+	type CostCenter = PageData['costCenters'][0];
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let modalMode = $state<'add' | 'edit' | null>(null);
-	let selectedAccount = $state<Partial<ChartOfAccount> | null>(null);
-	let accountToDelete = $state<ChartOfAccount | null>(null);
+	let selectedCostCenter = $state<Partial<CostCenter> | null>(null);
+	let itemToDelete = $state<CostCenter | null>(null);
 	let isSaving = $state(false);
 	let globalMessage = $state<{ success: boolean; text: string; type: 'success' | 'error' } | null>(
 		null
@@ -19,31 +19,29 @@
 	let messageTimeout: NodeJS.Timeout;
 
 	let currentSearch = $state(data.filters.search);
-	let currentType = $state(data.filters.type);
+	let currentDepartment = $state(data.filters.department);
 	let currentActive = $state(data.filters.activeStatus);
 
-	function openModal(mode: 'add' | 'edit', account: ChartOfAccount | null = null) {
+	function openModal(mode: 'add' | 'edit', item: CostCenter | null = null) {
 		modalMode = mode;
 		globalMessage = null;
-		if (mode === 'edit' && account) {
-			selectedAccount = { ...account };
+		if (mode === 'edit' && item) {
+			selectedCostCenter = { ...item };
 		} else {
-			selectedAccount = {
-				account_code: '',
-				sub_account_code: '',
-				account_name: '',
-				account_name_th: '',
-				account_type: data.accountTypes?.[0] || '',
+			selectedCostCenter = {
+				cost_center_code: '',
+				cost_center_name: '',
+				cost_center_name_th: '',
+				department: '',
 				description: '',
-				is_active: true,
-				linked_cost_centers: [] // เพิ่มฟิลด์ Array เปล่าสำหรับรับค่าเริ่มต้น
-			} as Partial<ChartOfAccount>;
+				is_active: true
+			} as Partial<CostCenter>;
 		}
 	}
 
 	function closeModal() {
 		modalMode = null;
-		selectedAccount = null;
+		selectedCostCenter = null;
 	}
 
 	function showGlobalMessage(
@@ -65,10 +63,10 @@
 			url.searchParams.delete('search');
 		}
 
-		if (currentType) {
-			url.searchParams.set('type', currentType);
+		if (currentDepartment) {
+			url.searchParams.set('department', currentDepartment);
 		} else {
-			url.searchParams.delete('type');
+			url.searchParams.delete('department');
 		}
 
 		if (currentActive !== 'all') {
@@ -81,7 +79,7 @@
 	}
 
 	$effect.pre(() => {
-		if (form?.action === 'saveAccount') {
+		if (form?.action === 'saveCostCenter') {
 			if (form.success) {
 				closeModal();
 				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
@@ -92,21 +90,21 @@
 			form.action = undefined;
 		}
 
-		if (form?.action === 'deleteAccount') {
+		if (form?.action === 'deleteCostCenter') {
 			if (form.success) {
 				showGlobalMessage({ success: true, text: form.message as string, type: 'success' });
 				invalidateAll();
 			} else if (form.message) {
 				showGlobalMessage({ success: false, text: form.message as string, type: 'error' });
 			}
-			accountToDelete = null;
+			itemToDelete = null;
 			form.action = undefined;
 		}
 	});
 </script>
 
 <svelte:head>
-	<title>{$t('Chart Of Account')}</title>
+	<title>{$t('Cost Center')}</title>
 </svelte:head>
 
 {#if globalMessage}
@@ -123,8 +121,8 @@
 
 <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 	<div>
-		<h1 class="text-2xl font-bold text-gray-800">{$t('Chart Of Account')}</h1>
-		<p class="mt-1 text-sm text-gray-500">{$t('Chart of Accounts Desc')}</p>
+		<h1 class="text-2xl font-bold text-gray-800">{$t('Cost Center')}</h1>
+		<p class="mt-1 text-sm text-gray-500">{$t('Cost Center Desc') || 'Manage and organize cost centers.'}</p>
 	</div>
 	<button
 		onclick={() => openModal('add')}
@@ -139,7 +137,7 @@
 			class="h-4 w-4"
 			><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
 		>
-		{$t('Add New Account')}
+		{$t('Add New Cost Center')}
 	</button>
 </div>
 
@@ -153,7 +151,7 @@
 			id="search"
 			bind:value={currentSearch}
 			oninput={applyFilters}
-			placeholder={$t('Search Account Placeholder')}
+			placeholder={$t('Search Cost Center Placeholder')}
 			class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 text-sm focus:border-blue-500 focus:ring-blue-500"
 		/>
 		<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -171,16 +169,16 @@
 		</div>
 	</div>
 	<div>
-		<label for="filterType" class="sr-only">Account Type</label>
+		<label for="filterDepartment" class="sr-only">Department</label>
 		<select
-			id="filterType"
-			bind:value={currentType}
+			id="filterDepartment"
+			bind:value={currentDepartment}
 			onchange={applyFilters}
 			class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
 		>
-			<option value="">{$t('All Account Types')}</option>
-			{#each data.accountTypes as type}
-				<option value={type}>{type}</option>
+			<option value="">{$t('All Departments')}</option>
+			{#each data.departments as dept}
+				<option value={dept}>{dept}</option>
 			{/each}
 		</select>
 	</div>
@@ -205,59 +203,36 @@
 			<tr>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Code')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Name')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Type')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Cost Centers')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Name (TH)')}</th>
+				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Department')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Description')}</th>
 				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Active')}</th>
 				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
-			{#if data.accounts.length === 0}
+			{#if data.costCenters.length === 0}
 				<tr>
 					<td colspan="7" class="py-12 text-center text-gray-500">
-						{#if data.filters.search || data.filters.type || data.filters.activeStatus !== 'all'}
-							{$t('No accounts matching criteria')}
+						{#if data.filters.search || data.filters.department || data.filters.activeStatus !== 'all'}
+							{$t('No cost centers matching criteria')}
 						{:else}
-							{$t('No account data found')}
+							{$t('No cost center data found')}
 						{/if}
 					</td>
 				</tr>
 			{:else}
-				{#each data.accounts as account (account.id)}
+				{#each data.costCenters as item (item.id)}
 					<tr class="hover:bg-gray-50">
-						<td class="px-4 py-3">
-							<div class="font-mono text-xs text-gray-700">{account.account_code}</div>
-							{#if account.sub_account_code}
-								<div class="font-mono text-[10px] text-gray-500">Sub: {account.sub_account_code}</div>
-							{/if}
-						</td>
-						<td class="px-4 py-3">
-							<div class="font-medium text-gray-900">{account.account_name}</div>
-							{#if account.account_name_th}
-								<div class="text-xs text-gray-500">{account.account_name_th}</div>
-							{/if}
-						</td>
-						<td class="px-4 py-3 text-gray-600">{account.account_type}</td>
-						<td class="px-4 py-3">
-							<!-- แสดงรายการ Cost Center ที่ผูกไว้เป็นป้าย Badge สีฟ้า -->
-							{#if account.linked_cost_centers && account.linked_cost_centers.length > 0}
-								<div class="flex flex-wrap gap-1 max-w-[200px]">
-									{#each account.linked_cost_centers as cc}
-										<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10 whitespace-nowrap">
-											{cc}
-										</span>
-									{/each}
-								</div>
-							{:else}
-								<span class="text-gray-400">-</span>
-							{/if}
-						</td>
-						<td class="max-w-xs truncate px-4 py-3 text-gray-600" title={account.description ?? ''}
-							>{account.description ?? '-'}</td
+						<td class="px-4 py-3 font-mono text-xs text-gray-700">{item.cost_center_code}</td>
+						<td class="px-4 py-3 font-medium text-gray-900">{item.cost_center_name}</td>
+						<td class="px-4 py-3 text-gray-600">{item.cost_center_name_th || '-'}</td>
+						<td class="px-4 py-3 text-gray-600">{item.department || '-'}</td>
+						<td class="max-w-xs truncate px-4 py-3 text-gray-600" title={item.description ?? ''}
+							>{item.description ?? '-'}</td
 						>
 						<td class="px-4 py-3 text-center">
-							{#if account.is_active}
+							{#if item.is_active}
 								<span
 									class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
 									>✓</span
@@ -272,10 +247,10 @@
 						<td class="px-4 py-3 whitespace-nowrap">
 							<div class="flex items-center gap-2">
 								<button
-									onclick={() => openModal('edit', account)}
+									onclick={() => openModal('edit', item)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
-									aria-label={$t('Edit Account')}
-									title={$t('Edit Account')}
+									aria-label={$t('Edit Cost Center')}
+									title={$t('Edit Cost Center')}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -290,7 +265,7 @@
 									>
 								</button>
 								<button
-									onclick={() => (accountToDelete = account)}
+									onclick={() => (itemToDelete = item)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
 									aria-label={$t('Delete')}
 									title={$t('Delete')}
@@ -316,7 +291,7 @@
 	</table>
 </div>
 
-{#if modalMode && selectedAccount}
+{#if modalMode && selectedCostCenter}
 	<div
 		transition:slide
 		class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16"
@@ -325,13 +300,13 @@
 		<div class="relative w-full max-w-2xl transform rounded-xl bg-white shadow-2xl">
 			<div class="border-b px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? $t('Add New Account') : $t('Edit Account')}
+					{modalMode === 'add' ? $t('Add New Cost Center') : $t('Edit Cost Center')}
 				</h2>
 			</div>
 
 			<form
 				method="POST"
-				action="?/saveAccount"
+				action="?/saveCostCenter"
 				use:enhance={() => {
 					isSaving = true;
 					return async ({ update }) => {
@@ -344,106 +319,70 @@
 					{#if modalMode === 'edit'}<input
 							type="hidden"
 							name="id"
-							value={selectedAccount.id}
+							value={selectedCostCenter.id}
 						/>{/if}
 
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div>
-							<label for="account_code" class="mb-1 block text-sm font-medium text-gray-700"
-								>{$t('Account Code')} *</label
+							<label for="cost_center_code" class="mb-1 block text-sm font-medium text-gray-700"
+								>{$t('Cost Center Code')} *</label
 							>
 							<input
 								type="text"
-								name="account_code"
-								id="account_code"
+								name="cost_center_code"
+								id="cost_center_code"
 								required
-								bind:value={selectedAccount.account_code}
+								bind:value={selectedCostCenter.cost_center_code}
 								class="w-full rounded-md border-gray-300"
 							/>
 						</div>
 						<div>
-							<label for="sub_account_code" class="mb-1 block text-sm font-medium text-gray-700"
-								>{$t('Sub Account Code')}</label
+							<label for="department" class="mb-1 block text-sm font-medium text-gray-700"
+								>{$t('Department')}</label
 							>
-							<input
-								type="text"
-								name="sub_account_code"
-								id="sub_account_code"
-								bind:value={selectedAccount.sub_account_code}
-								class="w-full rounded-md border-gray-300"
+							<!-- Optional: Use a select dropdown or standard input. Using datalist for flexibility -->
+							<input 
+								type="text" 
+								name="department" 
+								id="department" 
+								list="dept_list"
+								bind:value={selectedCostCenter.department}
+								class="w-full rounded-md border-gray-300" 
 							/>
+							<datalist id="dept_list">
+								{#each data.departments as dept}
+									<option value={dept}></option>
+								{/each}
+							</datalist>
 						</div>
 					</div>
 					
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div>
-							<label for="account_name" class="mb-1 block text-sm font-medium text-gray-700"
-								>{$t('Account Name')} *</label
+							<label for="cost_center_name" class="mb-1 block text-sm font-medium text-gray-700"
+								>{$t('Cost Center Name')} *</label
 							>
 							<input
 								type="text"
-								name="account_name"
-								id="account_name"
+								name="cost_center_name"
+								id="cost_center_name"
 								required
-								bind:value={selectedAccount.account_name}
+								bind:value={selectedCostCenter.cost_center_name}
 								class="w-full rounded-md border-gray-300"
 							/>
 						</div>
 						<div>
-							<label for="account_name_th" class="mb-1 block text-sm font-medium text-gray-700"
-								>{$t('Account Name (TH)')}</label
+							<label for="cost_center_name_th" class="mb-1 block text-sm font-medium text-gray-700"
+								>{$t('Cost Center Name (TH)')}</label
 							>
 							<input
 								type="text"
-								name="account_name_th"
-								id="account_name_th"
-								bind:value={selectedAccount.account_name_th}
+								name="cost_center_name_th"
+								id="cost_center_name_th"
+								bind:value={selectedCostCenter.cost_center_name_th}
 								class="w-full rounded-md border-gray-300"
 							/>
 						</div>
-					</div>
-
-					<!-- ส่วน Checkbox สำหรับเลือก Cost Center หลายอัน -->
-					<div class="col-span-1 sm:col-span-2">
-						<label class="mb-1 block text-sm font-medium text-gray-700">{$t('Linked Cost Centers')}</label>
-						<p class="mb-2 text-xs text-gray-500">{$t('Select one or more cost centers for this account.')}</p>
-						<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border border-gray-300 p-3 max-h-48 overflow-y-auto bg-gray-50">
-							{#if data.availableCostCenters && data.availableCostCenters.length > 0}
-								{#each data.availableCostCenters as cc}
-									<label class="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
-										<input 
-											type="checkbox" 
-											name="cost_centers" 
-											value={cc.cost_center_code}
-											checked={selectedAccount.linked_cost_centers?.includes(cc.cost_center_code)}
-											class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
-										/>
-										<span class="font-mono text-xs">{cc.cost_center_code}</span>
-										<span class="truncate" title={cc.cost_center_name}>- {cc.cost_center_name}</span>
-									</label>
-								{/each}
-							{:else}
-								<p class="text-sm text-gray-500 col-span-2">{$t('No active cost centers available.')}</p>
-							{/if}
-						</div>
-					</div>
-
-					<div>
-						<label for="account_type" class="mb-1 block text-sm font-medium text-gray-700"
-							>{$t('Account Type')} *</label
-						>
-						<select
-							name="account_type"
-							id="account_type"
-							bind:value={selectedAccount.account_type}
-							required
-							class="w-full rounded-md border-gray-300"
-						>
-							<option value="" disabled>{$t('Select Account Type')}</option>
-							{#each data.accountTypes as type}
-								<option value={type}>{type}</option>
-							{/each}
-						</select>
 					</div>
 
 					<div>
@@ -454,7 +393,7 @@
 							name="description"
 							id="description"
 							rows="3"
-							bind:value={selectedAccount.description}
+							bind:value={selectedCostCenter.description}
 							class="w-full rounded-md border-gray-300"
 						></textarea>
 					</div>
@@ -464,13 +403,13 @@
 							type="checkbox"
 							name="is_active"
 							id="is_active"
-							bind:checked={selectedAccount.is_active}
+							bind:checked={selectedCostCenter.is_active}
 							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
 						<label for="is_active" class="ml-2 block text-sm text-gray-900">{$t('Active')}</label>
 					</div>
 
-					{#if form?.message && !form.success && form.action === 'saveAccount'}
+					{#if form?.message && !form.success && form.action === 'saveCostCenter'}
 						<div class="rounded-md bg-red-50 p-3 text-sm text-red-600">
 							<p><strong>{$t('Error')}</strong> {form.message}</p>
 						</div>
@@ -491,7 +430,7 @@
 						{#if isSaving}
 							{$t('Saving...')}
 						{:else}
-							{$t('Save Account')}
+							{$t('Save Cost Center')}
 						{/if}
 					</button>
 				</div>
@@ -500,7 +439,7 @@
 	</div>
 {/if}
 
-{#if accountToDelete}
+{#if itemToDelete}
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
 		role="alertdialog"
@@ -508,21 +447,20 @@
 		<div class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
 			<h3 class="text-lg font-bold">{$t('Confirm Delete')}</h3>
 			<p class="mt-2 text-sm text-gray-600">
-				{$t('Are you sure you want to delete the account')} <br />
+				{$t('Are you sure you want to delete the cost center')} <br />
 				<strong class="font-mono text-xs"
-					>{accountToDelete.account_code} - {accountToDelete.account_name}</strong
+					>{itemToDelete.cost_center_code} - {itemToDelete.cost_center_name}</strong
 				>?
 				<br />{$t('This action cannot be undone.')}
 			</p>
-			{#if form?.message && !form.success && form.action === 'deleteAccount'}
+			{#if form?.message && !form.success && form.action === 'deleteCostCenter'}
 				<p class="mt-2 text-sm text-red-600"><strong>{$t('Error')}</strong> {form.message}</p>
 			{/if}
-			<form method="POST" action="?/deleteAccount" use:enhance class="mt-6 flex justify-end gap-3">
-				<input type="hidden" name="id" value={accountToDelete.id} />
-				<input type="hidden" name="account_code" value={accountToDelete.account_code} />
+			<form method="POST" action="?/deleteCostCenter" use:enhance class="mt-6 flex justify-end gap-3">
+				<input type="hidden" name="id" value={itemToDelete.id} />
 				<button
 					type="button"
-					onclick={() => (accountToDelete = null)}
+					onclick={() => (itemToDelete = null)}
 					class="rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-50"
 					>{$t('Cancel')}</button
 				>
