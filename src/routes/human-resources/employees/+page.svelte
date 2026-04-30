@@ -99,13 +99,14 @@
 
 	function openModal(mode: 'view' | 'edit' | 'add', item: any = null) {
 		modalMode = mode;
-		
+
 		if (mode === 'add') {
 			selectedItem = {
 				emp_id: '',
+				raw_id: '',
 				emp_name: '',
 				citizen_id: '',
-				employee_type: 'Sub Contract', // ค่าเริ่มต้นสำหรับพนักงานใหม่
+				employee_type: 'Sub Contract',
 				subcontractor: '',
 				start_date: '',
 				phone_number: '',
@@ -425,8 +426,12 @@
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900">{emp.emp_id}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.citizen_id || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
-						<td class="px-4 py-3 font-medium whitespace-nowrap text-purple-600">{emp.employee_type || 'Sub Contract'}</td>
-						<td class="px-4 py-3 font-bold whitespace-nowrap text-blue-600">{emp.subcontractor || '-'}</td>
+						<td class="px-4 py-3 font-medium whitespace-nowrap text-purple-600"
+							>{emp.employee_type || 'Sub Contract'}</td
+						>
+						<td class="px-4 py-3 font-bold whitespace-nowrap text-blue-600"
+							>{emp.subcontractor || '-'}</td
+						>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.start_date}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.phone_number || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.years_of_experience || '-'}</td>
@@ -551,7 +556,11 @@
 		>
 			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'view' ? $t('Employee Details (View)') : modalMode === 'add' ? $t('Add New Employee') : $t('Edit employee information')}
+					{modalMode === 'view'
+						? $t('Employee Details (View)')
+						: modalMode === 'add'
+							? $t('Add New Employee')
+							: $t('Edit employee information')}
 				</h2>
 				<button type="button" onclick={closeModal} class="text-gray-400 hover:text-gray-600">
 					<span class="material-symbols-outlined">close</span>
@@ -594,7 +603,9 @@
 							<div class="text-center md:text-left">
 								<h3 class="text-xl font-bold text-gray-900">{selectedItem.emp_name}</h3>
 								<p class="text-sm font-medium text-blue-600">Emp_ID : {selectedItem.emp_id}</p>
-								<span class="mt-2 inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+								<span
+									class="mt-2 inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700"
+								>
 									{selectedItem.employee_type || 'Sub Contract'}
 								</span>
 							</div>
@@ -627,10 +638,11 @@
 
 					{#if modalMode === 'edit' || modalMode === 'add'}
 						<div class="mb-4">
-							<label class="mb-1 block text-sm font-semibold text-gray-700">
+							<!-- 🌟 1. เติม for="profile_image" เข้าไปที่ label -->
+							<label for="profile_image" class="mb-1 block text-sm font-semibold text-gray-700">
 								{$t('รูปถ่ายพนักงาน')}
 							</label>
-							<div class="flex items-center gap-4 mt-2">
+							<div class="mt-2 flex items-center gap-4">
 								{#if selectedItem.profile_image_path && modalMode === 'edit'}
 									<img
 										src={selectedItem.profile_image_path}
@@ -638,7 +650,9 @@
 										alt="preview"
 									/>
 								{/if}
+
 								<input
+									id="profile_image"
 									type="file"
 									name="profile_image"
 									accept="image/*"
@@ -652,7 +666,7 @@
 							</div>
 						</div>
 					{/if}
-					
+
 					<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 						<div>
 							<label for="emp_id" class="mb-1 block text-sm font-semibold text-gray-700"
@@ -665,9 +679,31 @@
 								bind:value={selectedItem.emp_id}
 								required
 								readonly={modalMode !== 'add'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode !== 'add' ? 'bg-gray-100 text-gray-500' : ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode !==
+								'add'
+									? 'bg-gray-100 text-gray-500'
+									: ''}"
 							/>
 						</div>
+
+						<div>
+							<label for="raw_id" class="mb-1 block text-sm font-semibold text-gray-700">
+								{$t('รหัสพนักงานในเครื่องสแกน')}
+							</label>
+							<input
+								id="raw_id"
+								type="text"
+								name="raw_id"
+								bind:value={selectedItem.raw_id}
+								readonly={modalMode === 'view'}
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
+								'view'
+									? 'bg-gray-50'
+									: ''}"
+								placeholder=""
+							/>
+						</div>
+
 						<div>
 							<label for="emp_name" class="mb-1 block text-sm font-semibold text-gray-700"
 								>{$t('Name')} <span class="text-red-500">*</span></label
@@ -679,7 +715,10 @@
 								bind:value={selectedItem.emp_name}
 								required
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
+								'view'
+									? 'bg-gray-50'
+									: ''}"
 							/>
 						</div>
 						<div>
@@ -692,7 +731,10 @@
 								name="citizen_id"
 								bind:value={selectedItem.citizen_id}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
+								'view'
+									? 'bg-gray-50'
+									: ''}"
 							/>
 						</div>
 
@@ -732,7 +774,10 @@
 								name="subcontractor"
 								bind:value={selectedItem.subcontractor}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
+								'view'
+									? 'bg-gray-50'
+									: ''}"
 							/>
 						</div>
 						<div>
@@ -745,7 +790,10 @@
 								name="start_date"
 								bind:value={selectedItem.start_date}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
+								'view'
+									? 'bg-gray-50'
+									: ''}"
 							/>
 						</div>
 						<div>
@@ -758,7 +806,10 @@
 								name="phone_number"
 								bind:value={selectedItem.phone_number}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
+								'view'
+									? 'bg-gray-50'
+									: ''}"
 							/>
 						</div>
 
@@ -940,7 +991,11 @@
 						disabled={isSaving}
 						class="rounded-md bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-70"
 					>
-						{isSaving ? $t('Saving...') : modalMode === 'add' ? $t('Add Employee') : $t('Save Changes')}
+						{isSaving
+							? $t('Saving...')
+							: modalMode === 'add'
+								? $t('Add Employee')
+								: $t('Save Changes')}
 					</button>
 				{/if}
 			</div>

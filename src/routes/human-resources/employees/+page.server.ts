@@ -69,7 +69,7 @@ export const load: PageServerLoad = async ({ url }) => {
 					// Calculate Years of Experience
 					const start = new Date(rawDate);
 					const now = new Date();
-					
+
 					if (now >= start) {
 						const diffTime = now.getTime() - start.getTime();
 						tenure_days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -92,7 +92,7 @@ export const load: PageServerLoad = async ({ url }) => {
 						if (y > 0) parts.push(`${y} ปี`);
 						if (m > 0) parts.push(`${m} เดือน`);
 						if (d_days > 0) parts.push(`${d_days} วัน`);
-						
+
 						years_of_experience = parts.length > 0 ? parts.join(' ') : '0 วัน';
 					} else {
 						years_of_experience = '0 วัน';
@@ -201,7 +201,17 @@ export const actions: Actions = {
 						ON DUPLICATE KEY UPDATE 
 						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), division = VALUES(division),
 						section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
-						[emp_id, citizen_id, emp_name, employee_type, division, section, emp_group, positionId, project]
+						[
+							emp_id,
+							citizen_id,
+							emp_name,
+							employee_type,
+							division,
+							section,
+							emp_group,
+							positionId,
+							project
+						]
 					);
 					importedCount++;
 				}
@@ -215,8 +225,9 @@ export const actions: Actions = {
 
 	save: async ({ request }) => {
 		const data = await request.formData();
-		const mode = data.get('mode')?.toString() || 'edit'; // รับค่าโหมด
+		const mode = data.get('mode')?.toString() || 'edit';
 		const emp_id = data.get('emp_id')?.toString();
+		const raw_id = data.get('raw_id')?.toString() || null;
 		const citizen_id = data.get('citizen_id')?.toString() || null;
 
 		let emp_name = data.get('emp_name')?.toString();
@@ -274,17 +285,21 @@ export const actions: Actions = {
 
 			if (mode === 'add') {
 				// เช็คว่ามี emp_id ซ้ำหรือไม่
-				const [existing]: any = await pool.execute('SELECT emp_id FROM employees WHERE emp_id = ?', [emp_id]);
+				const [existing]: any = await pool.execute(
+					'SELECT emp_id FROM employees WHERE emp_id = ?',
+					[emp_id]
+				);
 				if (existing.length > 0) {
 					return fail(400, { success: false, message: 'รหัสพนักงานนี้มีอยู่ในระบบแล้ว' });
 				}
 
 				await pool.execute(
 					`INSERT INTO employees 
-					(emp_id, citizen_id, emp_name, employee_type, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
+					(emp_id, raw_id, citizen_id, emp_name, employee_type, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[
 						emp_id,
+						raw_id,
 						citizen_id,
 						emp_name,
 						employee_type,
@@ -301,14 +316,14 @@ export const actions: Actions = {
 					]
 				);
 				return { success: true, message: 'เพิ่มข้อมูลพนักงานสำเร็จ!' };
-
 			} else {
 				await pool.execute(
 					`UPDATE employees SET 
-					citizen_id = ?, emp_name = ?, employee_type = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+					raw_id = ?, citizen_id = ?, emp_name = ?, employee_type = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
 					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
 					WHERE emp_id = ?`,
 					[
+						raw_id,
 						citizen_id,
 						emp_name,
 						employee_type,
