@@ -22,9 +22,9 @@
 		[...employees].sort((a, b) => {
 			let valA = a[sortColumn] || '';
 			let valB = b[sortColumn] || '';
-			if (sortColumn === 'tenure') {
-				valA = Number(valA) || 0;
-				valB = Number(valB) || 0;
+			if (sortColumn === 'years_of_experience') {
+				valA = Number(a.tenure_days) || 0;
+				valB = Number(b.tenure_days) || 0;
 			}
 			if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
 			if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
@@ -65,9 +65,6 @@
 		selectedIds = [];
 	});
 
-	// let uniqueDivisions = $derived(
-	// 	[...new Set(employees.map((e: any) => e.dis).filter((v: any) => v && v !== '-'))].sort()
-	// );
 	let uniqueSections = $derived(
 		[...new Set(employees.map((e: any) => e.section).filter((v: any) => v && v !== '-'))].sort()
 	);
@@ -83,7 +80,7 @@
 		[...new Set(employees.map((e: any) => e.project).filter((v: any) => v && v !== '-'))].sort()
 	);
 
-	let modalMode = $state<'view' | 'edit' | null>(null);
+	let modalMode = $state<'view' | 'edit' | 'add' | null>(null);
 	let selectedItem = $state<any>(null);
 	let itemToDelete = $state<any>(null);
 	let showBulkDeleteModal = $state(false);
@@ -100,19 +97,38 @@
 		return dateStr;
 	}
 
-	function openModal(mode: 'view' | 'edit', item: any) {
+	function openModal(mode: 'view' | 'edit' | 'add', item: any = null) {
 		modalMode = mode;
-		selectedItem = { ...item };
-		selectedItem.start_date = parseDateToInput(item.start_date);
-
-		if (mode === 'view') {
-			selectedItem.stats = {
-				late: item.late_count || 0,
-				absent: item.absent_count || 0,
-				leave: item.leave_count || 0,
-				ot: item.ot_hours || 0,
-				balance: item.leave_balance || 15
+		
+		if (mode === 'add') {
+			selectedItem = {
+				emp_id: '',
+				emp_name: '',
+				citizen_id: '',
+				employee_type: 'Sub Contract', // ค่าเริ่มต้นสำหรับพนักงานใหม่
+				subcontractor: '',
+				start_date: '',
+				phone_number: '',
+				dis: '-',
+				section: '-',
+				emp_group: '-',
+				position_name: '-',
+				project: '-',
+				status: 'Active'
 			};
+		} else {
+			selectedItem = { ...item };
+			selectedItem.start_date = parseDateToInput(item.start_date);
+
+			if (mode === 'view') {
+				selectedItem.stats = {
+					late: item.late_count || 0,
+					absent: item.absent_count || 0,
+					leave: item.leave_count || 0,
+					ot: item.ot_hours || 0,
+					balance: item.leave_balance || 15
+				};
+			}
 		}
 	}
 
@@ -129,19 +145,6 @@
 			selectedIds = [];
 		}
 	});
-
-	const SortHeader = ({ col, label }: { col: string; label: string }) => {
-		return `
-			<th class="px-4 py-3 cursor-pointer select-none hover:bg-gray-100 transition-colors group whitespace-nowrap" onclick="toggleSort('${col}')">
-				<div class="flex items-center gap-1 text-gray-700">
-					${label}
-					<span class="material-symbols-outlined text-[14px] ${sortColumn === col ? 'text-blue-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}">
-						${sortColumn === col && sortOrder === 'desc' ? 'arrow_downward' : 'arrow_upward'}
-					</span>
-				</div>
-			</th>
-		`;
-	};
 </script>
 
 <svelte:head>
@@ -167,6 +170,14 @@
 				{$t(`Delete Selected (${selectedIds.length})`)}
 			</button>
 		{/if}
+
+		<button
+			onclick={() => openModal('add')}
+			class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-500"
+		>
+			<span class="material-symbols-outlined text-[18px]">add</span>
+			{$t('Add')}
+		</button>
 
 		<a
 			href="/human-resources/employees/export"
@@ -268,22 +279,6 @@
 					</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
-						onclick={() => toggleSort('subcontractor')}
-					>
-						<div class="flex items-center gap-1 text-gray-700">
-							{$t('Subcontract')}
-							<span
-								class="material-symbols-outlined text-[14px] {sortColumn === 'subcontractor'
-									? 'text-blue-600'
-									: 'text-gray-300 opacity-0 group-hover:opacity-100'}"
-								>{sortOrder === 'desc' && sortColumn === 'subcontractor'
-									? 'arrow_downward'
-									: 'arrow_upward'}</span
-							>
-						</div>
-					</th>
-					<th
-						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
 						onclick={() => toggleSort('emp_id')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
@@ -330,19 +325,51 @@
 							>
 						</div>
 					</th>
+					<th
+						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
+						onclick={() => toggleSort('employee_type')}
+					>
+						<div class="flex items-center gap-1 text-gray-700">
+							{$t('Type')}
+							<span
+								class="material-symbols-outlined text-[14px] {sortColumn === 'employee_type'
+									? 'text-blue-600'
+									: 'text-gray-300 opacity-0 group-hover:opacity-100'}"
+								>{sortOrder === 'desc' && sortColumn === 'employee_type'
+									? 'arrow_downward'
+									: 'arrow_upward'}</span
+							>
+						</div>
+					</th>
+					<th
+						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
+						onclick={() => toggleSort('subcontractor')}
+					>
+						<div class="flex items-center gap-1 text-gray-700">
+							{$t('Subcontract')}
+							<span
+								class="material-symbols-outlined text-[14px] {sortColumn === 'subcontractor'
+									? 'text-blue-600'
+									: 'text-gray-300 opacity-0 group-hover:opacity-100'}"
+								>{sortOrder === 'desc' && sortColumn === 'subcontractor'
+									? 'arrow_downward'
+									: 'arrow_upward'}</span
+							>
+						</div>
+					</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Start Date')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Phone Number')}</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
-						onclick={() => toggleSort('tenure')}
+						onclick={() => toggleSort('years_of_experience')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
-							{$t('Tenure')}
+							{$t('Years of experience')}
 							<span
-								class="material-symbols-outlined text-[14px] {sortColumn === 'tenure'
+								class="material-symbols-outlined text-[14px] {sortColumn === 'years_of_experience'
 									? 'text-blue-600'
 									: 'text-gray-300 opacity-0 group-hover:opacity-100'}"
-								>{sortOrder === 'desc' && sortColumn === 'tenure'
+								>{sortOrder === 'desc' && sortColumn === 'years_of_experience'
 									? 'arrow_downward'
 									: 'arrow_upward'}</span
 							>
@@ -375,7 +402,7 @@
 			<tbody>
 				{#if paginatedEmployees.length === 0}
 					<tr
-						><td colspan="15" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
+						><td colspan="16" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
 						></tr
 					>
 				{/if}
@@ -395,18 +422,19 @@
 								bind:group={selectedIds}
 							/>
 						</td>
-						<td class="px-4 py-3 font-bold whitespace-nowrap text-blue-600">{emp.subcontractor}</td>
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900">{emp.emp_id}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.citizen_id || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
+						<td class="px-4 py-3 font-medium whitespace-nowrap text-purple-600">{emp.employee_type || 'Sub Contract'}</td>
+						<td class="px-4 py-3 font-bold whitespace-nowrap text-blue-600">{emp.subcontractor || '-'}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.start_date}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.phone_number || '-'}</td>
-						<td class="px-4 py-3 whitespace-nowrap">{emp.tenure}</td>
-						<td class="px-4 py-3 whitespace-nowrap">{emp.dis}</td>
-						<td class="px-4 py-3 whitespace-nowrap">{emp.section}</td>
-						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_group}</td>
-						<td class="px-4 py-3 whitespace-nowrap">{emp.position_name}</td>
-						<td class="px-4 py-3 whitespace-nowrap">{emp.project}</td>
+						<td class="px-4 py-3 whitespace-nowrap">{emp.years_of_experience || '-'}</td>
+						<td class="px-4 py-3 whitespace-nowrap">{emp.dis || '-'}</td>
+						<td class="px-4 py-3 whitespace-nowrap">{emp.section || '-'}</td>
+						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_group || '-'}</td>
+						<td class="px-4 py-3 whitespace-nowrap">{emp.position_name || '-'}</td>
+						<td class="px-4 py-3 whitespace-nowrap">{emp.project || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">
 							<span
 								class="rounded-full px-2.5 py-1 text-xs font-semibold {emp.status === 'Active'
@@ -523,7 +551,7 @@
 		>
 			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'view' ? $t('Employee Details (View)') : $t('Edit employee information')}
+					{modalMode === 'view' ? $t('Employee Details (View)') : modalMode === 'add' ? $t('Add New Employee') : $t('Edit employee information')}
 				</h2>
 				<button type="button" onclick={closeModal} class="text-gray-400 hover:text-gray-600">
 					<span class="material-symbols-outlined">close</span>
@@ -544,6 +572,8 @@
 						};
 					}}
 				>
+					<input type="hidden" name="mode" value={modalMode} />
+
 					{#if modalMode === 'view'}
 						<div
 							class="mb-6 flex flex-col items-center gap-4 border-b pb-6 md:flex-row md:items-start"
@@ -564,6 +594,9 @@
 							<div class="text-center md:text-left">
 								<h3 class="text-xl font-bold text-gray-900">{selectedItem.emp_name}</h3>
 								<p class="text-sm font-medium text-blue-600">Emp_ID : {selectedItem.emp_id}</p>
+								<span class="mt-2 inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+									{selectedItem.employee_type || 'Sub Contract'}
+								</span>
 							</div>
 						</div>
 						<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
@@ -581,7 +614,7 @@
 							</div>
 							<div class="rounded-lg border border-purple-100 bg-purple-50 p-3 text-center">
 								<p class="text-xs font-bold text-purple-600">{$t('OT')}</p>
-								<p class="text-xl font-black text-purple-700">{selectedItem.stats.ot}</p>
+								<p class="text-xl font-black text-purple-700">{selectedItem?.stats?.ot ?? 0}</p>
 							</div>
 							<div class="rounded-lg border border-green-100 bg-green-50 p-3 text-center">
 								<p class="text-xs font-bold text-green-600">{$t('leave balance')}</p>
@@ -592,14 +625,13 @@
 						</div>
 					{/if}
 
-					{#if modalMode === 'edit'}
+					{#if modalMode === 'edit' || modalMode === 'add'}
 						<div class="mb-4">
 							<label class="mb-1 block text-sm font-semibold text-gray-700">
 								{$t('รูปถ่ายพนักงาน')}
-								<input type="file" name="employee_photo" class="mt-2 block" />
 							</label>
-							<div class="flex items-center gap-4">
-								{#if selectedItem.profile_image_path}
+							<div class="flex items-center gap-4 mt-2">
+								{#if selectedItem.profile_image_path && modalMode === 'edit'}
 									<img
 										src={selectedItem.profile_image_path}
 										class="h-12 w-12 rounded-full border object-cover"
@@ -620,18 +652,20 @@
 							</div>
 						</div>
 					{/if}
+					
 					<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 						<div>
 							<label for="emp_id" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('Emp ID')}</label
+								>{$t('Emp ID')} <span class="text-red-500">*</span></label
 							>
 							<input
 								id="emp_id"
 								type="text"
 								name="emp_id"
 								bind:value={selectedItem.emp_id}
-								readonly
-								class="w-full rounded-md border-gray-300 bg-gray-100 text-gray-500 shadow-sm"
+								required
+								readonly={modalMode !== 'add'}
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode !== 'add' ? 'bg-gray-100 text-gray-500' : ''}"
 							/>
 						</div>
 						<div>
@@ -645,10 +679,7 @@
 								bind:value={selectedItem.emp_name}
 								required
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
-								'view'
-									? 'bg-gray-50'
-									: ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
 							/>
 						</div>
 						<div>
@@ -661,11 +692,34 @@
 								name="citizen_id"
 								bind:value={selectedItem.citizen_id}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
-								'view'
-									? 'bg-gray-50'
-									: ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
 							/>
+						</div>
+
+						<!-- เพิ่ม Employee Type -->
+						<div>
+							<label for="employee_type" class="mb-1 block text-sm font-semibold text-gray-700"
+								>{$t('Employee Type')} <span class="text-red-500">*</span></label
+							>
+							{#if modalMode === 'view'}
+								<input
+									id="employee_type"
+									type="text"
+									value={selectedItem.employee_type || 'Sub Contract'}
+									readonly
+									class="w-full rounded-md border-gray-300 bg-gray-50 text-gray-600 shadow-sm"
+								/>
+							{:else}
+								<select
+									id="employee_type"
+									name="employee_type"
+									bind:value={selectedItem.employee_type}
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value="Sub Contract">Sub Contract</option>
+									<option value="Permanent">Permanent</option>
+								</select>
+							{/if}
 						</div>
 
 						<div>
@@ -678,10 +732,7 @@
 								name="subcontractor"
 								bind:value={selectedItem.subcontractor}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
-								'view'
-									? 'bg-gray-50'
-									: ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
 							/>
 						</div>
 						<div>
@@ -694,15 +745,12 @@
 								name="start_date"
 								bind:value={selectedItem.start_date}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
-								'view'
-									? 'bg-gray-50'
-									: ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
 							/>
 						</div>
 						<div>
 							<label for="phone_number" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('phone_number')}</label
+								>{$t('Phone Number')}</label
 							>
 							<input
 								id="phone_number"
@@ -710,27 +758,7 @@
 								name="phone_number"
 								bind:value={selectedItem.phone_number}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
-								'view'
-									? 'bg-gray-50'
-									: ''}"
-							/>
-						</div>
-
-						<div>
-							<label for="tenure" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('Tenure')}</label
-							>
-							<input
-								id="tenure"
-								type="text"
-								name="tenure"
-								bind:value={selectedItem.tenure}
-								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
-								'view'
-									? 'bg-gray-50'
-									: ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
 							/>
 						</div>
 
@@ -905,14 +933,14 @@
 				>
 					{modalMode === 'view' ? $t('Close') : $t('Cancel')}
 				</button>
-				{#if modalMode === 'edit'}
+				{#if modalMode === 'edit' || modalMode === 'add'}
 					<button
 						type="submit"
 						form="employeeForm"
 						disabled={isSaving}
 						class="rounded-md bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-70"
 					>
-						{isSaving ? $t('Saving...') : $t('Save Changes')}
+						{isSaving ? $t('Saving...') : modalMode === 'add' ? $t('Add Employee') : $t('Save Changes')}
 					</button>
 				{/if}
 			</div>
