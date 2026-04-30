@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { fade, slide } from 'svelte/transition';
 
 	let { data, form } = $props();
 
@@ -52,6 +53,10 @@
 	let paginatedLogs = $derived(
 		recentLogs.slice((logCurrentPage - 1) * logsPerPage, logCurrentPage * logsPerPage)
 	);
+
+	let showSyncModal = $state(false);
+	let syncStartDate = $state(data.displayDate || new Date().toISOString().split('T')[0]);
+	let syncEndDate = $state(data.displayDate || new Date().toISOString().split('T')[0]);
 </script>
 
 <svelte:head>
@@ -139,7 +144,8 @@
 			class="flex"
 		>
 			<button
-				type="submit"
+				type="button"
+				onclick={() => (showSyncModal = true)}
 				disabled={isSubmitting}
 				class="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
 			>
@@ -474,6 +480,85 @@
 		</div>
 	</div>
 </div>
+
+{#if showSyncModal}
+	<div
+		transition:fade={{ duration: 150 }}
+		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+	>
+		<div
+			transition:slide={{ duration: 200 }}
+			class="w-full max-w-md rounded-xl bg-white shadow-2xl"
+		>
+			<div class="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-6 py-4">
+				<span class="material-symbols-outlined text-[24px] text-blue-600">cloud_sync</span>
+				<h2 class="text-lg font-bold text-gray-900">กำหนดช่วงเวลาดึงข้อมูล</h2>
+			</div>
+
+			<form
+				method="POST"
+				action="?/syncZKTeco"
+				use:enhance={() => {
+					isSubmitting = true;
+					showSyncModal = false; // ปิด Modal ทันทีที่กดตกลง
+					return async ({ update }) => {
+						await update();
+						isSubmitting = false;
+					};
+				}}
+			>
+				<div class="p-6">
+					<p class="mb-4 text-sm text-gray-600">
+						ระบบจะทำการเชื่อมต่อเครื่องสแกนเพื่อกวาดข้อมูลเฉพาะในช่วงวันที่คุณระบุเท่านั้น
+						(ยิ่งเลือกหลายวัน ยิ่งใช้เวลาประมวลผลนานขึ้น)
+					</p>
+					<div class="grid grid-cols-2 gap-4">
+						<div>
+							<label for="start_date" class="mb-1 block text-sm font-semibold text-gray-700"
+								>ตั้งแต่วันที่</label
+							>
+							<input
+								type="date"
+								name="start_date"
+								bind:value={syncStartDate}
+								required
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+						<div>
+							<label for="end_date" class="mb-1 block text-sm font-semibold text-gray-700"
+								>ถึงวันที่</label
+							>
+							<input
+								type="date"
+								name="end_date"
+								bind:value={syncEndDate}
+								required
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							/>
+						</div>
+					</div>
+				</div>
+
+				<div class="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+					<button
+						type="button"
+						onclick={() => (showSyncModal = false)}
+						class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+					>
+						ยกเลิก
+					</button>
+					<button
+						type="submit"
+						class="rounded-md bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+					>
+						เริ่มดึงข้อมูลสแกนนิ้ว
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {
