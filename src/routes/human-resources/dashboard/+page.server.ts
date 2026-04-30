@@ -427,39 +427,41 @@ export const actions: Actions = {
 				}
 			}
 
-			// 🌟 1. ดึงคำสั่งออกมานอก IF เพื่อบังคับให้คำนวณเวลาใหม่ทุกครั้งที่กดซิงค์
-			console.log(`กำลังประมวลผลข้อมูลช่วง ${startDate} ถึง ${endDate}...`);
+			console.log(`กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`);
 			const processQuery = `
-				INSERT INTO attendance_logs (emp_id, emp_name, work_date, scan_in_time, scan_out_time, is_late, status)
+				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status)
 				SELECT 
 					e.emp_id, 
 					e.emp_name, 
 					DATE(r.scan_datetime),
+					
+					IFNULL(e.default_shift, 'Day') as shift_type,
+					
 					MIN(r.scan_datetime) as scan_in,
 					
-					-- 🌟 2. ใช้สูตรแปลงเป็นวินาทีลบกัน ถ้าสแกนห่างกันไม่เกิน 1 ชม. (เช่น 07:48 กับ 07:48) จะกลายเป็นช่องว่าง!
 					IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL) as scan_out,
 					
-					IF(TIME(MIN(r.scan_datetime)) > '07:40:00', 1, 0) as is_late,
+					IF(TIME(MIN(r.scan_datetime)) > IFNULL(sm.start_time, '07:40:00'), 1, 0) as is_late,
+					
 					'Present'
 				FROM raw_attendance_logs r
 				JOIN employees e ON 
 					(e.raw_id = r.raw_emp_id) OR 
 					(e.emp_id = r.raw_emp_id) OR 
 					(e.citizen_id = r.raw_emp_id)
+				LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
 				WHERE DATE(r.scan_datetime) BETWEEN ? AND ? 
 				GROUP BY e.emp_id, DATE(r.scan_datetime)
 				ON DUPLICATE KEY UPDATE 
-					-- 🌟 3. อัปเดตทับเวลาเก่าที่เพี้ยนทิ้งไปซะ!
+					shift_type = VALUES(shift_type),
 					scan_in_time = VALUES(scan_in_time),
 					scan_out_time = VALUES(scan_out_time),
 					is_late = VALUES(is_late),
 					status = 'Present';
 			`;
 
-			// สั่งรันคำสั่ง SQL
 			await pool.execute(processQuery, [startDate, endDate]);
-			console.log(`ประมวลผลเสร็จสมบูรณ์!`);
+			console.log(`ประมวลผลเสร็จสมบูรณ์ใน HR Dashboard!`);
 
 			if (totalImported > 0) {
 				return {
