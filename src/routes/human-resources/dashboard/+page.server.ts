@@ -352,101 +352,128 @@ export const actions: Actions = {
 		}
 	},
 
-	syncZKTeco: async () => {
-		const ZKLib = (await import('node-zklib')).default;
+	syncZKTeco: async ({ request }) => {
+		const formData = await request.formData();
+		let startDate = formData.get('start_date')?.toString();
+		let endDate = formData.get('end_date')?.toString();
 
-		// const ips = ['192.168.115.200'];
+		if (!startDate || !endDate) {
+			const now = new Date();
+			startDate = now.toISOString().split('T')[0];
+			endDate = startDate;
+		}
+
+		const ZKLib = (await import('node-zklib')).default;
 		const ips = ['192.168.115.69', '192.168.115.70', '192.168.115.71'];
 
 		let totalImported = 0;
 		let logMessages: string[] = [];
 
-		for (const ip of ips) {
-			// const zkInstance = new ZKLib(ip, 4370, 10000, 4000);
-			const zkInstance = new ZKLib(ip, 4370, 120000, 4000);
+		try {
+			for (const ip of ips) {
+				const zkInstance = new ZKLib(ip, 4370, 120000, 4000);
 
-			try {
-				await zkInstance.createSocket();
-				console.log(`Connected to ZKTeco: ${ip}`);
+				try {
+					await zkInstance.createSocket();
+					console.log(`Connected to ZKTeco: ${ip}`);
 
-				const machineInfo = await zkInstance.getInfo();
+					const machineInfo = await zkInstance.getInfo();
 
-				if (!machineInfo || machineInfo.logCounts === 0) {
-					console.log(`⏭[${ip}] เครื่องว่างเปล่า ไม่มีข้อมูลสแกนนิ้ว ข้ามการดึง!`);
-					logMessages.push(`${ip}: ไม่มีข้อมูล`);
+					if (!machineInfo || machineInfo.logCounts === 0) {
+						logMessages.push(`${ip}: ไม่มีข้อมูล`);
+						await zkInstance.disconnect();
+						continue;
+					}
+
+					const logs = await zkInstance.getAttendances();
+
+					if (logs.data && logs.data.length > 0) {
+						const filteredLogs = logs.data.filter((log: any) => {
+							const d = new Date(log.recordTime);
+							const logDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+							return logDateStr >= startDate! && logDateStr <= endDate!;
+						});
+
+						if (filteredLogs.length > 0) {
+							const chunkSize = 1000;
+							for (let i = 0; i < filteredLogs.length; i += chunkSize) {
+								const chunk = filteredLogs.slice(i, i + chunkSize);
+								const values = chunk.map((log: any) => [
+									ip,
+									log.deviceUserId.toString().trim(),
+									log.recordTime
+								]);
+
+								const placeholders = values.map(() => '(?, ?, ?)').join(', ');
+
+								await pool.execute(
+									`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime) VALUES ${placeholders}`,
+									values.flat()
+								);
+							}
+
+							totalImported += filteredLogs.length;
+							logMessages.push(`${ip}: ดึงสำเร็จ (${filteredLogs.length})`);
+						} else {
+							logMessages.push(`${ip}: ไม่มีคนสแกนในช่วงนี้`);
+						}
+					} else {
+						logMessages.push(`${ip}: ไม่มีข้อมูล`);
+					}
+
 					await zkInstance.disconnect();
-					continue;
+				} catch (error) {
+					logMessages.push(`${ip}: เชื่อมต่อไม่ได้`);
 				}
-
-				console.log(`[${ip}] มีข้อมูล ${machineInfo.logCounts} รายการ กำลังดึง...`);
-				const logs = await zkInstance.getAttendances();
-
-				if (!logs.data || logs.data.length === 0) {
-					logMessages.push(`${ip}: ไม่มีข้อมูลใหม่`);
-					await zkInstance.disconnect();
-					continue;
-				}
-
-				let machineCount = 0;
-
-				for (const log of logs.data) {
-					const raw_id = log.deviceUserId?.toString().trim();
-					if (!raw_id) continue;
-
-					// console.log(`เครื่องสแกนส่งรหัสนี้มานะ: "${raw_id}"`);
-
-					const recordDate = new Date(log.recordTime);
-					const work_date = recordDate.toISOString().split('T')[0];
-					const timeInStr = recordDate.toLocaleTimeString('th-TH', {
-						hour12: false,
-						hour: '2-digit',
-						minute: '2-digit'
-					});
-					const scanInDateTime = `${work_date} ${timeInStr}:00`;
-
-					const [empRows]: any = await pool.execute(
-						'SELECT emp_id, emp_name FROM employees WHERE citizen_id = ? OR emp_id = ? LIMIT 1',
-						[raw_id, raw_id]
-					);
-
-					if (empRows.length === 0) continue;
-					const emp = empRows[0];
-
-					const inMins = recordDate.getHours() * 60 + recordDate.getMinutes();
-					let shiftType = 'Day';
-					let isLate = inMins > 460 ? 1 : 0;
-
-					await pool.execute(
-						`INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, is_late, status)
-						VALUES (?, ?, ?, ?, ?, ?, 'Present')
-						ON DUPLICATE KEY UPDATE 
-						scan_in_time = IF(scan_in_time IS NULL, VALUES(scan_in_time), scan_in_time),
-						status = 'Present'`,
-						[emp.emp_id, emp.emp_name, work_date, shiftType, scanInDateTime, isLate]
-					);
-
-					machineCount++;
-					totalImported++;
-				}
-
-				await zkInstance.disconnect();
-				logMessages.push(`${ip}: สำเร็จ (${machineCount})`);
-			} catch (error) {
-				console.error(`Error connecting to ZKTeco ${ip}:`, error);
-				logMessages.push(`${ip}: เชื่อมต่อไม่ได้`);
 			}
-		}
 
-		if (totalImported > 0) {
-			return {
-				success: true,
-				message: `ดึงข้อมูลสำเร็จรวม ${totalImported} รายการ [${logMessages.join(', ')}]`
-			};
-		} else {
-			return {
-				success: false,
-				message: `ไม่มีข้อมูลใหม่หรือเชื่อมต่อไม่ได้ [${logMessages.join(', ')}]`
-			};
+			// 🌟 1. ดึงคำสั่งออกมานอก IF เพื่อบังคับให้คำนวณเวลาใหม่ทุกครั้งที่กดซิงค์
+			console.log(`กำลังประมวลผลข้อมูลช่วง ${startDate} ถึง ${endDate}...`);
+			const processQuery = `
+				INSERT INTO attendance_logs (emp_id, emp_name, work_date, scan_in_time, scan_out_time, is_late, status)
+				SELECT 
+					e.emp_id, 
+					e.emp_name, 
+					DATE(r.scan_datetime),
+					MIN(r.scan_datetime) as scan_in,
+					
+					-- 🌟 2. ใช้สูตรแปลงเป็นวินาทีลบกัน ถ้าสแกนห่างกันไม่เกิน 1 ชม. (เช่น 07:48 กับ 07:48) จะกลายเป็นช่องว่าง!
+					IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL) as scan_out,
+					
+					IF(TIME(MIN(r.scan_datetime)) > '07:40:00', 1, 0) as is_late,
+					'Present'
+				FROM raw_attendance_logs r
+				JOIN employees e ON 
+					(e.raw_id = r.raw_emp_id) OR 
+					(e.emp_id = r.raw_emp_id) OR 
+					(e.citizen_id = r.raw_emp_id)
+				WHERE DATE(r.scan_datetime) BETWEEN ? AND ? 
+				GROUP BY e.emp_id, DATE(r.scan_datetime)
+				ON DUPLICATE KEY UPDATE 
+					-- 🌟 3. อัปเดตทับเวลาเก่าที่เพี้ยนทิ้งไปซะ!
+					scan_in_time = VALUES(scan_in_time),
+					scan_out_time = VALUES(scan_out_time),
+					is_late = VALUES(is_late),
+					status = 'Present';
+			`;
+
+			// สั่งรันคำสั่ง SQL
+			await pool.execute(processQuery, [startDate, endDate]);
+			console.log(`ประมวลผลเสร็จสมบูรณ์!`);
+
+			if (totalImported > 0) {
+				return {
+					success: true,
+					message: `ดึงข้อมูลสำเร็จ ${totalImported} รายการ และรีเซ็ตเวลาใหม่เรียบร้อย!`
+				};
+			} else {
+				return {
+					success: true,
+					message: `ไม่มีข้อมูลใหม่ให้ดึง แต่ระบบได้กวาดล้างและรีเซ็ตเวลาเข้า-ออกใหม่เรียบร้อยแล้ว!`
+				};
+			}
+		} catch (error: any) {
+			return { success: false, message: error.message };
 		}
 	}
 };
