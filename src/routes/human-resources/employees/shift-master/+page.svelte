@@ -45,6 +45,7 @@
 				ot_start_time: '',
 				ot_end_time: '',
 				color_theme: 'orange',
+				shift_category: 'Normal', // ค่าเริ่มต้นประเภทกะ
 				status: 'Active'
 			};
 		} else {
@@ -53,6 +54,7 @@
 			if (selectedItem.end_time) selectedItem.end_time = selectedItem.end_time.substring(0, 5);
 			if (selectedItem.ot_start_time) selectedItem.ot_start_time = selectedItem.ot_start_time.substring(0, 5);
 			if (selectedItem.ot_end_time) selectedItem.ot_end_time = selectedItem.ot_end_time.substring(0, 5);
+			if (!selectedItem.shift_category) selectedItem.shift_category = 'Normal';
 		}
 	}
 
@@ -104,6 +106,7 @@
 					<th class="px-6 py-4">{$t('พรีวิว (Preview)')}</th>
 					<th class="px-6 py-4">{$t('รหัสกะ (Code)')}</th>
 					<th class="px-6 py-4">{$t('ชื่อกะ (Name)')}</th>
+					<th class="px-6 py-4">{$t('ประเภท')}</th>
 					<th class="px-6 py-4">{$t('เวลาทำงาน / OT')}</th>
 					<th class="px-6 py-4">{$t('สถานะ')}</th>
 					<th class="px-6 py-4 text-center">{$t('Actions')}</th>
@@ -111,7 +114,7 @@
 			</thead>
 			<tbody class="divide-y divide-gray-100">
 				{#if shifts.length === 0}
-					<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">ยังไม่มีข้อมูลรูปแบบกะในระบบ</td></tr>
+					<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500">ยังไม่มีข้อมูลรูปแบบกะในระบบ</td></tr>
 				{/if}
 				{#each shifts as shift}
 					<tr class="transition-colors hover:bg-gray-50">
@@ -122,6 +125,13 @@
 						</td>
 						<td class="px-6 py-4 font-bold text-gray-900">{shift.shift_code}</td>
 						<td class="px-6 py-4 font-medium">{shift.shift_name}</td>
+						<td class="px-6 py-4">
+							{#if shift.shift_category === 'Holiday'}
+								<span class="rounded bg-pink-100 px-2 py-1 text-[11px] font-bold text-pink-700">วันหยุด (Holiday)</span>
+							{:else}
+								<span class="rounded bg-blue-100 px-2 py-1 text-[11px] font-bold text-blue-700">วันปกติ (Normal)</span>
+							{/if}
+						</td>
 						<td class="px-6 py-4 font-mono text-gray-500">
 							<div class="flex flex-col gap-1">
 								<span>
@@ -220,6 +230,15 @@
 							required
 							class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
 						/>
+					</div>
+					
+					<div class="col-span-2">
+						<label for="shift_category" class="mb-1 block text-sm font-semibold text-gray-700">{$t('ประเภทกะ (มีผลกับสูตรคำนวณ OT)')}</label>
+						<select id="shift_category" name="shift_category" bind:value={selectedItem.shift_category} class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+							<option value="Normal">วันทำงานปกติ (Normal)</option>
+							<option value="Holiday">วันหยุด / วันหยุดนักขัตฤกษ์ (Holiday)</option>
+						</select>
+						<p class="mt-1 text-[11px] text-gray-500">หากเลือก 'วันหยุด' ระบบจะคำนวณ OT: 8 ชม.แรก = 1 แรง, หลังจากนั้น = 3 แรง</p>
 					</div>
 					
 					<div class="col-span-1">

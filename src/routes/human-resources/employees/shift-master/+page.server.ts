@@ -20,6 +20,7 @@ export const actions: Actions = {
 		
 		const shift_code = data.get('shift_code')?.toString().toUpperCase().trim();
 		const shift_name = data.get('shift_name')?.toString();
+		const shift_category = data.get('shift_category')?.toString() || 'Normal';
 		const start_time = data.get('start_time')?.toString() || null;
 		const end_time = data.get('end_time')?.toString() || null;
 		const ot_start_time = data.get('ot_start_time')?.toString() || null;
@@ -43,17 +44,17 @@ export const actions: Actions = {
 				}
 
 				await pool.execute(
-					`INSERT INTO shift_master (shift_code, shift_name, start_time, end_time, ot_start_time, ot_end_time, color_theme, status) 
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-					[shift_code, shift_name, start_time, end_time, ot_start_time, ot_end_time, color_theme, status]
+					`INSERT INTO shift_master (shift_code, shift_name, shift_category, start_time, end_time, ot_start_time, ot_end_time, color_theme, status) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					[shift_code, shift_name, shift_category, start_time, end_time, ot_start_time, ot_end_time, color_theme, status]
 				);
 				return { success: true, message: 'เพิ่มรูปแบบกะสำเร็จ!' };
 			} else {
 				await pool.execute(
 					`UPDATE shift_master SET 
-					shift_code = ?, shift_name = ?, start_time = ?, end_time = ?, ot_start_time = ?, ot_end_time = ?, color_theme = ?, status = ? 
+					shift_code = ?, shift_name = ?, shift_category = ?, start_time = ?, end_time = ?, ot_start_time = ?, ot_end_time = ?, color_theme = ?, status = ? 
 					WHERE shift_code = ?`,
-					[shift_code, shift_name, start_time, end_time, ot_start_time, ot_end_time, color_theme, status, original_code]
+					[shift_code, shift_name, shift_category, start_time, end_time, ot_start_time, ot_end_time, color_theme, status, original_code]
 				);
 				return { success: true, message: 'อัปเดตข้อมูลรูปแบบกะสำเร็จ!' };
 			}
