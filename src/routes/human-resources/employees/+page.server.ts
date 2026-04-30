@@ -77,7 +77,7 @@ export const load: PageServerLoad = async ({ url }) => {
 					// Calculate Years of Experience
 					const start = new Date(rawDate);
 					const now = new Date();
-					
+
 					if (now >= start) {
 						const diffTime = now.getTime() - start.getTime();
 						tenure_days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -100,7 +100,7 @@ export const load: PageServerLoad = async ({ url }) => {
 						if (y > 0) parts.push(`${y} ปี`);
 						if (m > 0) parts.push(`${m} เดือน`);
 						if (d_days > 0) parts.push(`${d_days} วัน`);
-						
+
 						years_of_experience = parts.length > 0 ? parts.join(' ') : '0 วัน';
 					} else {
 						years_of_experience = '0 วัน';
@@ -112,9 +112,9 @@ export const load: PageServerLoad = async ({ url }) => {
 			}
 
 			// Format เวลาทำงาน (ตัดวินาทีออก 08:00:00 -> 08:00)
-			const formatTime = (timeStr: string) => timeStr ? timeStr.substring(0, 5) : null;
+			const formatTime = (timeStr: string) => (timeStr ? timeStr.substring(0, 5) : null);
 			let shift_time_display = '-';
-			
+
 			if (emp.shift_start_time && emp.shift_end_time) {
 				shift_time_display = `${formatTime(emp.shift_start_time)} - ${formatTime(emp.shift_end_time)}`;
 			}
@@ -192,8 +192,10 @@ export const actions: Actions = {
 							employee_type = 'Permanent';
 						}
 					}
-					
-					const default_shift = shiftCol ? row.getCell(shiftCol).value?.toString().trim().toUpperCase() : null;
+
+					const default_shift = shiftCol
+						? row.getCell(shiftCol).value?.toString().trim().toUpperCase()
+						: null;
 					const division = row.getCell(disCol).value?.toString().trim() || null;
 					const section = row.getCell(secCol).value?.toString().trim() || null;
 					const emp_group = row.getCell(groupCol).value?.toString().trim() || null;
@@ -223,7 +225,23 @@ export const actions: Actions = {
 						ON DUPLICATE KEY UPDATE 
 						raw_id = VALUES(raw_id), citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), division = VALUES(division),
 						section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
+<<<<<<< HEAD
 						[emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, positionId, project]
+=======
+
+						[
+							emp_id,
+							citizen_id,
+							emp_name,
+							employee_type,
+							default_shift,
+							division,
+							section,
+							emp_group,
+							positionId,
+							project
+						]
+>>>>>>> 6619be73ede63008aed384aa1bd281b6e4591908
 					);
 					importedCount++;
 				}
@@ -297,15 +315,23 @@ export const actions: Actions = {
 			}
 
 			if (mode === 'add') {
-				const [existing]: any = await pool.execute('SELECT emp_id FROM employees WHERE emp_id = ?', [emp_id]);
+				const [existing]: any = await pool.execute(
+					'SELECT emp_id FROM employees WHERE emp_id = ?',
+					[emp_id]
+				);
 				if (existing.length > 0) {
 					return fail(400, { success: false, message: 'รหัสพนักงานนี้มีอยู่ในระบบแล้ว' });
 				}
 
 				await pool.execute(
 					`INSERT INTO employees 
+<<<<<<< HEAD
 					(emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+=======
+					(emp_id, raw_id, citizen_id, emp_name, employee_type, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+>>>>>>> 6619be73ede63008aed384aa1bd281b6e4591908
 					[
 						emp_id,
 						raw_id,
@@ -326,11 +352,14 @@ export const actions: Actions = {
 					]
 				);
 				return { success: true, message: 'เพิ่มข้อมูลพนักงานสำเร็จ!' };
-
 			} else {
 				await pool.execute(
 					`UPDATE employees SET 
+<<<<<<< HEAD
 					raw_id = ?, citizen_id = ?, emp_name = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+=======
+					raw_id = ?, citizen_id = ?, emp_name = ?, employee_type = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+>>>>>>> 6619be73ede63008aed384aa1bd281b6e4591908
 					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
 					WHERE emp_id = ?`,
 					[
