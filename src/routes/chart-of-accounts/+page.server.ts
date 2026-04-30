@@ -24,7 +24,7 @@ interface CostCenterChoice extends RowDataPacket {
     cost_center_name: string;
 }
 
-const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense', 'Cost of Goods Sold'];
+const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense', 'Cost of Goods Sold','Administration-cost','Operating-cost','Revenue'];
 
 export const load: PageServerLoad = async ({ locals, url }) => {
     checkPermission(locals, 'manage settings');
