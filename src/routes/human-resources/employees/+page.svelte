@@ -105,7 +105,8 @@
 				emp_id: '',
 				emp_name: '',
 				citizen_id: '',
-				employee_type: 'Sub Contract', // ค่าเริ่มต้นสำหรับพนักงานใหม่
+				employee_type: 'Sub Contract',
+				default_shift: '', 
 				subcontractor: '',
 				start_date: '',
 				phone_number: '',
@@ -119,6 +120,7 @@
 		} else {
 			selectedItem = { ...item };
 			selectedItem.start_date = parseDateToInput(item.start_date);
+			selectedItem.default_shift = item.default_shift || '';
 
 			if (mode === 'view') {
 				selectedItem.stats = {
@@ -343,6 +345,22 @@
 					</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
+						onclick={() => toggleSort('default_shift')}
+					>
+						<div class="flex items-center gap-1 text-gray-700">
+							{$t('Shift / Time')}
+							<span
+								class="material-symbols-outlined text-[14px] {sortColumn === 'default_shift'
+									? 'text-blue-600'
+									: 'text-gray-300 opacity-0 group-hover:opacity-100'}"
+								>{sortOrder === 'desc' && sortColumn === 'default_shift'
+									? 'arrow_downward'
+									: 'arrow_upward'}</span
+							>
+						</div>
+					</th>
+					<th
+						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
 						onclick={() => toggleSort('subcontractor')}
 					>
 						<div class="flex items-center gap-1 text-gray-700">
@@ -402,7 +420,7 @@
 			<tbody>
 				{#if paginatedEmployees.length === 0}
 					<tr
-						><td colspan="16" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
+						><td colspan="17" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
 						></tr
 					>
 				{/if}
@@ -426,6 +444,17 @@
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.citizen_id || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-purple-600">{emp.employee_type || 'Sub Contract'}</td>
+						
+						<!-- อัปเดตช่องกะและเวลาทำงาน -->
+						<td class="px-4 py-3 whitespace-nowrap">
+							<div class="flex flex-col">
+								<span class="font-bold text-indigo-600">{emp.default_shift || '-'}</span>
+								{#if emp.shift_time_display && emp.shift_time_display !== '-'}
+									<span class="text-[11px] text-gray-500">{emp.shift_time_display}</span>
+								{/if}
+							</div>
+						</td>
+
 						<td class="px-4 py-3 font-bold whitespace-nowrap text-blue-600">{emp.subcontractor || '-'}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.start_date}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.phone_number || '-'}</td>
@@ -594,9 +623,20 @@
 							<div class="text-center md:text-left">
 								<h3 class="text-xl font-bold text-gray-900">{selectedItem.emp_name}</h3>
 								<p class="text-sm font-medium text-blue-600">Emp_ID : {selectedItem.emp_id}</p>
-								<span class="mt-2 inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
-									{selectedItem.employee_type || 'Sub Contract'}
-								</span>
+								<div class="mt-2 flex gap-2">
+									<span class="inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+										{selectedItem.employee_type || 'Sub Contract'}
+									</span>
+									{#if selectedItem.default_shift}
+										<span class="inline-block rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+											Shift: {selectedItem.default_shift} 
+											<!-- แสดงเวลาทำงานใน Modal -->
+											{#if selectedItem.shift_time_display && selectedItem.shift_time_display !== '-'}
+												({selectedItem.shift_time_display})
+											{/if}
+										</span>
+									{/if}
+								</div>
 							</div>
 						</div>
 						<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
@@ -696,7 +736,6 @@
 							/>
 						</div>
 
-						<!-- เพิ่ม Employee Type -->
 						<div>
 							<label for="employee_type" class="mb-1 block text-sm font-semibold text-gray-700"
 								>{$t('Employee Type')} <span class="text-red-500">*</span></label
@@ -718,6 +757,35 @@
 								>
 									<option value="Sub Contract">Sub Contract</option>
 									<option value="Permanent">Permanent</option>
+								</select>
+							{/if}
+						</div>
+
+						<div>
+							<label for="default_shift" class="mb-1 block text-sm font-semibold text-gray-700"
+								>{$t('Default Shift')}</label
+							>
+							{#if modalMode === 'view'}
+								<input
+									id="default_shift"
+									type="text"
+									value={selectedItem.default_shift || '-'}
+									readonly
+									class="w-full rounded-md border-gray-300 bg-gray-50 text-gray-600 shadow-sm"
+								/>
+							{:else}
+								<select
+									id="default_shift"
+									name="default_shift"
+									bind:value={selectedItem.default_shift}
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value="">{$t('- ไม่ระบุ -')}</option>
+									{#if data.shifts && data.shifts.length > 0}
+										{#each data.shifts as shift}
+											<option value={shift.shift_code}>{shift.shift_code} - {shift.shift_name}</option>
+										{/each}
+									{/if}
 								</select>
 							{/if}
 						</div>

@@ -13,6 +13,8 @@ export const load: PageServerLoad = async ({ url }) => {
 		SELECT 
 			e.*, 
 			jp.position_name,
+			sm.start_time as shift_start_time,
+			sm.end_time as shift_end_time,
 			(SELECT COUNT(*) FROM attendance_logs al 
 			WHERE al.emp_id = e.emp_id 
 			AND MONTH(al.work_date) = MONTH(CURRENT_DATE()) 
@@ -33,6 +35,7 @@ export const load: PageServerLoad = async ({ url }) => {
 
 		FROM employees e
 		LEFT JOIN job_positions jp ON e.position_id = jp.id
+		LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
 		WHERE 1=1
 	`;
 
@@ -49,6 +52,10 @@ export const load: PageServerLoad = async ({ url }) => {
 		const [employees]: any = await pool.execute(query, params);
 		const [divisions]: any = await pool.execute(
 			"SELECT division_name FROM divisions WHERE status = 'Active' ORDER BY division_name ASC"
+		);
+		// ดึงข้อมูลกะเพื่อไปทำ Dropdown
+		const [shifts]: any = await pool.execute(
+			"SELECT shift_code, shift_name FROM shift_master WHERE status = 'Active' ORDER BY shift_code ASC"
 		);
 
 		const formattedEmployees = employees.map((emp: any) => {
@@ -103,22 +110,32 @@ export const load: PageServerLoad = async ({ url }) => {
 				}
 			}
 
+			// Format เวลาทำงาน (ตัดวินาทีออก 08:00:00 -> 08:00)
+			const formatTime = (timeStr: string) => timeStr ? timeStr.substring(0, 5) : null;
+			let shift_time_display = '-';
+			
+			if (emp.shift_start_time && emp.shift_end_time) {
+				shift_time_display = `${formatTime(emp.shift_start_time)} - ${formatTime(emp.shift_end_time)}`;
+			}
+
 			return {
 				...emp,
 				start_date: finalDate,
 				years_of_experience,
-				tenure_days
+				tenure_days,
+				shift_time_display
 			};
 		});
 
 		return {
 			employees: formattedEmployees,
 			divisions: divisions,
+			shifts: shifts,
 			searchQuery: search
 		};
 	} catch (error) {
 		console.error('Error loading employees:', error);
-		return { employees: [], divisions: [], searchQuery: search };
+		return { employees: [], divisions: [], shifts: [], searchQuery: search };
 	}
 };
 
@@ -147,6 +164,7 @@ export const actions: Actions = {
 			const citizenCol = colMap['id'] || 2;
 			const nameCol = colMap['name'] || 3;
 			const typeCol = colMap['employee type'] || colMap['type'] || null;
+			const shiftCol = colMap['default shift'] || colMap['shift'] || null;
 			const disCol = colMap['dis.'] || 4;
 			const secCol = colMap['section'] || 5;
 			const groupCol = colMap['group'] || 6;
@@ -171,7 +189,8 @@ export const actions: Actions = {
 							employee_type = 'Permanent';
 						}
 					}
-
+					
+					const default_shift = shiftCol ? row.getCell(shiftCol).value?.toString().trim().toUpperCase() : null;
 					const division = row.getCell(disCol).value?.toString().trim() || null;
 					const section = row.getCell(secCol).value?.toString().trim() || null;
 					const emp_group = row.getCell(groupCol).value?.toString().trim() || null;
@@ -196,12 +215,12 @@ export const actions: Actions = {
 
 					await pool.execute(
 						`INSERT INTO employees 
-						(emp_id, citizen_id, emp_name, employee_type, division, section, emp_group, position_id, project) 
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+						(emp_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, position_id, project) 
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 						ON DUPLICATE KEY UPDATE 
-						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), division = VALUES(division),
+						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), division = VALUES(division),
 						section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
-						[emp_id, citizen_id, emp_name, employee_type, division, section, emp_group, positionId, project]
+						[emp_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, positionId, project]
 					);
 					importedCount++;
 				}
@@ -215,7 +234,7 @@ export const actions: Actions = {
 
 	save: async ({ request }) => {
 		const data = await request.formData();
-		const mode = data.get('mode')?.toString() || 'edit'; // รับค่าโหมด
+		const mode = data.get('mode')?.toString() || 'edit';
 		const emp_id = data.get('emp_id')?.toString();
 		const citizen_id = data.get('citizen_id')?.toString() || null;
 
@@ -223,6 +242,7 @@ export const actions: Actions = {
 		if (emp_name) emp_name = emp_name.replace(/\+/g, ' ');
 
 		const employee_type = data.get('employee_type')?.toString() || 'Sub Contract';
+		const default_shift = data.get('default_shift')?.toString() || null;
 		const subcontractor = data.get('subcontractor')?.toString() || null;
 		let start_date = data.get('start_date')?.toString() || null;
 
@@ -273,7 +293,6 @@ export const actions: Actions = {
 			}
 
 			if (mode === 'add') {
-				// เช็คว่ามี emp_id ซ้ำหรือไม่
 				const [existing]: any = await pool.execute('SELECT emp_id FROM employees WHERE emp_id = ?', [emp_id]);
 				if (existing.length > 0) {
 					return fail(400, { success: false, message: 'รหัสพนักงานนี้มีอยู่ในระบบแล้ว' });
@@ -281,13 +300,14 @@ export const actions: Actions = {
 
 				await pool.execute(
 					`INSERT INTO employees 
-					(emp_id, citizen_id, emp_name, employee_type, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(emp_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[
 						emp_id,
 						citizen_id,
 						emp_name,
 						employee_type,
+						default_shift,
 						subcontractor,
 						start_date,
 						phone_number,
@@ -305,13 +325,14 @@ export const actions: Actions = {
 			} else {
 				await pool.execute(
 					`UPDATE employees SET 
-					citizen_id = ?, emp_name = ?, employee_type = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+					citizen_id = ?, emp_name = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
 					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
 					WHERE emp_id = ?`,
 					[
 						citizen_id,
 						emp_name,
 						employee_type,
+						default_shift,
 						subcontractor,
 						start_date,
 						phone_number,
