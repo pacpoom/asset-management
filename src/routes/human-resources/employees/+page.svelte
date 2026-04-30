@@ -103,6 +103,7 @@
 		if (mode === 'add') {
 			selectedItem = {
 				emp_id: '',
+				raw_id: '',
 				emp_name: '',
 				citizen_id: '',
 				employee_type: 'Sub Contract',
@@ -219,7 +220,7 @@
 	<form method="GET" class="flex flex-wrap items-end gap-4">
 		<div class="min-w-[250px] flex-1">
 			<label for="searchInput" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('ค้นหารหัส / บัตรประชาชน / ชื่อพนักงาน')}</label
+				>{$t('ค้นหารหัส / Raw ID / บัตรประชาชน / ชื่อพนักงาน')}</label
 			>
 			<input
 				id="searchInput"
@@ -290,6 +291,22 @@
 									? 'text-blue-600'
 									: 'text-gray-300 opacity-0 group-hover:opacity-100'}"
 								>{sortOrder === 'desc' && sortColumn === 'emp_id'
+									? 'arrow_downward'
+									: 'arrow_upward'}</span
+							>
+						</div>
+					</th>
+					<th
+						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
+						onclick={() => toggleSort('raw_id')}
+					>
+						<div class="flex items-center gap-1 text-gray-700">
+							{$t('Raw ID')}
+							<span
+								class="material-symbols-outlined text-[14px] {sortColumn === 'raw_id'
+									? 'text-blue-600'
+									: 'text-gray-300 opacity-0 group-hover:opacity-100'}"
+								>{sortOrder === 'desc' && sortColumn === 'raw_id'
 									? 'arrow_downward'
 									: 'arrow_upward'}</span
 							>
@@ -420,7 +437,7 @@
 			<tbody>
 				{#if paginatedEmployees.length === 0}
 					<tr
-						><td colspan="17" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
+						><td colspan="18" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
 						></tr
 					>
 				{/if}
@@ -441,6 +458,7 @@
 							/>
 						</td>
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900">{emp.emp_id}</td>
+						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-600">{emp.raw_id || '-'}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.citizen_id || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-purple-600">{emp.employee_type || 'Sub Contract'}</td>
@@ -622,7 +640,7 @@
 							{/if}
 							<div class="text-center md:text-left">
 								<h3 class="text-xl font-bold text-gray-900">{selectedItem.emp_name}</h3>
-								<p class="text-sm font-medium text-blue-600">Emp_ID : {selectedItem.emp_id}</p>
+								<p class="text-sm font-medium text-blue-600">Emp_ID : {selectedItem.emp_id} {selectedItem.raw_id ? `(Raw ID: ${selectedItem.raw_id})` : ''}</p>
 								<div class="mt-2 flex gap-2">
 									<span class="inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
 										{selectedItem.employee_type || 'Sub Contract'}
@@ -706,6 +724,19 @@
 								required
 								readonly={modalMode !== 'add'}
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode !== 'add' ? 'bg-gray-100 text-gray-500' : ''}"
+							/>
+						</div>
+						<div>
+							<label for="raw_id" class="mb-1 block text-sm font-semibold text-gray-700"
+								>{$t('Raw ID')}</label
+							>
+							<input
+								id="raw_id"
+								type="text"
+								name="raw_id"
+								bind:value={selectedItem.raw_id}
+								readonly={modalMode === 'view'}
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
 							/>
 						</div>
 						<div>

@@ -42,9 +42,10 @@ export const load: PageServerLoad = async ({ url }) => {
 		const params: any[] = [];
 
 		if (search) {
-			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?)`;
+			// เพิ่มการค้นหาจาก raw_id เข้าไปด้วย
+			query += ` AND (e.emp_id LIKE ? OR e.raw_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?)`;
 			const searchPattern = `%${search.trim().replace(/[\s+]+/g, '%')}%`;
-			params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+			params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
 		}
 
 		query += ` ORDER BY e.emp_id ASC`;
@@ -160,12 +161,13 @@ export const actions: Actions = {
 				if (headerText) colMap[headerText] = colNumber;
 			});
 
-			const idCol = colMap['id no.'] || 1;
-			const citizenCol = colMap['id'] || 2;
+			const idCol = colMap['id no.'] || colMap['emp id'] || 1;
+			const rawIdCol = colMap['raw id'] || colMap['raw_id'] || null;
+			const citizenCol = colMap['id'] || colMap['citizen id'] || 2;
 			const nameCol = colMap['name'] || 3;
 			const typeCol = colMap['employee type'] || colMap['type'] || null;
 			const shiftCol = colMap['default shift'] || colMap['shift'] || null;
-			const disCol = colMap['dis.'] || 4;
+			const disCol = colMap['dis.'] || colMap['division'] || 4;
 			const secCol = colMap['section'] || 5;
 			const groupCol = colMap['group'] || 6;
 			const posCol = colMap['position'] || 7;
@@ -176,6 +178,7 @@ export const actions: Actions = {
 				const emp_id = row.getCell(idCol).value?.toString().trim();
 
 				if (emp_id) {
+					const raw_id = rawIdCol ? row.getCell(rawIdCol).value?.toString().trim() || null : null;
 					const citizen_id = row.getCell(citizenCol).value?.toString().trim() || null;
 					let emp_name = row.getCell(nameCol).value?.toString().trim() || null;
 					if (emp_name) {
@@ -215,12 +218,12 @@ export const actions: Actions = {
 
 					await pool.execute(
 						`INSERT INTO employees 
-						(emp_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, position_id, project) 
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+						(emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, position_id, project) 
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 						ON DUPLICATE KEY UPDATE 
-						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), division = VALUES(division),
+						raw_id = VALUES(raw_id), citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), division = VALUES(division),
 						section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
-						[emp_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, positionId, project]
+						[emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, positionId, project]
 					);
 					importedCount++;
 				}
@@ -236,6 +239,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const mode = data.get('mode')?.toString() || 'edit';
 		const emp_id = data.get('emp_id')?.toString();
+		const raw_id = data.get('raw_id')?.toString() || null;
 		const citizen_id = data.get('citizen_id')?.toString() || null;
 
 		let emp_name = data.get('emp_name')?.toString();
@@ -300,10 +304,11 @@ export const actions: Actions = {
 
 				await pool.execute(
 					`INSERT INTO employees 
-					(emp_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[
 						emp_id,
+						raw_id,
 						citizen_id,
 						emp_name,
 						employee_type,
@@ -325,10 +330,11 @@ export const actions: Actions = {
 			} else {
 				await pool.execute(
 					`UPDATE employees SET 
-					citizen_id = ?, emp_name = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+					raw_id = ?, citizen_id = ?, emp_name = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
 					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
 					WHERE emp_id = ?`,
 					[
+						raw_id,
 						citizen_id,
 						emp_name,
 						employee_type,
