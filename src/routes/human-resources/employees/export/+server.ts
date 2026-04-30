@@ -7,6 +7,7 @@ export const GET: RequestHandler = async () => {
 
 	worksheet.columns = [
 		{ header: 'Employee Type', key: 'employee_type', width: 15 },
+		{ header: 'Default Shift', key: 'default_shift', width: 15 },
 		{ header: 'Subcontract', key: 'subcontractor', width: 15 },
 		{ header: 'ID No.', key: 'emp_id', width: 15 },
 		{ header: 'ID', key: 'citizen_id', width: 20 },
