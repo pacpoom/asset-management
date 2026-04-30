@@ -6,13 +6,13 @@ export const GET: RequestHandler = async () => {
 	const worksheet = workbook.addWorksheet('Employee_Master');
 
 	worksheet.columns = [
+		{ header: 'Employee Type', key: 'employee_type', width: 15 },
 		{ header: 'Subcontract', key: 'subcontractor', width: 15 },
 		{ header: 'ID No.', key: 'emp_id', width: 15 },
 		{ header: 'ID', key: 'citizen_id', width: 20 },
 		{ header: 'Name', key: 'emp_name', width: 30 },
 		{ header: 'วันเริ่มงาน TC', key: 'start_date', width: 15 },
 		{ header: 'Start IH', key: 'start_ih', width: 15 },
-		{ header: 'อายุงาน', key: 'tenure', width: 15 },
 		{ header: 'Dis.', key: 'division', width: 10 },
 		{ header: 'Section', key: 'section', width: 20 },
 		{ header: 'Group', key: 'emp_group', width: 20 },

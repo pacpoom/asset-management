@@ -54,6 +54,8 @@ export const load: PageServerLoad = async ({ url }) => {
 		const formattedEmployees = employees.map((emp: any) => {
 			const rawDate = emp.start_date || emp.start_ih;
 			let finalDate = '-';
+			let years_of_experience = '-';
+			let tenure_days = 0;
 
 			if (rawDate) {
 				const d = new Date(rawDate);
@@ -63,6 +65,39 @@ export const load: PageServerLoad = async ({ url }) => {
 					const day = String(d.getDate()).padStart(2, '0');
 
 					finalDate = `${year}-${month}-${day}`;
+
+					// Calculate Years of Experience
+					const start = new Date(rawDate);
+					const now = new Date();
+					
+					if (now >= start) {
+						const diffTime = now.getTime() - start.getTime();
+						tenure_days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+						let y = now.getFullYear() - start.getFullYear();
+						let m = now.getMonth() - start.getMonth();
+						let d_days = now.getDate() - start.getDate();
+
+						if (d_days < 0) {
+							m--;
+							const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+							d_days += prevMonth.getDate();
+						}
+						if (m < 0) {
+							y--;
+							m += 12;
+						}
+
+						const parts = [];
+						if (y > 0) parts.push(`${y} ปี`);
+						if (m > 0) parts.push(`${m} เดือน`);
+						if (d_days > 0) parts.push(`${d_days} วัน`);
+						
+						years_of_experience = parts.length > 0 ? parts.join(' ') : '0 วัน';
+					} else {
+						years_of_experience = '0 วัน';
+						tenure_days = 0;
+					}
 				} else {
 					finalDate = rawDate;
 				}
@@ -70,7 +105,9 @@ export const load: PageServerLoad = async ({ url }) => {
 
 			return {
 				...emp,
-				start_date: finalDate
+				start_date: finalDate,
+				years_of_experience,
+				tenure_days
 			};
 		});
 
@@ -109,6 +146,7 @@ export const actions: Actions = {
 			const idCol = colMap['id no.'] || 1;
 			const citizenCol = colMap['id'] || 2;
 			const nameCol = colMap['name'] || 3;
+			const typeCol = colMap['employee type'] || colMap['type'] || null;
 			const disCol = colMap['dis.'] || 4;
 			const secCol = colMap['section'] || 5;
 			const groupCol = colMap['group'] || 6;
@@ -124,6 +162,14 @@ export const actions: Actions = {
 					let emp_name = row.getCell(nameCol).value?.toString().trim() || null;
 					if (emp_name) {
 						emp_name = emp_name.replace(/\+/g, ' ');
+					}
+
+					let employee_type = 'Sub Contract';
+					if (typeCol) {
+						const typeVal = row.getCell(typeCol).value?.toString().trim();
+						if (typeVal && typeVal.toLowerCase() === 'permanent') {
+							employee_type = 'Permanent';
+						}
 					}
 
 					const division = row.getCell(disCol).value?.toString().trim() || null;
@@ -150,12 +196,12 @@ export const actions: Actions = {
 
 					await pool.execute(
 						`INSERT INTO employees 
-						(emp_id, citizen_id, emp_name, division, section, emp_group, position_id, project) 
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+						(emp_id, citizen_id, emp_name, employee_type, division, section, emp_group, position_id, project) 
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 						ON DUPLICATE KEY UPDATE 
-						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), division = VALUES(division),
+						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), division = VALUES(division),
 						section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
-						[emp_id, citizen_id, emp_name, division, section, emp_group, positionId, project]
+						[emp_id, citizen_id, emp_name, employee_type, division, section, emp_group, positionId, project]
 					);
 					importedCount++;
 				}
@@ -169,17 +215,18 @@ export const actions: Actions = {
 
 	save: async ({ request }) => {
 		const data = await request.formData();
+		const mode = data.get('mode')?.toString() || 'edit'; // รับค่าโหมด
 		const emp_id = data.get('emp_id')?.toString();
 		const citizen_id = data.get('citizen_id')?.toString() || null;
 
 		let emp_name = data.get('emp_name')?.toString();
 		if (emp_name) emp_name = emp_name.replace(/\+/g, ' ');
 
+		const employee_type = data.get('employee_type')?.toString() || 'Sub Contract';
 		const subcontractor = data.get('subcontractor')?.toString() || null;
 		let start_date = data.get('start_date')?.toString() || null;
 
 		const phone_number = data.get('phone_number')?.toString() || null;
-		const tenure = data.get('tenure')?.toString() || null;
 		const division = data.get('dis')?.toString() || null;
 		const section = data.get('section')?.toString() || null;
 		const emp_group = data.get('emp_group')?.toString() || null;
@@ -225,38 +272,68 @@ export const actions: Actions = {
 				}
 			}
 
-			await pool.execute(
-				`UPDATE employees SET 
-				citizen_id = ?, emp_name = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, tenure = ?, 
-				division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
-				WHERE emp_id = ?`,
-				[
-					citizen_id,
-					emp_name,
-					subcontractor,
-					start_date,
-					phone_number,
-					profile_image_path,
-					tenure,
-					division,
-					section,
-					emp_group,
-					positionId,
-					project,
-					status,
-					emp_id
-				]
-			);
+			if (mode === 'add') {
+				// เช็คว่ามี emp_id ซ้ำหรือไม่
+				const [existing]: any = await pool.execute('SELECT emp_id FROM employees WHERE emp_id = ?', [emp_id]);
+				if (existing.length > 0) {
+					return fail(400, { success: false, message: 'รหัสพนักงานนี้มีอยู่ในระบบแล้ว' });
+				}
 
-			return { success: true, message: 'อัปเดตข้อมูลพนักงานสำเร็จ!' };
+				await pool.execute(
+					`INSERT INTO employees 
+					(emp_id, citizen_id, emp_name, employee_type, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					[
+						emp_id,
+						citizen_id,
+						emp_name,
+						employee_type,
+						subcontractor,
+						start_date,
+						phone_number,
+						profile_image_path,
+						division,
+						section,
+						emp_group,
+						positionId,
+						project,
+						status
+					]
+				);
+				return { success: true, message: 'เพิ่มข้อมูลพนักงานสำเร็จ!' };
+
+			} else {
+				await pool.execute(
+					`UPDATE employees SET 
+					citizen_id = ?, emp_name = ?, employee_type = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
+					WHERE emp_id = ?`,
+					[
+						citizen_id,
+						emp_name,
+						employee_type,
+						subcontractor,
+						start_date,
+						phone_number,
+						profile_image_path,
+						division,
+						section,
+						emp_group,
+						positionId,
+						project,
+						status,
+						emp_id
+					]
+				);
+				return { success: true, message: 'อัปเดตข้อมูลพนักงานสำเร็จ!' };
+			}
 		} catch (error) {
-			console.error('Error updating employee:', error);
+			console.error('Error saving employee:', error);
 			return fail(500, { success: false, message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
 		}
 	},
 
 	delete: async ({ request }) => {
-		// (ใช้โค้ดเดิม)
 		const data = await request.formData();
 		const emp_id = data.get('emp_id')?.toString();
 
