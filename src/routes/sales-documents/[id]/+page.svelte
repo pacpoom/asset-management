@@ -409,7 +409,7 @@
                             {#if isVat === 1}
                                 <span class="text-blue-600">Inc.</span>
                             {:else if isVat === 0}
-                                <span class="text-orange-600">Exc.</span>
+                                <span class="text-orange-600">VAT.</span>
                             {:else}
                                 <span class="text-gray-500">None</span>
                             {/if}
