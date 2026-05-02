@@ -441,7 +441,7 @@ export const actions: Actions = {
 					
 					IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL) as scan_out,
 					
-					IF(TIME(MIN(r.scan_datetime)) > IFNULL(sm.start_time, '07:40:00'), 1, 0) as is_late,
+					IF(TIME(MIN(r.scan_datetime)) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
 					
 					'Present'
 				FROM raw_attendance_logs r

@@ -5,15 +5,13 @@ import { fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ url }) => {
 	const today = new Date();
-	const defaultMonth = String(today.getMonth() + 1).padStart(2, '0');
-	const defaultYear = today.getFullYear().toString();
-	const selectedMonth = url.searchParams.get('month') || defaultMonth;
-	const selectedYear = url.searchParams.get('year') || defaultYear;
+	const offset = today.getTimezoneOffset() * 60000;
+	const defaultDate = new Date(today.getTime() - offset).toISOString().split('T')[0];
+
+	const selectedDate = url.searchParams.get('date') || defaultDate;
 	const empFilter = url.searchParams.get('emp_id') || 'All';
 	const search = url.searchParams.get('search') || '';
-
 	const sectionFilter = url.searchParams.get('section') || 'All';
-	const yearMonthStr = `${selectedYear}-${selectedMonth}`;
 
 	try {
 		const [employees]: any = await pool.execute(
@@ -24,7 +22,6 @@ export const load: PageServerLoad = async ({ url }) => {
 			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
 		);
 		const sections = sectionsRows.map((s: any) => s.section);
-
 		let logQuery = `
 			SELECT 
 				al.*, 
@@ -34,13 +31,15 @@ export const load: PageServerLoad = async ({ url }) => {
 				IFNULL(e.section, '-') as section,
 				IFNULL(e.division, '-') as dis,
 				DATE_FORMAT(al.scan_in_time, '%H:%i') as time_in,
-				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out
+				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
+                sm.start_time as shift_start_time  
 			FROM attendance_logs al
 			INNER JOIN employees e ON al.emp_id = e.emp_id
 			LEFT JOIN job_positions jp ON e.position_id = jp.id
-			WHERE DATE_FORMAT(al.work_date, '%Y-%m') = ?
+            LEFT JOIN shift_master sm ON al.shift_type = sm.shift_code 
+			WHERE al.work_date = ?  
 		`;
-		const params: any[] = [yearMonthStr];
+		const params: any[] = [selectedDate];
 
 		if (sectionFilter !== 'All') {
 			logQuery += ` AND e.section = ?`;
@@ -74,12 +73,15 @@ export const load: PageServerLoad = async ({ url }) => {
 			}
 
 			total_ot_hours += parseFloat(log.ot_hours) || 0;
+			if (log.is_late && log.time_in_raw && log.shift_start_time) {
+				const scanTime = new Date(log.time_in_raw);
+				const [startHour, startMin] = log.shift_start_time.split(':').map(Number);
 
-			if (log.is_late && log.time_in_raw && log.shift_type === 'Day') {
-				const d = new Date(log.time_in_raw);
-				const totalMins = d.getHours() * 60 + d.getMinutes();
-				if (totalMins > 460) {
-					lateMins = totalMins - 460;
+				const scanTotalMins = scanTime.getHours() * 60 + scanTime.getMinutes();
+				const expectedTotalMins = startHour * 60 + startMin;
+
+				if (scanTotalMins > expectedTotalMins + 10) {
+					lateMins = scanTotalMins - expectedTotalMins;
 					total_late_mins += lateMins;
 				}
 			}
@@ -91,8 +93,7 @@ export const load: PageServerLoad = async ({ url }) => {
 			logs: processedLogs,
 			employees: employees,
 			sections: sections,
-			selectedMonth,
-			selectedYear,
+			selectedDate,
 			empFilter,
 			sectionFilter,
 			searchQuery: search,
@@ -107,8 +108,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		return {
 			logs: [],
 			employees: [],
-			selectedMonth,
-			selectedYear,
+			selectedDate,
 			empFilter: 'All',
 			searchQuery: search,
 			stats: { total_days: 0, total_late_mins: 0, total_ot_hours: 0 }
@@ -172,7 +172,6 @@ export const actions: Actions = {
 					}
 				}
 
-				// อัปเดตลง Database (ลบเวลาออกเก่าที่เพี้ยนทิ้งให้หมด)
 				const [existingLog]: any = await pool.execute(
 					`SELECT id FROM attendance_logs WHERE emp_id = ? AND work_date = ?`,
 					[emp_id, safe_date]

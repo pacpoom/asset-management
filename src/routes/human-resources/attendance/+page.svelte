@@ -76,7 +76,7 @@
 		{/if}
 
 		<a
-			href="/human-resources/attendance/export?month={data.selectedMonth}&year={data.selectedYear}&search={data.searchQuery}&section={data.sectionFilter}"
+			href="/human-resources/attendance/export?date={data.selectedDate}&search={data.searchQuery}&section={data.sectionFilter}&emp_id={data.empFilter}"
 			data-sveltekit-reload
 			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
 		>
@@ -110,28 +110,17 @@
 
 <div class="mb-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
 	<form method="GET" class="flex flex-wrap items-end gap-4">
-		<div>
-			<label for="monthSelect" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('เดือน')}</label
+		<!-- 🌟 ลบกล่อง Month กับ Year ทิ้ง แล้วใช้กล่อง Date นี้แทนครับ -->
+		<div class="w-44">
+			<label for="dateInput" class="mb-1 block text-sm font-medium text-gray-700"
+				>{$t('Date')}</label
 			>
-			<select
-				id="monthSelect"
-				name="month"
-				class="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
-			>
-				{#each months as m}
-					<option value={m.value} selected={data.selectedMonth === m.value}>{m.label}</option>
-				{/each}
-			</select>
-		</div>
-		<div>
-			<label for="yearInput" class="mb-1 block text-sm font-medium text-gray-700">{$t('ปี')}</label>
 			<input
-				id="yearInput"
-				type="number"
-				name="year"
-				value={data.selectedYear}
-				class="w-24 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
+				id="dateInput"
+				type="date"
+				name="date"
+				value={data.selectedDate}
+				class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
 			/>
 		</div>
 
@@ -254,11 +243,12 @@
 						<td class="px-4 py-3 whitespace-nowrap">{log.position}</td>
 						<td class="px-4 py-3 whitespace-nowrap">
 							<span
-								class="rounded px-2 py-0.5 text-xs font-medium {log.shift_type === 'Day'
+								class="rounded px-2 py-0.5 text-xs font-medium {log.shift_type === 'Day' ||
+								log.shift_type === 'D'
 									? 'bg-amber-100 text-amber-700'
 									: 'bg-indigo-100 text-indigo-700'}"
 							>
-								{log.shift_type === 'Day' ? $t('เช้า') : $t('ดึก')}
+								{log.shift_type}
 							</span>
 						</td>
 						<td class="px-4 py-3 text-center font-mono whitespace-nowrap">{log.time_in || '-'}</td>

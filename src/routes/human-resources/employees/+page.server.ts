@@ -155,17 +155,23 @@ export const actions: Actions = {
 
 			const headerRow = worksheet.getRow(1);
 			const colMap: Record<string, number> = {};
+
 			headerRow.eachCell((cell, colNumber) => {
-				const headerText = cell.text?.trim().toLowerCase();
+				const headerText = cell.text?.trim().toLowerCase().replace(/\s+/g, '');
 				if (headerText) colMap[headerText] = colNumber;
 			});
 
-			const idCol = colMap['id no.'] || 1;
+			const idCol = colMap['idno.'] || colMap['idno'] || 1;
 			const citizenCol = colMap['id'] || 2;
 			const nameCol = colMap['name'] || 3;
-			const typeCol = colMap['employee type'] || colMap['type'] || null;
-			const shiftCol = colMap['default shift'] || colMap['shift'] || null;
-			const disCol = colMap['dis.'] || 4;
+			const typeCol = colMap['employeetype'] || colMap['type'] || null;
+			const shiftCol = colMap['defaultshift'] || colMap['shift'] || null;
+
+			const subCol = colMap['subcontract'] || null;
+			const startDateCol = colMap['วันเริ่มงานtc'] || colMap['startdate'] || null;
+			const phoneCol = colMap['phonenumber'] || colMap['phone'] || null;
+
+			const disCol = colMap['dis.'] || colMap['dis'] || 4;
 			const secCol = colMap['section'] || 5;
 			const groupCol = colMap['group'] || 6;
 			const posCol = colMap['position'] || 7;
@@ -193,6 +199,38 @@ export const actions: Actions = {
 					const default_shift = shiftCol
 						? row.getCell(shiftCol).value?.toString().trim().toUpperCase()
 						: null;
+
+					const subcontractor = subCol ? row.getCell(subCol).value?.toString().trim() : null;
+
+					let phone_number = null;
+					if (phoneCol) {
+						const phoneVal = row.getCell(phoneCol).value;
+						if (phoneVal) phone_number = String(phoneVal).replace(/\D/g, '');
+					}
+
+					let start_date = null;
+					if (startDateCol) {
+						const cell = row.getCell(startDateCol);
+
+						if (cell.type === ExcelJS.ValueType.Date) {
+							const d = cell.value as Date;
+							const offset = d.getTimezoneOffset() * 60000;
+							start_date = new Date(d.getTime() - offset).toISOString().split('T')[0];
+						} else if (cell.value) {
+							const dateStr = cell.value.toString().trim();
+							if (/^[0-9]{1,4}[-/][0-9]{1,2}[-/][0-9]{1,4}$/.test(dateStr)) {
+								const parts = dateStr.split(/[-/]/);
+								if (parts[2].length === 4) {
+									start_date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+								} else if (parts[0].length === 4) {
+									start_date = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+								} else {
+									start_date = null;
+								}
+							}
+						}
+					}
+
 					const division = row.getCell(disCol).value?.toString().trim() || null;
 					const section = row.getCell(secCol).value?.toString().trim() || null;
 					const emp_group = row.getCell(groupCol).value?.toString().trim() || null;
@@ -217,18 +255,21 @@ export const actions: Actions = {
 
 					await pool.execute(
 						`INSERT INTO employees 
-						(emp_id, citizen_id, emp_name, employee_type, default_shift, division, section, emp_group, position_id, project) 
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+						(emp_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, division, section, emp_group, position_id, project) 
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 						ON DUPLICATE KEY UPDATE 
-						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), division = VALUES(division),
-						section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
-
+						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), 
+						subcontractor = VALUES(subcontractor), start_date = VALUES(start_date), phone_number = VALUES(phone_number),
+						division = VALUES(division), section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
 						[
 							emp_id,
 							citizen_id,
 							emp_name,
 							employee_type,
 							default_shift,
+							subcontractor,
+							start_date,
+							phone_number,
 							division,
 							section,
 							emp_group,
@@ -242,10 +283,12 @@ export const actions: Actions = {
 			return { success: true, message: `นำเข้าพนักงานสำเร็จ ${importedCount} รายการ!` };
 		} catch (error) {
 			console.error('Import Error:', error);
-			return { success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าไฟล์รายชื่อ' };
+			return {
+				success: false,
+				message: 'เกิดข้อผิดพลาดในการนำเข้าไฟล์รายชื่อ กรุณาตรวจสอบรูปแบบวันที่ใน Excel'
+			};
 		}
 	},
-
 	save: async ({ request }) => {
 		const data = await request.formData();
 		const mode = data.get('mode')?.toString() || 'edit';

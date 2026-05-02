@@ -455,7 +455,7 @@
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.start_date}</td>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.phone_number || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.years_of_experience || '-'}</td>
-						<td class="px-4 py-3 whitespace-nowrap">{emp.dis || '-'}</td>
+						<td class="px-4 py-3 whitespace-nowrap">{emp.division || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.section || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_group || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.position_name || '-'}</td>
@@ -880,10 +880,11 @@
 								>{$t('Division')}</label
 							>
 							{#if modalMode === 'view'}
+								<!-- 🌟 โหมดดูข้อมูล แก้จาก selectedItem.dis เป็น division -->
 								<input
 									id="dis"
 									type="text"
-									value={selectedItem.dis}
+									value={selectedItem.division || '-'}
 									readonly
 									class="w-full rounded-md border-gray-300 bg-gray-50 text-gray-600 shadow-sm"
 								/>
@@ -891,7 +892,7 @@
 								<select
 									id="dis"
 									name="dis"
-									bind:value={selectedItem.dis}
+									bind:value={selectedItem.division}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								>
 									<option value="-">{$t('- ไม่ระบุ -')}</option>

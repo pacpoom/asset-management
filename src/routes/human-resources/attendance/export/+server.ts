@@ -3,10 +3,10 @@ import pool from '$lib/server/database';
 import ExcelJS from 'exceljs';
 
 export const GET: RequestHandler = async ({ url }) => {
-	const month = url.searchParams.get('month');
-	const year = url.searchParams.get('year');
+	const selectedDate = url.searchParams.get('date');
 	const search = url.searchParams.get('search') || '';
 	const sectionFilter = url.searchParams.get('section') || 'All';
+	const empFilter = url.searchParams.get('emp_id') || 'All';
 
 	let query = `
 		SELECT 
@@ -26,13 +26,18 @@ export const GET: RequestHandler = async ({ url }) => {
 		FROM attendance_logs al
 		LEFT JOIN employees e ON al.emp_id = e.emp_id
 		LEFT JOIN job_positions jp ON e.position_id = jp.id
-		WHERE MONTH(al.work_date) = ? AND YEAR(al.work_date) = ?
+		WHERE al.work_date = ?
 	`;
-	const params: any[] = [month, year];
+	const params: any[] = [selectedDate];
 
 	if (sectionFilter !== 'All') {
 		query += ` AND e.section = ?`;
 		params.push(sectionFilter);
+	}
+
+	if (empFilter !== 'All') {
+		query += ` AND al.emp_id = ?`;
+		params.push(empFilter);
 	}
 
 	if (search) {
@@ -40,12 +45,12 @@ export const GET: RequestHandler = async ({ url }) => {
 		const searchPattern = `%${search.trim().replace(/[\s+]+/g, '%')}%`;
 		params.push(searchPattern, searchPattern);
 	}
-	query += ` ORDER BY al.work_date ASC, al.scan_in_time ASC`;
+	query += ` ORDER BY al.scan_in_time ASC`;
 
 	const [rows]: any = await pool.execute(query, params);
 
 	const workbook = new ExcelJS.Workbook();
-	const worksheet = workbook.addWorksheet(`Attendance_${year}_${month}`);
+	const worksheet = workbook.addWorksheet(`Attendance_${selectedDate}`);
 
 	worksheet.columns = [
 		{ header: 'Date', key: 'date', width: 15 },
@@ -69,7 +74,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			dis: row.Dis || '-',
 			section: row.Section || '-',
 			position: row.Position || '-',
-			shift: row.Shift === 'Day' ? 'เช้า' : row.Shift === 'Night' ? 'ดึก' : '-',
+			shift: row.Shift,
 			time_in: row.scan_in_time ? new Date(row.scan_in_time).toLocaleTimeString('th-TH') : '-',
 			time_out: row.scan_out_time ? new Date(row.scan_out_time).toLocaleTimeString('th-TH') : '-',
 			ot: row.OT > 0 ? row.OT : '-',
@@ -86,7 +91,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	return new Response(buffer as ArrayBuffer, {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-			'Content-Disposition': `attachment; filename="Attendance_${year}_${month}.xlsx"`
+			'Content-Disposition': `attachment; filename="Attendance_${selectedDate}.xlsx"`
 		}
 	});
 };
