@@ -36,8 +36,8 @@ export const actions = {
 
             // ตรวจสอบว่าถ้าไม่ได้กรอก Item Code มา ให้ Generate อัตโนมัติ
             if (!item_code) {
-                const docType = 'ITM'; // กำหนดประเภทเอกสาร (สามารถเปลี่ยนให้ตรงกับระบบหลักได้)
-                const prefix = 'ITM-'; // คำนำหน้า
+                const docType = 'ITE'; // กำหนดประเภทเอกสาร (สามารถเปลี่ยนให้ตรงกับระบบหลักได้)
+                const prefix = 'ITE-'; // คำนำหน้า
                 const date = new Date();
                 const year = date.getFullYear(); // เช่น 2026
                 const month = date.getMonth() + 1; // 1-12

@@ -670,7 +670,7 @@
 										class="w-full rounded-md border-gray-300 py-1.5 px-1 text-center text-xs font-medium focus:border-blue-500 focus:ring-blue-500 {items[index].is_vat === 1 ? 'text-blue-600 bg-blue-50' : items[index].is_vat === 0 ? 'text-orange-600 bg-orange-50' : 'text-gray-600 bg-gray-50'}"
 									>
 										<option value={1}>Inc. VAT</option>
-										<option value={0}>Exc. VAT</option>
+										<option value={0}>VAT 7%</option>
 										<option value={2}>Non-VAT</option>
 									</select>
 								</td>
