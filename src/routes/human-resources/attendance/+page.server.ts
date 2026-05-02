@@ -32,11 +32,13 @@ export const load: PageServerLoad = async ({ url }) => {
 				IFNULL(e.division, '-') as dis,
 				DATE_FORMAT(al.scan_in_time, '%H:%i') as time_in,
 				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
-                sm.start_time as shift_start_time  
+                sm.start_time as shift_start_time,
+                sm.ot_start_time as shift_ot_start_time,
+                IFNULL(e.default_shift, 'D') as real_shift
 			FROM attendance_logs al
 			INNER JOIN employees e ON al.emp_id = e.emp_id
 			LEFT JOIN job_positions jp ON e.position_id = jp.id
-            LEFT JOIN shift_master sm ON al.shift_type = sm.shift_code 
+            LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code 
 			WHERE al.work_date = ?  
 		`;
 		const params: any[] = [selectedDate];
@@ -72,7 +74,30 @@ export const load: PageServerLoad = async ({ url }) => {
 				unique_emps.add(log.emp_id);
 			}
 
+			log.shift_type = log.real_shift;
+
+			if (
+				log.time_in_raw &&
+				log.scan_out_time &&
+				(!log.ot_hours || parseFloat(log.ot_hours) === 0)
+			) {
+				const timeIn = new Date(log.time_in_raw);
+				const timeOut = new Date(log.scan_out_time);
+
+				if (timeOut.getTime() - timeIn.getTime() >= 3600000 && log.shift_ot_start_time) {
+					const [otH, otM] = log.shift_ot_start_time.split(':').map(Number);
+					const outMins = timeOut.getHours() * 60 + timeOut.getMinutes();
+					const otStartMins = otH * 60 + otM;
+
+					if (outMins > otStartMins) {
+						const diffMins = outMins - otStartMins;
+						log.ot_hours = Math.floor(diffMins / 30) * 0.5;
+					}
+				}
+			}
+
 			total_ot_hours += parseFloat(log.ot_hours) || 0;
+
 			if (log.is_late && log.time_in_raw && log.shift_start_time) {
 				const scanTime = new Date(log.time_in_raw);
 				const [startHour, startMin] = log.shift_start_time.split(':').map(Number);
@@ -180,7 +205,7 @@ export const actions: Actions = {
 				if (existingLog.length === 0) {
 					await pool.execute(
 						`INSERT INTO attendance_logs (emp_id, work_date, scan_in_time, scan_out_time, status, shift_type) 
-						 VALUES (?, ?, ?, ?, 'Present', 'Day')`,
+						 VALUES (?, ?, ?, ?, 'Present', 'D')`,
 						[emp_id, safe_date, timeInStr, timeOutStr]
 					);
 				} else {

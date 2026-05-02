@@ -66,16 +66,23 @@
 	});
 
 	let uniqueSections = $derived(
-		[...new Set(employees.map((e: any) => e.section).filter((v: any) => v && v !== '-'))].sort()
+		data.sections && data.sections.length > 0
+			? data.sections.map((s: any) => s.section_name)
+			: [...new Set(employees.map((e: any) => e.section).filter((v: any) => v && v !== '-'))].sort()
 	);
+
+	let uniquePositions = $derived(
+		data.positions && data.positions.length > 0
+			? data.positions.map((p: any) => p.position_name)
+			: [
+					...new Set(employees.map((e: any) => e.position_name).filter((v: any) => v && v !== '-'))
+				].sort()
+	);
+
 	let uniqueGroups = $derived(
 		[...new Set(employees.map((e: any) => e.emp_group).filter((v: any) => v && v !== '-'))].sort()
 	);
-	let uniquePositions = $derived(
-		[
-			...new Set(employees.map((e: any) => e.position_name).filter((v: any) => v && v !== '-'))
-		].sort()
-	);
+
 	let uniqueProjects = $derived(
 		[...new Set(employees.map((e: any) => e.project).filter((v: any) => v && v !== '-'))].sort()
 	);
@@ -448,7 +455,9 @@
 							/>
 						</td>
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900">{emp.emp_id}</td>
-						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-600">{emp.raw_id || '-'}</td>
+						<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-600"
+							>{emp.raw_id || '-'}</td
+						>
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.citizen_id || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
 
@@ -639,7 +648,10 @@
 							{/if}
 							<div class="text-center md:text-left">
 								<h3 class="text-xl font-bold text-gray-900">{selectedItem.emp_name}</h3>
-								<p class="text-sm font-medium text-blue-600">Emp_ID : {selectedItem.emp_id} {selectedItem.raw_id ? `(Raw ID: ${selectedItem.raw_id})` : ''}</p>
+								<p class="text-sm font-medium text-blue-600">
+									Emp_ID : {selectedItem.emp_id}
+									{selectedItem.raw_id ? `(Raw ID: ${selectedItem.raw_id})` : ''}
+								</p>
 								<div class="mt-2 flex gap-2">
 									<span
 										class="inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700"
@@ -763,7 +775,10 @@
 								name="raw_id"
 								bind:value={selectedItem.raw_id}
 								readonly={modalMode === 'view'}
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode === 'view' ? 'bg-gray-50' : ''}"
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 {modalMode ===
+								'view'
+									? 'bg-gray-50'
+									: ''}"
 							/>
 						</div>
 						<div>

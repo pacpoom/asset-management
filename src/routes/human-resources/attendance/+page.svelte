@@ -258,7 +258,7 @@
 								? 'text-blue-600'
 								: 'text-gray-400'}"
 						>
-							{log.ot_hours > 0 ? log.ot_hours : '-'}
+							{log.ot_hours > 0 ? Number(log.ot_hours) : '-'}
 						</td>
 						<td class="px-4 py-3 whitespace-nowrap">
 							<span
