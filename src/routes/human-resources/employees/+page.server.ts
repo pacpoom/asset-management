@@ -53,7 +53,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		const [divisions]: any = await pool.execute(
 			"SELECT division_name FROM divisions WHERE status = 'Active' ORDER BY division_name ASC"
 		);
-		// ดึงข้อมูลกะเพื่อไปทำ Dropdown
+
 		const [shifts]: any = await pool.execute(
 			"SELECT shift_code, shift_name FROM shift_master WHERE status = 'Active' ORDER BY shift_code ASC"
 		);
@@ -73,7 +73,6 @@ export const load: PageServerLoad = async ({ url }) => {
 
 					finalDate = `${year}-${month}-${day}`;
 
-					// Calculate Years of Experience
 					const start = new Date(rawDate);
 					const now = new Date();
 
@@ -110,7 +109,6 @@ export const load: PageServerLoad = async ({ url }) => {
 				}
 			}
 
-			// Format เวลาทำงาน (ตัดวินาทีออก 08:00:00 -> 08:00)
 			const formatTime = (timeStr: string) => (timeStr ? timeStr.substring(0, 5) : null);
 			let shift_time_display = '-';
 
@@ -122,6 +120,7 @@ export const load: PageServerLoad = async ({ url }) => {
 				...emp,
 				start_date: finalDate,
 				years_of_experience,
+				tenure: years_of_experience, // ส่งทั้งสองชื่อเพื่อรองรับการเรียกใน Svelte
 				tenure_days,
 				shift_time_display
 			};
@@ -289,6 +288,7 @@ export const actions: Actions = {
 			};
 		}
 	},
+
 	save: async ({ request }) => {
 		const data = await request.formData();
 		const mode = data.get('mode')?.toString() || 'edit';
@@ -361,8 +361,8 @@ export const actions: Actions = {
 
 				await pool.execute(
 					`INSERT INTO employees 
-					(emp_id, raw_id, citizen_id, emp_name, employee_type, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[
 						emp_id,
 						raw_id,
@@ -386,7 +386,7 @@ export const actions: Actions = {
 			} else {
 				await pool.execute(
 					`UPDATE employees SET 
-					raw_id = ?, citizen_id = ?, emp_name = ?, employee_type = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+					raw_id = ?, citizen_id = ?, emp_name = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
 					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
 					WHERE emp_id = ?`,
 					[
