@@ -2,12 +2,13 @@ import { json } from '@sveltejs/kit';
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
-import db from '$lib/server/database';
+import pool from '$lib/server/database'; // ใช้ pool ตามมาตรฐานใหม่
 import type { RowDataPacket } from 'mysql2/promise';
 
 interface CompanyData extends RowDataPacket {
 	id: number;
 	name: string;
+	company_name?: string;
 	logo_path: string | null;
 	address_line_1: string | null;
 	address_line_2: string | null;
@@ -63,34 +64,81 @@ interface ItemData {
 	wht_rate?: number;
 	wht_amount?: number;
 	vat_type?: number;
+    amount?: number;
 }
 
 const pdfSpecificDict: Record<string, Record<string, string>> = {
-	'th': {
-		'No': 'เลขที่ / No.', 'Date': 'วันที่ / Date', 'Term': 'เครดิต / Term', 'Due': 'ครบกำหนด / Due',
-		'DeliveryDate': 'วันส่งของ / Delivery',
-		'Ref': 'อ้างอิง / Ref', 'Vendor': 'ผู้จำหน่าย (Vendor)', 'Issued By': 'ผู้ออกเอกสาร (Issued By)',
-		'ShipTo': 'สถานที่จัดส่ง (Ship To)',
-		'Seq': 'ลำดับ', 'Description': 'รายการ (Description)', 'Qty': 'จำนวน', 'UnitPrice': 'ราคา/หน่วย', 'Amount': 'จำนวนเงิน',
-		'Notes': 'หมายเหตุ (Notes):', 'NetText': 'จำนวนเงินสุทธิเป็นตัวอักษร',
-		'Subtotal': 'รวมเป็นเงิน', 'Discount': 'ส่วนลด', 'AfterDiscount': 'หลังหักส่วนลด',
-		'VAT': 'VAT', 'WHT': 'หัก ณ ที่จ่ายรวม', 'GrandTotal': 'จำนวนเงินสุทธิ',
-		'PreparedBy': 'ผู้จัดทำ (Prepared by)', 'PurchasedBy': 'ผู้จัดซื้อ (Purchased by)', 'Auth': 'ผู้อนุมัติ (Authorized Signature)',
-		'Page': 'หน้า', 'Carry': '-- ยอดยกไป (Carried Forward) --',
-		'Days': 'วัน (Days)', 'Cash': 'เงินสด (Cash)', 'Contact': 'ผู้ติดต่อ (Attn):'
+	th: {
+		No: 'เลขที่ / No.',
+		Date: 'วันที่ / Date',
+		Term: 'เครดิต / Term',
+		Due: 'ครบกำหนด / Due',
+		DeliveryDate: 'วันส่งของ / Delivery',
+		Ref: 'อ้างอิง / Ref',
+		Vendor: 'ผู้จำหน่าย (Vendor)',
+		'Issued By': 'ผู้ออกเอกสาร (Issued By)',
+		ShipTo: 'สถานที่จัดส่ง (Ship To)',
+		Seq: 'ลำดับ',
+		Description: 'รายการ (Description)',
+		Qty: 'จำนวน',
+		UnitPrice: 'ราคา/หน่วย',
+		Amount: 'จำนวนเงิน',
+		Notes: 'หมายเหตุ (Notes):',
+		NetText: 'จำนวนเงินสุทธิเป็นตัวอักษร',
+		Subtotal: 'รวมเป็นเงิน',
+		Discount: 'ส่วนลด',
+		AfterDiscount: 'หลังหักส่วนลด',
+        VatableAmount: 'มูลค่าที่เสียภาษี',
+		NonVatableAmount: 'มูลค่ายกเว้นภาษี',
+		AmountBeforeVAT: 'ยอดก่อนภาษีมูลค่าเพิ่ม',
+		VAT: 'ภาษีมูลค่าเพิ่ม / VAT',
+		WHT: 'หัก ณ ที่จ่ายรวม',
+		GrandTotal: 'จำนวนเงินสุทธิ',
+		PreparedBy: 'ผู้จัดทำ (Prepared by)',
+		PurchasedBy: 'ผู้จัดซื้อ (Purchased by)',
+		Auth: 'ผู้อนุมัติ (Authorized Signature)',
+		Page: 'หน้า',
+		Carry: '-- ยอดยกไป (Carried Forward) --',
+		Days: 'วัน (Days)',
+		Cash: 'เงินสด (Cash)',
+		Contact: 'ผู้ติดต่อ (Attn):',
+        ConfirmText: 'ข้าพเจ้าขอยืนยันว่าการสั่งซื้อข้างต้นได้ดำเนินการถูกต้องตามรายละเอียดที่ระบุไว้<br/>I hereby confirm that the above purchase details are correct.'
 	},
-	'en': {
-		'No': 'No.', 'Date': 'Date', 'Term': 'Term', 'Due': 'Due Date',
-		'DeliveryDate': 'Delivery Date',
-		'Ref': 'Reference', 'Vendor': 'Vendor', 'Issued By': 'Issued By',
-		'ShipTo': 'Ship To',
-		'Seq': 'Item', 'Description': 'Description', 'Qty': 'Qty', 'UnitPrice': 'Unit Price', 'Amount': 'Amount',
-		'Notes': 'Notes:', 'NetText': 'Net Amount in Words',
-		'Subtotal': 'Subtotal', 'Discount': 'Discount', 'AfterDiscount': 'Total After Discount',
-		'VAT': 'VAT', 'WHT': 'Total WHT', 'GrandTotal': 'Grand Total',
-		'PreparedBy': 'Prepared by', 'PurchasedBy': 'Purchased by', 'Auth': 'Authorized Signature',
-		'Page': 'Page', 'Carry': '-- Carried Forward --',
-		'Days': 'Days', 'Cash': 'Cash', 'Contact': 'Attn:'
+	en: {
+		No: 'No.',
+		Date: 'Date',
+		Term: 'Term',
+		Due: 'Due Date',
+		DeliveryDate: 'Delivery Date',
+		Ref: 'Reference',
+		Vendor: 'Vendor',
+		'Issued By': 'Issued By',
+		ShipTo: 'Ship To',
+		Seq: 'Item',
+		Description: 'Description',
+		Qty: 'Qty',
+		UnitPrice: 'Unit Price',
+		Amount: 'Amount',
+		Notes: 'Notes:',
+		NetText: 'Net Amount in Words',
+		Subtotal: 'Subtotal',
+		Discount: 'Discount',
+		AfterDiscount: 'Total After Discount',
+        VatableAmount: 'Vatable Amount',
+		NonVatableAmount: 'Non-VAT Amount',
+		AmountBeforeVAT: 'Amount Before VAT',
+		VAT: 'VAT',
+		WHT: 'Total WHT',
+		GrandTotal: 'Grand Total',
+		PreparedBy: 'Prepared by',
+		PurchasedBy: 'Purchased by',
+		Auth: 'Authorized Signature',
+		Page: 'Page',
+		Carry: '-- Carried Forward --',
+		Days: 'Days',
+		Cash: 'Cash',
+		Contact: 'Attn:',
+        ConfirmText: 'I hereby confirm that the above purchase details are correct.'
 	}
 };
 
@@ -204,34 +252,62 @@ function getInvoiceHtml(
 	const totalAfterDiscount = Number(docData.total_after_discount || 0);
 
 	const vatRate = Number(docData.vat_rate || 0);
-	const vatAmt = Number(docData.vat_amount || 0);
 
 	let calculatedWhtAmt = 0;
 	const activeRates = new Set<number>();
-	let hasIncVat = false;
 
-	// ✅ แก้ไข: ดึงยอด wht_amount จาก Database โดยตรงเพื่อความแม่นยำ 100%
+	let subtotalBeforeVat = 0;
+	let excVatTotal = 0;
+	let incVatTotal = 0;
+    let nonVatTotal = 0;
+
+    // สำหรับ Purchase: vat_type -> 1 = Inc, 2 = Exc, 3 = Non-VAT
 	itemsData.forEach((item) => {
+        const rawLineTotal = Number(item.line_total) || 0;
+        let amount = rawLineTotal;
+
+		subtotalBeforeVat += amount;
+		if (Number(item.vat_type) === 1) { 
+			incVatTotal += amount;
+		} else if (Number(item.vat_type) === 2) { 
+			excVatTotal += amount;
+		} else if (Number(item.vat_type) === 3) {
+            nonVatTotal += amount;
+        }
+
 		const rate = Number(item.wht_rate || 0);
 		if (rate > 0) {
 			activeRates.add(rate);
-			calculatedWhtAmt += Number(item.wht_amount || 0);
+            calculatedWhtAmt += Number(item.wht_amount || 0);
 		}
-		if (item.vat_type == 1) {
-			hasIncVat = true;
-		}
+        item.amount = amount;
 	});
+
+    const discountForExcVat = subtotalBeforeVat > 0 ? discount * (excVatTotal / subtotalBeforeVat) : 0;
+	const discountForIncVat = subtotalBeforeVat > 0 ? discount * (incVatTotal / subtotalBeforeVat) : 0;
+    const discountForNonVat = subtotalBeforeVat > 0 ? discount * (nonVatTotal / subtotalBeforeVat) : 0;
+
+	const vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
+	const vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
+
+	let vatAmt = vatFromExc + vatFromInc;
+	if (vatAmt === 0 && Number(docData.vat_amount || 0) > 0) {
+		vatAmt = Number(docData.vat_amount || 0);
+	}
+
+    // คำนวณมูลค่าที่นำไปคิดภาษี และมูลค่าที่ได้รับการยกเว้นภาษี (เหมือน Sales)
+    const vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
+    const nonVatableAmount = nonVatTotal - discountForNonVat;
+	const amountBeforeVat = vatableAmount + nonVatableAmount;
 
 	const ratesArray = Array.from(activeRates);
 	const whtRateText = ratesArray.length > 0 ? ratesArray.join('%, ') : Number(docData.withholding_tax_rate || 0);
 	const whtAmt = calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
-	// ✅ แก้ไข: ดึงยอดสุทธิมาจาก total_amount ของเอกสารใน DB โดยตรง (ไม่เอามาบวก VAT เองซ้ำ)
 	const netAmount = Number(docData.total_amount || 0);
 	const netAmountText = bahttext(netAmount);
 
 	const docTitle = getDocumentTitle(docData.document_type);
-	const vatLabel = hasIncVat ? `${tPdf('VAT', lang)} (${vatRate}%) (Inc)` : `${tPdf('VAT', lang)} (${vatRate}%)`;
 
 	const formatNumber = (num: number | string) => {
 		const val = typeof num === 'string' ? parseFloat(num) : num;
@@ -253,20 +329,26 @@ function getInvoiceHtml(
 		}
 	};
 
+    const myCompanyName = companyData?.company_name || companyData?.name || '';
 	const logoHtml = logoBase64
-		? `<img src="${logoBase64}" alt="Logo" style="max-height: 64px; margin-bottom: 8px;" />`
-		: `<h2 style="font-size: 1.25rem; font-weight: bold;">${companyData?.name || ''}</h2>`;
+		? `<img src="${logoBase64}" alt="Logo" style="max-height: 120px; margin-bottom: 8px;" />`
+		: ``;
 
 	const creditTermDisplay =
 		docData.credit_term && docData.credit_term > 0
 			? `${docData.credit_term} ${tPdf('Days', lang)}`
 			: tPdf('Cash', lang);
 
+    const vendorNameDisplay = docData.vendor_name;
+
+    let jobOrderDisplay = docData.job_number ? `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span> ${docData.job_number}</p>` : '';
+
 	const headerContent = `
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 9pt;">
             <tr style="border-bottom: 1px solid #dee2e6;">
                 <td style="width: 55%; vertical-align: top; padding-bottom: 1rem;">
                     ${logoHtml}
+                    <h2 style="font-size: 1.25rem; font-weight: bold; margin: 0 0 6px 0; color: #000;">${myCompanyName}</h2>
                     <div style="font-size: 8pt; color: #6B7280; line-height: 1.4;">
                         <p style="margin:0;">${companyData?.address_line_1 || ''}</p>
                         ${companyData?.address_line_2 ? `<p style="margin:0;">${companyData.address_line_2}</p>` : ''}
@@ -275,15 +357,15 @@ function getInvoiceHtml(
                     </div>
                 </td>
                 <td style="width: 45%; vertical-align: top; text-align: right; padding-bottom: 1rem;">
-                    <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0; color: #1e3a8a;">${lang === 'en' ? docTitle.en : docTitle.th}</h1>
+                    <h1 style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin: 0; color: #000;">${lang === 'en' ? docTitle.en : docTitle.th}</h1>
                     <p style="font-size: 10pt; color: #666;">${lang === 'en' ? docTitle.th : docTitle.en}</p>
                     <div style="margin-top: 0.5rem; font-size: 8pt; line-height: 1.5;">
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('No', lang)}:</span> ${docData.document_number}</p>
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('Date', lang)}:</span> ${formatDateOnly(docData.document_date)}</p>
                         <p style="margin:0;"><span style="font-weight: 600;">${tPdf('Term', lang)}:</span> ${creditTermDisplay}</p>
-                        ${docData.due_date ? `<p style="margin:0; color: #b91c1c;"><span style="font-weight: 600;">${tPdf('Due', lang)}:</span> ${formatDateOnly(docData.due_date)}</p>` : ''}
-                        ${docData.delivery_date ? `<p style="margin:0; color: #047857;"><span style="font-weight: 600;">${tPdf('DeliveryDate', lang)}:</span> ${formatDateOnly(docData.delivery_date)}</p>` : ''}
-						${docData.job_number ? `<p style="margin:0;"><span style="font-weight: 600;">Job Order:</span> ${docData.job_number}</p>` : ''}
+                        ${docData.due_date ? `<p style="margin:0; color: #000;"><span style="font-weight: 600;">${tPdf('Due', lang)}:</span> ${formatDateOnly(docData.due_date)}</p>` : ''}
+                        ${docData.delivery_date ? `<p style="margin:0; color: #000;"><span style="font-weight: 600;">${tPdf('DeliveryDate', lang)}:</span> ${formatDateOnly(docData.delivery_date)}</p>` : ''}
+						${jobOrderDisplay}
                         ${docData.reference_doc ? `<p style="margin:0;"><span style="font-weight: 600;">${tPdf('Ref', lang)}:</span> ${docData.reference_doc}</p>` : ''}
                     </div>
                 </td>
@@ -291,7 +373,7 @@ function getInvoiceHtml(
             <tr>
                 <td style="padding-top: 1rem; vertical-align: top; width: 55%; padding-right: 1rem;">
                     <h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('Vendor', lang)}</h3>
-                    <p style="font-weight: bold; margin: 0 0 4px 0;">${docData.vendor_name}</p>
+                    <p style="font-weight: bold; margin: 0 0 4px 0; font-size: 10pt;">${vendorNameDisplay}</p>
                     <div style="font-size: 8pt; line-height: 1.4;">
                         <p style="margin:0; white-space: pre-wrap;">${docData.vendor_address || '-'}</p>
                     </div>
@@ -301,7 +383,7 @@ function getInvoiceHtml(
                 <td style="padding-top: 1rem; vertical-align: top; width: 45%; text-align: left;">
                     ${docData.delivery_address_line ? `
 					<h3 style="font-weight: 600; text-transform: uppercase; font-size: 8pt; margin: 0 0 4px 0;">${tPdf('ShipTo', lang)}</h3>
-                    <p style="font-weight: bold; font-size: 8pt; margin: 0 0 4px 0;">${docData.delivery_location_name || ''}</p>
+                    <p style="font-weight: bold; font-size: 10pt; margin: 0 0 4px 0;">${docData.delivery_location_name || ''}</p>
 					<div style="font-size: 8pt; line-height: 1.4;">
                         <p style="margin:0; white-space: pre-wrap;">${docData.delivery_address_line}</p>
                     </div>
@@ -315,34 +397,40 @@ function getInvoiceHtml(
         </table>
     `;
 
+	// หัวตารางแบบเดียวกับ Sales Document โชว์ Vatable / NonVatable
 	const itemTableHead = `
     <thead>
         <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
-            <th class="p-2 text-center w-12">${tPdf('Seq', lang)}</th>
+            <th class="p-2 text-center w-10">${tPdf('Seq', lang)}</th>
             <th class="p-2 text-left">${tPdf('Description', lang)}</th>
-            <th class="p-2 text-right w-16">${tPdf('Qty', lang)}</th>
-            <th class="p-2 text-right w-24">${tPdf('UnitPrice', lang)}</th>
-            <th class="p-2 text-center w-16" style="color: #2563eb;">${tPdf('VAT', lang)}</th>
-            <th class="p-2 text-center w-24 whitespace-nowrap" style="color: #ef4444;">${tPdf('WHT', lang)}</th>
-            <th class="p-2 text-right w-28">${tPdf('Amount', lang)}</th>
+            <th class="p-2 text-right w-12">${tPdf('Qty', lang)}</th>
+            <th class="p-2 text-right w-20">${tPdf('UnitPrice', lang)}</th>
+            <th class="p-2 text-right w-24" style="color: #000;">${tPdf('NonVatableAmount', lang)}</th>
+            <th class="p-2 text-right w-24" style="color: #000;">${tPdf('VatableAmount', lang)}</th>
+            <th class="p-2 text-center w-12 whitespace-nowrap" style="color: #000;">${tPdf('WHT', lang)}</th>
+            <th class="p-2 text-right w-24">${tPdf('Total', lang)}</th>
         </tr>
     </thead>
 `;
 
+    // สรุปยอดแบบเดียวกับ Sales Document
 	const summaryBlock = `
+        <div style="text-align: left; font-size: 8pt; font-weight: 500; margin-bottom: 4px; color: #000; line-height: 1.4;">
+            ${tPdf('ConfirmText', lang)}
+        </div>
         <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
             <colgroup>
-                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
                 <col style="width: 140px;"> <col style="width: 110px;">
             </colgroup>
             <tfoot class="bill-summary-footer">
                 <tr>
-                    <td colspan="5" rowspan="6" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+                    <td colspan="4" rowspan="7" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
                         <div>
                             <span style="font-weight: bold; text-decoration: underline;">${tPdf('Notes', lang)}</span>
-                            <div style="margin-top: 4px; white-space: pre-wrap; color: #374151;">${docData.notes || '-'}</div>
+                            <div style="margin-top: 4px; white-space: pre-wrap; color: #000; font-weight: bold; font-size: 10pt;">${docData.notes || '-'}</div>
                         </div>
-                        <div style="position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-weight: bold;">
+                        <div style="position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-weight: bold; color: #000;">
                             (${tPdf('NetText', lang)}: ${netAmountText})
                         </div>
                     </td> 
@@ -352,35 +440,40 @@ function getInvoiceHtml(
                 </tr>
                 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('Discount', lang)}</td>
-                    <td class="p-2 text-right">${formatNumber(discount)}</td>
-                </tr>
-                
-                <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('AfterDiscount', lang)}</td>
-                    <td class="p-2 text-right">${formatNumber(totalAfterDiscount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VatableAmount', lang)}</td>
+                    <td class="p-2 text-right">${formatNumber(vatableAmount)}</td>
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${vatLabel}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('NonVatableAmount', lang)}</td>
+                    <td class="p-2 text-right">${formatNumber(nonVatableAmount)}</td>
+                </tr>
+
+                <tr>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('AmountBeforeVAT', lang)}</td>
+                    <td class="p-2 text-right">${formatNumber(amountBeforeVat)}</td>
+                </tr>
+
+                <tr>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VAT', lang)} (${vatRate}%)</td>
                     <td class="p-2 text-right">${formatNumber(vatAmt)}</td>
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 text-red-600 whitespace-nowrap" style="font-size: 7.5pt;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
-                    <td class="p-2 text-right text-red-600" style="font-size: 7.5pt;">${formatNumber(whtAmt)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap" style="font-size: 7.5pt; color: #000;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
+                    <td class="p-2 text-right" style="font-size: 7.5pt; color: #000;">${formatNumber(whtAmt)}</td>
                 </tr>
 
                 <tr style="background-color: #ffffff;">
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 9pt;">${tPdf('GrandTotal', lang)}</td>
-                    <td class="p-2 text-right border-t border-gray-400 text-blue-700" style="font-size: 9pt; font-weight: bold;">${formatNumber(netAmount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 9pt; color: #000;">${tPdf('GrandTotal', lang)}</td>
+                    <td class="p-2 text-right border-t border-gray-400" style="font-size: 9pt; font-weight: bold; color: #000;">${formatNumber(netAmount)}</td>
                 </tr>
             </tfoot>
         </table>
     `;
 
 	const signatureBlock = `
-        <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt;">
+        <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt; color: #000;">
             <div style="text-align: center; width: 30%;">
                 <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
                 <p style="margin-top: 5px;">${tPdf('PreparedBy', lang)}</p>
@@ -460,25 +553,31 @@ function getInvoiceHtml(
 			const rowsHtml = pageInfo.items
 				.map(
 					(item, i) => {
-						// กำหนดการแสดงผลของ VAT
-						let vatDisplay = '-';
-						if (item.vat_type == 1) vatDisplay = 'Inc';
-						else if (item.vat_type == 2) vatDisplay = 'Exc';
-						else if (item.vat_type == 3) vatDisplay = 'Non';
+                        // คำนวณ Vatable, NonVatable สำหรับแต่ละแถวตาม vat_type (1=Inc, 2=Exc, 3=Non)
+                        let vatableAmt = 0;
+                        let nonVatAmt = 0;
+                        const amt = item.amount || 0;
+
+                        if (Number(item.vat_type) === 2) {
+                            vatableAmt = amt;
+                        } else if (Number(item.vat_type) === 1) {
+                            vatableAmt = amt * 100 / (100 + vatRate);
+                        } else if (Number(item.vat_type) === 3) {
+                            nonVatAmt = amt;
+                        }
 
 						return `
-    <tr style="border-bottom: 1px solid #eee;">
+    <tr style="border-bottom: 1px solid #eee; color: #000;">
         <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
         <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
-        <td class="p-2 text-center" style="color: #2563eb; font-weight: 500; vertical-align: top;">
-            ${vatDisplay}
-        </td>
-        <td class="p-2 text-center" style="color: #ef4444; font-weight: 500; vertical-align: top;">
+        <td class="p-2 text-right" style="vertical-align: top;">${nonVatAmt > 0 ? formatNumber(nonVatAmt) : ''}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${vatableAmt > 0 ? formatNumber(vatableAmt) : ''}</td>
+        <td class="p-2 text-center" style="font-weight: 500; vertical-align: top;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
         </td>
-        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.line_total)}</td>
+        <td class="p-2 text-right" style="vertical-align: top; font-weight: bold;">${formatNumber(item.line_total)}</td>
     </tr>
 `
 					}
@@ -488,7 +587,7 @@ function getInvoiceHtml(
 			const tableHtml =
 				pageInfo.items.length > 0
 					? `
-            <table style="width: 100%; border-collapse: collapse; font-size: 8pt;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 8pt; color: #000;">
                 ${itemTableHead}
                 <tbody>${rowsHtml}</tbody>
             </table>
@@ -501,14 +600,14 @@ function getInvoiceHtml(
                 <div style="width: 100%;">
                     ${summaryBlock}
                     ${signatureBlock}
-                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                    <div style="text-align: right; font-size: 8pt; color: #666; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
                 </div>
             `;
 			} else {
 				footerHtml = `
                 <div style="width: 100%;">
-                    <div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">${tPdf('Carry', lang)}</div>
-                    <div style="text-align: right; font-size: 8pt; color: #999; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                    <div style="text-align: right; font-weight: bold; margin-top: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 10px; color: #000;">${tPdf('Carry', lang)}</div>
+                    <div style="text-align: right; font-size: 8pt; color: #666; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
                 </div>
             `;
 			}
@@ -529,8 +628,8 @@ function getInvoiceHtml(
             <meta charset="UTF-8">
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
-                body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #333; background: #fff !important; margin: 0; padding: 0; }
+                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+                body { font-family: 'Sarabun', sans-serif; font-size: 9pt; color: #000; background: #fff !important; margin: 0; padding: 0; }
 				.document-page { 
 					padding: 40px; 
 					box-sizing: border-box; 
@@ -577,7 +676,7 @@ export const GET = async ({ url, fetch }) => {
 
 	let connection;
 	try {
-		connection = await db.getConnection();
+		connection = await pool.getConnection();
 
 		const [rows] = await connection.execute<DocumentData[]>(
 			`
