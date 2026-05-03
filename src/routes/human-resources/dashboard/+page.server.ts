@@ -305,9 +305,8 @@ export const actions: Actions = {
 					}
 
 					if (shiftType === 'Day' && outMins > 1030) {
-						otHours = (outMins - 1030) / 60;
+						otHours = Math.floor((outMins - 1030) / 30) * 0.5;
 					}
-					otHours = Math.round(otHours * 100) / 100;
 				}
 
 				await pool.execute(
@@ -429,7 +428,7 @@ export const actions: Actions = {
 
 			console.log(`กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`);
 			const processQuery = `
-				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status)
+				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
 				SELECT 
 					e.emp_id, 
 					e.emp_name, 
@@ -440,10 +439,16 @@ export const actions: Actions = {
 					MIN(r.scan_datetime) as scan_in,
 					
 					IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL) as scan_out,
-					
+			
 					IF(TIME(MIN(r.scan_datetime)) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
 					
-					'Present'
+					'Present',
+					
+					IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, 
+						FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(MAX(r.scan_datetime)), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
+						0
+					) as ot_hours
+
 				FROM raw_attendance_logs r
 				JOIN employees e ON 
 					(e.raw_id = r.raw_emp_id) OR 
@@ -457,6 +462,7 @@ export const actions: Actions = {
 					scan_in_time = VALUES(scan_in_time),
 					scan_out_time = VALUES(scan_out_time),
 					is_late = VALUES(is_late),
+					ot_hours = VALUES(ot_hours),
 					status = 'Present';
 			`;
 

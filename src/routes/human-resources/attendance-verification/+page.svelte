@@ -9,6 +9,7 @@
 	let summary = $derived(data.summary || []);
 	let employeeList = $derived(data.employeeList || []);
 	let isSubmitting = $state(false);
+	let showErrorModal = $state(false);
 
 	let statusOptions = $derived([
 		{ value: 'Present', label: `${$t('Present')}` },
@@ -52,6 +53,25 @@
 			? summary
 			: summary.filter((s: any) => s.section + (s.emp_group || '') === summarySearch.value)
 	);
+	let groupedByDivision = $derived.by(() => {
+		const groups: Record<string, any> = {};
+		for (const row of filteredSummary) {
+			if (!groups[row.division]) {
+				groups[row.division] = { sections: [], totalPlan: 0, totalAtt: 0, percent: 0 };
+			}
+			groups[row.division].sections.push(row);
+			groups[row.division].totalPlan += Number(row.total_plan || 0);
+			groups[row.division].totalAtt += Number(row.attendance || 0);
+		}
+		for (const key in groups) {
+			groups[key].percent =
+				groups[key].totalPlan > 0
+					? Math.round((groups[key].totalAtt / groups[key].totalPlan) * 100)
+					: 0;
+		}
+		return groups;
+	});
+	let divPages = $state<Record<string, number>>({});
 
 	let empSearch: any = $state(null);
 	let empSearchOptions = $derived(
@@ -154,7 +174,6 @@
 				id="dateFilter"
 				name="date"
 				value={data.displayDate}
-				onchange={(e) => e.currentTarget.form?.submit()}
 				class="w-44 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
 			/>
 		</div>
@@ -215,117 +234,135 @@
 			/>
 		</div>
 	</div>
-	<div class="flex-1 overflow-x-auto">
-		<table class="w-full min-w-[800px] text-center text-sm text-gray-600">
-			<thead class="border-b border-gray-100 bg-white text-xs text-gray-700 uppercase">
-				<tr>
-					<th class="px-4 py-3">{$t('Division')}</th>
-					<th class="px-4 py-3">{$t('Section / Group')}</th>
-					<th class="px-4 py-3">{$t('Total Plan')}</th>
-					<th class="px-4 py-3">{$t('Active')}</th>
-					<th class="px-4 py-3 font-bold text-blue-600">{$t('Attendance')}</th>
-					<th class="px-4 py-3 font-bold text-orange-500">{$t('Leave')}</th>
-					<th class="px-4 py-3 font-bold text-red-600">{$t('Absent')}</th>
-					<th class="px-4 py-3 font-bold text-green-600">{$t('Att.')}</th>
-				</tr>
-			</thead>
-			<tbody class="divide-y divide-gray-50">
-				{#each paginatedSummary as row}
-					<tr class="hover:bg-gray-50">
-						<td class="px-4 py-3 font-medium text-gray-900">{row.division || '-'}</td>
-						<td class="px-4 py-3 font-medium text-blue-700"
-							>{row.section}
-							{row.emp_group && row.emp_group !== '-' ? `(${row.emp_group})` : ''}</td
-						>
-						<td class="px-4 py-3 font-bold">{row.total_plan}</td>
-						<td class="px-4 py-3 font-bold text-gray-800">{row.active_emp}</td>
-						<td class="px-4 py-3 font-bold text-blue-600">{row.attendance}</td>
-						<td class="px-4 py-3 font-bold text-orange-500">{row.leave_count}</td>
-						<td class="px-4 py-3 font-bold text-red-600">{row.absent_count}</td>
-						<td class="bg-green-50/50 px-4 py-3 font-black text-green-600">
-							{row.percent_att}%
-						</td>
-					</tr>
-				{/each}
-				{#if filteredSummary.length === 0}
-					<tr
-						><td colspan="8" class="px-4 py-8 text-gray-500"
-							>{$t('ไม่พบข้อมูล หรือพนักงานในแผนกนี้')}</td
-						></tr
-					>
-				{/if}
-			</tbody>
-		</table>
-	</div>
 
-	{#if filteredSummary.length > 0}
-		<div
-			class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-4 py-3 sm:px-6"
-		>
-			<div class="flex flex-col gap-4 sm:flex-1 sm:flex-row sm:items-center sm:justify-between">
-				<div class="flex flex-wrap items-center gap-4">
-					<div class="flex items-center gap-2 text-sm text-gray-700">
-						<span>{$t('Show')}:</span>
-						<select
-							aria-label="Items per page"
-							bind:value={sumPerPage}
-							onchange={() => (sumCurrentPage = 1)}
-							class="w-20 cursor-pointer rounded border border-gray-300 bg-white py-1 pr-8 pl-3 text-sm font-medium focus:border-blue-500 focus:outline-none"
-						>
-							<option value={10}>10</option>
-							<option value={50}>50</option>
-							<option value={100}>100</option>
-						</select>
-					</div>
-					<p class="hidden text-sm text-gray-700 md:block">
-						{$t('Show')} <span class="font-medium">{(validSumPage - 1) * sumPerPage + 1}</span>
-						{$t('to')}
-						<span class="font-medium"
-							>{Math.min(validSumPage * sumPerPage, filteredSummary.length)}</span
-						>
-						{$t('From total')}
-						<span class="font-medium">{filteredSummary.length}</span>
-						{$t('Item')}
-					</p>
-				</div>
-				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-					<button
-						aria-label="ก่อนหน้า"
-						onclick={() => (sumCurrentPage = validSumPage - 1)}
-						disabled={validSumPage === 1}
-						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-					>
-						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
-							><path
-								fill-rule="evenodd"
-								d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-								clip-rule="evenodd"
-							/></svg
-						>
-					</button>
-					<span
-						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 ring-inset"
-					>
-						{validSumPage} / {sumTotalPages}
-					</span>
-					<button
-						aria-label="ถัดไป"
-						onclick={() => (sumCurrentPage = validSumPage + 1)}
-						disabled={validSumPage === sumTotalPages}
-						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-					>
-						<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
-							><path
-								fill-rule="evenodd"
-								d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-								clip-rule="evenodd"
-							/></svg
-						>
-					</button>
-				</nav>
+	<div class="bg-gray-50/50 p-5">
+		{#if filteredSummary.length === 0}
+			<div class="py-8 text-center text-gray-500">
+				{$t('ไม่พบข้อมูล หรือพนักงานในแผนกนี้')}
 			</div>
-		</div>
-	{/if}
+		{:else}
+			<div class="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
+				{#each Object.entries(groupedByDivision) as [divisionName, divData]}
+					{@const currentPage = divPages[divisionName] || 1}
+					{@const totalPages = Math.ceil(divData.sections.length / 4)}
+					{@const paginatedSections = divData.sections.slice(
+						(currentPage - 1) * 4,
+						currentPage * 4
+					)}
+
+					<div
+						class="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+					>
+						<div class="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white p-4">
+							<div class="flex items-center justify-between">
+								<h3 class="text-lg font-black text-gray-800">
+									{divisionName !== '-' ? divisionName : 'ไม่ระบุ Division'}
+								</h3>
+								<div class="flex flex-col items-end">
+									<span
+										class="text-2xl font-black {divData.percent >= 100
+											? 'text-green-600'
+											: divData.percent >= 80
+												? 'text-blue-600'
+												: 'text-orange-500'}"
+									>
+										{divData.percent}%
+									</span>
+									<span class="text-[10px] font-bold text-gray-500 uppercase">Total Att.</span>
+								</div>
+							</div>
+
+							<div class="mt-2 flex items-center gap-4 text-sm font-medium">
+								<div class="flex flex-col">
+									<span class="text-gray-500">Plan</span>
+									<span class="font-bold text-gray-900"
+										>{divData.totalPlan} <span class="text-xs font-normal">คน</span></span
+									>
+								</div>
+								<div class="h-8 w-px bg-gray-200"></div>
+								<div class="flex flex-col">
+									<span class="text-gray-500">Actual (Att.)</span>
+									<span class="font-bold text-blue-600"
+										>{divData.totalAtt} <span class="text-xs font-normal">คน</span></span
+									>
+								</div>
+							</div>
+						</div>
+						<div class="flex-1 p-0">
+							<table class="w-full text-left text-sm">
+								<thead class="bg-gray-50 text-[10px] text-gray-500 uppercase">
+									<tr>
+										<th class="px-4 py-2 font-semibold">Section / Group</th>
+										<th class="px-2 py-2 text-center font-semibold">Plan</th>
+										<th class="px-2 py-2 text-center font-semibold">Att.</th>
+										<th class="px-4 py-2 text-right font-semibold">%</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-100">
+									{#each paginatedSections as sec}
+										<tr class="transition-colors hover:bg-gray-50">
+											<td class="px-4 py-2.5">
+												<div
+													class="max-w-[150px] truncate font-bold text-gray-800"
+													title={sec.section}
+												>
+													{sec.section}
+												</div>
+												{#if sec.emp_group && sec.emp_group !== '-'}
+													<div
+														class="max-w-[150px] truncate text-[11px] text-gray-500"
+														title={sec.emp_group}
+													>
+														{sec.emp_group}
+													</div>
+												{/if}
+											</td>
+											<td class="px-2 py-2.5 text-center font-medium text-gray-600"
+												>{sec.total_plan}</td
+											>
+											<td class="px-2 py-2.5 text-center font-bold text-blue-600"
+												>{sec.attendance}</td
+											>
+											<td
+												class="px-4 py-2.5 text-right font-bold {sec.percent_att >= 100
+													? 'text-green-600'
+													: sec.percent_att >= 80
+														? 'text-blue-600'
+														: 'text-orange-500'}"
+											>
+												{sec.percent_att}%
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+						{#if totalPages > 1}
+							<div
+								class="mt-auto flex items-center justify-between border-t border-gray-100 bg-white px-4 py-2.5"
+							>
+								<button
+									class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+									disabled={currentPage === 1}
+									onclick={() => (divPages[divisionName] = currentPage - 1)}
+								>
+									{$t('Previous')}
+								</button>
+								<span class="text-xs font-medium text-gray-500">{currentPage} / {totalPages}</span>
+								<button
+									class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+									disabled={currentPage === totalPages}
+									onclick={() => (divPages[divisionName] = (divPages[divisionName] || 1) + 1)}
+								>
+									{$t('Next')}
+								</button>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</div>
 </div>
 
 <div
@@ -359,7 +396,7 @@
 				class="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
 			>
 				<span class="material-symbols-outlined text-[18px]">fact_check</span>
-				{isSubmitting ? $t('กำลังบันทึก...') : $t('บันทึกและยืนยันข้อมูล')}
+				{isSubmitting ? $t('Saving...') : $t('บันทึกและยืนยันข้อมูล')}
 			</button>
 		</div>
 	</div>
@@ -377,9 +414,7 @@
 				});
 
 				if (hasPending) {
-					alert(
-						`⚠️ ${$t('ไม่สามารถบันทึกได้! มีพนักงานที่ยังไม่ได้ระบุสถานะ กรุณาตรวจสอบช่องสีแดงให้ครบถ้วนครับ (กรุณาเช็คในหน้าอื่นๆ ด้วย)')}`
-					);
+					showErrorModal = true;
 					cancel();
 					return;
 				}
@@ -593,6 +628,37 @@
 		</div>
 	{/if}
 </div>
+
+{#if showErrorModal}
+	<div
+		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-all"
+	>
+		<div class="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
+			<div
+				class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600 shadow-inner"
+			>
+				<span class="material-symbols-outlined text-[32px]">error</span>
+			</div>
+			<h3 class="text-xl font-bold text-gray-900">{$t('ไม่สามารถบันทึกได้!')}</h3>
+			<p class="mt-3 text-sm leading-relaxed text-gray-600">
+				{$t('มีพนักงานที่ยังไม่ได้ระบุสถานะการทำงาน')} <br />
+				<span class="font-semibold text-red-500">{$t('กรุณาตรวจสอบช่องสีแดงให้ครบถ้วนครับ')}</span>
+				<br />
+				<span class="text-xs text-gray-400">({$t('กรุณาเช็คในหน้าอื่นๆ ด้วย')})</span>
+			</p>
+
+			<div class="mt-6 flex justify-center">
+				<button
+					type="button"
+					onclick={() => (showErrorModal = false)}
+					class="w-full rounded-xl bg-gray-900 px-6 py-3 text-sm font-bold text-white shadow-md transition-transform hover:scale-[1.02] hover:bg-gray-800 focus:outline-none"
+				>
+					{$t('ตกลง')}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {

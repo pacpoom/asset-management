@@ -54,6 +54,14 @@ export const load: PageServerLoad = async ({ url }) => {
 			"SELECT division_name FROM divisions WHERE status = 'Active' ORDER BY division_name ASC"
 		);
 
+		const [sections]: any = await pool.execute(
+			"SELECT section_name FROM sections WHERE status = 'Active' ORDER BY section_name ASC"
+		);
+
+		const [positions]: any = await pool.execute(
+			"SELECT position_name FROM job_positions WHERE status = 1 OR status = 'Active' ORDER BY position_name ASC"
+		);
+
 		const [shifts]: any = await pool.execute(
 			"SELECT shift_code, shift_name FROM shift_master WHERE status = 'Active' ORDER BY shift_code ASC"
 		);
@@ -120,7 +128,7 @@ export const load: PageServerLoad = async ({ url }) => {
 				...emp,
 				start_date: finalDate,
 				years_of_experience,
-				tenure: years_of_experience, // ส่งทั้งสองชื่อเพื่อรองรับการเรียกใน Svelte
+				tenure: years_of_experience,
 				tenure_days,
 				shift_time_display
 			};
@@ -129,6 +137,8 @@ export const load: PageServerLoad = async ({ url }) => {
 		return {
 			employees: formattedEmployees,
 			divisions: divisions,
+			sections: sections,
+			positions: positions,
 			shifts: shifts,
 			searchQuery: search
 		};

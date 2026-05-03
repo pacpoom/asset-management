@@ -17,15 +17,17 @@ export const GET: RequestHandler = async ({ url }) => {
 			IFNULL(e.section, '-') AS 'Section',
 			IFNULL(e.emp_group, '-') AS 'Group',
 			IFNULL(jp.position_name, '-') AS 'Position',
-			al.shift_type AS 'Shift',
+			IFNULL(e.default_shift, 'D') AS 'Shift',  
 			al.scan_in_time,
 			al.scan_out_time,
-			al.ot_hours AS 'OT',
+            sm.ot_start_time,
+			al.ot_hours,
 			al.status,
 			al.is_late
 		FROM attendance_logs al
 		LEFT JOIN employees e ON al.emp_id = e.emp_id
 		LEFT JOIN job_positions jp ON e.position_id = jp.id
+        LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
 		WHERE al.work_date = ?
 	`;
 	const params: any[] = [selectedDate];
@@ -67,6 +69,22 @@ export const GET: RequestHandler = async ({ url }) => {
 	];
 
 	rows.forEach((row: any) => {
+		let finalOt = row.ot_hours;
+
+		if (row.scan_in_time && row.scan_out_time && (!finalOt || parseFloat(finalOt) === 0)) {
+			const timeIn = new Date(row.scan_in_time);
+			const timeOut = new Date(row.scan_out_time);
+			if (timeOut.getTime() - timeIn.getTime() >= 3600000 && row.ot_start_time) {
+				const [otH, otM] = row.ot_start_time.split(':').map(Number);
+				const outMins = timeOut.getHours() * 60 + timeOut.getMinutes();
+				const otStartMins = otH * 60 + otM;
+				if (outMins > otStartMins) {
+					const diffMins = outMins - otStartMins;
+					finalOt = Math.floor(diffMins / 30) * 0.5;
+				}
+			}
+		}
+
 		worksheet.addRow({
 			date: row.work_date ? new Date(row.work_date).toLocaleDateString('en-GB') : '-',
 			id_no: row.ID_No || '-',
@@ -77,7 +95,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			shift: row.Shift,
 			time_in: row.scan_in_time ? new Date(row.scan_in_time).toLocaleTimeString('th-TH') : '-',
 			time_out: row.scan_out_time ? new Date(row.scan_out_time).toLocaleTimeString('th-TH') : '-',
-			ot: row.OT > 0 ? row.OT : '-',
+			ot: finalOt > 0 ? Number(finalOt) : '-',
 			status:
 				row.status === 'Present' && row.is_late === 1
 					? 'สาย'
