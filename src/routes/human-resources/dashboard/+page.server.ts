@@ -90,15 +90,20 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const [recentLogs]: any = await pool.execute(logQuery, logParams);
 
 		const statsQuery = `
-			SELECT 
-				COUNT(al.id) as total_scanned,
-				SUM(CASE WHEN al.status = 'Present' AND al.is_late = 0 THEN 1 ELSE 0 END) as on_time,
-				SUM(CASE WHEN al.status = 'Present' AND al.is_late = 1 THEN 1 ELSE 0 END) as late,
-				SUM(CASE WHEN al.status IN ('Absent', 'Leave') THEN 1 ELSE 0 END) as absent
-			FROM attendance_logs al
-			LEFT JOIN employees e ON al.emp_id = e.emp_id
-			WHERE al.work_date = ? ${empWhere}
-		`;
+    SELECT 
+        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, -- นับจากพนักงานทั้งหมดจริงๆ (หรือเอาเงื่อนไขอื่นมาใส่ถ้ามี)
+        
+        COUNT(DISTINCT r.raw_emp_id) as total_scanned, 
+        SUM(CASE WHEN TIME(r.scan_datetime) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00') THEN 1 ELSE 0 END) as late,
+        
+        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) - COUNT(DISTINCT r.raw_emp_id) as absent
+
+    FROM raw_attendance_logs r
+    INNER JOIN employees e ON r.raw_emp_id = e.raw_id 
+    LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
+    WHERE DATE(r.scan_datetime) = ? ${empWhere}
+`;
+
 		const [statsRow]: any = await pool.execute(statsQuery, [displayDate, ...filterParams]);
 
 		return {

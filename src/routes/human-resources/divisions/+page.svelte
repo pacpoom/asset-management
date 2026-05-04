@@ -5,16 +5,19 @@
 
 	let { data, form } = $props();
 
-	let activeTab = $state<'division' | 'section' | 'position'>('division');
+	let activeTab = $state<'division' | 'section' | 'position' | 'group' | 'project'>('division');
 
 	// สถานะ Modal (อิงตามโค้ดเดิมของคุณ)
 	let modalMode = $state<'add' | 'edit' | null>(null);
 	let selectedItem = $state<any>(null);
 	let itemToDelete = $state<any>(null);
 	let isSaving = $state(false);
+
 	let currentData = $derived(() => {
 		if (activeTab === 'section') return data.sections || [];
 		if (activeTab === 'position') return data.positions || [];
+		if (activeTab === 'group') return data.groups || [];
+		if (activeTab === 'project') return data.projects || [];
 		return data.divisions || [];
 	});
 
@@ -23,7 +26,12 @@
 		if (mode === 'edit') {
 			selectedItem = {
 				...item,
-				name: item.division_name || item.section_name || item.position_name
+				name:
+					item.division_name ||
+					item.section_name ||
+					item.position_name ||
+					item.group_name ||
+					item.project_name
 			};
 		} else {
 			selectedItem = { name: '', description: '', status: 'Active' };
@@ -90,6 +98,23 @@
 	>
 		{$t('Positions')}
 	</button>
+
+	<button
+		onclick={() => (activeTab = 'group')}
+		class="px-6 py-2 font-medium {activeTab === 'group'
+			? 'border-b-2 border-blue-600 text-blue-600'
+			: 'text-gray-500 hover:text-blue-500'}"
+	>
+		{$t('Groups')}
+	</button>
+	<button
+		onclick={() => (activeTab = 'project')}
+		class="px-6 py-2 font-medium {activeTab === 'project'
+			? 'border-b-2 border-blue-600 text-blue-600'
+			: 'text-gray-500 hover:text-blue-500'}"
+	>
+		{$t('Projects')}
+	</button>
 </div>
 
 <div class="overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
@@ -113,7 +138,11 @@
 				{#each currentData() as item}
 					<tr class="border-b border-gray-50 transition-colors hover:bg-gray-50">
 						<td class="px-6 py-4 font-bold text-gray-900">
-							{item.division_name || item.section_name || item.position_name}
+							{item.division_name ||
+								item.section_name ||
+								item.position_name ||
+								item.group_name ||
+								item.project_name}
 						</td>
 						<td class="px-6 py-4 text-gray-500">{item.description || '-'}</td>
 						<td class="px-6 py-4 text-center">
@@ -248,7 +277,9 @@
 				คุณต้องการลบ <strong
 					>{itemToDelete.division_name ||
 						itemToDelete.section_name ||
-						itemToDelete.position_name}</strong
+						itemToDelete.position_name ||
+						itemToDelete.group_name ||
+						itemToDelete.project_name}</strong
 				> ใช่หรือไม่?
 			</p>
 			<form method="POST" action="?/delete" use:enhance class="mt-6 flex justify-center gap-3">

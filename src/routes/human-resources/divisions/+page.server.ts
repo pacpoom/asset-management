@@ -16,9 +16,12 @@ export const load: PageServerLoad = async () => {
 			status: pos.status == 1 || pos.status === 'Active' ? 'Active' : 'Inactive'
 		}));
 
-		return { divisions, sections, positions };
+		const [groups]: any = await pool.execute('SELECT * FROM `groups` ORDER BY group_name ASC');
+		const [projects]: any = await pool.execute('SELECT * FROM projects ORDER BY project_name ASC');
+
+		return { divisions, sections, positions, groups, projects };
 	} catch (error) {
-		return { divisions: [], sections: [], positions: [] };
+		return { divisions: [], sections: [], positions: [], groups: [], projects: [] };
 	}
 };
 
@@ -40,11 +43,16 @@ export const actions: Actions = {
 		if (tab === 'section') {
 			table = 'sections';
 			col = 'section_name';
-		}
-		if (tab === 'position') {
+		} else if (tab === 'position') {
 			table = 'job_positions';
 			col = 'position_name';
 			finalStatus = status === 'Active' ? 1 : 0;
+		} else if (tab === 'group') {
+			table = '`groups`';
+			col = 'group_name';
+		} else if (tab === 'project') {
+			table = 'projects';
+			col = 'project_name';
 		}
 
 		try {
@@ -70,7 +78,18 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
 		const tab = data.get('tab')?.toString();
-		let table = tab === 'section' ? 'sections' : tab === 'position' ? 'job_positions' : 'divisions';
+
+		let table =
+			tab === 'section'
+				? 'sections'
+				: tab === 'position'
+					? 'job_positions'
+					: tab === 'group'
+						? '`groups`'
+						: tab === 'project'
+							? 'projects'
+							: 'divisions';
+
 		try {
 			await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
 			return { success: true, message: 'ลบข้อมูลสำเร็จ' };

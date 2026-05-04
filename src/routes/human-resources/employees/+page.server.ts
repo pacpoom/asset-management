@@ -66,6 +66,13 @@ export const load: PageServerLoad = async ({ url }) => {
 			"SELECT shift_code, shift_name FROM shift_master WHERE status = 'Active' ORDER BY shift_code ASC"
 		);
 
+		const [groups]: any = await pool.execute(
+			"SELECT group_name FROM `groups` WHERE status = 'Active' ORDER BY group_name ASC"
+		);
+		const [projects]: any = await pool.execute(
+			"SELECT project_name FROM projects WHERE status = 'Active' ORDER BY project_name ASC"
+		);
+
 		const formattedEmployees = employees.map((emp: any) => {
 			const rawDate = emp.start_date || emp.start_ih;
 			let finalDate = '-';
@@ -140,11 +147,22 @@ export const load: PageServerLoad = async ({ url }) => {
 			sections: sections,
 			positions: positions,
 			shifts: shifts,
+			groups: groups,
+			projects: projects,
 			searchQuery: search
 		};
 	} catch (error) {
 		console.error('Error loading employees:', error);
-		return { employees: [], divisions: [], shifts: [], searchQuery: search };
+		return {
+			employees: [],
+			divisions: [],
+			sections: [],
+			positions: [],
+			shifts: [],
+			groups: [],
+			projects: [],
+			searchQuery: search
+		};
 	}
 };
 
