@@ -13,8 +13,8 @@ export async function GET() {
 
 async function startBackgroundSync() {
 	const ZKLib = (await import('node-zklib')).default;
-	//const ips = ['192.168.115.69', '192.168.115.70', '192.168.115.71'];
-	const ips = ['192.168.116.80'];
+	const ips = ['192.168.115.69', '192.168.115.70', '192.168.115.71'];
+	//const ips = ['192.168.116.80'];
 	
 	// สำหรับ Auto Sync จะดึงข้อมูลย้อนหลัง 1 วัน จนถึง วันปัจจุบัน เพื่อให้ชัวร์ว่ากะดึกเลิกงานตอนเช้าจะถูกเก็บครบ
 	const today = new Date();
@@ -93,27 +93,66 @@ async function startBackgroundSync() {
 
 		console.log(`\n[AutoSync] กวาดข้อมูลลง raw_logs เรียบร้อย เริ่มคำนวณเข้าตารางจริงด้วย Standard Query...`);
 
-		// ⭐️ 1. ใช้ Query มาตรฐานเดียวกับหน้า Dashboard (แก้ปัญหากะดึก + คำนวณ OT แม่นยำ)
+		// ⭐️ 1. ใช้ Query มาตรฐานเดียวกับหน้า Dashboard (แก้ปัญหากะดึก + จำแนกช่วงเวลา In/Out 100%)
 		const processQuery = `
 			INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
 			SELECT 
-				e.emp_id, 
-				e.emp_name, 
-				DATE(DATE_SUB(r.scan_datetime, INTERVAL IF(IFNULL(e.default_shift, 'D') = 'N', 12, 0) HOUR)) as logical_work_date,
-				IFNULL(e.default_shift, 'D') as shift_type,
-				MIN(r.scan_datetime) as scan_in,
-				IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL) as scan_out,
-				IF(TIME(MIN(r.scan_datetime)) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
+				base.emp_id, 
+				base.emp_name, 
+				base.logical_work_date, 
+				base.shift_type, 
+				base.scan_in, 
+				base.scan_out, 
+				
+				-- ⭐️ เกณฑ์การมาสาย วัดจาก scan_in 
+				IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
+				
 				'Present' as status,
-				IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, 
-					FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(MAX(r.scan_datetime)), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
+				
+				-- ⭐️ คำนวณ OT วัดจาก scan_out
+				IF(base.scan_out IS NOT NULL, 
+					FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(base.scan_out), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
 					0
 				) as ot_hours
-			FROM raw_attendance_logs r
-			JOIN employees e ON e.emp_id = r.raw_emp_id 
-			LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
-			WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY) 
-			GROUP BY e.emp_id, logical_work_date
+			FROM (
+				SELECT 
+					e.emp_id, 
+					e.emp_name, 
+					
+					-- ปรับวันที่ให้กะดึก (ดึงถอยหลัง 12 ชม.) เพื่อให้เลิกงานตอนเช้าจัดอยู่ในวันเดียวกับตอนเข้า
+					DATE(DATE_SUB(r.scan_datetime, INTERVAL IF(IFNULL(e.default_shift, 'D') = 'N', 12, 0) HOUR)) as logical_work_date,
+					
+					IFNULL(e.default_shift, 'D') as shift_type,
+					
+					-- ⭐️ Time In: 
+					-- กะปกติ 01:00 ถึง 12:59 | กะ N 13:00 ถึง 23:59
+					MIN(
+						CASE 
+							WHEN IFNULL(e.default_shift, 'D') = 'N' THEN 
+								IF(TIME(r.scan_datetime) >= '13:00:00', r.scan_datetime, NULL)
+							ELSE 
+								IF(TIME(r.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r.scan_datetime, NULL)
+						END
+					) as scan_in,
+					
+					-- ⭐️ Time Out: 
+					-- กะปกติ 13:00 ขึ้นไป | กะ N 01:00 ถึง 12:59 ของวันถัดไป
+					MAX(
+						CASE 
+							WHEN IFNULL(e.default_shift, 'D') = 'N' THEN 
+								IF(TIME(r.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r.scan_datetime, NULL)
+							ELSE 
+								IF(TIME(r.scan_datetime) >= '13:00:00', r.scan_datetime, NULL)
+						END
+					) as scan_out
+
+				FROM raw_attendance_logs r
+				JOIN employees e ON e.emp_id = r.raw_emp_id 
+				WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY) 
+				GROUP BY e.emp_id, e.emp_name, logical_work_date, shift_type
+			) as base
+			LEFT JOIN shift_master sm ON base.shift_type = sm.shift_code
+			
 			ON DUPLICATE KEY UPDATE 
 				shift_type = VALUES(shift_type),
 				scan_in_time = VALUES(scan_in_time),

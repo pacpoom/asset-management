@@ -91,7 +91,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const statsQuery = `
     SELECT 
-        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, -- นับจากพนักงานทั้งหมดจริงๆ (หรือเอาเงื่อนไขอื่นมาใส่ถ้ามี)
+        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, 
         
         COUNT(DISTINCT r.raw_emp_id) as total_scanned, 
         SUM(CASE WHEN TIME(r.scan_datetime) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00') THEN 1 ELSE 0 END) as late,
@@ -369,23 +369,12 @@ export const actions: Actions = {
 
 		const ZKLib = (await import('node-zklib')).default;
 		const ips = ['192.168.115.69', '192.168.115.70', '192.168.115.71'];
+		//const ips = ['192.168.116.80'];
 
 		let totalImported = 0;
 		let logMessages: string[] = [];
 
 		try {
-			// ⭐️ 1. เตรียม Cache ของ พนักงานในระบบก่อน เพื่อลดภาระ Database JOIN 
-			const [empRows]: any = await pool.execute('SELECT emp_id, citizen_id, raw_id FROM employees');
-			const empMap = new Map();
-			empRows.forEach((e: any) => {
-				if (e.citizen_id) empMap.set(e.citizen_id, e.emp_id);
-				if (e.raw_id) empMap.set(e.raw_id, e.emp_id);
-				empMap.set(e.emp_id, e.emp_id);
-				// เผื่อเครื่องส่งมาแต่ตัวเลข
-				const numericOnly = e.emp_id.replace(/\D/g, '');
-				if (numericOnly) empMap.set(numericOnly, e.emp_id);
-			});
-
 			for (const ip of ips) {
 				const zkInstance = new ZKLib(ip, 4370, 120000, 4000);
 
@@ -415,11 +404,10 @@ export const actions: Actions = {
 							for (let i = 0; i < filteredLogs.length; i += chunkSize) {
 								const chunk = filteredLogs.slice(i, i + chunkSize);
 								
-								// ⭐️ 2. แปลง Raw ID จากเครื่อง ให้เป็น emp_id จริงๆ ตั้งแต่ก่อนเข้า DB (Performance x10)
+								// ⭐️ เก็บข้อมูลดิบ (Raw ID) จากเครื่องส่งตรงเข้าฐานข้อมูลทันที 
 								const values = chunk.map((log: any) => {
 									const rawId = log.deviceUserId.toString().trim();
-									const mappedEmpId = empMap.get(rawId) || rawId; 
-									return [ip, mappedEmpId, log.recordTime];
+									return [ip, rawId, log.recordTime];
 								});
 
 								const placeholders = values.map(() => '(?, ?, ?)').join(', ');
@@ -447,44 +435,59 @@ export const actions: Actions = {
 
 			console.log(`กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`);
 			
-			// ⭐️ 3. ประมวลผลและแก้ไขปัญหา กะกลางคืน (Night Shift) ข้ามวัน
+			// ⭐️ ประมวลผลและแก้ไขปัญหา กะกลางคืน (Night Shift) และการแยก Time In / Out ของกะกลางวันอย่างแม่นยำ
+			// โดยมีการเชื่อมตาราง employees แบบ e.raw_id = r.raw_emp_id ตามที่ต้องการ
 			const processQuery = `
 				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
 				SELECT 
-					e.emp_id, 
-					e.emp_name, 
+					base.emp_id, 
+					base.emp_name, 
+					base.logical_work_date, 
+					base.shift_type, 
+					base.scan_in, 
+					base.scan_out, 
 					
-					-- ⭐️ จุดสำคัญ: ถ้าเป็นกะดึก ('N') ให้ถอยเวลาออกไป 12 ชั่วโมงก่อนหาค่า DATE() 
-					-- เพื่อให้การสแกนออกตอน 08:00 น. ของวันถัดไป ถูกนับรวมเป็นของวันที่สแกนเข้า
-					DATE(DATE_SUB(r.scan_datetime, INTERVAL IF(IFNULL(e.default_shift, 'D') = 'N', 12, 0) HOUR)) as logical_work_date,
-					
-					IFNULL(e.default_shift, 'D') as shift_type,
-					
-					MIN(r.scan_datetime) as scan_in,
-					
-					-- หา scan_out (ต้องสแกนห่างกันอย่างน้อย 1 ชั่วโมง ป้องกัน Double Scan)
-					IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL) as scan_out,
-			
-					-- เกณฑ์การมาสาย ใช้เวลาเริ่มกะ + 10 นาที 
-					IF(TIME(MIN(r.scan_datetime)) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
+					-- ⭐️ เกณฑ์การมาสาย วัดจาก scan_in 
+					IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
 					
 					'Present' as status,
 					
-					-- คำนวณ OT โดยคิดเวลาหลัง ot_start_time ปัดลงทุกๆ 30 นาที 
-					IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, 
-						FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(MAX(r.scan_datetime)), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
+					-- ⭐️ คำนวณ OT วัดจาก scan_out
+					IF(base.scan_out IS NOT NULL, 
+						FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(base.scan_out), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
 						0
 					) as ot_hours
+				FROM (
+					SELECT 
+						e.emp_id, 
+						e.emp_name, 
+						
+						-- ปรับวันที่ให้กะดึก
+						DATE(DATE_SUB(r.scan_datetime, INTERVAL IF(IFNULL(e.default_shift, 'D') = 'N', 12, 0) HOUR)) as logical_work_date,
+						
+						IFNULL(e.default_shift, 'D') as shift_type,
+						
+						-- ⭐️ Time In: สำหรับกะที่ไม่ใช่ N (เช่น D, O) จะใช้เฉพาะช่วง 01:00-12:59 เท่านั้น
+						MIN(
+							CASE 
+								WHEN IFNULL(e.default_shift, 'D') != 'N' THEN 
+									IF(TIME(r.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r.scan_datetime, NULL)
+								ELSE r.scan_datetime 
+							END
+						) as scan_in,
+						
+						-- ⭐️ Time Out: สำหรับกะที่ไม่ใช่ N จะนับเฉพาะการสแกนตั้งแต่ 13:00 ขึ้นไป
+						IF(IFNULL(e.default_shift, 'D') != 'N',
+							MAX(CASE WHEN TIME(r.scan_datetime) >= '13:00:00' THEN r.scan_datetime ELSE NULL END),
+							IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL)
+						) as scan_out
 
-				FROM raw_attendance_logs r
-				-- ⭐️ Join ด้วย Primary Key ตรงๆ เพราะเราแปลง raw_emp_id ใน Node.js มาให้แล้ว
-				JOIN employees e ON e.emp_id = r.raw_emp_id 
-				LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
-				
-				-- ⭐️ ดึงล่วงหน้าไปอีก 1 วัน เพื่อครอบคลุมเวลาเลิกงานตอนเช้าของกะดึก
-				WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY) 
-				
-				GROUP BY e.emp_id, logical_work_date
+					FROM raw_attendance_logs r
+					JOIN employees e ON e.raw_id = r.raw_emp_id 
+					WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY) 
+					GROUP BY e.emp_id, e.emp_name, logical_work_date, shift_type
+				) as base
+				LEFT JOIN shift_master sm ON base.shift_type = sm.shift_code
 				
 				ON DUPLICATE KEY UPDATE 
 					shift_type = VALUES(shift_type),

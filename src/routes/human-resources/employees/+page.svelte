@@ -33,11 +33,20 @@
 	);
 
 	let currentPage = $state(1);
-	let itemsPerPage = $state(20);
+	let itemsPerPage = $state(10); // ปรับค่าเริ่มต้นเป็น 10
 	let totalPages = $derived(Math.ceil(sortedEmployees.length / itemsPerPage) || 1);
 	let paginatedEmployees = $derived(
 		sortedEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 	);
+
+	// คำนวณสถิติสำหรับ Dashboard Cards
+	let stats = $derived({
+		total: employees.length,
+		active: employees.filter((e: any) => e.status === 'Active').length,
+		resigned: employees.filter((e: any) => e.status === 'Resigned').length,
+		subContract: employees.filter((e: any) => e.employee_type === 'Sub Contract').length,
+		permanent: employees.filter((e: any) => e.employee_type === 'Permanent').length
+	});
 
 	function changeItemsPerPage(e: Event) {
 		const target = e.target as HTMLSelectElement;
@@ -97,6 +106,12 @@
 	let selectedItem = $state<any>(null);
 	let itemToDelete = $state<any>(null);
 	let showBulkDeleteModal = $state(false);
+	
+	// สถานะสำหรับโหมดลาออก
+	let showResignModal = $state(false);
+	let employeeToResign = $state<any>(null);
+	let isResigning = $state(false);
+	
 	let isSaving = $state(false);
 	let isDeleting = $state(false);
 
@@ -148,6 +163,8 @@
 			closeModal();
 			itemToDelete = null;
 			showBulkDeleteModal = false;
+			showResignModal = false;
+			employeeToResign = null;
 			selectedIds = [];
 		}
 	});
@@ -219,6 +236,30 @@
 	</div>
 </div>
 
+<!-- เพิ่ม Dashboard Cards แสดงภาพรวมข้อมูล -->
+<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+	<div class="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+		<p class="text-sm font-medium text-gray-500">{$t('พนักงานทั้งหมด')}</p>
+		<p class="mt-2 text-3xl font-bold text-gray-900">{stats.total}</p>
+	</div>
+	<div class="rounded-lg border border-l-4 border-gray-100 border-l-green-500 bg-white p-5 shadow-sm">
+		<p class="text-sm font-medium text-gray-500">{$t('ทำงานอยู่ (Active)')}</p>
+		<p class="mt-2 text-3xl font-bold text-green-600">{stats.active}</p>
+	</div>
+	<div class="rounded-lg border border-l-4 border-gray-100 border-l-red-500 bg-white p-5 shadow-sm">
+		<p class="text-sm font-medium text-gray-500">{$t('ลาออก (Resigned)')}</p>
+		<p class="mt-2 text-3xl font-bold text-red-600">{stats.resigned}</p>
+	</div>
+	<div class="rounded-lg border border-l-4 border-gray-100 border-l-purple-500 bg-white p-5 shadow-sm">
+		<p class="text-sm font-medium text-gray-500">{$t('Sub Contract')}</p>
+		<p class="mt-2 text-3xl font-bold text-purple-600">{stats.subContract}</p>
+	</div>
+	<div class="rounded-lg border border-l-4 border-gray-100 border-l-blue-500 bg-white p-5 shadow-sm">
+		<p class="text-sm font-medium text-gray-500">{$t('Permanent')}</p>
+		<p class="mt-2 text-3xl font-bold text-blue-600">{stats.permanent}</p>
+	</div>
+</div>
+
 <div class="mb-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
 	<form method="GET" class="flex flex-wrap items-end gap-4">
 		<div class="min-w-[250px] flex-1">
@@ -255,6 +296,7 @@
 			value={itemsPerPage}
 			onchange={changeItemsPerPage}
 		>
+			<option value={10}>10</option>
 			<option value={20}>20</option>
 			<option value={50}>50</option>
 			<option value={100}>100</option>
@@ -543,6 +585,19 @@
 										><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg
 									>
 								</button>
+								
+								<!-- เพิ่มปุ่มลากออก (Resign) -->
+								<button
+									onclick={() => { employeeToResign = { ...emp, resign_date: new Date().toISOString().split('T')[0], resign_reason: '' }; showResignModal = true; }}
+									class="rounded p-1.5 transition-colors {emp.status === 'Resigned' ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-orange-50 hover:text-orange-600'}"
+									title={$t('Resign')}
+									disabled={emp.status === 'Resigned'}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+									</svg>
+								</button>
+
 								<button
 									onclick={() => (itemToDelete = emp)}
 									class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-600"
@@ -1113,6 +1168,81 @@
 					</button>
 				{/if}
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal ทำรายการลาออก -->
+{#if showResignModal && employeeToResign}
+	<div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" transition:fade={{ duration: 150 }}>
+		<div class="w-full max-w-md rounded-xl bg-white shadow-2xl" transition:slide={{ duration: 200 }}>
+			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
+				<h3 class="text-lg font-bold text-gray-900">{$t('แจ้งพนักงานลาออก')}</h3>
+				<button type="button" onclick={() => { showResignModal = false; employeeToResign = null; }} class="text-gray-400 hover:text-gray-600">
+					<span class="material-symbols-outlined">close</span>
+				</button>
+			</div>
+			
+			<form
+				method="POST"
+				action="?/resign"
+				use:enhance={() => {
+					isResigning = true;
+					return async ({ update }) => {
+						await update();
+						isResigning = false;
+					};
+				}}
+				class="p-6"
+			>
+				<input type="hidden" name="emp_id" value={employeeToResign.emp_id} />
+				
+				<div class="mb-4 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
+					คุณกำลังทำรายการให้พนักงาน <strong class="text-gray-900">{employeeToResign.emp_name}</strong> (รหัส: {employeeToResign.emp_id}) เปลี่ยนสถานะเป็น <b>"ลาออก"</b>
+				</div>
+
+				<div class="space-y-4">
+					<div>
+						<label for="resign_date" class="mb-1 block text-sm font-semibold text-gray-700">{$t('วันที่ลาออก (มีผล)')} <span class="text-red-500">*</span></label>
+						<input
+							id="resign_date"
+							type="date"
+							name="resign_date"
+							bind:value={employeeToResign.resign_date}
+							required
+							class="w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+						/>
+					</div>
+					<div>
+						<label for="resign_reason" class="mb-1 block text-sm font-semibold text-gray-700">{$t('สาเหตุการลาออก')}</label>
+						<textarea
+							id="resign_reason"
+							name="resign_reason"
+							rows="3"
+							bind:value={employeeToResign.resign_reason}
+							placeholder="ระบุสาเหตุ (ถ้ามี)"
+							class="w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+						></textarea>
+					</div>
+				</div>
+
+				<div class="mt-6 flex justify-end gap-3">
+					<button
+						type="button"
+						onclick={() => { showResignModal = false; employeeToResign = null; }}
+						class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+					>
+						{$t('Cancel')}
+					</button>
+					<button
+						type="submit"
+						disabled={isResigning}
+						class="rounded-md bg-orange-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-orange-700 disabled:opacity-70"
+					>
+						{isResigning ? $t('กำลังบันทึก...') : $t('ยืนยันการลาออก')}
+					</button>
+				</div>
+			</form>
 		</div>
 	</div>
 {/if}

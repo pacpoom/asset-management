@@ -67,7 +67,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		);
 
 		const [groups]: any = await pool.execute(
-			"SELECT group_name FROM `groups` WHERE status = 'Active' ORDER BY group_name ASC"
+			"SELECT group_name FROM \`groups\` WHERE status = 'Active' ORDER BY group_name ASC"
 		);
 		const [projects]: any = await pool.execute(
 			"SELECT project_name FROM projects WHERE status = 'Active' ORDER BY project_name ASC"
@@ -483,6 +483,28 @@ export const actions: Actions = {
 				success: false,
 				message: 'เกิดข้อผิดพลาดในการลบข้อมูล (อาจมีข้อมูลผูกพันอยู่)'
 			});
+		}
+	},
+
+	resign: async ({ request }) => {
+		const data = await request.formData();
+		const emp_id = data.get('emp_id')?.toString();
+		const resign_date = data.get('resign_date')?.toString();
+		const resign_reason = data.get('resign_reason')?.toString() || null;
+
+		if (!emp_id || !resign_date) {
+			return fail(400, { success: false, message: 'กรุณาระบุรหัสพนักงานและวันที่ลาออก' });
+		}
+
+		try {
+			await pool.execute(
+				`UPDATE employees SET status = 'Resigned', resign_date = ?, resign_reason = ? WHERE emp_id = ?`,
+				[resign_date, resign_reason, emp_id]
+			);
+			return { success: true, message: 'บันทึกการลาออกสำเร็จ!' };
+		} catch (error) {
+			console.error('Error resigning employee:', error);
+			return fail(500, { success: false, message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูลการลาออก' });
 		}
 	}
 };
