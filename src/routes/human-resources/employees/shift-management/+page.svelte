@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { fade } from 'svelte/transition';
+	import { navigating } from '$app/stores';
 	
 	let { data, form } = $props();
 
@@ -320,3 +321,18 @@
 		</table>
 	</div>
 </div>
+
+<!-- Loading Overlay สำหรับล็อกหน้าจอตอนกำลังบันทึกหรือเปลี่ยนเดือน/ค้นหา -->
+{#if isSaving || $navigating}
+	<div
+		class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm"
+		transition:fade={{ duration: 1000 }}
+	>
+		<div
+			class="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"
+		></div>
+		<p class="mt-4 text-sm font-semibold tracking-wide text-gray-700">
+			{isSaving ? $t('กำลังบันทึกข้อมูลกะ...') : $t('กำลังโหลดข้อมูล...')}
+		</p>
+	</div>
+{/if}
