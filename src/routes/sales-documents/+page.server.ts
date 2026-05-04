@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	const filterStatus = url.searchParams.get('status') || '';
 	const filterType = url.searchParams.get('type') || '';
 	
-	// ตั้งค่า Default Date ให้เป็นเดือนปัจจุบัน
+	// ตั้งค่า Default Date ให้เป็น 1 เดือนปัจจุบัน
 	const today = new Date();
 	const year = today.getFullYear();
 	const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -20,6 +20,8 @@ export const load: PageServerLoad = async ({ url }) => {
 	// หากไม่มี parameter ใน URL ให้ใช้ค่าเริ่มต้นเป็นเดือนปัจจุบัน
 	const paramDateFrom = url.searchParams.get('dateFrom');
 	const paramDateTo = url.searchParams.get('dateTo');
+	
+	// ถ้ามีพารามิเตอร์ แต่เคลียร์เป็นค่าว่าง ก็ยอมให้เป็นค่าว่าง (เพื่อดูทั้งหมดได้)
 	const dateFrom = paramDateFrom !== null ? paramDateFrom : firstDayOfMonth;
 	const dateTo = paramDateTo !== null ? paramDateTo : lastDayOfMonth;
 

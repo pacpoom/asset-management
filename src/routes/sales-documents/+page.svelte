@@ -7,12 +7,22 @@
 	export let data: PageData;
 	$: ({ documents, currentPage, totalPages, totalItems, limit, searchQuery, filterStatus, filterType, dateFrom, dateTo } = data);
 
-	let searchInput = searchQuery;
-	let statusInput = filterStatus;
-	let typeInput = filterType;
-	let dateFromInput = dateFrom;
-	let dateToInput = dateTo;
-	let limitInput = limit || 10;
+	let searchInput = '';
+	let statusInput = '';
+	let typeInput = '';
+	let dateFromInput = '';
+	let dateToInput = '';
+	let limitInput = 10;
+
+	// เมื่อข้อมูล data เปลี่ยน (โหลดหน้าแรกหรือมีการค้นหา) ให้อัปเดต UI 
+	$: {
+		searchInput = searchQuery;
+		statusInput = filterStatus;
+		typeInput = filterType;
+		dateFromInput = dateFrom;
+		dateToInput = dateTo;
+		limitInput = limit || 10;
+	}
 
 	let isDeleteModalOpen = false;
 	let itemToDelete: any = null;
