@@ -80,11 +80,17 @@
 	);
 
 	let uniqueGroups = $derived(
-		[...new Set(employees.map((e: any) => e.emp_group).filter((v: any) => v && v !== '-'))].sort()
+		data.groups && data.groups.length > 0
+			? data.groups.map((g: any) => g.group_name)
+			: [
+					...new Set(employees.map((e: any) => e.emp_group).filter((v: any) => v && v !== '-'))
+				].sort()
 	);
 
 	let uniqueProjects = $derived(
-		[...new Set(employees.map((e: any) => e.project).filter((v: any) => v && v !== '-'))].sort()
+		data.projects && data.projects.length > 0
+			? data.projects.map((p: any) => p.project_name)
+			: [...new Set(employees.map((e: any) => e.project).filter((v: any) => v && v !== '-'))].sort()
 	);
 
 	let modalMode = $state<'view' | 'edit' | 'add' | null>(null);
