@@ -18,6 +18,7 @@
 		price: number | string;
 		unit_id: number | string | null;
 		default_wht_rate: number | string;
+		category_id: number | string | null; // 🌟 เพิ่ม property นี้
 	}
 
 	interface CustomerContact {
@@ -81,12 +82,6 @@
 		customer: c
 	}));
 
-	$: productOptions = localProducts.map((p: Product) => ({
-		value: p.id,
-		label: p.name,
-		product: p
-	}));
-
 	let documentType = 'INV';
 	let documentDate = new Date().toISOString().split('T')[0];
 	let creditTerm: number | null = 30;
@@ -142,6 +137,15 @@
 		label: `${job.job_number} | BL: ${job.bl_number !== '-' && job.bl_number ? job.bl_number : 'N/A'}`
 	}));
 
+	// 🌟 กรองรายการ Product ตามเงื่อนไข Category = 24 เมื่อมีการเลือก Job Order
+	$: productOptions = localProducts
+		.filter((p: Product) => selectedJobOrderId ? p.category_id == 24 : true)
+		.map((p: Product) => ({
+			value: p.id,
+			label: p.name,
+			product: p
+		}));
+
 	$: if (selectedContactId && contactOptions.length > 0) {
 		if (!selectedContactObj || selectedContactObj.value !== selectedContactId) {
 			selectedContactObj = contactOptions.find((c: SelectOption) => c.value == selectedContactId) || null;
@@ -183,6 +187,7 @@
 
 			if (prefillData.items && prefillData.items.length > 0) {
 				items = prefillData.items.map((item: DBItem) => {
+					// ต้องระวังถ้า prefill ข้อมูลแล้ว category_id != 24 แต่เราเลือก JobOrder
 					const productObj = productOptions.find((p: SelectOption) => p.value == item.product_id) || null;
 					return {
 						product_object: productObj,
@@ -228,6 +233,9 @@
 	function onJobOrderChange(selected: SelectOption | null) {
 		selectedJobOrderObj = selected;
 		selectedJobOrderId = selected ? selected.value : '';
+		
+		// 🌟 หากสลับ Job Order แล้วรายการที่มีอยู่ไม่อยู่ในเงื่อนไขที่กรอง เราอาจจะเคลียร์รายการเพื่อความถูกต้อง (หรือไม่ก็ได้)
+		// ในที่นี้ไม่ได้เคลียร์ items เดิมทิ้ง แต่ตอน Search Product จะหาเจอแค่หมวด 24
 	}
 
 	// Calculate line items amounts

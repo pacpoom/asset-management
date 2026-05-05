@@ -66,7 +66,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
 		const [vendorContacts] = await pool.query('SELECT id, vendor_id, name, position, email, phone FROM vendor_contacts ORDER BY name ASC');
 		const [vendorContractsData] = await pool.query('SELECT id, vendor_id, title, contract_number FROM vendor_contracts WHERE status = "Active" ORDER BY title ASC');
-		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC');
+		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 AND category_id = 26 ORDER BY name ASC');
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
 		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
 		const [jobOrders] = await pool.query('SELECT id, job_number, vendor_id, bl_number FROM job_orders ORDER BY id DESC');
@@ -196,5 +196,78 @@ export const actions: Actions = {
 
 		throw redirect(303, `/purchase-documents/${documentId}`);
 	},
-	// ปล่อย Action deleteAttachment, createAddress ฯลฯ ไว้ตามเดิม ...
+
+    createAddress: async ({ request }) => {
+		const formData = await request.formData();
+		const name = formData.get('name')?.toString()?.trim();
+		const address_line = formData.get('address_line')?.toString()?.trim();
+		const contact_name = formData.get('contact_name')?.toString()?.trim();
+		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
+
+		if (!name || !address_line) {
+			return fail(400, { message: 'กรุณากรอกชื่อสถานที่และรายละเอียดที่อยู่' });
+		}
+
+		try {
+			const [result] = await pool.execute<any>(
+				`INSERT INTO delivery_addresses (name, address_line, contact_name, contact_phone, is_active) VALUES (?, ?, ?, ?, 1)`,
+				[name, address_line, contact_name || null, contact_phone || null]
+			);
+			
+			const [newAddress] = await pool.query<any[]>(
+				'SELECT * FROM delivery_addresses WHERE id = ?',
+				[result.insertId]
+			);
+			
+			return { success: true, address: newAddress[0] };
+		} catch (err: any) {
+			console.error('Create address error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการสร้างที่อยู่: ' + err.message });
+		}
+	},
+
+	updateAddress: async ({ request }) => {
+		const formData = await request.formData();
+		const id = formData.get('id');
+		const name = formData.get('name')?.toString()?.trim();
+		const address_line = formData.get('address_line')?.toString()?.trim();
+		const contact_name = formData.get('contact_name')?.toString()?.trim();
+		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
+
+		if (!id || !name || !address_line) {
+			return fail(400, { message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+		}
+
+		try {
+			await pool.execute(
+				`UPDATE delivery_addresses SET name = ?, address_line = ?, contact_name = ?, contact_phone = ? WHERE id = ?`,
+				[name, address_line, contact_name || null, contact_phone || null, id]
+			);
+			
+			const [updatedAddress] = await pool.query<any[]>(
+				'SELECT * FROM delivery_addresses WHERE id = ?',
+				[id]
+			);
+			
+			return { success: true, address: updatedAddress[0] };
+		} catch (err: any) {
+			console.error('Update address error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการแก้ไขที่อยู่: ' + err.message });
+		}
+	},
+
+	deleteAddress: async ({ request }) => {
+		const formData = await request.formData();
+		const id = formData.get('id');
+
+		if (!id) return fail(400, { message: 'ไม่พบรหัสที่อยู่จัดส่ง' });
+
+		try {
+			await pool.execute(`UPDATE delivery_addresses SET is_active = 0 WHERE id = ?`, [id]);
+			return { success: true, deletedId: Number(id) };
+		} catch (err: any) {
+			console.error('Delete address error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบที่อยู่: ' + err.message });
+		}
+	}
 };

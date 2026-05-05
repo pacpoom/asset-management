@@ -17,12 +17,6 @@
 		customer: c
 	}));
 
-	$: productOptions = localProducts.map((p: any) => ({
-		value: p.id,
-		label: p.name,
-		product: p
-	}));
-
 	let documentDate = '';
 	let dueDate = '';
 	let creditTerm: number | null = 0;
@@ -68,6 +62,15 @@
 		value: job.id,
 		label: `${job.job_number} | BL: ${job.bl_number !== '-' && job.bl_number ? job.bl_number : 'N/A'}`
 	}));
+
+	// 🌟 กรองรายการ Product ตามเงื่อนไข Category = 24 เมื่อมีการเลือก Job Order ในหน้า Edit เช่นกัน
+	$: productOptions = localProducts
+		.filter((p: any) => selectedJobOrderId ? p.category_id == 24 : true)
+		.map((p: any) => ({
+			value: p.id,
+			label: p.name,
+			product: p
+		}));
 
 	$: if (selectedContactId && contactOptions.length > 0) {
 		if (!selectedContactObj || selectedContactObj.value !== selectedContactId) {
