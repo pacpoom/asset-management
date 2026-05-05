@@ -53,24 +53,101 @@
 			? summary
 			: summary.filter((s: any) => s.section + (s.emp_group || '') === summarySearch.value)
 	);
+
 	let groupedByDivision = $derived.by(() => {
 		const groups: Record<string, any> = {};
+		const costPlusGroups = [
+			'Parts Reflash',
+			'Parts Rework',
+			'New Model',
+			'KD-MJV',
+			'Container Exchange',
+			'Maid'
+		];
+
 		for (const row of filteredSummary) {
-			if (!groups[row.division]) {
-				groups[row.division] = { sections: [], totalPlan: 0, totalAtt: 0, percent: 0 };
+			let cardName = row.division;
+
+			if (
+				row.emp_group &&
+				(costPlusGroups.includes(row.emp_group) || row.emp_group.includes('Cost Plus'))
+			) {
+				cardName = 'Cost Plus';
+			} else if (!cardName || cardName === '-') {
+				cardName = 'ไม่ระบุ Division';
 			}
-			groups[row.division].sections.push(row);
-			groups[row.division].totalPlan += Number(row.total_plan || 0);
-			groups[row.division].totalAtt += Number(row.attendance || 0);
+
+			if (!groups[cardName]) {
+				groups[cardName] = { sections: [], totalPlan: 0, totalAtt: 0, percent: 0 };
+			}
+
+			groups[cardName].sections.push(row);
+			groups[cardName].totalPlan += Number(row.total_plan || 0);
+			groups[cardName].totalAtt += Number(row.attendance || 0);
 		}
+
 		for (const key in groups) {
 			groups[key].percent =
 				groups[key].totalPlan > 0
 					? Math.round((groups[key].totalAtt / groups[key].totalPlan) * 100)
 					: 0;
 		}
-		return groups;
+
+		const sortedGroups: Record<string, any> = {};
+		Object.keys(groups)
+			.sort((a, b) => {
+				if (a === 'ไม่ระบุ Division' || a === '-') return 1;
+				if (b === 'ไม่ระบุ Division' || b === '-') return -1;
+
+				const isAmh = a.toUpperCase().startsWith('MH');
+				const isBmh = b.toUpperCase().startsWith('MH');
+
+				if (isAmh && !isBmh) return -1;
+				if (!isAmh && isBmh) return 1;
+
+				return a.localeCompare(b);
+			})
+			.forEach((key) => {
+				sortedGroups[key] = groups[key];
+			});
+
+		return sortedGroups;
 	});
+
+	let ihSummary = $derived.by(() => {
+		let cpvPlan = 0,
+			cpvAtt = 0;
+		let costPlusPlan = 0,
+			costPlusAtt = 0;
+
+		for (const [divName, divData] of Object.entries(groupedByDivision)) {
+			if (divName === 'Cost Plus') {
+				costPlusPlan += divData.totalPlan;
+				costPlusAtt += divData.totalAtt;
+			} else {
+				cpvPlan += divData.totalPlan;
+				cpvAtt += divData.totalAtt;
+			}
+		}
+
+		const calcPercent = (att: number, plan: number) =>
+			plan > 0 ? Math.round((att / plan) * 100) : 0;
+
+		return {
+			cpv: { plan: cpvPlan, att: cpvAtt, percent: calcPercent(cpvAtt, cpvPlan) },
+			costPlus: {
+				plan: costPlusPlan,
+				att: costPlusAtt,
+				percent: calcPercent(costPlusAtt, costPlusPlan)
+			},
+			total: {
+				plan: cpvPlan + costPlusPlan,
+				att: cpvAtt + costPlusAtt,
+				percent: calcPercent(cpvAtt + costPlusAtt, cpvPlan + costPlusPlan)
+			}
+		};
+	});
+
 	let divPages = $state<Record<string, number>>({});
 
 	let empSearch: any = $state(null);
@@ -241,7 +318,80 @@
 				{$t('ไม่พบข้อมูล หรือพนักงานในแผนกนี้')}
 			</div>
 		{:else}
-			<div class="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
+			{#if Object.keys(groupedByDivision).length > 0}
+				<div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+					<div class="border-b border-gray-100 bg-gray-50 px-5 py-4">
+						<h3 class="text-lg font-bold text-gray-800">Summary IH Manpower</h3>
+					</div>
+					<div class="overflow-x-auto">
+						<table class="w-full text-left text-sm">
+							<thead class="bg-white text-[11px] font-bold tracking-wider text-gray-500 uppercase">
+								<tr>
+									<th class="border-b border-gray-100 px-5 py-3">Division</th>
+									<th class="border-b border-gray-100 px-5 py-3 text-center">Plan (Active)</th>
+									<th class="border-b border-gray-100 px-5 py-3 text-center">Attendance</th>
+									<th class="border-b border-gray-100 px-5 py-3 text-center">% Att.</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-50">
+								<tr class="transition-colors hover:bg-gray-50">
+									<td class="px-5 py-3 font-bold text-gray-800">CPV</td>
+									<td class="px-5 py-3 text-center font-medium text-gray-600"
+										>{ihSummary.cpv.plan}</td
+									>
+									<td class="px-5 py-3 text-center font-bold text-blue-600">{ihSummary.cpv.att}</td>
+									<td
+										class="px-5 py-3 text-center font-bold {ihSummary.cpv.percent >= 100
+											? 'text-green-600'
+											: ihSummary.cpv.percent >= 80
+												? 'text-blue-600'
+												: 'text-orange-500'}">{ihSummary.cpv.percent}%</td
+									>
+								</tr>
+								<tr class="transition-colors hover:bg-gray-50">
+									<td class="px-5 py-3 font-bold text-gray-800">Cost Plus</td>
+									<td class="px-5 py-3 text-center font-medium text-gray-600"
+										>{ihSummary.costPlus.plan}</td
+									>
+									<td class="px-5 py-3 text-center font-bold text-blue-600"
+										>{ihSummary.costPlus.att}</td
+									>
+									<td
+										class="px-5 py-3 text-center font-bold {ihSummary.costPlus.percent >= 100
+											? 'text-green-600'
+											: ihSummary.costPlus.percent >= 80
+												? 'text-blue-600'
+												: 'text-orange-500'}">{ihSummary.costPlus.percent}%</td
+									>
+								</tr>
+							</tbody>
+							<tfoot class="border-t-2 border-gray-200 bg-gray-50">
+								<tr>
+									<td class="px-5 py-4 text-right text-sm font-bold text-gray-700"
+										>Grand Total <span class="text-gray-400">&gt;&gt;&gt;</span></td
+									>
+									<td class="px-5 py-4 text-center text-base font-black text-gray-900"
+										>{ihSummary.total.plan}</td
+									>
+									<td class="px-5 py-4 text-center text-base font-black text-blue-700"
+										>{ihSummary.total.att}</td
+									>
+									<td
+										class="px-5 py-4 text-center text-base font-black {ihSummary.total.percent >=
+										100
+											? 'text-green-600'
+											: ihSummary.total.percent >= 80
+												? 'text-blue-600'
+												: 'text-orange-500'}">{ihSummary.total.percent}%</td
+									>
+								</tr>
+							</tfoot>
+						</table>
+					</div>
+				</div>
+			{/if}
+
+			<div class="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
 				{#each Object.entries(groupedByDivision) as [divisionName, divData]}
 					{@const currentPage = divPages[divisionName] || 1}
 					{@const totalPages = Math.ceil(divData.sections.length / 4)}
@@ -251,7 +401,7 @@
 					)}
 
 					<div
-						class="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+						class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
 					>
 						<div class="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-white p-4">
 							<div class="flex items-center justify-between">
@@ -288,7 +438,8 @@
 								</div>
 							</div>
 						</div>
-						<div class="flex-1 p-0">
+
+						<div class="flex flex-1 flex-col justify-between p-0">
 							<table class="w-full text-left text-sm">
 								<thead class="bg-gray-50 text-[10px] text-gray-500 uppercase">
 									<tr>
@@ -336,28 +487,32 @@
 									{/each}
 								</tbody>
 							</table>
+
+							{#if totalPages > 1}
+								<div
+									class="mt-auto flex items-center justify-between border-t border-gray-100 bg-white px-4 py-2.5"
+								>
+									<button
+										class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+										disabled={currentPage === 1}
+										onclick={() => (divPages[divisionName] = currentPage - 1)}
+									>
+										{$t('Previous')}
+									</button>
+									<span class="text-xs font-medium text-gray-500">{currentPage} / {totalPages}</span
+									>
+									<button
+										class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+										disabled={currentPage === totalPages}
+										onclick={() => (divPages[divisionName] = (divPages[divisionName] || 1) + 1)}
+									>
+										{$t('Next')}
+									</button>
+								</div>
+							{:else}
+								<div class="mt-auto h-[45px] border-t border-transparent"></div>
+							{/if}
 						</div>
-						{#if totalPages > 1}
-							<div
-								class="mt-auto flex items-center justify-between border-t border-gray-100 bg-white px-4 py-2.5"
-							>
-								<button
-									class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									disabled={currentPage === 1}
-									onclick={() => (divPages[divisionName] = currentPage - 1)}
-								>
-									{$t('Previous')}
-								</button>
-								<span class="text-xs font-medium text-gray-500">{currentPage} / {totalPages}</span>
-								<button
-									class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									disabled={currentPage === totalPages}
-									onclick={() => (divPages[divisionName] = (divPages[divisionName] || 1) + 1)}
-								>
-									{$t('Next')}
-								</button>
-							</div>
-						{/if}
 					</div>
 				{/each}
 			</div>

@@ -368,8 +368,18 @@ export const actions: Actions = {
 		}
 
 		const ZKLib = (await import('node-zklib')).default;
-		const ips = ['192.168.115.69', '192.168.115.70', '192.168.115.71'];
-		//const ips = ['192.168.116.80'];
+
+		const [scannerRows]: any = await pool.execute(
+			"SELECT ip_address FROM fingerprint_scanners WHERE status = 'Active'"
+		);
+		const ips = scannerRows.map((row: any) => row.ip_address);
+
+		if (ips.length === 0) {
+			return {
+				success: false,
+				message: 'ไม่พบข้อมูล IP เครื่องสแกนในระบบ กรุณาตรวจสอบ Master Data'
+			};
+		}
 
 		let totalImported = 0;
 		let logMessages: string[] = [];
@@ -403,8 +413,8 @@ export const actions: Actions = {
 							const chunkSize = 1000;
 							for (let i = 0; i < filteredLogs.length; i += chunkSize) {
 								const chunk = filteredLogs.slice(i, i + chunkSize);
-								
-								// ⭐️ เก็บข้อมูลดิบ (Raw ID) จากเครื่องส่งตรงเข้าฐานข้อมูลทันที 
+
+								// ⭐️ เก็บข้อมูลดิบ (Raw ID) จากเครื่องส่งตรงเข้าฐานข้อมูลทันที
 								const values = chunk.map((log: any) => {
 									const rawId = log.deviceUserId.toString().trim();
 									return [ip, rawId, log.recordTime];
@@ -434,7 +444,7 @@ export const actions: Actions = {
 			}
 
 			console.log(`กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`);
-			
+
 			// ⭐️ ประมวลผลและแก้ไขปัญหา กะกลางคืน (Night Shift) และการแยก Time In / Out ของกะกลางวันอย่างแม่นยำ
 			// โดยมีการเชื่อมตาราง employees แบบ e.raw_id = r.raw_emp_id ตามที่ต้องการ
 			const processQuery = `

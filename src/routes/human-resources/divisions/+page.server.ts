@@ -15,13 +15,17 @@ export const load: PageServerLoad = async () => {
 			...pos,
 			status: pos.status == 1 || pos.status === 'Active' ? 'Active' : 'Inactive'
 		}));
-
 		const [groups]: any = await pool.execute('SELECT * FROM `groups` ORDER BY group_name ASC');
 		const [projects]: any = await pool.execute('SELECT * FROM projects ORDER BY project_name ASC');
 
-		return { divisions, sections, positions, groups, projects };
+		// 🌟 เพิ่มการดึงข้อมูลเครื่องสแกน
+		const [scanners]: any = await pool.execute(
+			'SELECT * FROM fingerprint_scanners ORDER BY ip_address ASC'
+		);
+
+		return { divisions, sections, positions, groups, projects, scanners };
 	} catch (error) {
-		return { divisions: [], sections: [], positions: [], groups: [], projects: [] };
+		return { divisions: [], sections: [], positions: [], groups: [], projects: [], scanners: [] };
 	}
 };
 
@@ -32,9 +36,30 @@ export const actions: Actions = {
 		const id = data.get('id')?.toString();
 		const name = data.get('name')?.toString()?.trim();
 		const description = data.get('description')?.toString()?.trim() || null;
+		const ip_address = data.get('ip_address')?.toString()?.trim() || null;
 		const status = data.get('status')?.toString() || 'Active';
 
 		if (!name) return fail(400, { success: false, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+
+		if (tab === 'scanner') {
+			if (!ip_address) return fail(400, { success: false, message: 'กรุณากรอก IP Address' });
+			try {
+				if (id) {
+					await pool.execute(
+						`UPDATE fingerprint_scanners SET device_name = ?, ip_address = ?, status = ? WHERE id = ?`,
+						[name, ip_address, status, id]
+					);
+				} else {
+					await pool.execute(
+						`INSERT INTO fingerprint_scanners (device_name, ip_address, status) VALUES (?, ?, ?)`,
+						[name, ip_address, status]
+					);
+				}
+				return { success: true, message: 'บันทึกสำเร็จ' };
+			} catch (error) {
+				return fail(400, { success: false, message: 'ข้อมูลซ้ำหรือผิดพลาด' });
+			}
+		}
 
 		let table = 'divisions',
 			col = 'division_name';
@@ -70,10 +95,10 @@ export const actions: Actions = {
 			}
 			return { success: true, message: 'บันทึกสำเร็จ' };
 		} catch (error) {
-			console.error(error);
 			return fail(400, { success: false, message: 'ข้อมูลซ้ำหรือผิดพลาด' });
 		}
 	},
+
 	delete: async ({ request }) => {
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
@@ -88,7 +113,9 @@ export const actions: Actions = {
 						? '`groups`'
 						: tab === 'project'
 							? 'projects'
-							: 'divisions';
+							: tab === 'scanner'
+								? 'fingerprint_scanners'
+								: 'divisions';
 
 		try {
 			await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);

@@ -5,7 +5,9 @@
 
 	let { data, form } = $props();
 
-	let activeTab = $state<'division' | 'section' | 'position' | 'group' | 'project'>('division');
+	let activeTab = $state<'division' | 'section' | 'position' | 'group' | 'project' | 'scanner'>(
+		'division'
+	);
 
 	// สถานะ Modal (อิงตามโค้ดเดิมของคุณ)
 	let modalMode = $state<'add' | 'edit' | null>(null);
@@ -18,6 +20,7 @@
 		if (activeTab === 'position') return data.positions || [];
 		if (activeTab === 'group') return data.groups || [];
 		if (activeTab === 'project') return data.projects || [];
+		if (activeTab === 'scanner') return data.scanners || [];
 		return data.divisions || [];
 	});
 
@@ -31,10 +34,12 @@
 					item.section_name ||
 					item.position_name ||
 					item.group_name ||
-					item.project_name
+					item.project_name ||
+					item.device_name, // 🌟 เติม || item.device_name
+				ip_address: item.ip_address || ''
 			};
 		} else {
-			selectedItem = { name: '', description: '', status: 'Active' };
+			selectedItem = { name: '', description: '', ip_address: '', status: 'Active' };
 		}
 	}
 
@@ -115,6 +120,15 @@
 	>
 		{$t('Projects')}
 	</button>
+
+	<button
+		onclick={() => (activeTab = 'scanner')}
+		class="px-6 py-2 font-medium {activeTab === 'scanner'
+			? 'border-b-2 border-blue-600 text-blue-600'
+			: 'text-gray-500 hover:text-blue-500'}"
+	>
+		{$t('Scanners')}
+	</button>
 </div>
 
 <div class="overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
@@ -123,7 +137,7 @@
 			<thead class="border-b border-gray-100 bg-gray-50 text-xs font-bold text-gray-700 uppercase">
 				<tr>
 					<th class="px-6 py-4">{$t('Name')}</th>
-					<th class="px-6 py-4">{$t('Description')}</th>
+					<th class="px-6 py-4">{activeTab === 'scanner' ? 'IP Address' : $t('Description')}</th>
 					<th class="px-6 py-4 text-center">{$t('Status')}</th>
 					<th class="px-6 py-4 text-center">{$t('Actions')}</th>
 				</tr>
@@ -142,9 +156,12 @@
 								item.section_name ||
 								item.position_name ||
 								item.group_name ||
-								item.project_name}
+								item.project_name ||
+								item.device_name}
 						</td>
-						<td class="px-6 py-4 text-gray-500">{item.description || '-'}</td>
+						<td class="px-6 py-4 text-gray-500">
+							{activeTab === 'scanner' ? item.ip_address : item.description || '-'}
+						</td>
 						<td class="px-6 py-4 text-center">
 							<span
 								class="rounded-full px-2.5 py-1 text-xs font-semibold {item.status === 'Active'
@@ -212,9 +229,9 @@
 					<input type="hidden" name="tab" value={activeTab} />
 					<div class="space-y-4">
 						<div>
-							<label for="name" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('Name')}</label
-							>
+							<label for="name" class="mb-1 block text-sm font-semibold text-gray-700">
+								{activeTab === 'scanner' ? 'Device Name (ชื่อจุดสแกน)' : $t('Name')}
+							</label>
 							<input
 								name="name"
 								type="text"
@@ -223,17 +240,35 @@
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							/>
 						</div>
-						<div>
-							<label for="description" class="mb-1 block text-sm font-semibold text-gray-700"
-								>{$t('Description')}</label
-							>
-							<textarea
-								name="description"
-								bind:value={selectedItem.description}
-								rows="3"
-								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							></textarea>
-						</div>
+
+						{#if activeTab === 'scanner'}
+							<div>
+								<label for="ip_address" class="mb-1 block text-sm font-semibold text-gray-700"
+									>IP Address <span class="text-red-500">*</span></label
+								>
+								<input
+									name="ip_address"
+									type="text"
+									bind:value={selectedItem.ip_address}
+									required
+									placeholder="ex. 192.168.1.100"
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
+						{:else}
+							<div>
+								<label for="description" class="mb-1 block text-sm font-semibold text-gray-700"
+									>{$t('Description')}</label
+								>
+								<textarea
+									name="description"
+									bind:value={selectedItem.description}
+									rows="3"
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								></textarea>
+							</div>
+						{/if}
+
 						<div>
 							<label for="status" class="mb-1 block text-sm font-semibold text-gray-700"
 								>{$t('Status')}</label
@@ -279,7 +314,8 @@
 						itemToDelete.section_name ||
 						itemToDelete.position_name ||
 						itemToDelete.group_name ||
-						itemToDelete.project_name}</strong
+						itemToDelete.project_name ||
+						itemToDelete.device_name}</strong
 				> ใช่หรือไม่?
 			</p>
 			<form method="POST" action="?/delete" use:enhance class="mt-6 flex justify-center gap-3">

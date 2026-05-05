@@ -2,7 +2,6 @@ import { json } from '@sveltejs/kit';
 import pool from '$lib/server/database';
 
 export async function GET() {
-	// เรียกใช้ฟังก์ชันทำงานแบบ Background 
 	startBackgroundSync();
 
 	return json({
@@ -13,14 +12,20 @@ export async function GET() {
 
 async function startBackgroundSync() {
 	const ZKLib = (await import('node-zklib')).default;
-	const ips = ['192.168.115.69', '192.168.115.70', '192.168.115.71'];
-	//const ips = ['192.168.116.80'];
-	
-	// สำหรับ Auto Sync จะดึงข้อมูลย้อนหลัง 1 วัน จนถึง วันปัจจุบัน เพื่อให้ชัวร์ว่ากะดึกเลิกงานตอนเช้าจะถูกเก็บครบ
+	const [scannerRows]: any = await pool.execute(
+		"SELECT ip_address FROM fingerprint_scanners WHERE status = 'Active'"
+	);
+	const ips = scannerRows.map((row: any) => row.ip_address);
+
+	if (ips.length === 0) {
+		console.log('[AutoSync] ไม่พบเครื่องสแกนที่เปิดใช้งานอยู่ในระบบ');
+		return;
+	}
+
 	const today = new Date();
 	const yesterday = new Date(today);
 	yesterday.setDate(yesterday.getDate() - 1);
-	
+
 	const endDate = today.toISOString().split('T')[0];
 	const startDate = yesterday.toISOString().split('T')[0];
 
@@ -28,7 +33,7 @@ async function startBackgroundSync() {
 		console.log('กำลังเตรียมข้อมูลพนักงาน (Caching)...');
 		const [empRows]: any = await pool.execute('SELECT emp_id, citizen_id, raw_id FROM employees');
 		const empMap = new Map();
-		
+
 		empRows.forEach((e: any) => {
 			if (e.citizen_id) empMap.set(e.citizen_id, e.emp_id);
 			if (e.raw_id) empMap.set(e.raw_id, e.emp_id);
@@ -53,8 +58,6 @@ async function startBackgroundSync() {
 					await zkInstance.disconnect();
 					continue;
 				}
-
-				// คัดกรองเฉพาะวันที่ต้องการ (เมื่อวาน กับ วันนี้)
 				const filteredLogs = logs.data.filter((log: any) => {
 					const d = new Date(log.recordTime);
 					const logDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -65,17 +68,14 @@ async function startBackgroundSync() {
 					const chunkSize = 1000;
 					for (let i = 0; i < filteredLogs.length; i += chunkSize) {
 						const chunk = filteredLogs.slice(i, i + chunkSize);
-						
-						// แปลง Raw ID เป็นรหัสพนักงาน (emp_id) จริง ก่อนนำลง DB
+
 						const values = chunk.map((log: any) => {
 							const rawId = log.deviceUserId.toString().trim();
-							const mappedEmpId = empMap.get(rawId) || rawId; 
+							const mappedEmpId = empMap.get(rawId) || rawId;
 							return [ip, mappedEmpId, log.recordTime];
 						});
 
 						const placeholders = values.map(() => '(?, ?, ?)').join(', ');
-
-						// โยนเข้าตารางพัก (raw_attendance_logs)
 						await pool.execute(
 							`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime) VALUES ${placeholders}`,
 							values.flat()
@@ -91,9 +91,9 @@ async function startBackgroundSync() {
 			}
 		}
 
-		console.log(`\n[AutoSync] กวาดข้อมูลลง raw_logs เรียบร้อย เริ่มคำนวณเข้าตารางจริงด้วย Standard Query...`);
-
-		// ⭐️ 1. ใช้ Query มาตรฐานเดียวกับหน้า Dashboard (แก้ปัญหากะดึก + จำแนกช่วงเวลา In/Out 100%)
+		console.log(
+			`\n[AutoSync] กวาดข้อมูลลง raw_logs เรียบร้อย เริ่มคำนวณเข้าตารางจริงด้วย Standard Query...`
+		);
 		const processQuery = `
 			INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
 			SELECT 
@@ -104,12 +104,12 @@ async function startBackgroundSync() {
 				base.scan_in, 
 				base.scan_out, 
 				
-				-- ⭐️ เกณฑ์การมาสาย วัดจาก scan_in 
+				--เกณฑ์การมาสาย วัดจาก scan_in 
 				IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
 				
 				'Present' as status,
 				
-				-- ⭐️ คำนวณ OT วัดจาก scan_out
+				--คำนวณ OT วัดจาก scan_out
 				IF(base.scan_out IS NOT NULL, 
 					FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(base.scan_out), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
 					0
@@ -124,7 +124,7 @@ async function startBackgroundSync() {
 					
 					IFNULL(e.default_shift, 'D') as shift_type,
 					
-					-- ⭐️ Time In: 
+					--Time In: 
 					-- กะปกติ 01:00 ถึง 12:59 | กะ N 13:00 ถึง 23:59
 					MIN(
 						CASE 
@@ -135,7 +135,7 @@ async function startBackgroundSync() {
 						END
 					) as scan_in,
 					
-					-- ⭐️ Time Out: 
+					--Time Out: 
 					-- กะปกติ 13:00 ขึ้นไป | กะ N 01:00 ถึง 12:59 ของวันถัดไป
 					MAX(
 						CASE 
@@ -164,8 +164,6 @@ async function startBackgroundSync() {
 
 		await pool.execute(processQuery, [startDate, endDate]);
 		console.log(`[AutoSync] คำนวณเวลาเข้าออกและ OT เรียบร้อยทั้งหมด`);
-
-		// ⭐️ 2. ค้นหาและบันทึก Log รหัสพนักงานที่สแกนนิ้ว แต่ไม่มีรายชื่ออยู่ใน Master (employees)
 		const logMissingQuery = `
 			INSERT INTO missing_scan_logs (raw_id, device_ip, latest_scan_time)
 			SELECT 
@@ -184,7 +182,6 @@ async function startBackgroundSync() {
 
 		await pool.execute(logMissingQuery, [startDate, endDate]);
 		console.log(`[AutoSync] ตรวจสอบและอัปเดต Log รหัสที่ไม่มีในระบบเสร็จสิ้น`);
-
 	} catch (err) {
 		console.error('[AutoSync] Error in background sync:', err);
 	}
