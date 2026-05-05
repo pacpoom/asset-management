@@ -304,7 +304,11 @@
 	};
 
 	function calculateDueDate() {
-		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
+		if (creditTerm === null || creditTerm === undefined || Number(creditTerm) <= 0) {
+			dueDate = '';
+			return;
+		}
+		if (documentDate) {
 			const d = new Date(documentDate);
 			d.setDate(d.getDate() + Number(creditTerm));
 			dueDate = d.toISOString().split('T')[0];
@@ -583,7 +587,7 @@
 						on:change={calculateDueDate}
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					>
-						<option value={0}>{$t('0 Days (Cash)')}</option>
+						<option value={0}>--</option>
 						<option value={15}>{$t('15 Days')}</option>
 						<option value={30}>{$t('30 Days')}</option>
 						<option value={45}>{$t('45 Days')}</option>

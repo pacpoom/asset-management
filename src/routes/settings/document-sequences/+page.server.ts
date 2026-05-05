@@ -23,13 +23,28 @@ export const actions: Actions = {
 		const id = formData.get('id')?.toString();
 		const document_type = formData.get('document_type')?.toString();
 		const prefix = formData.get('prefix')?.toString();
-		const year = parseInt(formData.get('year')?.toString() || '0');
-		const month = parseInt(formData.get('month')?.toString() || '0');
-		const last_number = parseInt(formData.get('last_number')?.toString() || '0');
-		const padding_length = parseInt(formData.get('padding_length')?.toString() || '4');
+		const yearRaw = formData.get('year')?.toString();
+		const monthRaw = formData.get('month')?.toString();
+		const lastNumberRaw = formData.get('last_number')?.toString();
+		const paddingRaw = formData.get('padding_length')?.toString();
 
-		if (!document_type || !prefix || !year || !month) {
+		const year = Number(yearRaw);
+		const month = Number(monthRaw);
+		const last_number = Number(lastNumberRaw);
+		const padding_length = Number(paddingRaw ?? '4');
+
+		if (!document_type || !prefix || !Number.isInteger(year) || !Number.isInteger(month)) {
 			return fail(400, { message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+		}
+		if (month < 1 || month > 12) {
+			return fail(400, { message: 'เดือนต้องอยู่ระหว่าง 1 - 12' });
+		}
+		// Allow 0 explicitly: 0 means next number starts from 1.
+		if (!Number.isInteger(last_number) || last_number < 0) {
+			return fail(400, { message: 'Last Used Number ต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป' });
+		}
+		if (!Number.isInteger(padding_length) || padding_length < 1) {
+			return fail(400, { message: 'Padding Length ต้องมากกว่า 0' });
 		}
 
 		try {
