@@ -58,14 +58,26 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				DATE_FORMAT(al.scan_in_time, '%H:%i') as time_in,
 				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
 				IFNULL(al.status, 'Pending') as status,
-				IFNULL(al.shift_type, 'Day') as shift_type,
+				
+				COALESCE(
+					al.shift_type, 
+					(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = ? LIMIT 1),
+					e.default_shift, 
+					'D'
+				) as shift_type,
+				
 				al.remark
 			FROM employees e
 			LEFT JOIN attendance_logs al ON e.emp_id = al.emp_id AND al.work_date = ?
 			WHERE ${whereClause}
 			ORDER BY e.emp_group ASC, e.emp_name ASC
 		`;
-		const [employeeList]: any = await pool.execute(listQuery, [displayDate, ...params]);
+
+		const [employeeList]: any = await pool.execute(listQuery, [
+			displayDate,
+			displayDate,
+			...params
+		]);
 
 		const processedSummary = summary.map((row: any) => {
 			const percent = row.active_emp > 0 ? (row.attendance / row.active_emp) * 100 : 0;
