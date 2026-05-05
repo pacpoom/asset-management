@@ -74,8 +74,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		const [customers] = await pool.query('SELECT id, name, company_name FROM customers ORDER BY COALESCE(company_name, name) ASC');
 		const [customerContacts] = await pool.query('SELECT id, customer_id, name, position, email, phone FROM customer_contacts ORDER BY name ASC');
 
+		// 🌟 เพิ่ม category_id เข้ามาเพื่อนำไป Filter ใน Svelte
 		const [products] = await pool.query(
-			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC'
+			'SELECT id, name, sku, selling_price AS price, unit_id, default_wht_rate, category_id FROM products WHERE is_active = 1 ORDER BY name ASC'
 		);
 		const [units] = await pool.query('SELECT id, symbol, name FROM units ORDER BY symbol ASC');
 

@@ -86,7 +86,7 @@ export const load: PageServerLoad = async ({ url }) => {
 
 		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
 		const [vendorContacts] = await pool.query('SELECT id, vendor_id, name, position, email, phone FROM vendor_contacts ORDER BY name ASC');
-		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 ORDER BY name ASC');
+		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 AND category_id = 26 ORDER BY name ASC');
 		const [units] = await pool.query('SELECT id, symbol, name FROM units ORDER BY symbol ASC');
 		const [jobOrders] = await pool.query('SELECT id, job_number, customer_id, vendor_id, job_type, bl_number, invoice_no, job_status FROM job_orders WHERE job_status != "Cancelled" ORDER BY id DESC');
 		const [categories] = await pool.query('SELECT id, name FROM product_categories ORDER BY name');

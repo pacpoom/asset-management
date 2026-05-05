@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import type { PageData } from './$types';
+	import type { PageData, SubmitFunction } from './$types';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
@@ -33,11 +33,13 @@
 		vendor_id?: number | string;
 	}
 
-    interface DeliveryAddress {
-        id: number | string;
-        name: string;
-        address_line: string;
-    }
+	interface DeliveryAddress {
+		id: number | string;
+		name: string;
+		address_line: string;
+		contact_name?: string;
+		contact_phone?: string;
+	}
 
 	interface SelectOption {
 		value: string | number;
@@ -72,8 +74,17 @@
 	}
 
 	export let data: PageData;
-	$: ({ vendors, vendorContacts, deliveryAddresses, units, jobOrders, prefillData } = data);
+	$: ({ vendors, vendorContacts, units, jobOrders, prefillData } = data);
+	
 	let localProducts = data.products || [];
+	
+	// --- Address Management State ---
+	let localDeliveryAddresses: DeliveryAddress[] = data.deliveryAddresses || [];
+	let isAddressModalOpen = false;
+	let addressMode: 'list' | 'form' = 'list';
+	let editingAddressId: string | number | null = null;
+	let addrForm = { name: '', address_line: '', contact_name: '', contact_phone: '' };
+	let isSubmittingAddr = false;
 
 	$: vendorOptions = vendors.map((v: Vendor) => ({
 		value: v.id,
@@ -87,10 +98,11 @@
 		product: p
 	}));
 
-    $: deliveryOptions = (deliveryAddresses || []).map((d: DeliveryAddress) => ({
-        value: d.id,
-        label: d.name
-    }));
+	// อัปเดต Dropdown อัตโนมัติเมื่อมีการเพิ่ม/ลบ
+	$: deliveryOptions = localDeliveryAddresses.map((d: DeliveryAddress) => ({
+		value: d.id,
+		label: d.name
+	}));
 
 	let documentType = 'PO';
 	let documentDate = new Date().toISOString().split('T')[0];
@@ -100,7 +112,7 @@
 		d.setDate(d.getDate() + 30);
 		return d.toISOString().split('T')[0];
 	})();
-    let deliveryDate = '';
+	let deliveryDate = '';
 
 	let selectedVendorObj: SelectOption | null = null;
 	let selectedVendorId: string | number = '';
@@ -111,7 +123,7 @@
 	let selectedJobOrderObj: SelectOption | null = null;
 	let selectedJobOrderId: string | number = '';
 
-    let selectedDeliveryObj: SelectOption | null = null;
+	let selectedDeliveryObj: SelectOption | null = null;
 	let selectedDeliveryId: string | number = '';
 
 	let referenceDoc = '';
@@ -167,7 +179,7 @@
 		selectedJobOrderObj = null;
 	}
 
-    $: if (selectedDeliveryId && deliveryOptions.length > 0) {
+	$: if (selectedDeliveryId && deliveryOptions.length > 0) {
 		if (!selectedDeliveryObj || selectedDeliveryObj.value !== selectedDeliveryId) {
 			selectedDeliveryObj = deliveryOptions.find((d: SelectOption) => d.value == selectedDeliveryId) || null;
 		}
@@ -186,7 +198,7 @@
 			selectedVendorObj = vendorOptions.find((v: SelectOption) => v.value == selectedVendorId) || null;
 			
 			selectedContactId = prefillData.document.vendor_contact_id || '';
-            selectedDeliveryId = prefillData.document.delivery_address_id || '';
+			selectedDeliveryId = prefillData.document.delivery_address_id || '';
 
 			setTimeout(() => {
 				selectedJobOrderId = prefillData.document.job_id || '';
@@ -219,6 +231,64 @@
 		}
 	});
 
+	// --- Address Modal Functions ---
+	function openAddressModal() {
+		isAddressModalOpen = true;
+		addressMode = 'list';
+	}
+
+	function closeAddressModal() {
+		isAddressModalOpen = false;
+	}
+
+	function openAddressForm(addr: DeliveryAddress | null = null) {
+		addressMode = 'form';
+		if (addr) {
+			editingAddressId = addr.id;
+			addrForm = { ...addr, contact_name: addr.contact_name || '', contact_phone: addr.contact_phone || '' };
+		} else {
+			editingAddressId = null;
+			addrForm = { name: '', address_line: '', contact_name: '', contact_phone: '' };
+		}
+	}
+
+	const handleSaveAddress: SubmitFunction = () => {
+		isSubmittingAddr = true;
+		return async ({ result }) => {
+			isSubmittingAddr = false;
+			if (result.type === 'success' && result.data) {
+				const updatedAddr = result.data.address;
+				if (editingAddressId) {
+					localDeliveryAddresses = localDeliveryAddresses.map(a => a.id === updatedAddr.id ? updatedAddr : a);
+				} else {
+					localDeliveryAddresses = [...localDeliveryAddresses, updatedAddr];
+				}
+				// Auto Select หลังจากสร้างหรือแก้ไขสำเร็จ
+				selectedDeliveryId = updatedAddr.id;
+				selectedDeliveryObj = { value: updatedAddr.id, label: updatedAddr.name };
+				addressMode = 'list';
+			} else if (result.type === 'failure') {
+				alert(result.data?.message || 'เกิดข้อผิดพลาดในการบันทึกที่อยู่');
+			}
+		};
+	};
+
+	const handleDeleteAddress: SubmitFunction = () => {
+		return async ({ result }) => {
+			if (result.type === 'success' && result.data) {
+				const deletedId = result.data.deletedId;
+				localDeliveryAddresses = localDeliveryAddresses.filter(a => a.id !== deletedId);
+				// ถ้าที่อยู่ที่ถูกลบกำลังถูกเลือกอยู่ ให้เคลียร์ค่า
+				if (selectedDeliveryId == deletedId) {
+					selectedDeliveryId = '';
+					selectedDeliveryObj = null;
+				}
+			} else if (result.type === 'failure') {
+				alert(result.data?.message || 'เกิดข้อผิดพลาดในการลบที่อยู่');
+			}
+		};
+	};
+
 	function calculateDueDate() {
 		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
 			const d = new Date(documentDate);
@@ -248,7 +318,7 @@
 		selectedJobOrderId = selected ? selected.value : '';
 	}
 
-    function onDeliveryChange(selected: SelectOption | null) {
+	function onDeliveryChange(selected: SelectOption | null) {
 		selectedDeliveryObj = selected;
 		selectedDeliveryId = selected ? selected.value : '';
 	}
@@ -277,21 +347,17 @@
 	$: subtotalBeforeVat = calculatedItems.reduce((sum, item) => sum + (item.amount || 0), 0);
 	$: totalAfterDiscount = Math.max(0, subtotalBeforeVat - discountAmount);
 	
-	// Separate totals based on VAT type (Purchase: 1=Inc, 2=Exc, 3=Non)
 	$: excVatTotal = calculatedItems.filter(item => Number(item.vat_type) === 2).reduce((sum, item) => sum + (item.amount || 0), 0);
 	$: incVatTotal = calculatedItems.filter(item => Number(item.vat_type) === 1).reduce((sum, item) => sum + (item.amount || 0), 0);
 	$: nonVatTotal = calculatedItems.filter(item => Number(item.vat_type) === 3).reduce((sum, item) => sum + (item.amount || 0), 0);
 
-	// Distribute discount proportionally
 	$: discountForExcVat = subtotalBeforeVat > 0 ? discountAmount * (excVatTotal / subtotalBeforeVat) : 0;
 	$: discountForIncVat = subtotalBeforeVat > 0 ? discountAmount * (incVatTotal / subtotalBeforeVat) : 0;
 	$: discountForNonVat = subtotalBeforeVat > 0 ? discountAmount * (nonVatTotal / subtotalBeforeVat) : 0;
 	
-	// Calculate VAT for each part
 	$: vatFromExc = Math.max(0, ((excVatTotal - discountForExcVat) * vatRate) / 100);
 	$: vatFromInc = Math.max(0, ((incVatTotal - discountForIncVat) * vatRate) / (100 + vatRate));
 	
-	// Base amounts
 	$: vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
 	$: nonVatableAmount = nonVatTotal - discountForNonVat;
 	$: amountBeforeVat = vatableAmount + nonVatableAmount;
@@ -299,9 +365,7 @@
 	$: vatAmount = vatFromExc + vatFromInc;
 	$: whtAmount = calculatedItems.reduce((sum, item) => sum + (item.wht_amount || 0), 0);
 	
-	// Grand Total
 	$: grandTotal = totalAfterDiscount + vatFromExc - whtAmount;
-	
 	$: itemsJson = JSON.stringify(calculatedItems);
 
 	function addItem() {
@@ -365,7 +429,6 @@
 	<title>{$t('Create Purchase Document')}</title>
 </svelte:head>
 
-<!-- 🌟 หน้าจอ Loading หมุนๆ ตอนกำลัง Save -->
 {#if isSaving}
 	<div class="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm transition-opacity">
 		<div class="flex flex-col items-center rounded-xl bg-white px-10 py-8 shadow-2xl">
@@ -457,10 +520,15 @@
 				{/if}
 			</div>
 
-            <div class="relative z-35">
-				<label for="delivery_address_id" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Ship To (Delivery Address)')}</label
-				>
+			<div class="relative z-35">
+				<div class="mb-1 flex items-center justify-between">
+					<label for="delivery_address_id" class="block text-sm font-medium text-gray-700">
+						{$t('Ship To (Delivery Address)')}
+					</label>
+					<button type="button" on:click={openAddressModal} class="text-xs font-semibold text-blue-600 hover:text-blue-800 underline">
+						+ {$t('Manage Address')}
+					</button>
+				</div>
 				<Select
 					items={deliveryOptions}
 					value={selectedDeliveryObj}
@@ -521,7 +589,7 @@
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					/>
 				</div>
-                <div>
+				<div>
 					<label for="delivery_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Delivery Date')}</label
 					>
@@ -709,9 +777,7 @@
 		</div>
 
 		<div class="mb-6 flex justify-end">
-			<div
-				class="w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3"
-			>
+			<div class="w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner md:w-1/3">
 				<div class="flex justify-between text-sm">
 					<span class="text-gray-600">{$t('Subtotal')}</span>
 					<span class="font-medium">{formatNumber(subtotalBeforeVat)}</span>
@@ -793,6 +859,93 @@
 		</div>
 	</form>
 </div>
+
+<!-- ================= ADDRESS MANAGEMENT MODAL ================= -->
+{#if isAddressModalOpen}
+<div class="fixed inset-0 z-[99999] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm transition-opacity p-4">
+	<div class="w-full max-w-2xl rounded-xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+		<div class="flex items-center justify-between border-b px-6 py-4 bg-gray-50">
+			<h3 class="text-lg font-bold text-gray-800">
+				{addressMode === 'list' ? $t('Manage Delivery Addresses') : (editingAddressId ? $t('Edit Address') : $t('Add New Address'))}
+			</h3>
+			<button type="button" on:click={closeAddressModal} class="text-gray-400 hover:text-gray-600 transition-colors p-1">
+				<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+			</button>
+		</div>
+
+		<div class="p-6 overflow-y-auto flex-1">
+			{#if addressMode === 'list'}
+				<div class="mb-4 flex justify-end">
+					<button type="button" on:click={() => openAddressForm()} class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 shadow-sm">
+						+ {$t('Add New')}
+					</button>
+				</div>
+				<div class="space-y-3">
+					{#if localDeliveryAddresses.length === 0}
+						<div class="text-center py-10 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+							<p class="text-sm text-gray-500">{$t('No addresses found. Please add a new delivery address.')}</p>
+						</div>
+					{:else}
+						{#each localDeliveryAddresses as addr}
+							<div class="flex items-start justify-between rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
+								<div class="flex-1 pr-4">
+									<p class="font-bold text-gray-800 text-base">{addr.name}</p>
+									<p class="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{addr.address_line}</p>
+									{#if addr.contact_name || addr.contact_phone}
+										<p class="text-sm text-gray-500 mt-2 flex items-center gap-2">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
+											{addr.contact_name || '-'} {addr.contact_phone ? `(${addr.contact_phone})` : ''}
+										</p>
+									{/if}
+								</div>
+								<div class="flex flex-col gap-2 ml-4 shrink-0">
+									<button type="button" on:click={() => openAddressForm(addr)} class="text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-1.5 border border-blue-200 bg-blue-50 rounded hover:bg-blue-100 transition-colors w-full text-center">{$t('Edit')}</button>
+									<form method="POST" action="?/deleteAddress" use:enhance={handleDeleteAddress}>
+										<input type="hidden" name="id" value={addr.id} />
+										<button type="submit" class="text-red-600 hover:text-red-800 text-xs font-medium px-3 py-1.5 border border-red-200 bg-red-50 rounded hover:bg-red-100 transition-colors w-full text-center" on:click={(e) => { if(!confirm($t('Are you sure you want to delete this address?'))) e.preventDefault(); }}>{$t('Delete')}</button>
+									</form>
+								</div>
+							</div>
+						{/each}
+					{/if}
+				</div>
+			{:else}
+				<form method="POST" action={editingAddressId ? '?/updateAddress' : '?/createAddress'} use:enhance={handleSaveAddress}>
+					{#if editingAddressId}
+						<input type="hidden" name="id" value={editingAddressId} />
+					{/if}
+					<div class="space-y-4">
+						<div>
+							<label class="block text-sm font-medium text-gray-700 mb-1">{$t('Location Name')} <span class="text-red-500">*</span></label>
+							<input type="text" name="name" bind:value={addrForm.name} required class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g. สำนักงานใหญ่, คลังสินค้า A" />
+						</div>
+						<div>
+							<label class="block text-sm font-medium text-gray-700 mb-1">{$t('Full Address')} <span class="text-red-500">*</span></label>
+							<textarea name="address_line" bind:value={addrForm.address_line} required rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+						</div>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">{$t('Contact Person')}</label>
+								<input type="text" name="contact_name" bind:value={addrForm.contact_name} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+							</div>
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">{$t('Phone Number')}</label>
+								<input type="text" name="contact_phone" bind:value={addrForm.contact_phone} class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+							</div>
+						</div>
+					</div>
+					<div class="mt-8 flex justify-end gap-3 border-t pt-4">
+						<button type="button" on:click={() => addressMode = 'list'} class="rounded-md border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none">{$t('Cancel')}</button>
+						<button type="submit" disabled={isSubmittingAddr} class="rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none disabled:opacity-50">
+							{isSubmittingAddr ? $t('Saving...') : $t('Save Address')}
+						</button>
+					</div>
+				</form>
+			{/if}
+		</div>
+	</div>
+</div>
+{/if}
 
 <style>
 	:global(div.svelte-select) {
