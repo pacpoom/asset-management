@@ -565,10 +565,24 @@
 			method="POST"
 			action="?/saveVerification"
 			use:enhance={({ cancel }) => {
-				const selects = document.querySelectorAll('select[name="status[]"]');
+				const today = new Date();
+				const offset = today.getTimezoneOffset() * 60000;
+				const localToday = new Date(today.getTime() - offset).toISOString().split('T')[0];
+				const isTodayOrFuture = data.displayDate >= localToday;
+
+				const rows = document.querySelectorAll('tbody tr');
 				let hasPending = false;
-				selects.forEach((s) => {
-					if ((s as HTMLSelectElement).value === 'Pending') hasPending = true;
+
+				rows.forEach((row) => {
+					const shiftSelect = row.querySelector('select[name="shift[]"]') as HTMLSelectElement;
+					const statusSelect = row.querySelector('select[name="status[]"]') as HTMLSelectElement;
+
+					if (shiftSelect && statusSelect && statusSelect.value === 'Pending') {
+						if (isTodayOrFuture && shiftSelect.value === 'N') {
+						} else {
+							hasPending = true;
+						}
+					}
 				});
 
 				if (hasPending) {
@@ -608,7 +622,15 @@
 						{@const isVisible =
 							index >= (validEmpPage - 1) * empPerPage && index < validEmpPage * empPerPage}
 						{@const hasScan = emp.time_in !== null || emp.time_out !== null}
-						{@const needsCheck = !hasScan && emp.status === 'Pending'}
+
+						{@const isTodayOrFuture =
+							data.displayDate >=
+							new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000)
+								.toISOString()
+								.split('T')[0]}
+						{@const isNightPending =
+							!hasScan && emp.status === 'Pending' && emp.shift_type === 'N' && isTodayOrFuture}
+						{@const needsCheck = !hasScan && emp.status === 'Pending' && !isNightPending}
 
 						<tr
 							class="transition-colors hover:bg-gray-50 {isVisible ? '' : 'hidden'}
@@ -667,18 +689,22 @@
 									class="w-full cursor-pointer rounded border py-1.5 pr-8 pl-2 text-center text-sm font-medium [text-align-last:center] focus:border-blue-500 focus:outline-none
 										{needsCheck
 										? 'animate-pulse border-red-400 bg-red-100 text-red-700 ring-1 ring-red-400'
-										: emp.status === 'Present' || (hasScan && emp.status === 'Pending')
-											? 'border-green-300 bg-green-50 text-green-700'
-											: emp.status === 'Late'
-												? 'border-yellow-300 bg-yellow-50 text-yellow-700'
-												: emp.status.includes('Leave')
-													? 'border-orange-300 bg-orange-50 text-orange-700'
-													: emp.status === 'Absent'
-														? 'border-red-300 bg-red-50 text-red-700'
-														: 'border-gray-300 bg-white'}"
+										: isNightPending
+											? 'border-gray-300 bg-gray-100 text-gray-500'
+											: emp.status === 'Present' || (hasScan && emp.status === 'Pending')
+												? 'border-green-300 bg-green-50 text-green-700'
+												: emp.status === 'Late'
+													? 'border-yellow-300 bg-yellow-50 text-yellow-700'
+													: emp.status.includes('Leave')
+														? 'border-orange-300 bg-orange-50 text-orange-700'
+														: emp.status === 'Absent'
+															? 'border-red-300 bg-red-50 text-red-700'
+															: 'border-gray-300 bg-white'}"
 								>
-									{#if needsCheck}
-										<option value="Pending" selected hidden>{$t('รอระบุสถานะ...')}</option>
+									{#if needsCheck || isNightPending}
+										<option value="Pending" selected hidden>
+											{isNightPending ? 'รอกะดึกเข้างาน...' : $t('รอระบุสถานะ...')}
+										</option>
 									{/if}
 									{#each statusOptions as opt}
 										<option
@@ -700,8 +726,13 @@
 									value={emp.remark || ''}
 									placeholder={needsCheck
 										? $t('ระบุเหตุผลที่ไม่ได้สแกนนิ้ว...')
-										: $t('หมายเหตุเพิ่มเติม (ถ้ามี)')}
-									class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+										: isNightPending
+											? '-'
+											: $t('หมายเหตุเพิ่มเติม (ถ้ามี)')}
+									class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none {isNightPending
+										? 'cursor-not-allowed bg-gray-50 text-gray-400'
+										: ''}"
+									readonly={isNightPending}
 								/>
 							</td>
 						</tr>

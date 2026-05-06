@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	let filterGroup = url.searchParams.get('group') || 'All';
 
 	try {
-		let whereClause = `1=1`;
+		let whereClause = `e.status != 'Resigned'`;
 		let params: any[] = [];
 
 		if (filterSection !== 'All') {
