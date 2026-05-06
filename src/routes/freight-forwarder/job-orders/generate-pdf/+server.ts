@@ -40,8 +40,8 @@ interface JobOrderData extends RowDataPacket {
 	amount: number;
 	currency: string;
 	job_status: string;
-    
-    booking_no: string | null;
+
+	booking_no: string | null;
 	vessel: string | null;
 	feeder: string | null;
 	flight_no: string | null; // เพิ่ม Flight No. ใน interface
@@ -62,7 +62,7 @@ interface JobOrderData extends RowDataPacket {
 	vendor_contract_number: string | null;
 
 	created_by_name: string | null;
-    unit_name: string | null;
+	unit_name: string | null;
 }
 
 function getLogoBase64(logoPath: string | null): string | null {
@@ -279,11 +279,10 @@ function getJobOrderHtml(
 				}
     `;
 
-	// เพิ่มการแสดงผล Flight No และตรวจสอบให้มั่นใจว่า Quantity แสดงร่วมกับ Unit Name เสมอ
 	const jobDetailsHtml = `
         <div>
             <h3 style="font-size: 9pt; font-weight: bold; color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px; text-transform: uppercase;">${t('shipmentDetails')}</h3>
-            <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 9pt; table-layout: fixed; word-wrap: break-word;">
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; width: 25%; background-color: #f9fafb; font-weight: 600;">${t('jobType')}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; width: 25%;">${jobData.job_type || '-'}</td>
@@ -292,13 +291,15 @@ function getJobOrderHtml(
                 </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('hbl')}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold; color: #1d4ed8;">${jobData.bl_number || '-'}</td>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold; color: #1d4ed8; word-break: break-all;">${jobData.bl_number || '-'}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('mbl')}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.mbl || '-'}</td>
+                    
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; word-break: break-all;">${jobData.mbl || '-'}</td>
                 </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">Booking No.</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">${jobData.booking_no || '-'}</td>
+                    
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold; word-break: break-all;">${jobData.booking_no || '-'}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('liner')}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.liner_name || '-'}</td>
                 </tr>
@@ -327,9 +328,11 @@ function getJobOrderHtml(
                 </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('refDoc')}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.invoice_no || '-'}</td>
+                    
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; word-break: break-all;">${jobData.invoice_no || '-'}</td>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('ccl')}</td>
-                    <td style="padding: 8px; border: 1px solid #e5e7eb;">${jobData.ccl || '-'}</td>
+                    
+                    <td style="padding: 8px; border: 1px solid #e5e7eb; word-break: break-all;">${jobData.ccl || '-'}</td>
                 </tr>
                 <tr>
                     <td style="padding: 8px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: 600;">${t('quantity')}</td>
