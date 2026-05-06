@@ -344,7 +344,6 @@ function getInvoiceHtml(
 		vatAmt = Number(docData.vat_amount || 0);
 	}
 
-    // คำนวณมูลค่าที่นำไปคิดภาษี และมูลค่าที่ได้รับการยกเว้นภาษี
     const vatableAmount = (excVatTotal - discountForExcVat) + ((incVatTotal - discountForIncVat) * 100 / (100 + vatRate));
     const nonVatableAmount = nonVatTotal - discountForNonVat;
 	const amountBeforeVat = vatableAmount + nonVatableAmount;
@@ -454,7 +453,6 @@ function getInvoiceHtml(
         </table>
     `;
 
-	// 🌟 ปรับปรุงหัวตารางตามต้องการ
 	const itemTableHead = `
     <thead>
         <tr style="background-color: #ffffff; border-bottom: 1px solid #ccc; border-top: 1px solid #ccc;">
@@ -472,28 +470,42 @@ function getInvoiceHtml(
 
 	let notesOrJobHtml = '';
 	if (docData.job_order_id) {
+        // -------------------------------------------------------------
+        // อัปเดตตาราง Job Reference: เพิ่ม table-layout: fixed และ word-break
+        // พร้อมทั้งสั่ง replace(',', ', ') เพื่อให้เว้นบรรทัดตามธรรมชาติได้
+        // -------------------------------------------------------------
 		notesOrJobHtml = `
 		<div>
 			<div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px; font-size: 8pt;">${tPdf('JobRef', lang)}:</div>
-			<table style="width: 100%; font-size: 7.5pt; color: #000; border-collapse: collapse;">
+			<table style="width: 100%; font-size: 7.5pt; color: #000; border-collapse: collapse; table-layout: fixed;">
 				<tr>
-					<td style="width: 33.33%; padding: 2px 0;"><b>${tPdf('HBL', lang)}:</b> <span style="font-family: monospace;">${docData.jo_bl_number || '-'}</span></td>
-					<td style="width: 33.33%; padding: 2px 0;"><b>${tPdf('MBL', lang)}:</b> <span style="font-family: monospace;">${docData.jo_mbl || '-'}</span></td>
-					<td style="width: 33.33%; padding: 2px 0;"><b>${tPdf('Port', lang)}:</b> ${docData.jo_location || '-'}</td>
+					<td style="width: 33.33%; padding: 2px 5px 2px 0; vertical-align: top; word-wrap: break-word; word-break: break-all;">
+                        <b>${tPdf('HBL', lang)}:</b> <span style="font-family: monospace;">${(docData.jo_bl_number || '-').replace(/,/g, ', ')}</span>
+                    </td>
+					<td style="width: 33.33%; padding: 2px 5px 2px 0; vertical-align: top; word-wrap: break-word; word-break: break-all;">
+                        <b>${tPdf('MBL', lang)}:</b> <span style="font-family: monospace;">${(docData.jo_mbl || '-').replace(/,/g, ', ')}</span>
+                    </td>
+					<td style="width: 33.33%; padding: 2px 0; vertical-align: top; word-wrap: break-word; word-break: break-word;">
+                        <b>${tPdf('Port', lang)}:</b> ${docData.jo_location || '-'}
+                    </td>
 				</tr>
 				<tr>
-					<td style="padding: 2px 0;"><b>${tPdf('ETD', lang)}:</b> ${formatDateOnly(docData.jo_etd)}</td>
-					<td style="padding: 2px 0;"><b>${tPdf('ETA', lang)}:</b> ${formatDateOnly(docData.jo_eta)}</td>
-					<td style="padding: 2px 0;"><b>${tPdf('Liner', lang)}:</b> ${docData.jo_liner_name || '-'}</td>
+					<td style="padding: 2px 5px 2px 0; vertical-align: top;"><b>${tPdf('ETD', lang)}:</b> ${formatDateOnly(docData.jo_etd)}</td>
+					<td style="padding: 2px 5px 2px 0; vertical-align: top;"><b>${tPdf('ETA', lang)}:</b> ${formatDateOnly(docData.jo_eta)}</td>
+					<td style="padding: 2px 0; vertical-align: top; word-wrap: break-word;"><b>${tPdf('Liner', lang)}:</b> ${docData.jo_liner_name || '-'}</td>
 				</tr>
 				<tr>
-					<td style="padding: 2px 0;"><b>${tPdf('Quantity', lang)}:</b> ${docData.jo_quantity || '0'}</td>
-					<td style="padding: 2px 0;"><b>${tPdf('Weight', lang)}:</b> ${docData.jo_weight || '0.00'}</td>
-					<td style="padding: 2px 0;"><b>${tPdf('Vol', lang)}:</b> ${docData.jo_kgs_volume || '0.00'}</td>
+					<td style="padding: 2px 5px 2px 0; vertical-align: top;"><b>${tPdf('Quantity', lang)}:</b> ${docData.jo_quantity || '0'}</td>
+					<td style="padding: 2px 5px 2px 0; vertical-align: top;"><b>${tPdf('Weight', lang)}:</b> ${docData.jo_weight || '0.00'}</td>
+					<td style="padding: 2px 0; vertical-align: top;"><b>${tPdf('Vol', lang)}:</b> ${docData.jo_kgs_volume || '0.00'}</td>
 				</tr>
 				<tr>
-					<td style="padding: 2px 0;"><b>${tPdf('CCL', lang)}:</b> ${docData.jo_ccl || '-'}</td>
-					<td style="padding: 2px 0;"colspan="2"><b>${tPdf('InvoiceNote', lang)}:</b> ${docData.jo_invoice_note || '-'}</td>
+					<td style="padding: 2px 5px 2px 0; vertical-align: top; word-wrap: break-word; word-break: break-all;">
+                        <b>${tPdf('CCL', lang)}:</b> ${(docData.jo_ccl || '-').replace(/,/g, ', ')}
+                    </td>
+					<td style="padding: 2px 0; vertical-align: top; word-wrap: break-word; word-break: break-all;" colspan="2">
+                        <b>${tPdf('InvoiceNote', lang)}:</b> ${(docData.jo_invoice_note || '-').replace(/,/g, ', ')}
+                    </td>
 				</tr>
 			</table>
 		</div>
@@ -644,12 +656,10 @@ function getInvoiceHtml(
 			const rowsHtml = pageInfo.items
 				.map(
 					(item, i) => {
-                        // 🌟 อัปเดตตรรกะการคำนวณและแสดงผลในตาราง
                         let vatableAmt = 0;
                         let nonVatAmt = 0;
                         const amt = item.amount || 0;
 
-                        // 1 = Inc. VAT, 0 = Exc. VAT, 2 = Non-VAT
                         if (Number(item.is_vat) === 0) {
                             vatableAmt = amt;
                         } else if (Number(item.is_vat) === 1) {
