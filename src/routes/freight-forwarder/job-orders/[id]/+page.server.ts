@@ -120,6 +120,65 @@ export const actions = {
 		}
 	},
 
+    // เพิ่ม Master Data ของ Expense Item แบบ On-the-fly
+    createExpenseItem: async ({ request }) => {
+        const formData = await request.formData();
+        const expense_category_id = formData.get('expense_category_id');
+        const item_name = formData.get('item_name')?.toString().trim();
+
+        if (!expense_category_id || !item_name) {
+            return fail(400, { message: 'กรุณาเลือกหมวดหมู่และระบุชื่อรายการ' });
+        }
+
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const docType = 'ITE';
+            const prefix = 'ITE-';
+            const date = new Date();
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+
+            // อัปเดต/เพิ่ม document sequences
+            await connection.execute(`
+                INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
+                VALUES (?, ?, ?, ?, 1, 4)
+                ON DUPLICATE KEY UPDATE last_number = last_number + 1
+            `, [docType, prefix, year, month]);
+
+            const [seqResult]: any = await connection.execute(`
+                SELECT prefix, last_number, padding_length
+                FROM document_sequences
+                WHERE document_type = ? AND year = ? AND month = ?
+            `, [docType, year, month]);
+
+            let item_code = '';
+            if (seqResult.length > 0) {
+                const seq = seqResult[0];
+                const yy = year.toString().slice(-2);
+                const mm = month.toString().padStart(2, '0');
+                const runningNo = seq.last_number.toString().padStart(seq.padding_length, '0');
+                item_code = `${seq.prefix}${yy}${mm}${runningNo}`; 
+            }
+
+            // บันทึกรายการใหม่
+            await connection.execute(
+                'INSERT INTO expense_items (expense_category_id, item_code, item_name, is_active) VALUES (?, ?, ?, ?)',
+                [expense_category_id, item_code, item_name, 1]
+            );
+
+            await connection.commit();
+            return { success: true, action: 'createExpenseItem', message: 'เพิ่มรายการสำเร็จ' };
+        } catch (err: any) {
+            await connection.rollback();
+            console.error('Create item error:', err);
+            return fail(500, { message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล Master Data' });
+        } finally {
+            connection.release();
+        }
+    },
+
 	// เพิ่มค่าใช้จ่ายแบบหลายรายการ (Multiple Items)
 	addExpense: async ({ request, params, locals }) => {
 		const job_order_id = parseInt(params.id);
@@ -214,6 +273,62 @@ export const actions = {
             connection.release();
         }
 	},
+
+    // แก้ไขค่าใช้จ่าย
+    editExpense: async ({ request }) => {
+        const formData = await request.formData();
+        const expense_id = formData.get('expense_id');
+
+        if (!expense_id) return fail(400, { message: 'ไม่พบรหัสค่าใช้จ่าย' });
+
+        const expense_item_id = formData.get('expense_item_id');
+        const vendor_id = formData.get('vendor_id') || null;
+        const ref_document = formData.get('ref_document')?.toString().trim() || null;
+        const price = parseFloat(formData.get('price')?.toString() || '0');
+        const qty = parseFloat(formData.get('qty')?.toString() || '1');
+        const remarks = formData.get('remarks')?.toString().trim() || null;
+
+        const hasVat = formData.get('hasVat') === 'true';
+        const whtRate = formData.get('whtRate')?.toString() || 'None';
+
+        if (!expense_item_id || isNaN(price) || price < 0 || isNaN(qty) || qty <= 0) {
+            return fail(400, { message: 'กรุณาระบุรายการค่าใช้จ่ายและราคา/จำนวน ให้ครบถ้วนถูกต้อง' });
+        }
+
+        const amount = price * qty;
+        let vat_amount = 0;
+        let wht_amount = 0;
+        const tax_types: string[] = [];
+
+        if (hasVat) {
+            vat_amount = amount * 0.07;
+            tax_types.push('VAT 7%');
+        }
+
+        if (whtRate === '3') {
+            wht_amount = amount * 0.03;
+            tax_types.push('WHT 3%');
+        } else if (whtRate === '1') {
+            wht_amount = amount * 0.01;
+            tax_types.push('WHT 1%');
+        }
+
+        const tax_type_str = tax_types.length > 0 ? tax_types.join(', ') : 'None';
+        const total_amount = amount + vat_amount - wht_amount;
+
+        try {
+            await pool.execute(
+                `UPDATE job_expenses 
+                SET expense_item_id = ?, vendor_id = ?, ref_document = ?, price = ?, qty = ?, amount = ?, tax_type = ?, vat_amount = ?, wht_amount = ?, total_amount = ?, remarks = ?
+                WHERE id = ?`,
+                [expense_item_id, vendor_id, ref_document, price, qty, amount, tax_type_str, vat_amount, wht_amount, total_amount, remarks, expense_id]
+            );
+            return { success: true, action: 'editExpense' };
+        } catch (err: unknown) {
+            console.error('Edit expense error:', err);
+            return fail(500, { message: 'เกิดข้อผิดพลาดในการแก้ไขค่าใช้จ่าย' });
+        }
+    },
 
 	// ลบค่าใช้จ่าย
 	deleteExpense: async ({ request }) => {

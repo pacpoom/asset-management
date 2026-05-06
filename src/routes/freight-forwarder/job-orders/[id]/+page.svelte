@@ -7,7 +7,7 @@
 	import type { ActionData, PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
 
-	interface Expense { id: number; total_amount: number; amount: number; price?: number; qty?: number; vat_amount?: number; wht_amount?: number; item_name?: string; category_name?: string; ref_document?: string; vendor_company_name?: string; vendor_name?: string; [key: string]: unknown }
+	interface Expense { id: number; expense_item_id: number; vendor_id: number | null; tax_type: string; remarks: string | null; total_amount: number; amount: number; price?: number; qty?: number; vat_amount?: number; wht_amount?: number; item_name?: string; category_name?: string; ref_document?: string; vendor_company_name?: string; vendor_name?: string; [key: string]: unknown }
 	interface SalesDoc { id: number; total_amount: number; document_number: string; reference_doc?: string; document_type: string; document_date: string; status: string; [key: string]: unknown }
 	interface Category { id: number; category_name: string; [key: string]: unknown }
 	interface Item { id: number; item_name: string; expense_category_id: number; [key: string]: unknown }
@@ -46,7 +46,7 @@
 	})));
 
     // Helper สำหรับกรอง Item ตาม Category
-    function getItemOptions(categoryId: string | number | undefined) {
+    function getItemOptions(categoryId: string | number | undefined | null) {
         if (!categoryId) return [];
         return expenseItems
             .filter((i: Item) => i.expense_category_id == categoryId)
@@ -89,14 +89,14 @@
     let expenseEntries = $state<ExpenseEntry[]>([]);
 
     // คำนวณยอดแต่ละบรรทัด
-    const getAmt = (e: ExpenseEntry) => (Number(e.price) || 0) * (Number(e.qty) || 0);
-    const getVat = (e: ExpenseEntry) => e.hasVat ? getAmt(e) * 0.07 : 0;
-    const getWht = (e: ExpenseEntry) => {
+    const getAmt = (e: ExpenseEntry | typeof editExpenseData) => (Number(e.price) || 0) * (Number(e.qty) || 0);
+    const getVat = (e: ExpenseEntry | typeof editExpenseData) => e.hasVat ? getAmt(e) * 0.07 : 0;
+    const getWht = (e: ExpenseEntry | typeof editExpenseData) => {
         if (e.whtRate === '3') return getAmt(e) * 0.03;
         if (e.whtRate === '1') return getAmt(e) * 0.01;
         return 0;
     };
-    const getNet = (e: ExpenseEntry) => getAmt(e) + getVat(e) - getWht(e);
+    const getNet = (e: ExpenseEntry | typeof editExpenseData) => getAmt(e) + getVat(e) - getWht(e);
 
     // ยอดรวมทั้งหมดใน Modal
     let totalModalAmount = $derived(expenseEntries.reduce((sum, e) => sum + getNet(e), 0));
@@ -117,6 +117,72 @@
             expenseEntries = expenseEntries.filter((_, i) => i !== index);
         }
     }
+
+    // ------------------------------------------
+    // จัดการ State สำหรับ Modal สร้าง Expense Item ใหม่
+    // ------------------------------------------
+    let isCreateItemModalOpen = $state(false);
+    let isSavingItem = $state(false);
+    let newItemData = $state({
+        expense_category_id: '' as string | number,
+        item_name: ''
+    });
+
+    function openCreateItemModal(categoryId: string | number | undefined) {
+        newItemData = {
+            expense_category_id: categoryId || '',
+            item_name: ''
+        };
+        isCreateItemModalOpen = true;
+    }
+
+
+    // ------------------------------------------
+    // จัดการ State สำหรับ Modal Edit Expense (รายการเดียว)
+    // ------------------------------------------
+    let isEditExpenseModalOpen = $state(false);
+    let isSavingEditExpense = $state(false);
+    let editExpenseData = $state({
+        id: '',
+        selectedCategory: null as SelectOption | null,
+        selectedItem: null as SelectOption | null,
+        selectedVendor: null as SelectOption | null,
+        refDoc: '',
+        price: '' as number | '',
+        qty: 1 as number | '',
+        hasVat: false,
+        whtRate: 'None',
+        remarks: ''
+    });
+
+    let isEditFormValid = $derived(editExpenseData.selectedItem && Number(editExpenseData.price) >= 0 && Number(editExpenseData.qty) > 0);
+
+    function openEditExpenseModal(exp: Expense) {
+        // หา Category ของ Item นี้
+        const item = expenseItems.find((i: Item) => i.id === exp.expense_item_id);
+        const categoryId = item ? item.expense_category_id : null;
+
+        // แยก Tax Type
+        const hasVat = exp.tax_type?.includes('VAT 7%') || false;
+        let whtRate = 'None';
+        if (exp.tax_type?.includes('WHT 3%')) whtRate = '3';
+        if (exp.tax_type?.includes('WHT 1%')) whtRate = '1';
+
+        editExpenseData = {
+            id: exp.id.toString(),
+            selectedCategory: categoryId ? categoryOptions.find((c: SelectOption) => c.value == categoryId) || null : null,
+            selectedItem: exp.expense_item_id ? { value: exp.expense_item_id, label: exp.item_name || '' } : null,
+            selectedVendor: exp.vendor_id ? vendorOptions.find((v: SelectOption) => v.value == exp.vendor_id) || null : null,
+            refDoc: exp.ref_document || '',
+            price: exp.price !== undefined ? Number(exp.price) : '',
+            qty: exp.qty !== undefined ? Number(exp.qty) : 1,
+            hasVat,
+            whtRate,
+            remarks: exp.remarks || ''
+        };
+        isEditExpenseModalOpen = true;
+    }
+
 
 	let isSaving = $state(false);
 	let updateStatusForm: HTMLFormElement;
@@ -512,10 +578,23 @@
 						<td class="px-6 py-3 text-right font-mono text-orange-600">{formatCurrency(exp.wht_amount || 0)}</td>
 						<td class="px-6 py-3 text-right font-mono font-bold text-red-600">{formatCurrency(exp.total_amount)}</td>
 						<td class="px-6 py-3 text-center">
-							<form method="POST" action="?/deleteExpense" use:enhance onsubmit={(e) => { if(!confirm($t('Confirm delete this expense?'))) e.preventDefault(); }}>
-								<input type="hidden" name="expense_id" value={exp.id}>
-								<button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold p-1 rounded hover:bg-red-50 transition-colors">{$t('Delete')}</button>
-							</form>
+                            <div class="flex justify-center gap-1">
+                                <!-- ปุ่ม Edit -->
+                                <button type="button" onclick={() => openEditExpenseModal(exp)} class="text-yellow-500 hover:text-yellow-700 text-xs font-semibold p-1 rounded hover:bg-yellow-50 transition-colors" title={$t('Edit')}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                </button>
+                                <!-- ปุ่ม Delete -->
+                                <form method="POST" action="?/deleteExpense" use:enhance onsubmit={(e) => { if(!confirm($t('Confirm delete this expense?'))) e.preventDefault(); }}>
+                                    <input type="hidden" name="expense_id" value={exp.id}>
+                                    <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold p-1 rounded hover:bg-red-50 transition-colors" title={$t('Delete')}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
 						</td>
 					</tr>
 				{:else}
@@ -526,8 +605,10 @@
 	</div>
 </div>
 
+<!-- ======================= -->
+<!-- MODAL: ADD EXPENSES     -->
+<!-- ======================= -->
 {#if isExpenseModalOpen}
-<!-- ขยาย Modal ด้วย max-w-6xl และให้ scroll ได้เพื่อรองรับหลายรายการ -->
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-opacity">
 	<div class="w-full max-w-6xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
 		<div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center shrink-0">
@@ -552,7 +633,6 @@
 				if(result.type === 'success') isExpenseModalOpen = false;
 			};
 		}}>
-            <!-- แปลง state รายการให้เป็น JSON ซ่อนไว้เพื่อส่งไปฝั่ง Server -->
             <input type="hidden" name="expenses_data" value={JSON.stringify(expenseEntries)} />
             
             <div class="flex-1 overflow-y-auto p-6 bg-gray-100/50 space-y-4">
@@ -574,7 +654,16 @@
                             </div>
                             <div class="md:col-span-3">
                                 <label for="item-{entry.id}" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Item')} <span class="text-red-500">*</span></label>
-                                <Select id="item-{entry.id}" items={getItemOptions(entry.selectedCategory?.value)} bind:value={entry.selectedItem} disabled={!entry.selectedCategory} placeholder={$t('Search...')} container={browser ? document.body : null} class="svelte-select-custom" />
+                                <div class="flex gap-2">
+                                    <div class="flex-grow min-w-0">
+                                        <Select id="item-{entry.id}" items={getItemOptions(entry.selectedCategory?.value)} bind:value={entry.selectedItem} disabled={!entry.selectedCategory} placeholder={$t('Search...')} container={browser ? document.body : null} class="svelte-select-custom" />
+                                    </div>
+                                    <button type="button" disabled={!entry.selectedCategory} onclick={() => openCreateItemModal(entry.selectedCategory?.value)} class="flex h-[42px] w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-blue-600 disabled:opacity-50 transition-colors" title={$t('Add New Item')}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                             <div class="md:col-span-3">
                                 <label for="vendor-{entry.id}" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Paid To (Vendor)')}</label>
@@ -653,6 +742,186 @@
 			</div>
 		</form>
 	</div>
+</div>
+{/if}
+
+<!-- ======================= -->
+<!-- MODAL: EDIT EXPENSE     -->
+<!-- ======================= -->
+{#if isEditExpenseModalOpen}
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-opacity">
+	<div class="w-full max-w-4xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
+		<div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center shrink-0">
+			<h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                {$t('Edit Expense')}
+            </h3>
+			<button type="button" onclick={() => isEditExpenseModalOpen = false} class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded hover:bg-gray-200" aria-label="Close modal">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+		</div>
+
+		<form method="POST" action="?/editExpense" class="flex flex-col flex-1 overflow-hidden" use:enhance={() => {
+			isSavingEditExpense = true;
+			return async ({ update, result }) => {
+				await update();
+				isSavingEditExpense = false;
+				if(result.type === 'success') isEditExpenseModalOpen = false;
+			};
+		}}>
+            <!-- Hidden inputs สำหรับส่งข้อมูลแบบฟอร์มปกติ -->
+            <input type="hidden" name="expense_id" value={editExpenseData.id} />
+            <input type="hidden" name="expense_item_id" value={editExpenseData.selectedItem?.value || ''} />
+            <input type="hidden" name="vendor_id" value={editExpenseData.selectedVendor?.value || ''} />
+            <input type="hidden" name="ref_document" value={editExpenseData.refDoc} />
+            <input type="hidden" name="price" value={editExpenseData.price} />
+            <input type="hidden" name="qty" value={editExpenseData.qty} />
+            <input type="hidden" name="hasVat" value={editExpenseData.hasVat.toString()} />
+            <input type="hidden" name="whtRate" value={editExpenseData.whtRate} />
+            <input type="hidden" name="remarks" value={editExpenseData.remarks} />
+
+            <div class="p-6 bg-white space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-x-5 gap-y-4">
+                    <div class="md:col-span-4">
+                        <label for="edit-category" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Category')} <span class="text-red-500">*</span></label>
+                        <Select id="edit-category" items={categoryOptions} bind:value={editExpenseData.selectedCategory} on:change={() => editExpenseData.selectedItem = null} placeholder={$t('Search...')} container={browser ? document.body : null} class="svelte-select-custom" />
+                    </div>
+                    <div class="md:col-span-4">
+                        <label for="edit-item" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Item')} <span class="text-red-500">*</span></label>
+                        <div class="flex gap-2">
+                            <div class="flex-grow min-w-0">
+                                <Select id="edit-item" items={getItemOptions(editExpenseData.selectedCategory?.value)} bind:value={editExpenseData.selectedItem} disabled={!editExpenseData.selectedCategory} placeholder={$t('Search...')} container={browser ? document.body : null} class="svelte-select-custom" />
+                            </div>
+                            <button type="button" disabled={!editExpenseData.selectedCategory} onclick={() => openCreateItemModal(editExpenseData.selectedCategory?.value)} class="flex h-[42px] w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-blue-600 disabled:opacity-50 transition-colors" title={$t('Add New Item')}>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label for="edit-vendor" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Paid To (Vendor)')}</label>
+                        <Select id="edit-vendor" items={vendorOptions} bind:value={editExpenseData.selectedVendor} placeholder={$t('Select Vendor (Optional)')} container={browser ? document.body : null} class="svelte-select-custom" />
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label for="edit-refDoc" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Ref Doc')}</label>
+                        <input id="edit-refDoc" type="text" bind:value={editExpenseData.refDoc} class="w-full rounded-md border-gray-300 py-[9px] px-3 text-sm focus:border-yellow-500 focus:ring-yellow-500" placeholder={$t('INV/Receipt No.')}>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label for="edit-price" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Unit Price')} <span class="text-red-500">*</span></label>
+                        <input id="edit-price" type="number" step="0.01" bind:value={editExpenseData.price} class="w-full rounded-md border-gray-300 py-[9px] px-3 text-sm text-right focus:border-yellow-500 focus:ring-yellow-500" placeholder="0.00">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="edit-qty" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('Quantity')} <span class="text-red-500">*</span></label>
+                        <input id="edit-qty" type="number" step="0.01" bind:value={editExpenseData.qty} class="w-full rounded-md border-gray-300 py-[9px] px-3 text-sm text-right focus:border-yellow-500 focus:ring-yellow-500" placeholder="1">
+                    </div>
+                    <div class="md:col-span-2 flex items-end pb-0.5">
+                        <label for="edit-hasVat" class="flex items-center space-x-2 cursor-pointer bg-gray-50 hover:bg-gray-100 w-full p-2.5 rounded-md border border-gray-200 transition-colors h-[42px]">
+                            <input id="edit-hasVat" type="checkbox" bind:checked={editExpenseData.hasVat} class="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500">
+                            <span class="text-xs font-bold text-gray-700">{$t('+ VAT 7%')}</span>
+                        </label>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="edit-whtRate" class="block text-xs font-semibold text-gray-600 mb-1.5">{$t('WH Tax')}</label>
+                        <select id="edit-whtRate" bind:value={editExpenseData.whtRate} class="w-full rounded-md border-gray-300 py-[9px] px-3 text-sm focus:border-yellow-500 focus:ring-yellow-500">
+                            <option value="None">{$t('None')}</option>
+                            <option value="1">WHT 1%</option>
+                            <option value="3">WHT 3%</option>
+                        </select>
+                    </div>
+
+                    <div class="md:col-span-12 mt-1">
+                        <label for="edit-remarks" class="sr-only">{$t('Remarks')}</label>
+                        <input id="edit-remarks" type="text" bind:value={editExpenseData.remarks} class="w-full rounded-md border-gray-300 py-2 px-3 text-sm focus:border-yellow-500 focus:ring-yellow-500 bg-gray-50 focus:bg-white" placeholder={$t('Remarks / Note...')}>
+                    </div>
+                </div>
+
+                <div class="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-200 flex justify-between items-center">
+                    <div class="text-sm text-gray-500 font-bold tracking-wider uppercase">{$t('Net Amount')}</div>
+                    <div class="font-bold text-red-600 text-2xl font-mono">{formatCurrency(getNet(editExpenseData))}</div>
+                </div>
+            </div>
+
+			<div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
+                <button type="button" onclick={() => isEditExpenseModalOpen = false} class="px-6 py-2.5 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-100 transition-colors">{$t('Cancel')}</button>
+                <button type="submit" disabled={isSavingEditExpense || !isEditFormValid} class="px-8 py-2.5 bg-yellow-500 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex justify-center items-center">
+                    {#if isSavingEditExpense}
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        {$t('Saving...')}
+                    {:else}
+                        {$t('Save Changes')}
+                    {/if}
+                </button>
+			</div>
+		</form>
+	</div>
+</div>
+{/if}
+
+<!-- ======================= -->
+<!-- MODAL: CREATE NEW EXPENSE ITEM (MASTER DATA) -->
+<!-- ======================= -->
+{#if isCreateItemModalOpen}
+<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-opacity">
+	<div class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
+        <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+			<h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                </svg>
+                {$t('Add New Expense Item')}
+            </h3>
+			<button type="button" onclick={() => isCreateItemModalOpen = false} class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded hover:bg-gray-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+		</div>
+
+        <form method="POST" action="?/createExpenseItem" use:enhance={() => {
+            isSavingItem = true;
+            return async ({ update, result }) => {
+                await update();
+                isSavingItem = false;
+                if (result.type === 'success') {
+                    isCreateItemModalOpen = false;
+                }
+            };
+        }}>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label for="new_item_category" class="block text-sm font-semibold text-gray-700 mb-1">{$t('Category')} <span class="text-red-500">*</span></label>
+                    <select id="new_item_category" name="expense_category_id" bind:value={newItemData.expense_category_id} class="w-full rounded-md border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500" required>
+                        <option value="" disabled selected>{$t('Select category...')}</option>
+                        {#each categoryOptions as cat}
+                            <option value={cat.value}>{cat.label}</option>
+                        {/each}
+                    </select>
+                </div>
+                <div>
+                    <label for="new_item_name" class="block text-sm font-semibold text-gray-700 mb-1">{$t('Item Name')} <span class="text-red-500">*</span></label>
+                    <input id="new_item_name" type="text" name="item_name" bind:value={newItemData.item_name} class="w-full rounded-md border-gray-300 py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500" required placeholder={$t('e.g. ค่าล่วงเวลา')}>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
+                <button type="button" onclick={() => isCreateItemModalOpen = false} class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-colors">{$t('Cancel')}</button>
+                <button type="submit" disabled={isSavingItem || !newItemData.expense_category_id || !newItemData.item_name} class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center">
+                    {#if isSavingItem}
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        {$t('Saving...')}
+                    {:else}
+                        {$t('Save Item')}
+                    {/if}
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {/if}
 
