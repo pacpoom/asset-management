@@ -321,16 +321,19 @@
 			{#if Object.keys(groupedByDivision).length > 0}
 				<div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 					<div class="border-b border-gray-100 bg-gray-50 px-5 py-4">
-						<h3 class="text-lg font-bold text-gray-800">Summary IH Manpower</h3>
+						<h3 class="text-lg font-bold text-gray-800">{$t('Summary IH Manpower')}</h3>
 					</div>
 					<div class="overflow-x-auto">
 						<table class="w-full text-left text-sm">
 							<thead class="bg-white text-[11px] font-bold tracking-wider text-gray-500 uppercase">
 								<tr>
-									<th class="border-b border-gray-100 px-5 py-3">Division</th>
-									<th class="border-b border-gray-100 px-5 py-3 text-center">Plan (Active)</th>
-									<th class="border-b border-gray-100 px-5 py-3 text-center">Attendance</th>
-									<th class="border-b border-gray-100 px-5 py-3 text-center">% Att.</th>
+									<th class="border-b border-gray-100 px-5 py-3">{$t('Division')}</th>
+									<th class="border-b border-gray-100 px-5 py-3 text-center"
+										>{$t('Plan (Active)')}</th
+									>
+									<th class="border-b border-gray-100 px-5 py-3 text-center">{$t('Attendances')}</th
+									>
+									<th class="border-b border-gray-100 px-5 py-3 text-center">{$t('% Att')}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-50">
@@ -521,7 +524,7 @@
 </div>
 
 <div
-	class="relative z-40 flex flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm"
+	class="relative z-[70] flex flex-col overflow-visible rounded-lg border border-gray-100 bg-white shadow-sm"
 >
 	<div
 		class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-gray-50 p-4"
@@ -633,13 +636,15 @@
 									aria-label="Shift"
 									name="shift[]"
 									class="w-full cursor-pointer rounded border py-1.5 pr-8 pl-2 text-center text-sm font-bold [text-align-last:center] focus:outline-none
-									{emp.shift_type === 'Day'
+									{emp.shift_type === 'D' || emp.shift_type === 'Day'
 										? 'border-yellow-300 bg-yellow-50 text-yellow-700'
 										: 'border-indigo-300 bg-indigo-50 text-indigo-700'}"
 								>
-									<option value="Day" selected={emp.shift_type === 'Day'}>{$t('Day shift')}</option>
-									<option value="Night" selected={emp.shift_type === 'Night'}
-										>{$t('Night shift')}</option
+									<option value="D" selected={emp.shift_type === 'D' || emp.shift_type === 'Day'}
+										>D</option
+									>
+									<option value="N" selected={emp.shift_type === 'N' || emp.shift_type === 'Night'}
+										>N</option
 									>
 								</select>
 							</td>
@@ -822,5 +827,14 @@
 		min-height: 38px !important;
 		background-color: white !important;
 		font-size: 0.875rem !important;
+		--list-z-index: 9999;
+	}
+
+	:global(.svelte-select-list) {
+		z-index: 9999 !important;
+		box-shadow:
+			0 10px 25px -5px rgba(0, 0, 0, 0.15),
+			0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+		border: 1px solid #e5e7eb !important;
 	}
 </style>
