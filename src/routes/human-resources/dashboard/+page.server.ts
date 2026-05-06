@@ -90,19 +90,18 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const [recentLogs]: any = await pool.execute(logQuery, logParams);
 
 		const statsQuery = `
-    SELECT 
-        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, 
-        
-        COUNT(DISTINCT r.raw_emp_id) as total_scanned, 
-        SUM(CASE WHEN TIME(r.scan_datetime) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00') THEN 1 ELSE 0 END) as late,
-        
-        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) - COUNT(DISTINCT r.raw_emp_id) as absent
+			SELECT 
+				(SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, 
+				
+				COUNT(DISTINCT al.emp_id) as total_scanned, 
+				SUM(CASE WHEN al.is_late = 1 THEN 1 ELSE 0 END) as late,
+				
+				(SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) - COUNT(DISTINCT al.emp_id) as absent
 
-    FROM raw_attendance_logs r
-    INNER JOIN employees e ON r.raw_emp_id = e.raw_id 
-    LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
-    WHERE DATE(r.scan_datetime) = ? ${empWhere}
-`;
+			FROM attendance_logs al
+			INNER JOIN employees e ON al.emp_id = e.emp_id 
+			WHERE al.work_date = ? ${empWhere}
+		`;
 
 		const [statsRow]: any = await pool.execute(statsQuery, [displayDate, ...filterParams]);
 
@@ -458,11 +457,41 @@ export const actions: Actions = {
 					IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
 					
 					'Present' as status,
-				
-					IF(base.scan_out IS NOT NULL, 
-						FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(base.scan_out), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
-						0
-					) as ot_hours
+					
+					/* คำนวณ OT */
+					CASE 
+						/* กะดึก (N) */
+						WHEN sm.ot_start_time IS NOT NULL AND sm.ot_end_time <= sm.start_time THEN
+							IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) < sm.ot_end_time,
+								FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(sm.ot_end_time, GREATEST(TIME(base.scan_in), sm.ot_start_time))) / 60) / 30) * 0.5,
+								0
+							)
+							
+						/* กะเช้า (D) */
+						ELSE
+							(
+								/* OT เช้ามืด */
+								IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) >= '04:00:00' AND TIME(base.scan_in) < '07:30:00',
+									FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF('07:30:00', GREATEST(TIME(base.scan_in), '05:30:00'))) / 60) / 30) * 0.5,
+									0
+								)
+							)
+							+
+							(
+								/* OT เย็นหลังเลิกงาน */
+								IF(base.scan_out IS NOT NULL,
+									FLOOR(GREATEST(0, 
+										(
+											TIME_TO_SEC(TIME(base.scan_out)) 
+											+ IF(TIME(base.scan_out) < sm.start_time, 86400, 0) /* เผื่อทำโอทีทะลุเที่ยงคืน */
+											- TIME_TO_SEC(IFNULL(sm.ot_start_time, '17:10:00'))
+										) / 60
+									) / 30) * 0.5,
+									0
+								)
+							)
+					END as ot_hours
+					
 				FROM (
 					SELECT 
 						r_base.emp_id,
@@ -492,7 +521,7 @@ export const actions: Actions = {
 					FROM (
 						SELECT 
 							e.emp_id, e.emp_name, r.scan_datetime,
-							
+
 							IF(TIME(r.scan_datetime) BETWEEN '00:00:00' AND '12:00:00',
 								IF(
 									(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(DATE_SUB(r.scan_datetime, INTERVAL 1 DAY)) LIMIT 1) = 'N',

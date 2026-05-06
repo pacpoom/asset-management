@@ -97,79 +97,108 @@ async function startBackgroundSync() {
 		);
 
 		const processQuery = `
-			INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
-			SELECT 
-				base.emp_id, 
-				base.emp_name, 
-				base.logical_work_date, 
-				base.actual_shift as shift_type, 
-				base.scan_in, 
-				base.scan_out, 
-				
-				IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
-				
-				'Present' as status,
-				
-				IF(base.scan_out IS NOT NULL, 
-					FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(base.scan_out), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
-					0
-				) as ot_hours
-			FROM (
+				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
 				SELECT 
-					r_base.emp_id,
-					r_base.emp_name,
-					r_base.actual_shift,
+					base.emp_id, 
+					base.emp_name, 
+					base.logical_work_date, 
+					base.actual_shift as shift_type, 
+					base.scan_in, 
+					base.scan_out, 
 					
-					DATE(DATE_SUB(r_base.scan_datetime, INTERVAL IF(r_base.actual_shift = 'N', 12, 0) HOUR)) as logical_work_date,
+					IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
 					
-					MIN(
-						CASE 
-							WHEN r_base.actual_shift = 'N' THEN 
-								IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
-							ELSE 
-								IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
-						END
-					) as scan_in,
+					'Present' as status,
 					
-					MAX(
-						CASE 
-							WHEN r_base.actual_shift = 'N' THEN 
-								IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
-							ELSE 
-								IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
-						END
-					) as scan_out
+					/* คำนวณ OT */
+					CASE 
+						/* กะดึก (N) */
+						WHEN sm.ot_start_time IS NOT NULL AND sm.ot_end_time <= sm.start_time THEN
+							IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) < sm.ot_end_time,
+								FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(sm.ot_end_time, GREATEST(TIME(base.scan_in), sm.ot_start_time))) / 60) / 30) * 0.5,
+								0
+							)
+							
+						/* กะเช้า (D) */
+						ELSE
+							(
+								/* OT เช้ามืด */
+								IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) >= '04:00:00' AND TIME(base.scan_in) < '07:30:00',
+									FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF('07:30:00', GREATEST(TIME(base.scan_in), '05:30:00'))) / 60) / 30) * 0.5,
+									0
+								)
+							)
+							+
+							(
+								/* OT เย็นหลังเลิกงาน */
+								IF(base.scan_out IS NOT NULL,
+									FLOOR(GREATEST(0, 
+										(
+											TIME_TO_SEC(TIME(base.scan_out)) 
+											+ IF(TIME(base.scan_out) < sm.start_time, 86400, 0) /* เผื่อทำโอทีทะลุเที่ยงคืน */
+											- TIME_TO_SEC(IFNULL(sm.ot_start_time, '17:10:00'))
+										) / 60
+									) / 30) * 0.5,
+									0
+								)
+							)
+					END as ot_hours
 					
 				FROM (
 					SELECT 
-						e.emp_id, e.emp_name, r.scan_datetime,
+						r_base.emp_id,
+						r_base.emp_name,
+						r_base.actual_shift,
 						
-						IF(TIME(r.scan_datetime) BETWEEN '00:00:00' AND '12:00:00',
-					
-							IF(
-								(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(DATE_SUB(r.scan_datetime, INTERVAL 1 DAY)) LIMIT 1) = 'N',
-								'N',
+						DATE(DATE_SUB(r_base.scan_datetime, INTERVAL IF(r_base.actual_shift = 'N', 12, 0) HOUR)) as logical_work_date,
+						
+						MIN(
+							CASE 
+								WHEN r_base.actual_shift = 'N' THEN 
+									IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
+								ELSE 
+									IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
+							END
+						) as scan_in,
+						
+						MAX(
+							CASE 
+								WHEN r_base.actual_shift = 'N' THEN 
+									IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
+								ELSE 
+									IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
+							END
+						) as scan_out
+						
+					FROM (
+						SELECT 
+							e.emp_id, e.emp_name, r.scan_datetime,
+
+							IF(TIME(r.scan_datetime) BETWEEN '00:00:00' AND '12:00:00',
+								IF(
+									(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(DATE_SUB(r.scan_datetime, INTERVAL 1 DAY)) LIMIT 1) = 'N',
+									'N',
+									COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
+								),
 								COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
-							),
-							COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
-						) as actual_shift
-						
-					FROM raw_attendance_logs r
-					JOIN employees e ON e.raw_id = r.raw_emp_id
-					WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
-				) as r_base
-				GROUP BY r_base.emp_id, r_base.emp_name, logical_work_date, actual_shift
-			) as base
-			LEFT JOIN shift_master sm ON base.actual_shift = sm.shift_code
-			
-			ON DUPLICATE KEY UPDATE 
-				shift_type = VALUES(shift_type),
-				scan_in_time = VALUES(scan_in_time),
-				scan_out_time = VALUES(scan_out_time),
-				is_late = VALUES(is_late),
-				ot_hours = VALUES(ot_hours),
-				status = 'Present';
-		`;
+							) as actual_shift
+							
+						FROM raw_attendance_logs r
+						JOIN employees e ON e.raw_id = r.raw_emp_id
+						WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
+					) as r_base
+					GROUP BY r_base.emp_id, r_base.emp_name, logical_work_date, actual_shift
+				) as base
+				LEFT JOIN shift_master sm ON base.actual_shift = sm.shift_code
+				
+				ON DUPLICATE KEY UPDATE 
+					shift_type = VALUES(shift_type),
+					scan_in_time = VALUES(scan_in_time),
+					scan_out_time = VALUES(scan_out_time),
+					is_late = VALUES(is_late),
+					ot_hours = VALUES(ot_hours),
+					status = 'Present';
+			`;
 
 		await pool.execute(processQuery, [startDate, endDate]);
 		console.log(`[AutoSync] คำนวณเวลาเข้าออกและ OT เรียบร้อยทั้งหมด`);

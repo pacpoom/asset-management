@@ -11,7 +11,7 @@
 	let recentLogs = $derived(data.recentLogs || []);
 
 	let stats = $derived({
-		total: data.statsData.total_scanned || 0,
+		total: data.statsData.total_plan || 0,
 		present: data.statsData.total_scanned || 0,
 		late: data.statsData.late || 0,
 		absent: data.statsData.absent || 0
