@@ -42,8 +42,6 @@
 	function openEditModal(item: any) {
 		modalMode = 'edit';
 		formData = { ...item };
-		formData.year = new Date().getFullYear();
-		formData.month = new Date().getMonth() + 1;
 		isModalOpen = true;
 	}
 
@@ -176,7 +174,7 @@
 									</span>
 								</td>
 								<td class="px-4 py-3 text-center font-medium text-gray-700">
-									{new Date().getFullYear()} / {String(new Date().getMonth() + 1).padStart(2, '0')}
+									{seq.year} / {String(seq.month).padStart(2, '0')}
 								</td>
 								<td class="px-4 py-3 text-center">
 									<span class="rounded bg-gray-50 px-2 py-1 font-mono text-gray-600">

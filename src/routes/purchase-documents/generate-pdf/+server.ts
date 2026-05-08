@@ -415,10 +415,10 @@ function getInvoiceHtml(
 
     // สรุปยอดแบบเดียวกับ Sales Document
 	const summaryBlock = `
-        <div style="text-align: left; font-size: 8pt; font-weight: 500; margin-bottom: 4px; color: #000; line-height: 1.4;">
+        <div style="text-align: left; font-size: 8pt; font-weight: 500; margin-bottom: 2px; color: #000; line-height: 1.4; margin-top: -8px;">
             ${tPdf('ConfirmText', lang)}
         </div>
-        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 10px; width: 100%; font-size: 8pt;">
+        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 2px; width: 100%; font-size: 8pt;">
             <colgroup>
                 <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
                 <col style="width: 140px;"> <col style="width: 110px;">
@@ -426,9 +426,9 @@ function getInvoiceHtml(
             <tfoot class="bill-summary-footer">
                 <tr>
                     <td colspan="4" rowspan="7" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
-                        <div>
+                        <div style="font-size: 8pt; line-height: 1.4;">
                             <span style="font-weight: bold; text-decoration: underline;">${tPdf('Notes', lang)}</span>
-                            <div style="margin-top: 4px; white-space: pre-wrap; color: #000; font-weight: bold; font-size: 10pt;">${docData.notes || '-'}</div>
+                            <div style="margin-top: 4px; white-space: pre-wrap; color: #000; font-weight: 500; font-size: 8pt;">${docData.notes || '-'}</div>
                         </div>
                         <div style="position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-weight: bold; color: #000;">
                             (${tPdf('NetText', lang)}: ${netAmountText})
@@ -460,34 +460,34 @@ function getInvoiceHtml(
                 </tr>
 
                 <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap" style="font-size: 7.5pt; color: #000;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
-                    <td class="p-2 text-right" style="font-size: 7.5pt; color: #000;">${formatNumber(whtAmt)}</td>
+                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
+                    <td class="p-2 text-right" style="font-size: 8pt; color: #000;">${formatNumber(whtAmt)}</td>
                 </tr>
 
                 <tr style="background-color: #ffffff;">
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 9pt; color: #000;">${tPdf('GrandTotal', lang)}</td>
-                    <td class="p-2 text-right border-t border-gray-400" style="font-size: 9pt; font-weight: bold; color: #000;">${formatNumber(netAmount)}</td>
+                    <td class="font-bold p-2 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('GrandTotal', lang)}</td>
+                    <td class="p-2 text-right border-t border-gray-400" style="font-size: 8pt; font-weight: bold; color: #000;">${formatNumber(netAmount)}</td>
                 </tr>
             </tfoot>
         </table>
     `;
 
 	const signatureBlock = `
-        <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; font-size: 8pt; color: #000;">
+        <div style="display: flex; justify-content: space-between; margin-top: 42px; padding-top: 24px; font-size: 8pt; color: #000;">
             <div style="text-align: center; width: 30%;">
                 <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
-                <p style="margin-top: 5px;">${tPdf('PreparedBy', lang)}</p>
-                <p>${tPdf('Date', lang)} ...../...../.....</p>
+                <p style="margin: 5px 0 0 0; line-height: 1.2;">${tPdf('PreparedBy', lang)}</p>
+                <p style="margin: 7px 0 0 0; line-height: 1.2;">${tPdf('Date', lang)} ...../...../.....</p>
             </div>
             <div style="text-align: center; width: 30%;">
                 <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
-                <p style="margin-top: 5px;">${tPdf('PurchasedBy', lang)}</p>
-                <p>${tPdf('Date', lang)} ...../...../.....</p>
+                <p style="margin: 5px 0 0 0; line-height: 1.2;">${tPdf('PurchasedBy', lang)}</p>
+                <p style="margin: 7px 0 0 0; line-height: 1.2;">${tPdf('Date', lang)} ...../...../.....</p>
             </div>
             <div style="text-align: center; width: 30%;">
                 <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
-                <p style="margin-top: 5px;">${tPdf('Auth', lang)}</p>
-                <p>${tPdf('Date', lang)} ...../...../.....</p>
+                <p style="margin: 5px 0 0 0; line-height: 1.2;">${tPdf('Auth', lang)}</p>
+                <p style="margin: 7px 0 0 0; line-height: 1.2;">${tPdf('Date', lang)} ...../...../.....</p>
             </div>
         </div>
     `;

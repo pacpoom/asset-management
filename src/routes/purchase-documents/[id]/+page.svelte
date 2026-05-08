@@ -363,15 +363,15 @@
 						<!-- แสดง VAT Type -->
 						<td class="px-4 py-4 text-center font-bold text-blue-600">
 							{#if item.vat_type == 1}
-								Inc Vat
+								Inc. VAT
 							{:else if item.vat_type == 2}
-								Exc Vat
+								VAT 7%
 							{:else if item.vat_type == 3}
-								Non Vat
+								Non-VAT
 							{:else if item.is_vat}
-								Exc Vat <!-- รองรับข้อมูลเดิม -->
+								VAT 7% <!-- รองรับข้อมูลเดิม -->
 							{:else}
-								Non Vat
+								Non-VAT
 							{/if}
 						</td>
 
