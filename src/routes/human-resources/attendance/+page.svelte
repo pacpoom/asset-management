@@ -288,7 +288,7 @@
 			<div class="flex flex-col gap-4 sm:flex-1 sm:flex-row sm:items-center sm:justify-between">
 				<div class="flex flex-wrap items-center gap-4">
 					<div class="flex items-center gap-2 text-sm text-gray-700">
-						<span>{$t('แสดงหน้าละ')}:</span>
+						<span>{$t('Showing')}:</span>
 						<select
 							aria-label="Items per page"
 							bind:value={itemsPerPage}
@@ -302,12 +302,12 @@
 						</select>
 					</div>
 					<p class="hidden text-sm text-gray-700 md:block">
-						{$t('แสดง')} <span class="font-medium">{(validPage - 1) * itemsPerPage + 1}</span>
-						{$t('ถึง')}
+						{$t('Show')} <span class="font-medium">{(validPage - 1) * itemsPerPage + 1}</span>
+						{$t('to')}
 						<span class="font-medium">{Math.min(validPage * itemsPerPage, logs.length)}</span>
-						{$t('จากทั้งหมด')}
+						{$t('From total')}
 						<span class="font-medium">{logs.length}</span>
-						{$t('รายการ')}
+						{$t('Item')}
 					</p>
 				</div>
 				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">

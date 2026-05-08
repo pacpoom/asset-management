@@ -2,7 +2,15 @@ import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 import { fail } from '@sveltejs/kit';
 
-export const load: PageServerLoad = async () => {
+interface LocalUser {
+	id?: number;
+	role?: string;
+	username?: string;
+	email?: string;
+	department_id?: number | null;
+}
+
+export const load: PageServerLoad = async ({ locals }) => {
 	try {
 		const [divisions]: any = await pool.execute(
 			'SELECT * FROM divisions ORDER BY division_name ASC'
@@ -17,13 +25,39 @@ export const load: PageServerLoad = async () => {
 		}));
 		const [groups]: any = await pool.execute('SELECT * FROM `groups` ORDER BY group_name ASC');
 		const [projects]: any = await pool.execute('SELECT * FROM projects ORDER BY project_name ASC');
-		const [scanners]: any = await pool.execute(
-			'SELECT * FROM fingerprint_scanners ORDER BY ip_address ASC'
+
+		const [departments]: any = await pool.execute(
+			'SELECT id, name FROM departments ORDER BY name ASC'
 		);
 
+		const [currentUserRows]: any = await pool.execute(
+			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
+			[locals.user?.id || 0]
+		);
+		const actualDeptId = currentUserRows.length > 0 ? currentUserRows[0].department_id : 0;
+
+		const user = locals.user as LocalUser;
+		const isSuperAdmin =
+			user?.role === 'admin' &&
+			(user?.username === 'admin' ||
+				user?.email === 'admin' ||
+				user?.email?.startsWith('admin@') ||
+				user?.id === 1 ||
+				user?.id === 2);
+
+		let scannerQuery = 'SELECT * FROM fingerprint_scanners';
+		let scannerParams: any[] = [];
+
+		if (!isSuperAdmin) {
+			scannerQuery += ' WHERE department_id IS NULL OR department_id = ?';
+			scannerParams.push(actualDeptId);
+		}
+		scannerQuery += ' ORDER BY ip_address ASC';
+
+		const [scanners]: any = await pool.execute(scannerQuery, scannerParams);
 		const [leaveTypes]: any = await pool.execute('SELECT * FROM leave_types ORDER BY id ASC');
 
-		return { divisions, sections, positions, groups, projects, scanners, leaveTypes };
+		return { divisions, sections, positions, groups, projects, scanners, leaveTypes, departments };
 	} catch (error) {
 		return {
 			divisions: [],
@@ -32,7 +66,8 @@ export const load: PageServerLoad = async () => {
 			groups: [],
 			projects: [],
 			scanners: [],
-			leaveTypes: []
+			leaveTypes: [],
+			departments: []
 		};
 	}
 };
@@ -85,9 +120,10 @@ export const actions: Actions = {
 					);
 				} else if (tab === 'scanner') {
 					const ip_address = data.get('ip_address')?.toString();
+					const department_id = data.get('department_id')?.toString() || null; // 🌟 รับค่าแผนก
 					await pool.execute(
-						`UPDATE fingerprint_scanners SET device_name = ?, ip_address = ?, status = ? WHERE id = ?`,
-						[name, ip_address, status, id]
+						`UPDATE fingerprint_scanners SET device_name = ?, ip_address = ?, status = ?, department_id = ? WHERE id = ?`,
+						[name, ip_address, status, department_id, id]
 					);
 				} else {
 					await pool.execute(
@@ -103,9 +139,10 @@ export const actions: Actions = {
 					);
 				} else if (tab === 'scanner') {
 					const ip_address = data.get('ip_address')?.toString();
+					const department_id = data.get('department_id')?.toString() || null; // 🌟 รับค่าแผนก
 					await pool.execute(
-						`INSERT INTO fingerprint_scanners (device_name, ip_address, status) VALUES (?, ?, ?)`,
-						[name, ip_address, status]
+						`INSERT INTO fingerprint_scanners (device_name, ip_address, status, department_id) VALUES (?, ?, ?, ?)`,
+						[name, ip_address, status, department_id]
 					);
 				} else {
 					await pool.execute(

@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { enhance } from '$app/forms'; // นำเข้า enhance
+	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { onMount } from 'svelte';
 	import { slide, fade, scale } from 'svelte/transition';
 	import { page } from '$app/stores';
+	import { t } from '$lib/i18n';
 
 	const { form, data } = $props<{ form: ActionData; data: PageData }>();
 
-	// ใช้ state จัดการ loading แทนการใช้ $navigating เพื่อความเสถียรเมื่อใช้คู่กับ enhance
 	let isLoading = $state(false);
 
 	let isMounted = $state(false);
@@ -18,6 +18,7 @@
 	let showPassword = $state(false);
 	let showKickedOutAlert = $state(false);
 	let isLoginLogoBroken = $state(false);
+	let showErrorModal = $state(false);
 
 	const loginLogoSrc = $derived(
 		!isLoginLogoBroken && data.companyLogoPath ? data.companyLogoPath : '/logo/company-logo.png'
@@ -53,27 +54,30 @@
 						onerror={onLoginLogoError}
 					/>
 				</div>
-				<h1 class="text-3xl font-bold text-gray-900">Welcome Back</h1>
-				<p class="mt-2 text-gray-500">Login to your Core Business System</p>
+				<h1 class="text-3xl font-bold text-gray-900">{$t('Welcome Back')}</h1>
+				<p class="mt-2 text-gray-500">{$t('Login message')}</p>
 			</div>
 
-			<!-- เพิ่ม use:enhance เพื่อป้องกันการทำ Full Page Reload -->
-			<form 
-				method="POST" 
-				action="?/login" 
+			<form
+				method="POST"
+				action="?/login"
 				class="space-y-6"
 				use:enhance={() => {
 					isLoading = true;
-					return async ({ update }) => {
+					showErrorModal = false;
+					return async ({ update, result }) => {
 						await update();
 						isLoading = false;
+						if (result.type === 'failure') {
+							showErrorModal = true;
+						}
 					};
 				}}
 			>
 				<input type="hidden" name="redirect" value={data.redirectTarget} />
 				<div>
 					<label for="identifier" class="mb-2 block text-sm font-medium text-gray-700"
-						>Email or Username</label
+						>{$t('Email or Username')}</label
 					>
 					<div class="relative">
 						<span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -151,12 +155,6 @@
 					</div>
 				</div>
 
-				{#if form?.message}
-					<div transition:slide={{ duration: 200 }}>
-						<p class="text-center text-sm text-red-500">{form.message}</p>
-					</div>
-				{/if}
-
 				<div>
 					<button
 						type="submit"
@@ -185,10 +183,10 @@
 										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 									/>
 								</svg>
-								Signing In...
+								{$t('Signing In...')}
 							</span>
 						{:else}
-							Sign In
+							{$t('Sign In')}
 						{/if}
 					</button>
 				</div>
@@ -200,6 +198,7 @@
 <svelte:head>
 	<title>Login - Core Business</title>
 </svelte:head>
+
 {#if showKickedOutAlert}
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md transition-all"
@@ -228,13 +227,12 @@
 					</svg>
 				</div>
 
-				<h3 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-900">เซสชั่นหมดอายุ!</h3>
+				<h3 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-900">
+					{$t('Session Expired!')}
+				</h3>
 				<p class="mb-8 text-sm leading-relaxed text-gray-500">
-					บัญชีนี้ถูกเข้าสู่ระบบจากอุปกรณ์อื่น<br />
-					<span class="font-medium text-rose-600"
-						>ระบบจึงทำการออกจากระบบเครื่องนี้เพื่อความปลอดภัย
-						หากมีปัญหาในการใช้งานกรุณาติดต่อแผนกไอที</span
-					>
+					{$t('Logged in from another device')}<br />
+					<span class="font-medium text-rose-600">{$t('Security logout message')}</span>
 				</p>
 
 				<button
@@ -245,9 +243,61 @@
 					<div
 						class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-500 group-hover:translate-x-full"
 					></div>
-					<span class="relative">รับทราบและเข้าสู่ระบบใหม่</span>
+					<span class="relative">{$t('Acknowledge and Login again')}</span>
 				</button>
 			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showErrorModal && form?.message}
+	<div
+		class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm transition-all"
+		transition:fade={{ duration: 200 }}
+	>
+		<div
+			class="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl"
+			transition:scale={{ duration: 300, start: 0.8, opacity: 0 }}
+		>
+			<div
+				class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border-[3px] border-red-500 bg-white"
+			>
+				{#if form.isLocked}
+					<span class="material-symbols-outlined text-[40px] text-red-500">lock</span>
+				{:else}
+					<span class="material-symbols-outlined text-[50px] font-light text-red-500">close</span>
+				{/if}
+			</div>
+
+			<h2 class="mb-4 text-3xl font-semibold text-gray-700">
+				{#if form.isLocked}
+					{$t('Account Suspended')}
+				{:else}
+					Oops...
+				{/if}
+			</h2>
+
+			<div class="mb-8 text-gray-500">
+				{#if form.isLocked}
+					<p class="text-base">{$t('You have entered the wrong password more than 3 times')}</p>
+					<p class="text-base">{$t('Contact IT to unlock')}</p>
+				{:else}
+					<p class="text-base">{$t(form.message)}</p>
+					{#if form.attemptsLeft}
+						<p class="mt-1.5 font-semibold text-red-500">
+							({$t('Attempts remaining')}: {form.attemptsLeft})
+						</p>
+					{/if}
+				{/if}
+			</div>
+
+			<button
+				type="button"
+				onclick={() => (showErrorModal = false)}
+				class="w-full rounded-xl bg-[#7066e0] px-4 py-3.5 text-lg font-bold text-white shadow-sm transition-all hover:bg-[#5b52b8] active:scale-95"
+			>
+				ตกลง
+			</button>
 		</div>
 	</div>
 {/if}

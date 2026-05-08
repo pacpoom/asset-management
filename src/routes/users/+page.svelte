@@ -663,7 +663,15 @@
 				onclick={() => openUserModal('add')}
 				class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					class="h-4 w-4"
+					><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
+				>
 				{$t('Add New User')}
 			</button>
 		</div>
@@ -674,7 +682,9 @@
 			class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_auto]"
 		>
 			<div>
-				<label for="searchTerm" class="mb-1 block text-sm font-medium text-gray-700">{$t('Search')}</label>
+				<label for="searchTerm" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Search')}</label
+				>
 				<input
 					type="text"
 					id="searchTerm"
@@ -685,7 +695,9 @@
 				/>
 			</div>
 			<div>
-				<label for="departmentFilter" class="mb-1 block text-sm font-medium text-gray-700">{$t('Department')}</label>
+				<label for="departmentFilter" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Department')}</label
+				>
 				<select
 					id="departmentFilter"
 					bind:value={departmentFilter}
@@ -698,7 +710,9 @@
 				</select>
 			</div>
 			<div>
-				<label for="positionFilter" class="mb-1 block text-sm font-medium text-gray-700">{$t('Position')}</label>
+				<label for="positionFilter" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Position')}</label
+				>
 				<select
 					id="positionFilter"
 					bind:value={positionFilter}
@@ -711,7 +725,9 @@
 				</select>
 			</div>
 			<div>
-				<label for="roleFilter" class="mb-1 block text-sm font-medium text-gray-700">{$t('Role')}</label>
+				<label for="roleFilter" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Role')}</label
+				>
 				<select
 					id="roleFilter"
 					bind:value={roleFilter}
@@ -723,6 +739,7 @@
 					{/each}
 				</select>
 			</div>
+
 			<div class="flex items-end gap-2">
 				<button
 					type="button"
@@ -742,7 +759,7 @@
 		</div>
 	</div>
 
-<div class="w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+	<div class="w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 		<div class="overflow-x-auto">
 			<table class="min-w-full divide-y divide-gray-200 text-sm">
 				<thead class="bg-gray-50">
@@ -762,9 +779,16 @@
 						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600"
 							>{$t('Role')}</th
 						>
-						<th class="px-4 py-3 text-left font-semibold tracking-wider text-gray-600 whitespace-nowrap"
+						<th
+							class="px-4 py-3 text-left font-semibold tracking-wider whitespace-nowrap text-gray-600"
 							>{$t('Last updated')}</th
 						>
+
+						<th
+							class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+							>{$t('Status')}</th
+						>
+
 						<th class="px-4 py-3 text-center font-semibold tracking-wider text-gray-600"
 							>{$t('Actions')}</th
 						>
@@ -817,18 +841,67 @@
 										{/if}
 									</div>
 								</td>
-								<td class="px-4 py-3 whitespace-nowrap text-xs text-gray-600">
+								<td class="px-4 py-3 text-xs whitespace-nowrap text-gray-600">
 									{formatDateTimeCell(user.updated_at ?? user.created_at)}
 								</td>
+
+								<td class="px-4 py-3 text-center whitespace-nowrap">
+									{#if user.is_locked}
+										<span
+											class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800"
+										>
+											<span class="material-symbols-outlined mr-1 text-[14px]">lock</span> Locked
+										</span>
+									{:else}
+										<span
+											class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800"
+										>
+											Active
+										</span>
+									{/if}
+								</td>
+
 								<td class="px-4 py-3 text-center whitespace-nowrap">
 									<div class="flex items-center justify-center gap-3">
+										{#if user.is_locked}
+											<form method="POST" action="?/unlockUser" use:enhance>
+												<input type="hidden" name="id" value={user.id} />
+												<button
+													type="submit"
+													class="text-gray-400 transition-colors hover:text-orange-500"
+													title={$t('Unlock User')}
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="2"
+														class="h-4 w-4"
+													>
+														<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+														<path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+													</svg>
+												</button>
+											</form>
+										{/if}
 										<button
 											type="button"
 											onclick={() => openUserModal('edit', user)}
 											class="text-gray-400 transition-colors hover:text-blue-600"
 											title={$t('Edit User')}
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z" /></svg>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												class="h-4 w-4"
+												><path d="M12 20h9" /><path
+													d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"
+												/></svg
+											>
 										</button>
 
 										<button
@@ -837,7 +910,17 @@
 											class="text-gray-400 transition-colors hover:text-red-600"
 											title={$t('Delete User')}
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												class="h-4 w-4"
+												><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path
+													d="M19 6l-1 14H6L5 6"
+												/></svg
+											>
 										</button>
 									</div>
 								</td>
@@ -1093,15 +1176,16 @@
 										name="role_ids"
 										value={role.id}
 										checked={selectedRoleIds.includes(String(role.id))}
-										onchange={(e) =>
-											toggleRoleMembership(String(role.id), e.currentTarget.checked)}
+										onchange={(e) => toggleRoleMembership(String(role.id), e.currentTarget.checked)}
 										class="rounded border-gray-300"
 									/>
 									<span>{role.name}</span>
 								</label>
 							{/each}
 						</div>
-						<p class="mt-1 text-xs text-gray-500">Select one or more roles (saved roles are pre-checked).</p>
+						<p class="mt-1 text-xs text-gray-500">
+							Select one or more roles (saved roles are pre-checked).
+						</p>
 					</div>
 
 					<div>
@@ -1149,13 +1233,15 @@
 						<p class="mt-1 text-xs text-gray-500">
 							Notify via LINE OA when this user is an IsoDocs approver/QMR. They must add your OA as
 							a friend. Use the real Messaging API userId (usually starts with U…), not a display
-							name. If Save fails, run <code class="rounded bg-gray-100 px-0.5">sql/users_line_user_id.sql</code> on your database once.
+							name. If Save fails, run <code class="rounded bg-gray-100 px-0.5"
+								>sql/users_line_user_id.sql</code
+							> on your database once.
 						</p>
 					</div>
 
 					{#if form?.action === (modalMode === 'add' ? 'addUser' : 'editUser') && form?.success === false && form?.message}
 						<div class="mt-4 rounded-md bg-red-50 p-4">
-							<p class="text-sm text-red-600">{form.message}</p>
+							<p class="text-sm text-red-600">{$t(form.message)}</p>
 						</div>
 					{/if}
 				</div>

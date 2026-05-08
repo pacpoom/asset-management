@@ -43,11 +43,12 @@
 	});
 
 	let sectionOptions = $derived([
-		{ value: 'All', label: '-- All --' },
+		{ value: 'All', label: $t('All') },
 		...(data.sections || []).map((s: string) => ({ value: s, label: s }))
 	]);
+
 	let groupOptions = $derived([
-		{ value: 'All', label: '-- All --' },
+		{ value: 'All', label: $t('All') },
 		...(data.groups || []).map((g: string) => ({ value: g, label: g }))
 	]);
 
@@ -66,12 +67,14 @@
 	let deptCurrentPage = $state(1);
 	let deptPerPage = 6;
 	let deptTotalPages = $derived(Math.ceil(departmentSummary.length / deptPerPage) || 1);
+
 	let paginatedDepartments = $derived(
 		departmentSummary.slice((deptCurrentPage - 1) * deptPerPage, deptCurrentPage * deptPerPage)
 	);
 
 	let logCurrentPage = $state(1);
 	let logsPerPage = $state(10);
+
 	let totalLogPages = $derived(Math.ceil(recentLogs.length / logsPerPage) || 1);
 	let paginatedLogs = $derived(
 		recentLogs.slice((logCurrentPage - 1) * logsPerPage, logCurrentPage * logsPerPage)
@@ -129,6 +132,7 @@
 			enctype="multipart/form-data"
 			use:enhance={() => {
 				isSubmitting = true;
+
 				return async ({ update }) => {
 					await update();
 					isSubmitting = false;
@@ -159,6 +163,7 @@
 			action="?/syncZKTeco"
 			use:enhance={() => {
 				isSubmitting = true;
+
 				return async ({ update }) => {
 					await update();
 					isSubmitting = false;
@@ -173,7 +178,7 @@
 				class="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				<span class="material-symbols-outlined text-[18px]">cell_wifi</span>
-				{$t('ซิงค์ข้อมูลสแกนนิ้ว (ZKTeco)')}
+				{$t('ซิงค์ข้อมูล(ZKTeco)')}
 			</button>
 		</form>
 	</div>
@@ -185,6 +190,7 @@
 		class="flex flex-wrap items-end gap-4"
 		onsubmit={() => {
 			deptCurrentPage = 1;
+
 			logCurrentPage = 1;
 		}}
 	>
@@ -307,21 +313,21 @@
 							class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-600 ring-1 ring-green-500/20"
 						>
 							<div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
-							 Online
+							Online
 						</span>
 					{:else}
 						<span
 							class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600 ring-1 ring-red-500/20"
 						>
 							<div class="h-1.5 w-1.5 rounded-full bg-red-500"></div>
-							 Offline
+							Offline
 						</span>
 					{/if}
 				</div>
 				<div
 					class="mt-2 flex items-center justify-between border-t border-gray-50 pt-2 text-xs text-gray-500"
 				>
-					<span>Sync ล่าสุด:</span>
+					<span>{$t('Sync ล่าสุด')}:</span>
 					<span class="font-medium text-gray-700">
 						{#if scanner.last_sync}
 							{@const d = new Date(scanner.last_sync)}
@@ -411,7 +417,11 @@
 											? 'bg-orange-100 text-orange-700'
 											: 'bg-red-100 text-red-700'}"
 								>
-									{log.status === 'Present' ? 'ปกติ' : log.status === 'Late' ? 'สาย' : 'ขาด'}
+									{log.status === 'Present'
+										? $t('ปกติ')
+										: log.status === 'Late'
+											? $t('สาย')
+											: $t('ขาด')}
 								</span>
 							</td>
 						</tr>
@@ -434,7 +444,7 @@
 				<div class="flex flex-col gap-4 sm:flex-1 sm:flex-row sm:items-center sm:justify-between">
 					<div class="flex flex-wrap items-center gap-4">
 						<div class="flex items-center gap-2 text-sm text-gray-700">
-							<span>{$t('แสดงหน้าละ')}:</span>
+							<span>{$t('Showing')}:</span>
 							<select
 								bind:value={logsPerPage}
 								onchange={() => (logCurrentPage = 1)}
@@ -447,14 +457,14 @@
 							</select>
 						</div>
 						<p class="hidden text-sm text-gray-700 md:block">
-							{$t('แสดง')} <span class="font-medium">{(logCurrentPage - 1) * logsPerPage + 1}</span>
-							{$t('ถึง')}
+							{$t('Show')} <span class="font-medium">{(logCurrentPage - 1) * logsPerPage + 1}</span>
+							{$t('To')}
 							<span class="font-medium"
 								>{Math.min(logCurrentPage * logsPerPage, recentLogs.length)}</span
 							>
-							{$t('จากทั้งหมด')}
+							{$t('From total')}
 							<span class="font-medium">{recentLogs.length}</span>
-							{$t('รายการ')}
+							{$t('Item')}
 						</p>
 					</div>
 					<div>
@@ -463,7 +473,7 @@
 							aria-label="Pagination"
 						>
 							<button
-								aria-label="ก่อนหน้า"
+								aria-label={$t('ก่อนหน้า')}
 								onclick={() => logCurrentPage--}
 								disabled={logCurrentPage === 1}
 								class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
@@ -476,7 +486,7 @@
 								{logCurrentPage} / {totalLogPages}
 							</span>
 							<button
-								aria-label="ถัดไป"
+								aria-label={$t('ถัดไป')}
 								onclick={() => logCurrentPage++}
 								disabled={logCurrentPage === totalLogPages}
 								class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
@@ -582,7 +592,7 @@
 		>
 			<div class="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-6 py-4">
 				<span class="material-symbols-outlined text-[24px] text-blue-600">cloud_sync</span>
-				<h2 class="text-lg font-bold text-gray-900">กำหนดช่วงเวลาดึงข้อมูล</h2>
+				<h2 class="text-lg font-bold text-gray-900">{$t('กำหนดช่วงเวลาดึงข้อมูล')}</h2>
 			</div>
 
 			<form
@@ -599,13 +609,14 @@
 			>
 				<div class="p-6">
 					<p class="mb-4 text-sm text-gray-600">
-						ระบบจะทำการเชื่อมต่อเครื่องสแกนเพื่อกวาดข้อมูลเฉพาะในช่วงวันที่คุณระบุเท่านั้น
-						(ยิ่งเลือกหลายวัน ยิ่งใช้เวลาประมวลผลนานขึ้น)
+						{$t(
+							'ระบบจะทำการเชื่อมต่อเครื่องสแกนเพื่อกวาดข้อมูลเฉพาะในช่วงวันที่คุณระบุเท่านั้น (ยิ่งเลือกหลายวัน ยิ่งใช้เวลาประมวลผลนานขึ้น)'
+						)}
 					</p>
 					<div class="grid grid-cols-2 gap-4">
 						<div>
 							<label for="start_date" class="mb-1 block text-sm font-semibold text-gray-700"
-								>ตั้งแต่วันที่</label
+								>{$t('ตั้งแต่วันที่')}</label
 							>
 							<input
 								type="date"
@@ -617,7 +628,7 @@
 						</div>
 						<div>
 							<label for="end_date" class="mb-1 block text-sm font-semibold text-gray-700"
-								>ถึงวันที่</label
+								>{$t('ถึงวันที่')}</label
 							>
 							<input
 								type="date"
@@ -636,13 +647,13 @@
 						onclick={() => (showSyncModal = false)}
 						class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
 					>
-						ยกเลิก
+						{$t('Cancel')}
 					</button>
 					<button
 						type="submit"
 						class="rounded-md bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
 					>
-						เริ่มดึงข้อมูลสแกนนิ้ว
+						{$t('เริ่มดึงข้อมูลสแกนนิ้ว')}
 					</button>
 				</div>
 			</form>
