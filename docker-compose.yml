@@ -1,8 +1,9 @@
-version: '3.8'
 services:
   web:
     build: .
     container_name: bizcore_app
+    env_file:
+      - .env
     ports:
       - "4173:3000"
     environment:
@@ -17,5 +18,6 @@ services:
       BODY_SIZE_LIMIT: 52428800
       
     volumes:
+      - ./.env:/app/.env
       - ./uploads:/app/uploads  
 
