@@ -153,6 +153,15 @@ function quoteEnvValue(val: string): string {
 	return `"${val.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r/g, '').replace(/\n/g, '\\n')}"`;
 }
 
+function sanitizeEnvInputValue(raw: string): string {
+	// Remove hidden BOM / replacement chars / null bytes that can appear from copy-paste or encoding quirks.
+	return String(raw)
+		.replace(/\uFEFF/g, '')
+		.replace(/\uFFFD/g, '')
+		.replace(/\u0000/g, '')
+		.trim();
+}
+
 /** Merge managed keys into `.env`; preserve comments and unknown keys */
 async function writeMergedEnv(updates: Record<string, string>): Promise<void> {
 	let lines: string[];
@@ -215,7 +224,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const runtimeRaw = env[def.key as keyof typeof env];
 		const runtimeValue = runtimeRaw != null ? String(runtimeRaw) : '';
 		const fileValue = fileValues[def.key] ?? '';
-		const str = runtimeValue || fileValue;
+		// Prefer .env file value so UI reflects latest saved values immediately,
+		// even before process/container restart.
+		const str = fileValue || runtimeValue;
 		return {
 			key: def.key,
 			label: def.label,
@@ -250,7 +261,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const updates: Record<string, string> = {};
 		for (const { key } of ENV_FIELDS) {
-			updates[key] = (form.get(key)?.toString() ?? '').trim();
+			updates[key] = sanitizeEnvInputValue(form.get(key)?.toString() ?? '');
 		}
 
 		try {

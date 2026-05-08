@@ -30,16 +30,33 @@ export async function sendMail(payload: MailPayload): Promise<boolean> {
 		host,
 		port,
 		secure: port === 465,
-		auth: { user, pass }
+		auth: { user, pass },
+		connectionTimeout: 15000,
+		greetingTimeout: 15000,
+		socketTimeout: 30000
 	});
 
-	await transporter.sendMail({
-		from,
-		to: recipients.join(','),
-		subject: payload.subject,
-		text: payload.text,
-		html: payload.html
-	});
+	try {
+		const info = await transporter.sendMail({
+			from,
+			to: recipients.join(','),
+			subject: payload.subject,
+			text: payload.text,
+			html: payload.html
+		});
+		console.info('[mailer] sent', {
+			subject: payload.subject,
+			toCount: recipients.length,
+			messageId: info?.messageId || null
+		});
+	} catch (err) {
+		console.error('[mailer] send failed', {
+			subject: payload.subject,
+			toCount: recipients.length,
+			error: err
+		});
+		throw err;
+	}
 
 	return true;
 }

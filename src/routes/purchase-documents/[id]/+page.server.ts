@@ -392,11 +392,23 @@ export const actions: Actions = {
 							[id]
 						);
 						const docNo = doc.document_number || `PR #${id}`;
+						console.info('[purchase-documents] sending PR issued email', {
+							documentId: id,
+							documentNo: docNo,
+							recipientsCount: recipients.length,
+							recipients
+						});
 						void sendMail({
 							to: recipients,
 							subject: `[PR Issued] ${docNo}`,
 							text: `Purchase Requisition ${docNo} has been issued.\nOpen PR: ${documentUrl}`,
 							html: buildPurchaseRequisitionEmailHtml(doc, itemRows, documentUrl, company, baseUrl)
+						}).then((sent) => {
+							console.info('[purchase-documents] PR issued email send result', {
+								documentId: id,
+								documentNo: docNo,
+								sent
+							});
 						}).catch((mailErr) => {
 							console.error('[purchase-documents] send PR issued email failed:', mailErr);
 						});
