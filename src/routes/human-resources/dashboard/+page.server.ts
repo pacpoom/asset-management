@@ -105,6 +105,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const [statsRow]: any = await pool.execute(statsQuery, [displayDate, ...filterParams]);
 
+		const [scanners]: any = await pool.execute(
+			`SELECT device_name, ip_address, status, last_sync 
+			 FROM fingerprint_scanners 
+			 WHERE status = 'Active' OR status = 1 
+			 ORDER BY device_name ASC`
+		);
+
 		return {
 			title: 'Workforce Dashboard',
 			departmentSummary: processedSummary,
@@ -113,6 +120,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			displayDate,
 			searchQuery: search,
 			statusFilter,
+			scanners,
 			sectionFilter,
 			groupFilter,
 			sections: sectionsRows.map((s: any) => s.section),
@@ -390,6 +398,11 @@ export const actions: Actions = {
 				try {
 					await zkInstance.createSocket();
 					console.log(`Connected to ZKTeco: ${ip}`);
+
+					await pool.execute(
+						'UPDATE fingerprint_scanners SET last_sync = DATE_ADD(NOW(), INTERVAL 7 HOUR) WHERE ip_address = ?',
+						[ip]
+					);
 
 					const machineInfo = await zkInstance.getInfo();
 

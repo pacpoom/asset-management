@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 
 	let { data, form } = $props();
 
@@ -29,11 +30,10 @@
 		...(data.groups || []).map((g: string) => ({ value: g, label: g }))
 	]);
 
-	let selectedSection = $state(
-		data.filterSection && data.filterSection !== 'All'
-			? { value: data.filterSection, label: data.filterSection }
-			: { value: 'All', label: `-- ${$t('ทุกแผนก')} (All Sections) --` }
-	);
+	let selectedSection = $state({
+		value: data.filterSection || 'All',
+		label: data.filterSection === 'All' ? `-- ${$t('All Sections')} --` : data.filterSection
+	});
 
 	let selectedGroup = $state(
 		data.filterGroup && data.filterGroup !== 'All'
@@ -524,28 +524,17 @@
 </div>
 
 <div
-	class="relative z-[70] flex flex-col overflow-visible rounded-lg border border-gray-100 bg-white shadow-sm"
+	class="relative z-[50] flex flex-col overflow-visible rounded-lg border border-gray-100 bg-white shadow-sm"
 >
-	<div
-		class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-gray-50 p-4"
-	>
-		<h2 class="text-lg font-semibold text-gray-800">
-			{$t('รายชื่อพนักงานที่ต้องตรวจสอบ')}
-			<span class="ml-2 text-sm font-normal text-gray-500"
-				>({filteredEmpList.length} {$t('คน')})</span
-			>
-		</h2>
-
-		<div class="flex flex-wrap items-center gap-4">
-			<div class="w-72">
-				<Select
-					items={empSearchOptions}
-					bind:value={empSearch}
-					placeholder={$t('ค้นหารหัส / ชื่อพนักงาน...')}
-					container={browser ? document.body : null}
-					class="svelte-select-custom"
-				/>
-			</div>
+	<div class="sticky top-[56px] z-30 border-b border-gray-100 bg-white shadow-sm">
+		<div class="flex flex-wrap items-center justify-between gap-4 bg-gray-50 p-4">
+			<h2 class="text-lg font-semibold text-gray-800">
+				{$t('รายชื่อพนักงานที่ต้องตรวจสอบ')}
+				<span class="ml-2 text-sm font-normal text-gray-500">
+					({filteredEmpList.length}
+					{$t('คน')})
+				</span>
+			</h2>
 
 			<button
 				type="submit"
@@ -556,6 +545,32 @@
 				<span class="material-symbols-outlined text-[18px]">fact_check</span>
 				{isSubmitting ? $t('Saving...') : $t('บันทึกและยืนยันข้อมูล')}
 			</button>
+		</div>
+
+		<div class="flex flex-wrap items-center gap-4 px-6 py-4">
+			<div class="w-72">
+				<Select
+					items={empSearchOptions}
+					bind:value={empSearch}
+					placeholder={$t('ค้นหารหัส / ชื่อพนักงาน...')}
+					container={browser ? document.body : null}
+				/>
+			</div>
+
+			<div class="w-64">
+				<Select
+					items={sectionOptions}
+					bind:value={selectedSection}
+					placeholder={$t('เลือกแผนก...')}
+					on:change={(e: any) => {
+						const val = e?.detail?.value || 'All';
+						const url = new URL(window.location.href);
+						url.searchParams.set('section', val);
+						goto(url.toString());
+					}}
+					container={browser ? document.body : null}
+				/>
+			</div>
 		</div>
 	</div>
 
@@ -579,6 +594,7 @@
 
 					if (shiftSelect && statusSelect && statusSelect.value === 'Pending') {
 						if (isTodayOrFuture && shiftSelect.value === 'N') {
+							// ข้ามกะดึกของวันนี้ไป ไม่แจ้ง Error
 						} else {
 							hasPending = true;
 						}
@@ -602,26 +618,26 @@
 
 			<table class="w-full min-w-[1000px] text-left text-sm text-gray-600">
 				<thead
-					class="sticky top-0 z-10 border-b border-gray-100 bg-white text-xs text-gray-700 uppercase"
+					class="sticky top-0 z-20 border-b border-gray-200 bg-gray-100 text-xs font-bold text-gray-700 uppercase"
 				>
 					<tr>
 						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Group')}</th>
 						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Emp ID')}</th>
 						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Name')}</th>
-						<th class="w-36 px-4 py-3 text-center whitespace-nowrap">{$t('Work shift')}</th>
-						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Time In')}</th>
-						<th class="px-4 py-3 text-center whitespace-nowrap">{$t('Time Out')}</th>
-						<th class="w-56 px-4 py-3 text-center whitespace-nowrap"
-							>{$t('Status')} <span class="text-red-500"></span></th
-						>
+						<th class="w-32 px-4 py-3 text-center whitespace-nowrap">{$t('Work shift')}</th>
+						<th class="w-32 px-4 py-3 text-center whitespace-nowrap">{$t('Time In')}</th>
+						<th class="w-32 px-4 py-3 text-center whitespace-nowrap">{$t('Time Out')}</th>
+						<th class="w-56 px-4 py-3 text-center whitespace-nowrap">{$t('Status')}</th>
 						<th class="w-64 px-4 py-3 whitespace-nowrap">{$t('Notes/Types of Leave')}</th>
 					</tr>
 				</thead>
-				<tbody class="divide-y divide-gray-50">
+				<tbody class="divide-y divide-gray-100">
 					{#each filteredEmpList as emp, index}
 						{@const isVisible =
 							index >= (validEmpPage - 1) * empPerPage && index < validEmpPage * empPerPage}
 						{@const hasScan = emp.time_in !== null || emp.time_out !== null}
+
+						{@const isLocked = emp.status !== 'Pending'}
 
 						{@const isTodayOrFuture =
 							data.displayDate >=
@@ -633,34 +649,39 @@
 						{@const needsCheck = !hasScan && emp.status === 'Pending' && !isNightPending}
 
 						<tr
-							class="transition-colors hover:bg-gray-50 {isVisible ? '' : 'hidden'}
+							class="transition-colors hover:bg-gray-50 {isVisible ? '' : 'hidden'} {isLocked
+								? 'bg-gray-50/50'
+								: ''}
 							{needsCheck
 								? 'border-l-4 border-l-red-500 bg-red-50/50'
-								: hasScan
+								: hasScan && !isLocked
 									? 'border-l-4 border-l-green-400 bg-green-50/20'
-									: emp.status.includes('Leave')
+									: !isLocked && emp.status.includes('Leave')
 										? 'border-l-4 border-l-orange-400 bg-orange-50/30'
-										: emp.status === 'Absent'
+										: !isLocked && emp.status === 'Absent'
 											? 'border-l-4 border-l-red-500 bg-red-50/30'
 											: ''}"
 						>
-							<td class="px-4 py-3 font-bold whitespace-nowrap text-gray-800"
+							<td class="px-4 py-3 text-center font-bold whitespace-nowrap text-gray-800"
 								>{emp.emp_group || '-'}</td
 							>
-							<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.emp_id}</td>
+							<td class="px-4 py-3 text-center font-mono whitespace-nowrap">{emp.emp_id}</td>
 							<td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900">
 								{emp.emp_name}
 								<input type="hidden" name="emp_id[]" value={emp.emp_id} />
 							</td>
 
-							<td class="px-4 py-2">
+							<td class="px-2 py-2">
 								<select
 									aria-label="Shift"
 									name="shift[]"
-									class="w-full cursor-pointer rounded border py-1.5 pr-8 pl-2 text-center text-sm font-bold [text-align-last:center] focus:outline-none
-									{emp.shift_type === 'D' || emp.shift_type === 'Day'
-										? 'border-yellow-300 bg-yellow-50 text-yellow-700'
-										: 'border-indigo-300 bg-indigo-50 text-indigo-700'}"
+									disabled={isLocked}
+									class="w-full cursor-pointer rounded border py-1.5 text-center text-sm font-bold focus:outline-none
+									{isLocked
+										? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+										: emp.shift_type === 'D' || emp.shift_type === 'Day'
+											? 'border-yellow-300 bg-yellow-50 text-yellow-700'
+											: 'border-indigo-300 bg-indigo-50 text-indigo-700'}"
 								>
 									<option value="D" selected={emp.shift_type === 'D' || emp.shift_type === 'Day'}
 										>D</option
@@ -669,37 +690,52 @@
 										>N</option
 									>
 								</select>
+								{#if isLocked}<input type="hidden" name="shift[]" value={emp.shift_type} />{/if}
 							</td>
 
-							<td
-								class="px-4 py-3 text-center font-mono font-bold whitespace-nowrap {emp.time_in
-									? 'text-green-600'
-									: 'text-gray-300'}">{emp.time_in || '-'}</td
-							>
-							<td
-								class="px-4 py-3 text-center font-mono font-bold whitespace-nowrap {emp.time_out
-									? 'text-purple-600'
-									: 'text-gray-300'}">{emp.time_out || '-'}</td
-							>
+							<td class="px-2 py-2">
+								<input
+									type="time"
+									name="time_in[]"
+									value={emp.time_in || ''}
+									readonly={isLocked}
+									class="w-full rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-sm focus:border-blue-500 focus:outline-none
+									{isLocked ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-white font-bold text-green-600'}"
+								/>
+							</td>
 
-							<td class="px-4 py-2">
+							<td class="px-2 py-2">
+								<input
+									type="time"
+									name="time_out[]"
+									value={emp.time_out || ''}
+									readonly={isLocked}
+									class="w-full rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-sm focus:border-blue-500 focus:outline-none
+									{isLocked ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-white font-bold text-purple-600'}"
+								/>
+							</td>
+
+							<td class="px-2 py-2">
 								<select
 									aria-label="Status"
 									name="status[]"
-									class="w-full cursor-pointer rounded border py-1.5 pr-8 pl-2 text-center text-sm font-medium [text-align-last:center] focus:border-blue-500 focus:outline-none
-										{needsCheck
-										? 'animate-pulse border-red-400 bg-red-100 text-red-700 ring-1 ring-red-400'
-										: isNightPending
-											? 'border-gray-300 bg-gray-100 text-gray-500'
-											: emp.status === 'Present' || (hasScan && emp.status === 'Pending')
-												? 'border-green-300 bg-green-50 text-green-700'
-												: emp.status === 'Late'
-													? 'border-yellow-300 bg-yellow-50 text-yellow-700'
-													: emp.status.includes('Leave')
-														? 'border-orange-300 bg-orange-50 text-orange-700'
-														: emp.status === 'Absent'
-															? 'border-red-300 bg-red-50 text-red-700'
-															: 'border-gray-300 bg-white'}"
+									disabled={isLocked}
+									class="w-full cursor-pointer rounded border py-1.5 text-center text-sm font-medium focus:border-blue-500 focus:outline-none
+										{isLocked
+										? 'cursor-not-allowed border-gray-300 bg-gray-200 font-bold text-gray-600'
+										: needsCheck
+											? 'animate-pulse border-red-400 bg-red-100 text-red-700 ring-1 ring-red-400'
+											: isNightPending
+												? 'border-gray-300 bg-gray-100 text-gray-500'
+												: emp.status === 'Present' || (hasScan && emp.status === 'Pending')
+													? 'border-green-300 bg-green-50 text-green-700'
+													: emp.status === 'Late'
+														? 'border-yellow-300 bg-yellow-50 text-yellow-700'
+														: emp.status.includes('Leave')
+															? 'border-orange-300 bg-orange-50 text-orange-700'
+															: emp.status === 'Absent'
+																? 'border-red-300 bg-red-50 text-red-700'
+																: 'border-gray-300 bg-white'}"
 								>
 									{#if needsCheck || isNightPending}
 										<option value="Pending" selected hidden>
@@ -716,6 +752,7 @@
 										</option>
 									{/each}
 								</select>
+								{#if isLocked}<input type="hidden" name="status[]" value={emp.status} />{/if}
 							</td>
 
 							<td class="px-4 py-2">
@@ -729,10 +766,9 @@
 										: isNightPending
 											? '-'
 											: $t('หมายเหตุเพิ่มเติม (ถ้ามี)')}
-									class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none {isNightPending
-										? 'cursor-not-allowed bg-gray-50 text-gray-400'
-										: ''}"
-									readonly={isNightPending}
+									readonly={isLocked || isNightPending}
+									class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none
+									{isLocked || isNightPending ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-white'}"
 								/>
 							</td>
 						</tr>

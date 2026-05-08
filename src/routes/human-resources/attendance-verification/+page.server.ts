@@ -111,45 +111,75 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 export const actions: Actions = {
 	saveVerification: async ({ request, locals }) => {
-		const data = await request.formData();
-		const date = data.get('date')?.toString();
+		const formData = await request.formData();
+		const workDate = formData.get('date')?.toString();
+		const empIds = formData.getAll('emp_id[]');
+		const shifts = formData.getAll('shift[]');
+		const statuses = formData.getAll('status[]');
+		const remarks = formData.getAll('remark[]');
+		const timesIn = formData.getAll('time_in[]');
+		const timesOut = formData.getAll('time_out[]');
 
-		if (!date) return fail(400, { success: false, message: 'วันที่ไม่ถูกต้อง' });
+		if (!workDate || empIds.length === 0) return fail(400, { message: 'ข้อมูลไม่ครบถ้วน' });
 
-		const empIds = data.getAll('emp_id[]');
-		const shifts = data.getAll('shift[]');
-		const statuses = data.getAll('status[]');
-		const remarks = data.getAll('remark[]');
-
+		const connection = await pool.getConnection();
 		try {
+			await connection.beginTransaction();
+
 			for (let i = 0; i < empIds.length; i++) {
-				const emp_id = empIds[i].toString();
-				const shift = shifts[i].toString();
-				const status = statuses[i].toString();
-				const remark = remarks[i].toString();
+				const empId = empIds[i];
+				const status = statuses[i];
+				const shift = shifts[i];
+				const remark = remarks[i];
+				const timeInVal = timesIn[i]?.toString();
+				const timeOutVal = timesOut[i]?.toString();
 
-				if (status === 'Pending') continue;
+				let finalTimeIn = timeInVal ? `${workDate} ${timeInVal}:00` : null;
+				let finalTimeOut = null;
 
-				const [emp]: any = await pool.execute('SELECT emp_name FROM employees WHERE emp_id = ?', [
-					emp_id
-				]);
-				const emp_name = emp[0]?.emp_name || '';
+				if (timeOutVal) {
+					if (shift === 'N') {
+						const nextDay = new Date(workDate);
+						nextDay.setDate(nextDay.getDate() + 1);
+						const nextDayStr = nextDay.toISOString().split('T')[0];
+						finalTimeOut = `${nextDayStr} ${timeOutVal}:00`;
+					} else {
+						finalTimeOut = `${workDate} ${timeOutVal}:00`;
+					}
+				}
 
-				await pool.execute(
-					`INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, status, remark) 
-					VALUES (?, ?, ?, ?, ?, ?)
-					ON DUPLICATE KEY UPDATE 
-					shift_type = VALUES(shift_type), 
-					status = VALUES(status), 
-					remark = VALUES(remark)`,
-					[emp_id, emp_name, date, shift, status, remark]
+				await connection.execute(
+					`INSERT INTO attendance_logs 
+						(emp_id, work_date, status, shift_type, remark, verifier_id, scan_in_time, scan_out_time) 
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					 ON DUPLICATE KEY UPDATE 
+						status = VALUES(status), 
+						shift_type = VALUES(shift_type), 
+						remark = VALUES(remark), 
+						verifier_id = VALUES(verifier_id),
+						scan_in_time = VALUES(scan_in_time),
+						scan_out_time = VALUES(scan_out_time)`,
+					[
+						empId,
+						workDate,
+						status,
+						shift,
+						remark,
+						locals.user?.id || null,
+						finalTimeIn,
+						finalTimeOut
+					]
 				);
 			}
 
-			return { success: true, message: 'บันทึกการตรวจสอบเวลาและกะทำงานเรียบร้อยแล้ว!' };
-		} catch (error) {
-			console.error('Save Verification Error:', error);
-			return fail(500, { success: false, message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
+			await connection.commit();
+			return { success: true, message: 'บันทึกการตรวจสอบเรียบร้อยแล้ว' };
+		} catch (err) {
+			await connection.rollback();
+			console.error('Save Verification Error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการบันทึก' });
+		} finally {
+			connection.release();
 		}
 	},
 

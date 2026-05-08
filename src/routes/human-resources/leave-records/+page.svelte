@@ -3,22 +3,18 @@
 	import { enhance } from '$app/forms';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
+	import { fade, slide } from 'svelte/transition';
 
 	let { data, form } = $props();
 	let leaves = $derived(data.leaves || []);
 	let isSubmitting = $state(false);
 
-	let leaveTypes = $derived([
-		{ id: 'PL', name: `PL (${$t('ลากิจ')})` },
-		{ id: 'AL', name: `AL (${$t('ลาพักร้อน')})` },
-		{ id: 'SI', name: `SI (${$t('ลาป่วย')})` },
-		{ id: 'AB', name: `AB (${$t('ขาดงาน')})` },
-		{ id: 'EL', name: `EL (${$t('ลาฉุกเฉิน')})` },
-		{ id: 'RS', name: `RS (${$t('ลาออก')})` },
-		{ id: 'NM', name: `NM (${$t('ไม่เข้าร่วมประชุม/มาสาย')})` },
-		{ id: 'H85%', name: `H85% (${$t('วันหยุดจ่าย 85%')})` },
-		{ id: 'P', name: `P (${$t('ลากิจพิเศษ')})` }
-	]);
+	let leaveTypes = $derived(
+		(data.leaveTypes || []).map((lt: any) => ({
+			id: lt.leave_name_en,
+			name: `${lt.leave_name_en} (${lt.leave_name_th})`
+		}))
+	);
 
 	let empOptions = $derived(
 		(data.employees || []).map((e: any) => ({
@@ -28,13 +24,26 @@
 		}))
 	);
 
+	let sectionOptions = $derived([
+		{ value: 'All', label: `-- ${$t('ทุกแผนก')} --` },
+		...(data.sections || []).map((s: string) => ({ value: s, label: s }))
+	]);
+	let selectedSection = $state(
+		data.sectionFilter && data.sectionFilter !== 'All'
+			? { value: data.sectionFilter, label: data.sectionFilter }
+			: { value: 'All', label: `-- ${$t('ทุกแผนก')} --` }
+	);
+
 	let showModal = $state(false);
 	let isEditMode = $state(false);
+
+	let showDeleteModal = $state(false);
+	let leaveToDelete = $state<string | null>(null);
 
 	let formData = $state({
 		id: '',
 		emp_id: '',
-		leave_type: 'PL',
+		leave_type: '',
 		leave_date: '',
 		end_date: '',
 		remark: '',
@@ -43,12 +52,18 @@
 	});
 	let selectedEmp: any = $state(null);
 
+	$effect(() => {
+		if (!isEditMode && leaveTypes.length > 0 && !formData.leave_type) {
+			formData.leave_type = leaveTypes[0].id;
+		}
+	});
+
 	function openAddModal() {
 		isEditMode = false;
 		formData = {
 			id: '',
 			emp_id: '',
-			leave_type: 'PL',
+			leave_type: leaveTypes.length > 0 ? leaveTypes[0].id : '',
 			leave_date: '',
 			end_date: '',
 			remark: '',
@@ -72,18 +87,8 @@
 	}
 
 	function confirmDelete(id: string) {
-		if (confirm($t('คุณแน่ใจหรือไม่ว่าต้องการลบใบลานี้?'))) {
-			const form = document.createElement('form');
-			form.method = 'POST';
-			form.action = '?/deleteLeave';
-			const input = document.createElement('input');
-			input.type = 'hidden';
-			input.name = 'id';
-			input.value = id;
-			form.appendChild(input);
-			document.body.appendChild(form);
-			form.submit();
-		}
+		leaveToDelete = id;
+		showDeleteModal = true;
 	}
 
 	let currentPage = $state(1);
@@ -129,9 +134,21 @@
 
 <div class="mb-6 rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
 	<form method="GET" class="flex flex-wrap items-end gap-4">
+		<div class="z-50 min-w-[200px] flex-1 sm:flex-none">
+			<div class="mb-1 block text-sm font-medium text-gray-700">{$t('Section')}</div>
+			<Select
+				items={sectionOptions}
+				bind:value={selectedSection}
+				placeholder={$t('-- ทุกแผนก --')}
+				container={browser ? document.body : null}
+				class="svelte-select-custom"
+			/>
+			<input type="hidden" name="section" value={selectedSection?.value || 'All'} />
+		</div>
+
 		<div class="min-w-[250px] flex-1">
 			<div class="mb-1 block text-sm font-medium text-gray-700">
-				{$t('ค้นหารหัส / ชื่อพนักงาน / แผนก')}
+				{$t('ค้นหารหัส / ชื่อพนักงาน')}
 			</div>
 			<input
 				type="text"
@@ -303,9 +320,13 @@
 
 {#if showModal}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4 backdrop-blur-sm"
+		transition:fade={{ duration: 150 }}
+		class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50 p-4 backdrop-blur-sm"
 	>
-		<div class="w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+		<div
+			transition:slide={{ duration: 200 }}
+			class="w-full max-w-2xl rounded-xl bg-white shadow-2xl"
+		>
 			<div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-800">
 					{isEditMode ? $t('แก้ไขข้อมูลการลา') : $t('สร้างใบลาใหม่')}
@@ -452,6 +473,54 @@
 						{isSubmitting ? $t('กำลังบันทึก...') : $t('บันทึก')}
 					</button>
 				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+{#if showDeleteModal}
+	<div
+		transition:fade={{ duration: 150 }}
+		class="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm"
+	>
+		<div
+			transition:slide={{ duration: 200 }}
+			class="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl"
+		>
+			<div
+				class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600 shadow-inner"
+			>
+				<span class="material-symbols-outlined text-[32px]">delete_forever</span>
+			</div>
+			<h3 class="text-xl font-bold text-gray-900">{$t('ยืนยันการลบใบลา?')}</h3>
+			<p class="mt-2 text-sm text-gray-500">
+				{$t('คุณกำลังจะลบประวัติการลานี้ ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้')}
+			</p>
+			<form
+				method="POST"
+				action="?/deleteLeave"
+				use:enhance={() => {
+					return async ({ update }) => {
+						await update();
+						showDeleteModal = false;
+					};
+				}}
+				class="mt-6 flex justify-center gap-3"
+			>
+				<input type="hidden" name="id" value={leaveToDelete} />
+				<button
+					type="button"
+					onclick={() => (showDeleteModal = false)}
+					class="w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+				>
+					{$t('ยกเลิก')}
+				</button>
+				<button
+					type="submit"
+					class="w-full rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700"
+				>
+					{$t('ยืนยันการลบ')}
+				</button>
 			</form>
 		</div>
 	</div>

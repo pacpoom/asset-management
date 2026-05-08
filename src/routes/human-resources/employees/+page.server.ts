@@ -13,8 +13,10 @@ export const load: PageServerLoad = async ({ url }) => {
 		SELECT 
 			e.*, 
 			jp.position_name,
+			d.name as department_name,
 			sm.start_time as shift_start_time,
 			sm.end_time as shift_end_time,
+			(SELECT MAX(r_sub.scan_datetime) FROM raw_attendance_logs r_sub WHERE r_sub.raw_emp_id = e.raw_id) as last_sync_time,
 			(SELECT COUNT(*) FROM attendance_logs al 
 			WHERE al.emp_id = e.emp_id 
 			AND MONTH(al.work_date) = MONTH(CURRENT_DATE()) 
@@ -35,6 +37,7 @@ export const load: PageServerLoad = async ({ url }) => {
 
 		FROM employees e
 		LEFT JOIN job_positions jp ON e.position_id = jp.id
+		LEFT JOIN departments d ON e.department_id = d.id
 		LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
 		WHERE 1=1
 	`;
@@ -141,6 +144,10 @@ export const load: PageServerLoad = async ({ url }) => {
 			};
 		});
 
+		const [departments]: any = await pool.execute(
+			'SELECT id, name FROM departments ORDER BY name ASC'
+		);
+
 		return {
 			employees: formattedEmployees,
 			divisions: divisions,
@@ -149,6 +156,7 @@ export const load: PageServerLoad = async ({ url }) => {
 			shifts: shifts,
 			groups: groups,
 			projects: projects,
+			departments: departments,
 			searchQuery: search
 		};
 	} catch (error) {
@@ -319,6 +327,7 @@ export const actions: Actions = {
 
 	save: async ({ request }) => {
 		const data = await request.formData();
+		const department_id = data.get('department_id')?.toString() || null;
 		const mode = data.get('mode')?.toString() || 'edit';
 		const emp_id = data.get('emp_id')?.toString();
 		const raw_id = data.get('raw_id')?.toString() || null;
@@ -389,13 +398,14 @@ export const actions: Actions = {
 
 				await pool.execute(
 					`INSERT INTO employees 
-					(emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(emp_id, raw_id, citizen_id, emp_name, department_id, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[
 						emp_id,
 						raw_id,
 						citizen_id,
 						emp_name,
+						department_id,
 						employee_type,
 						default_shift,
 						subcontractor,
@@ -414,13 +424,14 @@ export const actions: Actions = {
 			} else {
 				await pool.execute(
 					`UPDATE employees SET 
-					raw_id = ?, citizen_id = ?, emp_name = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
+					raw_id = ?, citizen_id = ?, emp_name = ?, department_id = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
 					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
 					WHERE emp_id = ?`,
 					[
 						raw_id,
 						citizen_id,
 						emp_name,
+						department_id,
 						employee_type,
 						default_shift,
 						subcontractor,
@@ -505,6 +516,36 @@ export const actions: Actions = {
 		} catch (error) {
 			console.error('Error resigning employee:', error);
 			return fail(500, { success: false, message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูลการลาออก' });
+		}
+	},
+
+	bulkChangeShift: async ({ request }) => {
+		const data = await request.formData();
+		const idsString = data.get('ids')?.toString();
+		const newShift = data.get('new_shift')?.toString();
+
+		if (!idsString || !newShift)
+			return fail(400, { success: false, message: 'ข้อมูลไม่ครบถ้วน กรุณาเลือกกะที่ต้องการ' });
+
+		const ids = JSON.parse(idsString);
+		if (!Array.isArray(ids) || ids.length === 0)
+			return fail(400, { success: false, message: 'ไม่พบพนักงานที่เลือก' });
+
+		try {
+			const placeholders = ids.map(() => '?').join(',');
+
+			await pool.execute(
+				`UPDATE employees SET default_shift = ? WHERE emp_id IN (${placeholders})`,
+				[newShift, ...ids]
+			);
+
+			return { success: true, message: `เปลี่ยนกะพนักงานสำเร็จ ${ids.length} รายการ!` };
+		} catch (error) {
+			console.error('Bulk Shift Change Error:', error);
+			return fail(500, {
+				success: false,
+				message: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูลกะการทำงาน'
+			});
 		}
 	}
 };

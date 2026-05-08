@@ -54,8 +54,13 @@ async function startBackgroundSync() {
 
 				const logs = await zkInstance.getAttendances();
 
+				await pool.execute(
+					'UPDATE fingerprint_scanners SET last_sync = NOW() WHERE ip_address = ?',
+					[ip]
+				);
+
 				if (!logs.data || logs.data.length === 0) {
-					console.log(`[AutoSync] ⏭ [${ip}] ไม่มีข้อมูลในเครื่อง ข้าม!`);
+					console.log(`[AutoSync]  [${ip}] ไม่มีข้อมูลในเครื่อง ข้าม!`);
 					await zkInstance.disconnect();
 					continue;
 				}
