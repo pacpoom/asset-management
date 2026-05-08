@@ -113,6 +113,40 @@ const MANAGED_KEYS: Set<string> = new Set(ENV_FIELDS.map((f) => f.key));
 const SECRET_KEYS: Set<string> = new Set(ENV_FIELDS.filter((f) => f.secret).map((f) => f.key));
 const KEY_ORDER: string[] = ENV_FIELDS.map((f) => f.key);
 
+function parseEnvLineValue(rawValue: string): string {
+	const value = rawValue.trim();
+	if (!value) return '';
+	if (
+		(value.startsWith('"') && value.endsWith('"')) ||
+		(value.startsWith("'") && value.endsWith("'"))
+	) {
+		const inner = value.slice(1, -1);
+		return inner.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+	}
+	return value;
+}
+
+async function readEnvFileValues(): Promise<Record<string, string>> {
+	const values: Record<string, string> = {};
+	try {
+		const raw = await fs.readFile(ENV_PATH, 'utf8');
+		const lines = raw.split(/\r?\n/);
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith('#')) continue;
+			const eq = trimmed.indexOf('=');
+			if (eq === -1) continue;
+			const key = trimmed.slice(0, eq).trim();
+			if (!MANAGED_KEYS.has(key)) continue;
+			values[key] = parseEnvLineValue(trimmed.slice(eq + 1));
+		}
+	} catch (e: unknown) {
+		const err = e as { code?: string };
+		if (err?.code !== 'ENOENT') throw e;
+	}
+	return values;
+}
+
 function quoteEnvValue(val: string): string {
 	if (val === '') return '""';
 	if (/^[A-Za-z0-9_.:@/-]+$/.test(val)) return val;
@@ -176,9 +210,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw error(403, 'Forbidden: ต้องมีสิทธิ์ manage env config หรือเป็น admin');
 	}
 
+	const fileValues = await readEnvFileValues();
 	const fields = ENV_FIELDS.map((def) => {
-		const raw = env[def.key as keyof typeof env];
-		const str = raw != null ? String(raw) : '';
+		const runtimeRaw = env[def.key as keyof typeof env];
+		const runtimeValue = runtimeRaw != null ? String(runtimeRaw) : '';
+		const fileValue = fileValues[def.key] ?? '';
+		const str = runtimeValue || fileValue;
 		return {
 			key: def.key,
 			label: def.label,

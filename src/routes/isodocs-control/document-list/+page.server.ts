@@ -591,6 +591,37 @@ export const actions: Actions = {
 		}
 	},
 
+	updateEffectiveDate: async ({ request }) => {
+		try {
+			const formData = await request.formData();
+			const id = formData.get('id');
+			const effectiveDate = parseEffectiveDate(String(formData.get('effective_date') || ''));
+
+			if (!id) {
+				return fail(400, { success: false, error: 'Invalid document ID' });
+			}
+
+			if (!effectiveDate) {
+				return fail(400, { success: false, error: 'Effective date is required' });
+			}
+
+			const [res] = await pool.execute(
+				`UPDATE document_master_list SET effective_date = ? WHERE id = ?`,
+				[effectiveDate, id]
+			);
+
+			const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
+			if (affected === 0) {
+				return fail(404, { success: false, error: 'Document not found' });
+			}
+
+			return { success: true, message: 'Effective date updated' };
+		} catch (err) {
+			console.error('updateEffectiveDate error:', err);
+			return fail(500, { success: false, error: 'Failed to update effective date' });
+		}
+	},
+
 	uploadFile: async ({ request }) => {
 		try {
 			const formData = await request.formData();

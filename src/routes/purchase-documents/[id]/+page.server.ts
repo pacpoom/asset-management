@@ -34,7 +34,7 @@ function formatDateForMail(value: unknown): string {
 	return date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
-function buildPurchaseRequisitionEmailHtml(document: any, items: any[]): string {
+function buildPurchaseRequisitionEmailHtml(document: any, items: any[], documentUrl: string): string {
 	const rowsHtml = items
 		.map((item, index) => {
 			const vatText =
@@ -99,6 +99,10 @@ function buildPurchaseRequisitionEmailHtml(document: any, items: any[]): string 
 						<td style="padding:4px 0;font-size:13px;color:#374151;text-align:right;"><strong>Credit Term:</strong> ${escapeHtml(document.credit_term || 0)} days</td>
 					</tr>
 				</table>
+				<div style="margin-bottom:14px;padding:10px 12px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:8px;font-size:13px;color:#1e3a8a;">
+					<strong>Open PR:</strong>
+					<a href="${escapeHtml(documentUrl)}" style="color:#1d4ed8;text-decoration:underline;word-break:break-all;">${escapeHtml(documentUrl)}</a>
+				</div>
 				<div style="border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:14px;">
 					<table style="width:100%;border-collapse:collapse;">
 						<tr>
@@ -332,6 +336,8 @@ export const actions: Actions = {
 				if (doc?.document_type === 'PR') {
 					const recipients = splitEmailList(env.SENT_EMAIL_NOTICE_PR_ISSUED);
 					if (recipients.length > 0) {
+						const baseUrl = (env.APP_BASE_URL || 'https://bize_core.freedomsoft.in.th/').replace(/\/$/, '');
+						const documentUrl = `${baseUrl}/purchase-documents/${id}`;
 						const [itemRows] = await pool.query<any[]>(
 							`SELECT
 								pdi.description,
@@ -351,8 +357,8 @@ export const actions: Actions = {
 						await sendMail({
 							to: recipients,
 							subject: `[PR Issued] ${docNo}`,
-							text: `Purchase Requisition ${docNo} has been issued.`,
-							html: buildPurchaseRequisitionEmailHtml(doc, itemRows)
+							text: `Purchase Requisition ${docNo} has been issued.\nOpen PR: ${documentUrl}`,
+							html: buildPurchaseRequisitionEmailHtml(doc, itemRows, documentUrl)
 						});
 					}
 				}
