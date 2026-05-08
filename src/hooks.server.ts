@@ -19,7 +19,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	if (sessionId) {
 		try {
-			const baseSql = `SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, r.name AS role
+			const baseSql = `SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, u.department_id, r.name AS role
 				 FROM users u
 				 LEFT JOIN roles r ON u.role_id = r.id
 				 WHERE u.id = ? LIMIT 1`;
@@ -27,7 +27,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 			let isoSection: string | null = null;
 			try {
 				const [withIso]: any[] = await pool.execute(
-					`SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, u.iso_section, r.name AS role
+					`SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, u.department_id, u.iso_section, r.name AS role
 					 FROM users u
 					 LEFT JOIN roles r ON u.role_id = r.id
 					 WHERE u.id = ? LIMIT 1`,
@@ -70,6 +70,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 					role: userData.role ?? 'user',
 					roleNames,
 					permissions,
+					department_id:
+						userData.department_id != null && !Number.isNaN(Number(userData.department_id))
+							? Number(userData.department_id)
+							: null,
 					iso_section: isoSection
 				};
 			}

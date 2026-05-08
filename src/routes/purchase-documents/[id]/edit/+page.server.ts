@@ -4,6 +4,7 @@ import pool from '$lib/server/database';
 import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
+import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -38,11 +39,30 @@ async function deleteFile(filename: string) {
 	}
 }
 
+async function ensureCanAccessPurchaseDocument(documentId: number, user: App.User | null): Promise<void> {
+	const [rows] = await pool.query<any[]>(
+		`SELECT u.department_id AS creator_department_id
+		 FROM purchase_documents pd
+		 LEFT JOIN users u ON u.id = pd.created_by_user_id
+		 WHERE pd.id = ?
+		 LIMIT 1`,
+		[documentId]
+	);
+	if (rows.length === 0) throw error(404, 'Purchase Document not found');
+	const creatorDepartmentId =
+		rows[0].creator_department_id != null ? Number(rows[0].creator_department_id) : null;
+	if (!canAccessPurchaseDocumentByDepartment(user, creatorDepartmentId)) {
+		throw error(403, 'Forbidden: document is outside your department scope');
+	}
+}
+
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const documentId = parseInt(params.id);
 	if (isNaN(documentId)) throw error(404, 'Invalid Document ID');
 
 	try {
+		await ensureCanAccessPurchaseDocument(documentId, locals.user);
+
 		const [docRows] = await pool.query<any[]>('SELECT * FROM purchase_documents WHERE id = ?', [
 			documentId
 		]);
@@ -93,6 +113,7 @@ export const actions: Actions = {
 	update: async ({ request, params, locals }) => {
 		const documentId = parseInt(params.id);
 		const formData = await request.formData();
+		await ensureCanAccessPurchaseDocument(documentId, locals.user);
 
 		const vendor_id = formData.get('vendor_id');
 		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null;

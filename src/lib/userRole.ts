@@ -5,8 +5,25 @@ export function userHasAdminRole(user: {
 	roleNames?: string[];
 } | null): boolean {
 	if (!user) return false;
-	if (user.role === 'admin') return true;
-	return user.roleNames?.includes('admin') ?? false;
+	if (normalizeRoleName(user.role) === 'admin') return true;
+	return user.roleNames?.some((role) => normalizeRoleName(role) === 'admin') ?? false;
+}
+
+export function normalizeRoleName(role: string | null | undefined): string {
+	return String(role ?? '')
+		.trim()
+		.toLowerCase()
+		.replace(/[\s-]+/g, '_');
+}
+
+export function userHasRoleName(
+	user: { role: string; roleNames?: string[] } | null,
+	roleName: string
+): boolean {
+	if (!user) return false;
+	const target = normalizeRoleName(roleName);
+	if (normalizeRoleName(user.role) === target) return true;
+	return user.roleNames?.some((role) => normalizeRoleName(role) === target) ?? false;
 }
 
 /** จัดการผู้ใช้หน้า /users (เทียบเท่า admin สำหรับ Users module เมื่อมีสิทธิ์ manage users) */

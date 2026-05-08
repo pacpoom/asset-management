@@ -4,6 +4,79 @@ import fs from 'fs';
 import path from 'path';
 import pool from '$lib/server/database'; // ใช้ pool ตามมาตรฐานใหม่
 import type { RowDataPacket } from 'mysql2/promise';
+import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
+
+/** ISO Document Master List code for the Purchase Order form template (footer stamp on PO PDF). */
+const PO_ISO_FORM_DOC_CODE = 'FM-PU-01-02';
+const PO_ISO_FORM_FOOTER_FALLBACK =
+	'FM-PU-01-02 Rev.00 Effective date June 8, 2018';
+
+function escapePdfText(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
+}
+
+/** Avoid PO-PO-... when document_number already includes the type prefix (e.g. PO-202605-0003). */
+function purchasePdfDownloadBaseName(documentType: string, documentNumber: string): string {
+	const type = (documentType || '').trim();
+	const num = (documentNumber || '').trim();
+	if (!num) return type || 'document';
+	const prefix = `${type}-`;
+	if (type && num.toUpperCase().startsWith(prefix.toUpperCase())) return num;
+	return type ? `${type}-${num}` : num;
+}
+
+/** Load footer line from ISO Document Master List; fallback if missing or error. */
+async function fetchPoIsoFormFooterLine(connection: {
+	execute: (sql: string, params?: unknown[]) => Promise<[RowDataPacket[], unknown]>;
+}): Promise<string> {
+	try {
+		const [rows] = await connection.execute<RowDataPacket[]>(
+			`SELECT doc_code, current_revision, effective_date, status
+			 FROM document_master_list
+			 WHERE doc_code = ?
+			 ORDER BY
+			   CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+			   effective_date DESC,
+			   id DESC
+			 LIMIT 1`,
+			[PO_ISO_FORM_DOC_CODE]
+		);
+		if (!rows.length) return PO_ISO_FORM_FOOTER_FALLBACK;
+
+		const r = rows[0];
+		const code = String(r.doc_code ?? PO_ISO_FORM_DOC_CODE).trim();
+		const revRaw = String(r.current_revision ?? '00').trim();
+		const revDisplay = /^rev\.?/i.test(revRaw)
+			? revRaw
+			: `Rev.${revRaw.padStart(2, '0')}`;
+
+		let dateStr = 'June 8, 2018';
+		const ed = r.effective_date;
+		if (ed != null) {
+			const raw = ed instanceof Date ? ed.toISOString().slice(0, 10) : String(ed).slice(0, 10);
+			const d =
+				raw.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(raw)
+					? new Date(`${raw}T12:00:00`)
+					: new Date(String(ed));
+			if (!Number.isNaN(d.getTime())) {
+				dateStr = d.toLocaleDateString('en-US', {
+					year: 'numeric',
+					month: 'long',
+					day: 'numeric'
+				});
+			}
+		}
+
+		return `${code} ${revDisplay} Effective date ${dateStr}`;
+	} catch (e) {
+		console.warn('[purchase PDF] ISO form footer lookup failed:', e);
+		return PO_ISO_FORM_FOOTER_FALLBACK;
+	}
+}
 
 interface CompanyData extends RowDataPacket {
 	id: number;
@@ -239,8 +312,9 @@ function getInvoiceHtml(
 	docData: DocumentData,
 	itemsData: ItemData[],
 	logoBase64: string | null,
-	lang: string, 
-	dbDict: { en: Record<string, string>; th: Record<string, string> } 
+	lang: string,
+	dbDict: { en: Record<string, string>; th: Record<string, string> },
+	isoFormFooterLine: string | null
 ): string {
 
 	function tPdf(key: string, currentLang: string): string {
@@ -308,6 +382,8 @@ function getInvoiceHtml(
 	const netAmountText = bahttext(netAmount);
 
 	const docTitle = getDocumentTitle(docData.document_type);
+	const vatableLabel =
+		docData.document_type === 'PO' ? tPdf('Amount', lang) : tPdf('VatableAmount', lang);
 
 	const formatNumber = (num: number | string) => {
 		const val = typeof num === 'string' ? parseFloat(num) : num;
@@ -406,7 +482,7 @@ function getInvoiceHtml(
             <th class="p-2 text-right w-12">${tPdf('Qty', lang)}</th>
             <th class="p-2 text-right w-20">${tPdf('UnitPrice', lang)}</th>
             <th class="p-2 text-right w-24" style="color: #000;">${tPdf('NonVatableAmount', lang)}</th>
-            <th class="p-2 text-right w-24" style="color: #000;">${tPdf('VatableAmount', lang)}</th>
+            <th class="p-2 text-right w-24" style="color: #000;">${vatableLabel}</th>
             <th class="p-2 text-center w-12 whitespace-nowrap" style="color: #000;">${tPdf('WHT', lang)}</th>
             <th class="p-2 text-right w-24">${tPdf('Total', lang)}</th>
         </tr>
@@ -415,77 +491,76 @@ function getInvoiceHtml(
 
     // สรุปยอดแบบเดียวกับ Sales Document
 	const summaryBlock = `
-        <div style="text-align: left; font-size: 8pt; font-weight: 500; margin-bottom: 2px; color: #000; line-height: 1.4; margin-top: -8px;">
-            ${tPdf('ConfirmText', lang)}
-        </div>
-        <table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 2px; width: 100%; font-size: 8pt;">
-            <colgroup>
-                <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
-                <col style="width: 140px;"> <col style="width: 110px;">
-            </colgroup>
-            <tfoot class="bill-summary-footer">
-                <tr>
-                    <td colspan="4" rowspan="7" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
-                        <div style="font-size: 8pt; line-height: 1.4;">
-                            <span style="font-weight: bold; text-decoration: underline;">${tPdf('Notes', lang)}</span>
-                            <div style="margin-top: 4px; white-space: pre-wrap; color: #000; font-weight: 500; font-size: 8pt;">${docData.notes || '-'}</div>
-                        </div>
-                        <div style="position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-weight: bold; color: #000;">
-                            (${tPdf('NetText', lang)}: ${netAmountText})
-                        </div>
-                    </td> 
-                    
-                    <td class="font-bold p-2 text-right border-t border-gray-400 whitespace-nowrap">${tPdf('Subtotal', lang)}</td>
-                    <td class="p-2 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
-                </tr>
-                
-                <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VatableAmount', lang)}</td>
-                    <td class="p-2 text-right">${formatNumber(vatableAmount)}</td>
-                </tr>
+		<div style="transform: translateY(-0.35cm); transform-origin: top left; margin-bottom: 0.45cm;">
+			<table class="w-full border-collapse border border-gray-400" style="page-break-inside: avoid !important; table-layout: fixed; margin-top: 2px; width: 100%; font-size: 8pt;">
+				<colgroup>
+					<col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;"> <col style="width: auto;">
+					<col style="width: 140px;"> <col style="width: 110px;">
+				</colgroup>
+				<tfoot class="bill-summary-footer">
+					<tr>
+						<td colspan="4" rowspan="7" class="p-2 border-l border-t border-r border-gray-400" style="vertical-align: top; position: relative; padding-bottom: 30px;">
+							<div style="font-size: 8pt; line-height: 1.4;">
+								<span style="font-weight: bold; text-decoration: underline;">${tPdf('Notes', lang)}</span>
+								<div style="margin-top: 4px; white-space: pre-wrap; color: #000; font-weight: 500; font-size: 8pt;">${docData.notes || '-'}</div>
+							</div>
+							<div style="position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-weight: bold; color: #000;">
+								(${tPdf('NetText', lang)}: ${netAmountText})
+							</div>
+						</td> 
+						
+						<td class="font-bold px-2 py-1 text-right border-t border-gray-400 whitespace-nowrap">${tPdf('Subtotal', lang)}</td>
+						<td class="px-2 py-1 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
+					</tr>
+					
+					<tr>
+						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${vatableLabel}</td>
+						<td class="px-2 py-1 text-right">${formatNumber(vatableAmount)}</td>
+					</tr>
 
-                <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('NonVatableAmount', lang)}</td>
-                    <td class="p-2 text-right">${formatNumber(nonVatableAmount)}</td>
-                </tr>
+					<tr>
+						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('NonVatableAmount', lang)}</td>
+						<td class="px-2 py-1 text-right">${formatNumber(nonVatableAmount)}</td>
+					</tr>
 
-                <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('AmountBeforeVAT', lang)}</td>
-                    <td class="p-2 text-right">${formatNumber(amountBeforeVat)}</td>
-                </tr>
+					<tr>
+						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('AmountBeforeVAT', lang)}</td>
+						<td class="px-2 py-1 text-right">${formatNumber(amountBeforeVat)}</td>
+					</tr>
 
-                <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VAT', lang)} (${vatRate}%)</td>
-                    <td class="p-2 text-right">${formatNumber(vatAmt)}</td>
-                </tr>
+					<tr>
+						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VAT', lang)} (${vatRate}%)</td>
+						<td class="px-2 py-1 text-right">${formatNumber(vatAmt)}</td>
+					</tr>
 
-                <tr>
-                    <td class="font-bold p-2 text-right border-l border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
-                    <td class="p-2 text-right" style="font-size: 8pt; color: #000;">${formatNumber(whtAmt)}</td>
-                </tr>
+					<tr>
+						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
+						<td class="px-2 py-1 text-right" style="font-size: 8pt; color: #000;">${formatNumber(whtAmt)}</td>
+					</tr>
 
-                <tr style="background-color: #ffffff;">
-                    <td class="font-bold p-2 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('GrandTotal', lang)}</td>
-                    <td class="p-2 text-right border-t border-gray-400" style="font-size: 8pt; font-weight: bold; color: #000;">${formatNumber(netAmount)}</td>
-                </tr>
-            </tfoot>
-        </table>
+					<tr style="background-color: #ffffff;">
+						<td class="font-bold px-2 py-1 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('GrandTotal', lang)}</td>
+						<td class="px-2 py-1 text-right border-t border-gray-400" style="font-size: 8pt; font-weight: bold; color: #000;">${formatNumber(netAmount)}</td>
+					</tr>
+				</tfoot>
+			</table>
+		</div>
     `;
 
 	const signatureBlock = `
-        <div style="display: flex; justify-content: space-between; margin-top: 42px; padding-top: 24px; font-size: 8pt; color: #000;">
+        <div style="display: flex; justify-content: space-between; margin-top: 64px; padding-top: 36px; font-size: 8pt; color: #000;">
             <div style="text-align: center; width: 30%;">
-                <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
+                <div style="border-bottom: 1.5px solid #111; height: 30px;"></div>
                 <p style="margin: 5px 0 0 0; line-height: 1.2;">${tPdf('PreparedBy', lang)}</p>
                 <p style="margin: 7px 0 0 0; line-height: 1.2;">${tPdf('Date', lang)} ...../...../.....</p>
             </div>
             <div style="text-align: center; width: 30%;">
-                <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
+                <div style="border-bottom: 1.5px solid #111; height: 30px;"></div>
                 <p style="margin: 5px 0 0 0; line-height: 1.2;">${tPdf('PurchasedBy', lang)}</p>
                 <p style="margin: 7px 0 0 0; line-height: 1.2;">${tPdf('Date', lang)} ...../...../.....</p>
             </div>
             <div style="text-align: center; width: 30%;">
-                <div style="border-bottom: 1px dotted #ccc; height: 30px;"></div>
+                <div style="border-bottom: 1.5px solid #111; height: 30px;"></div>
                 <p style="margin: 5px 0 0 0; line-height: 1.2;">${tPdf('Auth', lang)}</p>
                 <p style="margin: 7px 0 0 0; line-height: 1.2;">${tPdf('Date', lang)} ...../...../.....</p>
             </div>
@@ -596,11 +671,19 @@ function getInvoiceHtml(
 
 			let footerHtml = '';
 			if (isLastPage) {
+				const pageLine = `${tPdf('Page', lang)} ${pageNum} / ${totalPages}`;
+				const bottomRow =
+					docData.document_type === 'PO' && isoFormFooterLine
+						? `<div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 34px; width: 100%;">
+							<div style="font-size: 7pt; color: #333; line-height: 1.25; letter-spacing: 0.02em; flex: 1; min-width: 0; padding-right: 12px;">${escapePdfText(isoFormFooterLine)}</div>
+							<div style="font-size: 8pt; color: #666; white-space: nowrap; flex-shrink: 0;">${pageLine}</div>
+						</div>`
+						: `<div style="text-align: right; font-size: 8pt; color: #666; margin-top: 10px;">${pageLine}</div>`;
 				footerHtml = `
                 <div style="width: 100%;">
                     ${summaryBlock}
                     ${signatureBlock}
-                    <div style="text-align: right; font-size: 8pt; color: #666; margin-top: 10px;">${tPdf('Page', lang)} ${pageNum} / ${totalPages}</div>
+                    ${bottomRow}
                 </div>
             `;
 			} else {
@@ -654,7 +737,7 @@ function getInvoiceHtml(
     `;
 }
 
-export const GET = async ({ url, fetch }) => {
+export const GET = async ({ url, fetch, locals }) => {
 	const id = url.searchParams.get('id');
 	const lang = url.searchParams.get('lang') || 'th'; 
 
@@ -683,7 +766,7 @@ export const GET = async ({ url, fetch }) => {
             SELECT pd.*, 
                    v.name as vendor_name, v.address as vendor_address, v.tax_id as vendor_tax_id, 
                    vc.name as contact_name, vc.phone as contact_phone, vc.email as contact_email,
-                   u.full_name as created_by_name,
+                   u.full_name as created_by_name, u.department_id as created_by_department_id,
                    da.name as delivery_location_name, da.address_line as delivery_address_line,
                    da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone,
                    j.job_number
@@ -700,6 +783,13 @@ export const GET = async ({ url, fetch }) => {
 
 		if (rows.length === 0) return json({ message: 'Purchase Document not found' }, { status: 404 });
 		const docData = rows[0];
+		const creatorDepartmentId =
+			(docData as { created_by_department_id?: number | null }).created_by_department_id != null
+				? Number((docData as { created_by_department_id?: number | null }).created_by_department_id)
+				: null;
+		if (!canAccessPurchaseDocumentByDepartment(locals.user, creatorDepartmentId)) {
+			return json({ message: 'Forbidden: document is outside your department scope' }, { status: 403 });
+		}
 
 		const [items] = await connection.execute<RowDataPacket[]>(
 			`
@@ -716,7 +806,20 @@ export const GET = async ({ url, fetch }) => {
 
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		const html = getInvoiceHtml(companyData, docData, items as ItemData[], logoBase64, lang, dbDict);
+		let isoFormFooterLine: string | null = null;
+		if (docData.document_type === 'PO') {
+			isoFormFooterLine = await fetchPoIsoFormFooterLine(connection);
+		}
+
+		const html = getInvoiceHtml(
+			companyData,
+			docData,
+			items as ItemData[],
+			logoBase64,
+			lang,
+			dbDict,
+			isoFormFooterLine
+		);
 
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -728,11 +831,15 @@ export const GET = async ({ url, fetch }) => {
 		await browser.close();
 
 		const pdfBlob = new Blob([pdfBuffer as any], { type: 'application/pdf' });
+		const downloadBase = purchasePdfDownloadBaseName(
+			docData.document_type,
+			docData.document_number
+		).replace(/[^\w.-]+/g, '_');
 		return new Response(pdfBlob, {
 			status: 200,
 			headers: {
 				'Content-Type': 'application/pdf',
-				'Content-Disposition': `inline; filename="${docData.document_type}-${docData.document_number}.pdf"`
+				'Content-Disposition': `inline; filename="${downloadBase}.pdf"`
 			}
 		});
 	} catch (err: any) {
