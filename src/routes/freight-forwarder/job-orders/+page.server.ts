@@ -8,9 +8,13 @@ export const load = async ({ url }) => {
 	const search = url.searchParams.get('search') || '';
 	const offset = (page - 1) * limit;
 
-	// คำนวณวันที่เริ่มต้นและสิ้นสุดของเดือนปัจจุบันเป็น Default
+	// คำนวณวันที่เริ่มต้น (ย้อนหลัง 1 เดือน) และสิ้นสุดของเดือนปัจจุบันเป็น Default
 	const now = new Date();
-	const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+	// ตั้งค่าเริ่มต้นเป็นวันที่ 1 ของเดือนที่แล้ว
+	const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1); 
+	// หากต้องการให้เริ่มจากวันที่ปัจจุบันของเดือนที่แล้ว (เช่น 8 เม.ย. ถึง 31 พ.ค.) ให้เปลี่ยนเป็น:
+	// const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+	
 	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
 	// แปลงเป็น YYYY-MM-DD โดยคำนึงถึง Timezone (ใช้ Timezone ปัจจุบันเพื่อหลีกเลี่ยงวันที่เลื่อน)
