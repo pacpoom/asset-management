@@ -4,7 +4,7 @@ import pool from '$lib/server/database';
 import bcrypt from 'bcrypt';
 import type { RowDataPacket } from 'mysql2';
 import { safeInternalRedirect } from '$lib/safeRedirect';
-import { dev } from '$app/environment'; // เพิ่มการนำเข้า dev เพื่อตรวจสอบ environment
+import { dev } from '$app/environment';
 
 interface CompanyLogo extends RowDataPacket {
 	logo_path: string | null;
@@ -46,7 +46,7 @@ export const actions: Actions = {
 
 		if (!identifier || !password) {
 			return fail(400, {
-				message: 'กรุณากรอกอีเมล/Username และรหัสผ่าน',
+				message: 'Please enter credentials',
 				identifier: identifier as string
 			});
 		}
@@ -59,13 +59,52 @@ export const actions: Actions = {
 			const user = rows[0];
 
 			if (!user) {
-				return fail(401, { message: 'อีเมล/Username หรือรหัสผ่านไม่ถูกต้อง', identifier });
+				return fail(401, { message: 'Invalid credentials', identifier }); // 🌟 เปลี่ยนเป็น Translation Key
+			}
+
+			if (user.is_locked || user.failed_attempts >= 3) {
+				return fail(403, {
+					isLocked: true,
+					message: 'Account locked',
+					identifier
+				});
 			}
 
 			const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
 			if (!passwordMatch) {
-				return fail(401, { message: 'อีเมล/Username หรือรหัสผ่านไม่ถูกต้อง', identifier });
+				const newFailedAttempts = (user.failed_attempts || 0) + 1;
+				let isLocked = 0;
+
+				if (newFailedAttempts >= 3) {
+					isLocked = 1;
+				}
+
+				await pool.execute('UPDATE users SET failed_attempts = ?, is_locked = ? WHERE id = ?', [
+					newFailedAttempts,
+					isLocked,
+					user.id
+				]);
+
+				if (isLocked) {
+					return fail(403, {
+						isLocked: true,
+						message: 'Account locked',
+						identifier
+					});
+				}
+
+				return fail(401, {
+					message: 'Invalid credentials',
+					attemptsLeft: 3 - newFailedAttempts,
+					identifier
+				});
+			}
+
+			if (user.failed_attempts > 0 || user.is_locked) {
+				await pool.execute('UPDATE users SET failed_attempts = 0, is_locked = 0 WHERE id = ?', [
+					user.id
+				]);
 			}
 
 			const sessionToken = crypto.randomUUID();
@@ -84,7 +123,7 @@ export const actions: Actions = {
 				path: '/',
 				httpOnly: true,
 				sameSite: 'strict',
-				secure: !dev, // แก้ไขจากการใช้ process.env เพื่อป้องกันข้อผิดพลาดในฝั่ง Edge/Cloudflare
+				secure: !dev,
 				maxAge: 60 * 60 * 24 * 7
 			});
 
@@ -92,7 +131,7 @@ export const actions: Actions = {
 				path: '/',
 				httpOnly: true,
 				sameSite: 'strict',
-				secure: !dev, // แก้ไขจากการใช้ process.env
+				secure: !dev,
 				maxAge: 60 * 60 * 24 * 7
 			});
 
@@ -103,9 +142,8 @@ export const actions: Actions = {
 		} catch (err) {
 			if (isRedirect(err)) throw err;
 			console.error(err);
-			// เปลี่ยนสถานะจาก 500 เป็น 400 เพื่อไม่ให้ SvelteKit ตัดเข้าหน้า Fallback Error
 			return fail(400, {
-				message: 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ โปรดลองใหม่อีกครั้ง',
+				message: 'System connection error',
 				identifier: identifier as string
 			});
 		}

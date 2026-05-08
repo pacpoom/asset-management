@@ -77,13 +77,21 @@
 					item.leave_name_th,
 				name_en: item.leave_name_en || '',
 				ip_address: item.ip_address || '',
+				department_id: item.department_id || '',
 				status:
 					item.status === 1 || item.status === 'Active' || item.is_active === 1
 						? 'Active'
 						: 'Inactive'
 			};
 		} else {
-			selectedItem = { name: '', name_en: '', description: '', ip_address: '', status: 'Active' };
+			selectedItem = {
+				name: '',
+				name_en: '',
+				description: '',
+				ip_address: '',
+				department_id: '',
+				status: 'Active'
+			};
 		}
 	}
 
@@ -183,6 +191,7 @@
 					>
 
 					{#if activeTab === 'scanner'}
+						<th class="px-6 py-4 text-center">{$t('Responsible Dept')}</th>
 						<th class="px-6 py-4 text-center">{$t('Last Sync')}</th>
 					{/if}
 
@@ -222,6 +231,18 @@
 						</td>
 
 						{#if activeTab === 'scanner'}
+							<td class="px-6 py-4 text-center whitespace-nowrap">
+								{#if item.department_id}
+									{@const dept = data.departments.find((d: any) => d.id === item.department_id)}
+									<span
+										class="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 ring-1 ring-blue-700/10 ring-inset"
+									>
+										{dept ? dept.name : 'Unknown'}
+									</span>
+								{:else}
+									<span class="text-xs text-gray-400">{$t('ส่วนกลาง')}</span>
+								{/if}
+							</td>
 							<td class="px-6 py-4 text-center font-mono text-sm text-gray-500">
 								{#if item.last_sync}
 									{@const d = new Date(item.last_sync)}
@@ -416,6 +437,24 @@
 									placeholder="ex. 192.168.1.100"
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
+							</div>
+
+							<div>
+								<label for="department_id" class="mb-1 block text-sm font-semibold text-gray-700"
+									>แผนกที่ดูแลเครื่องนี้ (Department)</label
+								>
+								<select
+									name="department_id"
+									bind:value={selectedItem.department_id}
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value="">-- เป็นของส่วนกลาง (Admin ทุกคนเห็น) --</option>
+									{#if data.departments}
+										{#each data.departments as dept}
+											<option value={dept.id}>{dept.name}</option>
+										{/each}
+									{/if}
+								</select>
 							</div>
 						{:else if activeTab === 'leave_type'}
 							<div>

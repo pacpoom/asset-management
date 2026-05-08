@@ -2,6 +2,14 @@ import ExcelJS from 'exceljs';
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 
+interface LocalUser {
+	id?: number;
+	role?: string;
+	username?: string;
+	email?: string;
+	department_id?: number | null;
+}
+
 export const load: PageServerLoad = async ({ url, locals }) => {
 	let displayDate = url.searchParams.get('date');
 	if (!displayDate) {
@@ -105,12 +113,34 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const [statsRow]: any = await pool.execute(statsQuery, [displayDate, ...filterParams]);
 
-		const [scanners]: any = await pool.execute(
-			`SELECT device_name, ip_address, status, last_sync 
-			 FROM fingerprint_scanners 
-			 WHERE status = 'Active' OR status = 1 
-			 ORDER BY device_name ASC`
+		const [currentUserRows]: any = await pool.execute(
+			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
+			[locals.user?.id || 0]
 		);
+		const actualDeptId = currentUserRows.length > 0 ? currentUserRows[0].department_id : 0;
+
+		const user = locals.user as LocalUser;
+		const isSuperAdmin =
+			user?.role === 'admin' &&
+			(user?.username === 'admin' ||
+				user?.email?.startsWith('admin') ||
+				user?.id === 1 ||
+				user?.id === 2);
+
+		let scannerQuery = `
+			SELECT device_name, ip_address, status, last_sync 
+			FROM fingerprint_scanners 
+			WHERE (status = 'Active' OR status = 1)
+		`;
+		let scannerParams: any[] = [];
+
+		if (!isSuperAdmin) {
+			scannerQuery += ` AND (department_id IS NULL OR department_id = ?)`;
+			scannerParams.push(actualDeptId);
+		}
+		scannerQuery += ` ORDER BY device_name ASC`;
+
+		const [scanners]: any = await pool.execute(scannerQuery, scannerParams);
 
 		return {
 			title: 'Workforce Dashboard',
@@ -363,7 +393,7 @@ export const actions: Actions = {
 		}
 	},
 
-	syncZKTeco: async ({ request }) => {
+	syncZKTeco: async ({ request, locals }) => {
 		const formData = await request.formData();
 		let startDate = formData.get('start_date')?.toString();
 		let endDate = formData.get('end_date')?.toString();
@@ -376,15 +406,36 @@ export const actions: Actions = {
 
 		const ZKLib = (await import('node-zklib')).default;
 
-		const [scannerRows]: any = await pool.execute(
-			"SELECT ip_address FROM fingerprint_scanners WHERE status = 'Active'"
+		// 🌟 2. ดึงแผนกจริงๆ ก่อนกดซิงค์
+		const [currentUserRows]: any = await pool.execute(
+			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
+			[locals.user?.id || 0]
 		);
+		const actualDeptId = currentUserRows.length > 0 ? currentUserRows[0].department_id : 0;
+
+		const user = locals.user as LocalUser;
+		const isSuperAdmin =
+			user?.role === 'admin' &&
+			(user?.username === 'admin' ||
+				user?.email?.startsWith('admin') ||
+				user?.id === 1 ||
+				user?.id === 2);
+
+		let ipQuery = "SELECT ip_address FROM fingerprint_scanners WHERE status = 'Active'";
+		let ipParams: any[] = [];
+
+		if (!isSuperAdmin) {
+			ipQuery += ' AND (department_id IS NULL OR department_id = ?)';
+			ipParams.push(actualDeptId);
+		}
+
+		const [scannerRows]: any = await pool.execute(ipQuery, ipParams);
 		const ips = scannerRows.map((row: any) => row.ip_address);
 
 		if (ips.length === 0) {
 			return {
 				success: false,
-				message: 'ไม่พบข้อมูล IP เครื่องสแกนในระบบ กรุณาตรวจสอบ Master Data'
+				message: 'ไม่พบข้อมูล IP เครื่องสแกนในระบบ หรือคุณไม่มีสิทธิ์เข้าถึงเครื่องสแกนนี้'
 			};
 		}
 
@@ -426,7 +477,6 @@ export const actions: Actions = {
 							for (let i = 0; i < filteredLogs.length; i += chunkSize) {
 								const chunk = filteredLogs.slice(i, i + chunkSize);
 
-								// ⭐️ เก็บข้อมูลดิบ (Raw ID) จากเครื่องส่งตรงเข้าฐานข้อมูลทันที
 								const values = chunk.map((log: any) => {
 									const rawId = log.deviceUserId.toString().trim();
 									return [ip, rawId, log.recordTime];

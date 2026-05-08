@@ -294,18 +294,13 @@ async function auditUserProfileRoleChanges(
 	const qmrId = await getQmrRoleId();
 	const isoQm = (isoSection || '').trim().toUpperCase() === 'QM';
 
-	const sameMembers =
-		oldSet.size === newSet.size && [...oldSet].every((rid) => newSet.has(rid));
+	const sameMembers = oldSet.size === newSet.size && [...oldSet].every((rid) => newSet.has(rid));
 
 	if (sameMembers && oldPrimary != null && oldPrimary !== newPrimary) {
 		const map = await roleNamesByIds([oldPrimary, newPrimary]);
 		const oldN = map.get(oldPrimary) ?? `#${oldPrimary}`;
 		const newN = map.get(newPrimary) ?? `#${newPrimary}`;
-		await logUserTransaction(
-			userId,
-			changedByUserId,
-			`Primary role changed: ${oldN} → ${newN}`
-		);
+		await logUserTransaction(userId, changedByUserId, `Primary role changed: ${oldN} → ${newN}`);
 		return;
 	}
 
@@ -596,7 +591,10 @@ export const actions: Actions = {
 				const newUserId = insertResult.insertId;
 				const placeholders = roleIds.map(() => '(?, ?)').join(', ');
 				const params = roleIds.flatMap((selectedRoleId) => [newUserId, selectedRoleId]);
-				await conn.execute(`INSERT INTO user_roles (user_id, role_id) VALUES ${placeholders}`, params);
+				await conn.execute(
+					`INSERT INTO user_roles (user_id, role_id) VALUES ${placeholders}`,
+					params
+				);
 
 				await conn.commit();
 
@@ -664,8 +662,8 @@ export const actions: Actions = {
 		const hasPwdCol = await usersHasPasswordChangedAtColumn();
 		const [existingUserRows] = await pool.execute<RowDataPacket[]>(
 			hasPwdCol
-				? 'SELECT role_id, password_changed_at, department_id, position_id, iso_section FROM users WHERE id = ? LIMIT 1'
-				: 'SELECT role_id, department_id, position_id, iso_section FROM users WHERE id = ? LIMIT 1',
+				? 'SELECT role_id, password_hash, password_changed_at, department_id, position_id, iso_section FROM users WHERE id = ? LIMIT 1'
+				: 'SELECT role_id, password_hash, department_id, position_id, iso_section FROM users WHERE id = ? LIMIT 1',
 			[userIdNum]
 		);
 		if (!existingUserRows.length) {
@@ -808,6 +806,18 @@ export const actions: Actions = {
 						success: false,
 						message: 'Password must be at least 6 characters.'
 					});
+
+				const isSamePassword = await bcrypt.compare(
+					new_password!,
+					existingUserRows[0].password_hash
+				);
+				if (isSamePassword) {
+					return fail(400, {
+						action: 'editUser',
+						success: false,
+						message: 'New password cannot be the same as current password'
+					});
+				}
 				const salt = await bcrypt.genSalt(10);
 				const password_hash = await bcrypt.hash(new_password!, salt);
 				queryFields.push('password_hash = ?');
@@ -827,7 +837,10 @@ export const actions: Actions = {
 				await conn.execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
 				const placeholders = roleIds.map(() => '(?, ?)').join(', ');
 				const params = roleIds.flatMap((selectedRoleId) => [Number(id), selectedRoleId]);
-				await conn.execute(`INSERT INTO user_roles (user_id, role_id) VALUES ${placeholders}`, params);
+				await conn.execute(
+					`INSERT INTO user_roles (user_id, role_id) VALUES ${placeholders}`,
+					params
+				);
 
 				await conn.commit();
 
@@ -858,19 +871,14 @@ export const actions: Actions = {
 				if (passwordChanged) {
 					let agePart: string;
 					if (!hasPwdCol) {
-						agePart =
-							' (run sql/user_transaction_log.sql to track password age on future changes)';
+						agePart = ' (run sql/user_transaction_log.sql to track password age on future changes)';
 					} else if (priorPwdForAge) {
 						const days = Math.floor((Date.now() - priorPwdForAge.getTime()) / 86400000);
 						agePart = ` (previous password was ${days} day(s) old)`;
 					} else {
 						agePart = ' (no previous change date on record)';
 					}
-					await logUserTransaction(
-						userIdNum,
-						locals.user!.id,
-						`Password changed${agePart}.`
-					);
+					await logUserTransaction(userIdNum, locals.user!.id, `Password changed${agePart}.`);
 				}
 			} catch (txErr) {
 				await conn.rollback();
@@ -1024,7 +1032,10 @@ export const actions: Actions = {
 				);
 				updateResult = updateRows;
 				await conn.execute('DELETE FROM user_roles WHERE user_id = ?', [userId]);
-				await conn.execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, isoRoleId]);
+				await conn.execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [
+					userId,
+					isoRoleId
+				]);
 				await conn.commit();
 			} catch (txErr) {
 				await conn.rollback();
@@ -1132,7 +1143,10 @@ export const actions: Actions = {
 				);
 				updateResult = updateRows;
 				await conn.execute('DELETE FROM user_roles WHERE user_id = ?', [userId]);
-				await conn.execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, roleId]);
+				await conn.execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [
+					userId,
+					roleId
+				]);
 				await conn.commit();
 			} catch (txErr) {
 				await conn.rollback();
@@ -1252,6 +1266,7 @@ export const actions: Actions = {
 					message: 'Cannot delete: Department is referenced elsewhere.'
 				});
 			}
+
 			return fail(500, {
 				action: 'deleteDepartment',
 				success: false,
@@ -1395,7 +1410,8 @@ export const actions: Actions = {
 		checkPermission(locals, 'manage users');
 		const data = await request.formData();
 		const id = data.get('id')?.toString();
-		if (!id) return fail(400, { action: 'deleteIsoSection', success: false, message: 'Invalid ID.' });
+		if (!id)
+			return fail(400, { action: 'deleteIsoSection', success: false, message: 'Invalid ID.' });
 
 		try {
 			const [rows] = await pool.execute<RowDataPacket[]>(
@@ -1423,7 +1439,10 @@ export const actions: Actions = {
 				});
 			}
 
-			const [result] = await pool.execute<ResultSetHeader>('DELETE FROM iso_sections WHERE id = ?', [id]);
+			const [result] = await pool.execute<ResultSetHeader>(
+				'DELETE FROM iso_sections WHERE id = ?',
+				[id]
+			);
 			if (result.affectedRows === 0) {
 				return fail(404, {
 					action: 'deleteIsoSection',
@@ -1438,6 +1457,22 @@ export const actions: Actions = {
 				success: false,
 				message: `Failed to delete Iso_Section: ${err.message}`
 			});
+		}
+	},
+
+	unlockUser: async ({ request, locals }) => {
+		checkPermission(locals, 'manage users');
+		const data = await request.formData();
+		const id = data.get('id')?.toString();
+
+		if (!id) return fail(400, { action: 'unlockUser', success: false, message: 'Invalid ID.' });
+
+		try {
+			await pool.execute('UPDATE users SET is_locked = 0, failed_attempts = 0 WHERE id = ?', [id]);
+			return { action: 'unlockUser', success: true, message: 'Unlocked user successfully.' };
+		} catch (err: any) {
+			console.error('Unlock error:', err);
+			return fail(500, { action: 'unlockUser', success: false, message: 'Failed to unlock user.' });
 		}
 	}
 };
