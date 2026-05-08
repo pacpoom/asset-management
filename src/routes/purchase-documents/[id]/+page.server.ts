@@ -34,7 +34,20 @@ function formatDateForMail(value: unknown): string {
 	return date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
-function buildPurchaseRequisitionEmailHtml(document: any, items: any[], documentUrl: string): string {
+function toAbsoluteUrl(baseUrl: string, value: unknown): string {
+	const raw = String(value || '').trim();
+	if (!raw) return '';
+	if (/^https?:\/\//i.test(raw)) return raw;
+	return `${baseUrl}/${raw.replace(/^\/+/, '')}`;
+}
+
+function buildPurchaseRequisitionEmailHtml(
+	document: any,
+	items: any[],
+	documentUrl: string,
+	company: any,
+	baseUrl: string
+): string {
 	const rowsHtml = items
 		.map((item, index) => {
 			const vatText =
@@ -71,6 +84,18 @@ function buildPurchaseRequisitionEmailHtml(document: any, items: any[], document
 				: document.status === 'Paid'
 					? '#16a34a'
 					: '#6b7280';
+	const logoUrl = toAbsoluteUrl(baseUrl, company?.logo_path);
+	const companyName = company?.name || 'Anji-NYK';
+	const companyAddress = [
+		company?.address_line_1 || '',
+		company?.address_line_2 || '',
+		[company?.city || '', company?.state_province || '', company?.postal_code || ''].join(' ').trim(),
+		company?.country || ''
+	]
+		.map((line) => String(line).trim())
+		.filter(Boolean)
+		.join('<br>');
+	const companyTaxId = company?.tax_id ? String(company.tax_id) : '-';
 
 	return `
 		<div style="font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;padding:20px;color:#111827;">
@@ -107,6 +132,15 @@ function buildPurchaseRequisitionEmailHtml(document: any, items: any[], document
 					<table style="width:100%;border-collapse:collapse;">
 						<tr>
 							<td style="width:34%;vertical-align:top;padding-right:10px;">
+								${
+									logoUrl
+										? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)}" style="max-height:56px;max-width:180px;object-fit:contain;margin-bottom:8px;display:block;" />`
+										: `<div style="font-size:20px;font-weight:700;color:#111827;margin-bottom:8px;">${escapeHtml(companyName)}</div>`
+								}
+								<div style="font-size:12px;color:#374151;line-height:1.4;margin-bottom:8px;">
+									${companyAddress || '-'}<br>
+									<strong>Tax ID:</strong> ${escapeHtml(companyTaxId)}
+								</div>
 								<div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;">VENDOR</div>
 								<div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:2px;">${escapeHtml(document.vendor_name || '-')}</div>
 								<div style="font-size:12px;color:#374151;line-height:1.5;">${escapeHtml(document.vendor_address || '-')}</div>
@@ -340,6 +374,8 @@ export const actions: Actions = {
 					if (recipients.length > 0) {
 						const baseUrl = (env.APP_BASE_URL || 'https://bize_core.freedomsoft.in.th/').replace(/\/$/, '');
 						const documentUrl = `${baseUrl}/purchase-documents/${id}`;
+						const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
+						const company = companyRows[0] || null;
 						const [itemRows] = await pool.query<any[]>(
 							`SELECT
 								pdi.description,
@@ -360,7 +396,7 @@ export const actions: Actions = {
 							to: recipients,
 							subject: `[PR Issued] ${docNo}`,
 							text: `Purchase Requisition ${docNo} has been issued.\nOpen PR: ${documentUrl}`,
-							html: buildPurchaseRequisitionEmailHtml(doc, itemRows, documentUrl)
+							html: buildPurchaseRequisitionEmailHtml(doc, itemRows, documentUrl, company, baseUrl)
 						}).catch((mailErr) => {
 							console.error('[purchase-documents] send PR issued email failed:', mailErr);
 						});
