@@ -1,8 +1,9 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
+import { getPurchaseDepartmentScope } from '$lib/purchaseDocumentAccess';
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
 	const searchQuery = url.searchParams.get('search') || '';
 	const filterStatus = url.searchParams.get('status') || '';
@@ -19,6 +20,12 @@ export const load: PageServerLoad = async ({ url }) => {
 	try {
 		let whereClause = ' WHERE 1=1 ';
 		const params: (string | number)[] = [];
+		const scopedDepartmentId = getPurchaseDepartmentScope(locals.user);
+
+		if (scopedDepartmentId !== null) {
+			whereClause += ` AND creator.department_id = ? `;
+			params.push(scopedDepartmentId);
+		}
 
 		if (searchQuery) {
 			whereClause += ` AND (
@@ -57,6 +64,7 @@ export const load: PageServerLoad = async ({ url }) => {
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
+			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
             ${whereClause}`;
 		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
@@ -72,6 +80,7 @@ export const load: PageServerLoad = async ({ url }) => {
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
+			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
             ${whereClause}
             ORDER BY pd.document_date DESC, pd.id DESC
             LIMIT ? OFFSET ?
@@ -98,13 +107,26 @@ export const load: PageServerLoad = async ({ url }) => {
 };
 
 export const actions: Actions = {
-	delete: async ({ request }) => {
+	delete: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const id = formData.get('id');
 
 		if (!id) return fail(400, { message: 'ไม่พบรหัสเอกสาร' });
 
 		try {
+			const scopedDepartmentId = getPurchaseDepartmentScope(locals.user);
+			if (scopedDepartmentId !== null) {
+				const [docRows] = await pool.query<any[]>(
+					`SELECT pd.id
+					 FROM purchase_documents pd
+					 LEFT JOIN users creator ON creator.id = pd.created_by_user_id
+					 WHERE pd.id = ? AND creator.department_id = ?
+					 LIMIT 1`,
+					[id, scopedDepartmentId]
+				);
+				if (docRows.length === 0) return fail(403, { message: 'ไม่มีสิทธิ์ลบเอกสารข้ามแผนก' });
+			}
+
 			await pool.execute('DELETE FROM purchase_document_items WHERE document_id = ?', [id]);
 			await pool.execute('DELETE FROM purchase_document_attachments WHERE document_id = ?', [id]);
 			await pool.execute('DELETE FROM purchase_documents WHERE id = ?', [id]);

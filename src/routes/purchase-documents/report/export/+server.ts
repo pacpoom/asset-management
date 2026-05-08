@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import pool from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
 import ExcelJS from 'exceljs';
+import { getPurchaseDepartmentScope } from '$lib/purchaseDocumentAccess';
 
 export const GET: RequestHandler = async ({ url,locals }) => {
 	// หากมีระบบตรวจสอบสิทธิ์ ให้เปิดใช้งานบรรทัดล่างนี้
@@ -28,6 +29,12 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 	try {
 		let whereClause = ' WHERE 1=1 ';
 		const params: (string | number)[] = [];
+		const scopedDepartmentId = getPurchaseDepartmentScope(locals.user);
+
+		if (scopedDepartmentId !== null) {
+			whereClause += ` AND creator.department_id = ? `;
+			params.push(scopedDepartmentId);
+		}
 
 		if (searchQuery) {
 			whereClause += ` AND (
@@ -96,6 +103,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
             JOIN purchase_documents pd ON pdi.document_id = pd.id
 			LEFT JOIN vendors v ON pd.vendor_id = v.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
+			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
             ${whereClause}
             ORDER BY pd.document_date DESC, pd.document_number DESC, pdi.item_order ASC
         `;

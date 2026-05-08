@@ -30,13 +30,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const endDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${lastDay}`;
 
     try {
-        // 1. ดึง Master Data (กะการทำงานทั้งหมด)
+        // 1. ดึง Master Data (กะการทำงานทั้งหมด) พร้อมทำ Lookup สำหรับสี
         const [shifts] = await pool.execute('SELECT shift_code, shift_name, color_theme FROM shift_master WHERE status = ?', ['Active']);
+        const shiftColorMap: Record<string, string> = {};
+        (shifts as any[]).forEach(s => { shiftColorMap[s.shift_code] = s.color_theme; });
 
         // 2. ดึงรายชื่อพนักงาน
         let employees: any[] = [];
-        
-        // ถ้าไม่มี department_id (null) ให้ดึงพนักงานทั้งหมดที่ Active มาแสดง
         if (userDepartmentId === null) {
             const [allEmps] = await pool.execute(
                 'SELECT emp_id, emp_name FROM employees WHERE status = ?',
@@ -44,7 +44,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             );
             employees = allEmps as any[];
         } else {
-            // ถ้ามีแผนก ให้ดึงเฉพาะพนักงานในแผนกนั้น
             const [deptEmps] = await pool.execute(
                 'SELECT emp_id, emp_name FROM employees WHERE department_id = ? AND status = ?',
                 [userDepartmentId, 'Active']
@@ -52,44 +51,78 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             employees = deptEmps as any[];
         }
 
-        let attendanceLogs: any[] = [];
-        const empIds = (employees as any[]).map(e => e.emp_id);
-        
-        // 3. ดึงข้อมูลการเข้างาน เพิ่มเวลา In, Out และ OT
-        if (empIds.length > 0) {
-            const placeholders = empIds.map(() => '?').join(',');
-            const [logs] = await pool.execute(
-                `SELECT a.emp_id, DATE_FORMAT(a.work_date, '%Y-%m-%d') as work_date, a.shift_type, s.color_theme,
-                        DATE_FORMAT(a.scan_in_time, '%H:%i') as time_in,
-                        DATE_FORMAT(a.scan_out_time, '%H:%i') as time_out,
-                        a.ot_hours
-                 FROM attendance_logs a
-                 LEFT JOIN shift_master s ON a.shift_type = s.shift_code
-                 WHERE a.emp_id IN (${placeholders}) 
-                   AND a.work_date BETWEEN ? AND ?`,
-                [...empIds, startDate, endDate]
-            );
-            attendanceLogs = logs as any[];
-        }
-
-        // 4. จัดเตรียมข้อมูลให้อยู่ในรูปแบบที่ Frontend นำไปวนลูปตารางได้ง่าย
         const scheduleMap: Record<string, Record<string, any>> = {};
-        
         employees.forEach(emp => {
             scheduleMap[emp.emp_id] = {};
         });
 
-        attendanceLogs.forEach(log => {
-            if (scheduleMap[log.emp_id]) {
-                scheduleMap[log.emp_id][log.work_date] = {
-                    shift: log.shift_type,
-                    color: log.color_theme || 'gray',
-                    timeIn: log.time_in,   // แนบเวลาเข้างาน
-                    timeOut: log.time_out, // แนบเวลาออกงาน
-                    otHours: log.ot_hours  // แนบชั่วโมง OT
-                };
-            }
-        });
+        const empIds = (employees as any[]).map(e => e.emp_id);
+        
+        if (empIds.length > 0) {
+            const placeholders = empIds.map(() => '?').join(',');
+
+            // 3. ดึงข้อมูล "แผนการจัดกะ" จาก employee_shifts (เป็นโครงตารางหลัก ทำให้รู้วัน Day Off)
+            const [plannedShifts] = await pool.execute(
+                `SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_code
+                 FROM employee_shifts
+                 WHERE emp_id IN (${placeholders}) 
+                   AND work_date BETWEEN ? AND ?`,
+                [...empIds, startDate, endDate]
+            );
+
+            // 4. ดึงข้อมูล "การเข้างานจริง" จาก attendance_logs (ดึงเวลาเข้า-ออก และชั่วโมง OT)
+            const [logs] = await pool.execute(
+                `SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_type,
+                        DATE_FORMAT(scan_in_time, '%H:%i') as time_in,
+                        DATE_FORMAT(scan_out_time, '%H:%i') as time_out,
+                        ot_hours
+                 FROM attendance_logs
+                 WHERE emp_id IN (${placeholders}) 
+                   AND work_date BETWEEN ? AND ?`,
+                [...empIds, startDate, endDate]
+            );
+
+            // 5. รวม (Merge) ข้อมูลแผนกะการทำงาน กับ การเข้างานจริง เข้าด้วยกัน
+            
+            // Step 5.1: วางแผนกะ (DAY OFF และกะล่วงหน้า) ลงใน Map ก่อน
+            (plannedShifts as any[]).forEach(plan => {
+                if (scheduleMap[plan.emp_id]) {
+                    scheduleMap[plan.emp_id][plan.work_date] = {
+                        shift: plan.shift_code,
+                        color: shiftColorMap[plan.shift_code] || 'gray',
+                        timeIn: null,
+                        timeOut: null,
+                        otHours: 0
+                    };
+                }
+            });
+
+            // Step 5.2: นำข้อมูลการสแกนนิ้วจริง (IN/OUT/OT) มาอัปเดตทับลงไป
+            (logs as any[]).forEach(log => {
+                if (scheduleMap[log.emp_id]) {
+                    const existingPlan = scheduleMap[log.emp_id][log.work_date];
+                    
+                    if (existingPlan) {
+                        // ถ้ามีในแผนอยู่แล้ว ให้อัปเดตเวลาเข้าออก และ OT
+                        // (ถ้ามีการสลับกะหน้างาน จะใช้กะจากระบบสแกนนิ้วเป็นหลัก)
+                        existingPlan.shift = log.shift_type || existingPlan.shift;
+                        existingPlan.color = shiftColorMap[existingPlan.shift] || existingPlan.color;
+                        existingPlan.timeIn = log.time_in;
+                        existingPlan.timeOut = log.time_out;
+                        existingPlan.otHours = log.ot_hours;
+                    } else {
+                        // กรณีไม่ได้ถูกจัดกะในแผน แต่พนักงานมาสแกนทำงานจริง
+                        scheduleMap[log.emp_id][log.work_date] = {
+                            shift: log.shift_type || 'Unknown',
+                            color: shiftColorMap[log.shift_type] || 'gray',
+                            timeIn: log.time_in,
+                            timeOut: log.time_out,
+                            otHours: log.ot_hours
+                        };
+                    }
+                }
+            });
+        }
 
         return {
             currentMonth: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,

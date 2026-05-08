@@ -1,8 +1,9 @@
 import { error } from '@sveltejs/kit';
 import pool from '$lib/server/database';
 import type { RequestHandler } from './$types';
+import { getPurchaseDepartmentScope } from '$lib/purchaseDocumentAccess';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
 	const searchQuery = url.searchParams.get('search') || '';
 	const filterStatus = url.searchParams.get('status') || '';
 	const filterType = url.searchParams.get('type') || '';
@@ -12,6 +13,12 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		let whereClause = ' WHERE 1=1 ';
 		const params: (string | number)[] = [];
+		const scopedDepartmentId = getPurchaseDepartmentScope(locals.user);
+
+		if (scopedDepartmentId !== null) {
+			whereClause += ` AND creator.department_id = ? `;
+			params.push(scopedDepartmentId);
+		}
 
 		if (searchQuery) {
 			whereClause += ` AND (
@@ -55,6 +62,7 @@ export const GET: RequestHandler = async ({ url }) => {
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
+			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
             ${whereClause}
             ORDER BY pd.document_date DESC, pd.id DESC
         `;

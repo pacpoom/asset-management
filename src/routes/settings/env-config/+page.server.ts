@@ -99,6 +99,13 @@ const ENV_FIELDS = [
 		secret: false,
 		group: 'renewal' as const,
 		hint: 'LINE userId (U…) แจ้งเตือนหมดสัญญา — หลายค่าคั่นด้วย , หรือ ;'
+	},
+	{
+		key: 'SENT_EMAIL_NOTICE_PR_ISSUED',
+		label: 'Sent Email Notice PR Issued',
+		secret: false,
+		group: 'purchase' as const,
+		hint: 'อีเมลผู้รับแจ้งเมื่อ PR เปลี่ยนสถานะเป็น Sent (หลายอีเมลคั่นด้วย , หรือ ;)'
 	}
 ] as const;
 
@@ -190,7 +197,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			smtp: 'อีเมล (SMTP)',
 			app: 'แอปพลิเคชัน',
 			line: 'LINE Messaging',
-			renewal: 'แจ้งเตือนต่อสัญญา (ฝั่งซื้อ / ฝั่งขาย)'
+			renewal: 'แจ้งเตือนต่อสัญญา (ฝั่งซื้อ / ฝั่งขาย)',
+			purchase: 'Purchase / PR Notifications'
 		} as const
 	};
 };

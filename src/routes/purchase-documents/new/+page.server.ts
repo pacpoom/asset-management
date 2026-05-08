@@ -67,18 +67,26 @@ async function generateDocumentNumber(docType: string, dateStr: string, connecti
 
 export const load: PageServerLoad = async ({ url }) => {
 	const sourceId = url.searchParams.get('source_id');
-	const targetType = url.searchParams.get('target_type') || 'PO';
+	const targetType = url.searchParams.get('target_type') || 'PR';
 	let prefillData = null;
 
 	try {
 		if (sourceId) {
 			const [docs] = await pool.query<any[]>('SELECT * FROM purchase_documents WHERE id = ?', [sourceId]);
 			const [items] = await pool.query<any[]>('SELECT * FROM purchase_document_items WHERE document_id = ? ORDER BY item_order ASC', [sourceId]);
+			const [attachments] = await pool.query<any[]>(
+				`SELECT id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id
+				 FROM purchase_document_attachments
+				 WHERE document_id = ?
+				 ORDER BY id ASC`,
+				[sourceId]
+			);
 			
 			if (docs.length > 0) {
 				prefillData = {
 					document: docs[0],
 					items: items,
+					attachments: attachments,
 					targetType: targetType
 				};
 			}
@@ -130,7 +138,7 @@ export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		const formData = await request.formData();
 
-		const document_type = formData.get('document_type')?.toString() || 'PO';
+		const document_type = formData.get('document_type')?.toString() || 'PR';
 		const vendor_id = formData.get('vendor_id');
 		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null;
 		const contract_id = formData.get('contract_id')?.toString() || null;
@@ -154,6 +162,7 @@ export const actions: Actions = {
 		const wht_rate = parseFloat(formData.get('wht_rate')?.toString() || '0');
 		const wht_amount = parseFloat(formData.get('wht_amount')?.toString() || '0');
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
+		const source_document_id = formData.get('source_document_id')?.toString() || '';
 
 		if (!vendor_id) return fail(400, { message: 'กรุณาเลือกผู้จำหน่าย (Vendor)' });
 
@@ -219,6 +228,34 @@ export const actions: Actions = {
 							documentId, savedFile.originalName, savedFile.systemName, savedFile.mimeType, savedFile.size, locals.user?.id
 						]
 					);
+				}
+			}
+
+			// When converting from an existing document, reference the same attachment rows (no file copy on disk).
+			if (source_document_id) {
+				const sourceDocumentIdNum = parseInt(source_document_id, 10);
+				if (Number.isInteger(sourceDocumentIdNum) && sourceDocumentIdNum > 0) {
+					const [sourceAttachments] = await connection.execute<any[]>(
+						`SELECT file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id
+						 FROM purchase_document_attachments
+						 WHERE document_id = ?`,
+						[sourceDocumentIdNum]
+					);
+					for (const att of sourceAttachments) {
+						await connection.execute(
+							`INSERT INTO purchase_document_attachments
+								(document_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
+							 VALUES (?, ?, ?, ?, ?, ?)`,
+							[
+								documentId,
+								att.file_original_name,
+								att.file_system_name,
+								att.file_mime_type,
+								att.file_size_bytes,
+								att.uploaded_by_user_id
+							]
+						);
+					}
 				}
 			}
 

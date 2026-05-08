@@ -14,6 +14,7 @@ declare global {
 			/** All assigned role names (from `user_roles` and primary); use for multi-role checks. */
 			roleNames: string[];
 			permissions: string[];
+			department_id?: number | null;
 			/** ISO section code (e.g. QM) for DAR Document Controller rule */
 			iso_section?: string | null;
 		}
