@@ -19,24 +19,33 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	if (sessionId) {
 		try {
-			const baseSql = `SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, r.name AS role
+<<<<<<< HEAD
+            // เพิ่ม u.department_id เข้าไปในคำสั่ง SELECT หลัก
+=======
+>>>>>>> 42ea5554494e67d9553432bef9293b4f541f0071
+			const baseSql = `SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, u.department_id, r.name AS role
 				 FROM users u
 				 LEFT JOIN roles r ON u.role_id = r.id
 				 WHERE u.id = ? LIMIT 1`;
 			let rows: any[];
 			let isoSection: string | null = null;
 			try {
+                // เพิ่ม u.department_id เข้าไปในคำสั่ง SELECT สำหรับกรณีที่มี iso_section ด้วย
 				const [withIso]: any[] = await pool.execute(
-					`SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, u.iso_section, r.name AS role
+<<<<<<< HEAD
+					`SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, u.iso_section, u.department_id, r.name AS role
+=======
+					`SELECT u.id, u.username, u.email, u.full_name, u.profile_image_url, u.current_session_token, u.department_id, u.iso_section, r.name AS role
+>>>>>>> 42ea5554494e67d9553432bef9293b4f541f0071
 					 FROM users u
 					 LEFT JOIN roles r ON u.role_id = r.id
 					 WHERE u.id = ? LIMIT 1`,
 					[sessionId]
 				);
 				rows = withIso;
-				isoSection = withIso[0]?.iso_section ?? null;
+				isoSection = rows[0]?.iso_section ?? null;
 			} catch (e: any) {
-				if (e?.errno === 1054 && String(e?.sqlMessage || '').includes('iso_section')) {
+				if ((e.message || '').includes('iso_section')) {
 					const [withoutIso]: any[] = await pool.execute(baseSql, [sessionId]);
 					rows = withoutIso;
 				} else {
@@ -70,19 +79,27 @@ export const handle: Handle = async ({ event, resolve }) => {
 					role: userData.role ?? 'user',
 					roleNames,
 					permissions,
+<<<<<<< HEAD
+					iso_section: isoSection,
+					department_id: userData.department_id // เก็บค่าแผนกลงใน Session ตรงนี้
+=======
+					department_id:
+						userData.department_id != null && !Number.isNaN(Number(userData.department_id))
+							? Number(userData.department_id)
+							: null,
 					iso_section: isoSection
+>>>>>>> 42ea5554494e67d9553432bef9293b4f541f0071
 				};
 			}
 		} catch (err: any) {
-			if (err?.status === 303 || err?.status === 302 || err?.location) {
+			if (err?.status === 303 || err?.status === 302 || err?.status === 301) {
 				throw err;
 			}
-			// If DB/session validation fails, clear stale cookies to avoid login redirect loop.
+			console.error('Session validation error:', err);
 			event.cookies.delete('session_id', { path: '/' });
 			event.cookies.delete('session_token', { path: '/' });
-			console.error('[hooks.server.ts] Database error during session check:', err);
 		}
 	}
 
-	return await resolve(event);
+	return resolve(event);
 };

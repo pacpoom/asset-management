@@ -118,7 +118,7 @@
 		label: d.name
 	}));
 
-	let documentType = 'PO';
+	let documentType = 'PR';
 	let documentDate = new Date().toISOString().split('T')[0];
 	let creditTerm: number | null = 30;
 	let dueDate = (() => {
@@ -126,7 +126,11 @@
 		d.setDate(d.getDate() + 30);
 		return d.toISOString().split('T')[0];
 	})();
-	let deliveryDate = '';
+	let deliveryDate = (() => {
+		const d = new Date();
+		d.setDate(d.getDate() + 14);
+		return d.toISOString().split('T')[0];
+	})();
 
 	let selectedVendorObj: SelectOption | null = null;
 	let selectedVendorId: string | number = '';
@@ -151,11 +155,11 @@
 			product_id: null,
 			description: '',
 			quantity: 1,
-			unit_id: null,
+			unit_id: '',
 			unit_price: 0,
 			line_total: 0,
 			wht_rate: 0,
-			vat_type: 1 // Default to Inc. VAT
+			vat_type: 2 // Default to VAT 7%
 		}
 	];
 
@@ -304,7 +308,11 @@
 	};
 
 	function calculateDueDate() {
-		if (documentDate && creditTerm !== null && creditTerm !== undefined) {
+		if (creditTerm === null || creditTerm === undefined || Number(creditTerm) <= 0) {
+			dueDate = '';
+			return;
+		}
+		if (documentDate) {
 			const d = new Date(documentDate);
 			d.setDate(d.getDate() + Number(creditTerm));
 			dueDate = d.toISOString().split('T')[0];
@@ -390,11 +398,11 @@
 				product_id: null,
 				description: '',
 				quantity: 1,
-				unit_id: null,
+				unit_id: '',
 				unit_price: 0,
 				line_total: 0,
 				wht_rate: 0,
-				vat_type: 1
+				vat_type: 2
 			}
 		];
 	}
@@ -416,14 +424,14 @@
 			items[index].unit_price = parseFloat(product.purchase_cost?.toString() || '0') || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate?.toString() || '0') || 0;
-			items[index].vat_type = 1; // Default Inc.
+			items[index].vat_type = 2; // Default VAT 7%
 		} else {
 			items[index].product_id = null;
 			items[index].description = '';
 			items[index].unit_price = 0;
-			items[index].unit_id = null;
+			items[index].unit_id = '';
 			items[index].wht_rate = 0;
-			items[index].vat_type = 1;
+			items[index].vat_type = 2;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -583,7 +591,7 @@
 						on:change={calculateDueDate}
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					>
-						<option value={0}>{$t('0 Days (Cash)')}</option>
+						<option value={0}>--</option>
 						<option value={15}>{$t('15 Days')}</option>
 						<option value={30}>{$t('30 Days')}</option>
 						<option value={45}>{$t('45 Days')}</option>
@@ -657,6 +665,16 @@
 				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
 					>{$t('Attachments')}</label
 				>
+				{#if prefillData?.attachments?.length}
+					<div class="mb-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+						<p class="font-semibold">Auto-linked from source document:</p>
+						<ul class="mt-1 list-disc pl-4">
+							{#each prefillData.attachments as file}
+								<li>{file.file_original_name}</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
 				<input
 					type="file"
 					id="attachments"
@@ -664,6 +682,9 @@
 					multiple
 					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2"
 				/>
+				{#if prefillData?.document?.id}
+					<input type="hidden" name="source_document_id" value={prefillData.document.id} />
+				{/if}
 			</div>
 		</div>
 
@@ -678,9 +699,9 @@
 							<th class="w-25 px-4 py-2 text-right">{$t('Qty')}</th>
 							<th class="w-25 px-4 py-2 text-center">{$t('Unit')}</th>
 							<th class="w-35 px-3 py-2 text-right">{$t('Unit Price')}</th>
-							<th class="w-25 px-2 py-2 text-center text-blue-600">VAT Status</th>
+							<th class="w-32 px-2 py-2 text-center text-blue-600">VAT Status</th>
 							<th class="w-28 px-3 py-2 text-right text-gray-700">{$t('Amount') || 'Amount'}</th>
-							<th class="w-20 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
+							<th class="w-28 px-3 py-2 text-center text-red-600">{$t('WHT')}</th>
 							<th class="w-28 px-3 py-2 text-right">{$t('Total')}</th>
 							<th class="w-3 px-3 py-2"></th>
 						</tr>
@@ -736,9 +757,9 @@
 								<td class="w-5 px-2 py-2">
 									<select
 										bind:value={items[index].unit_id}
-										class="w-full rounded-md border-gray-300 py-1.5 px-2 text-center text-sm"
+										class="w-full rounded-md border-gray-300 py-1.5 pl-2 pr-7 text-left text-sm"
 									>
-										<option value={null}>-</option>
+										<option value="">Unit</option>
 										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
@@ -752,12 +773,12 @@
 										required
 									/>
 								</td>
-								<td class="px-1 py-2 text-center align-middle">
+								<td class="w-32 px-1 py-2 text-center align-middle">
 									<select
 										bind:value={items[index].vat_type}
-										class="w-full rounded-md border-gray-300 py-1.5 px-1 text-center text-xs font-medium focus:border-blue-500 focus:ring-blue-500 {items[index].vat_type === 1 ? 'text-blue-600 bg-blue-50' : items[index].vat_type === 2 ? 'text-orange-600 bg-orange-50' : 'text-gray-600 bg-gray-50'}"
+										class="compact-select w-full rounded-md border-gray-300 py-1.5 pl-2 pr-8 text-left text-xs font-medium focus:border-blue-500 focus:ring-blue-500 {items[index].vat_type === 1 ? 'text-blue-600 bg-blue-50' : items[index].vat_type === 2 ? 'text-orange-600 bg-orange-50' : 'text-gray-600 bg-gray-50'}"
 									>
-										<option value={1}>Inc. VAT</option>
+										<option value={1}>Inc VAT</option>
 										<option value={2}>VAT 7%</option>
 										<option value={3}>Non-VAT</option>
 									</select>
@@ -765,10 +786,10 @@
 								<td class="px-2 py-2 text-right font-medium text-gray-700 bg-gray-50/50">
 									{formatNumber(item.amount || 0)}
 								</td>
-								<td class="px-2 py-2">
+								<td class="w-28 px-2 py-2">
 									<select
 										bind:value={items[index].wht_rate}
-										class="w-full rounded-md border-red-200 bg-red-50 py-1.5 px-1 text-center text-sm font-bold text-red-700"
+										class="compact-select min-w-[78px] w-full rounded-md border-red-200 bg-red-50 py-1.5 pl-3 pr-9 text-left text-sm font-bold text-red-700"
 									>
 										<option value={0}>0%</option>
 										<option value={1}>1%</option>
@@ -986,5 +1007,10 @@
 		border-color: #d1d5db;
 		z-index: 9999 !important;
 		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+	:global(select.compact-select) {
+		appearance: auto;
+		background-image: none !important;
+		background-position: right 0.3rem center;
 	}
 </style>
