@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import { env } from '$env/dynamic/private';
@@ -209,7 +209,9 @@ async function ensureCanAccessPurchaseDocument(documentId: number, user: App.Use
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = parseInt(params.id);
-	if (isNaN(id)) throw error(404, 'Invalid ID');
+	if (isNaN(id)) {
+		throw redirect(303, '/purchase-documents');
+	}
 
 	try {
 		await ensureCanAccessPurchaseDocument(id, locals.user);
