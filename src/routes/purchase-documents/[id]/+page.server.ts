@@ -100,38 +100,31 @@ function buildPurchaseRequisitionEmailHtml(
 	return `
 		<div style="font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;padding:20px;color:#111827;">
 			<div style="max-width:980px;margin:0 auto;background:#ffffff;border:1px solid #d1d5db;border-radius:10px;padding:20px;">
-				<table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+				<table style="width:100%;border-collapse:collapse;margin-bottom:4px;">
 					<tr>
-						<td style="font-size:26px;font-weight:700;color:#0f172a;">Purchase Requisition (PR)</td>
+						<td style="font-size:26px;font-weight:700;color:#0f172a;">
+							Purchase Requisition (PR) #${escapeHtml(document.document_number || '-')}
+						</td>
 						<td style="text-align:right;">
-							<span style="display:inline-block;background:${statusColor};color:#fff;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;">
+							<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${statusColor};color:#fff;font-size:12px;font-weight:700;">
 								${escapeHtml(document.status || 'Sent')}
 							</span>
 						</td>
 					</tr>
 				</table>
-				<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
-					<tr>
-						<td style="padding:4px 0;font-size:13px;color:#374151;"><strong>Vendor:</strong> ${escapeHtml(document.vendor_name || '-')}</td>
-						<td style="padding:4px 0;font-size:13px;color:#374151;text-align:right;"><strong>Job Order:</strong> ${escapeHtml(document.job_number || '-')}</td>
-					</tr>
-					<tr>
-						<td style="padding:4px 0;font-size:13px;color:#374151;"><strong>Reference:</strong> ${escapeHtml(document.reference_doc || '-')}</td>
-						<td style="padding:4px 0;font-size:13px;color:#374151;text-align:right;"><strong>Document No:</strong> #${escapeHtml(document.document_number || '-')}</td>
-					</tr>
-					<tr>
-						<td style="padding:4px 0;font-size:13px;color:#374151;"><strong>Date:</strong> ${formatDateForMail(document.document_date)}</td>
-						<td style="padding:4px 0;font-size:13px;color:#374151;text-align:right;"><strong>Credit Term:</strong> ${escapeHtml(document.credit_term || 0)} days</td>
-					</tr>
-				</table>
-				<div style="margin-bottom:14px;padding:10px 12px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:8px;font-size:13px;color:#1e3a8a;">
+				<div style="margin-bottom:10px;font-size:12px;color:#6b7280;">
+					Vendor: ${escapeHtml(document.vendor_name || '-')} |
+					Job Order: ${escapeHtml(document.job_number || '-')} |
+					Reference: ${escapeHtml(document.reference_doc || '-')}
+				</div>
+				<div style="margin-bottom:14px;font-size:13px;color:#1e3a8a;">
 					<strong>Open PR:</strong>
 					<a href="${escapeHtml(documentUrl)}" style="color:#1d4ed8;text-decoration:underline;word-break:break-all;">${escapeHtml(documentUrl)}</a>
 				</div>
-				<div style="border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:14px;">
-					<table style="width:100%;border-collapse:collapse;">
+				<div style="border:1px solid #334155;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+					<table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
 						<tr>
-							<td style="width:34%;vertical-align:top;padding-right:10px;">
+							<td style="width:55%;vertical-align:top;padding-right:14px;">
 								${
 									logoUrl
 										? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)}" style="max-height:56px;max-width:180px;object-fit:contain;margin-bottom:8px;display:block;" />`
@@ -141,22 +134,41 @@ function buildPurchaseRequisitionEmailHtml(
 									${companyAddress || '-'}<br>
 									<strong>Tax ID:</strong> ${escapeHtml(companyTaxId)}
 								</div>
-								<div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;">VENDOR</div>
-								<div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:2px;">${escapeHtml(document.vendor_name || '-')}</div>
-								<div style="font-size:12px;color:#374151;line-height:1.5;">${escapeHtml(document.vendor_address || '-')}</div>
-								<div style="font-size:12px;color:#374151;line-height:1.5;"><strong>Tax ID:</strong> ${escapeHtml(document.vendor_tax_id || '-')}</div>
 							</td>
-							<td style="width:33%;vertical-align:top;padding-right:10px;">
-								<div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;">SHIP TO</div>
+							<td style="width:45%;vertical-align:top;text-align:right;">
+								<div style="font-size:26px;font-weight:700;color:#111827;line-height:1.1;letter-spacing:0.3px;margin-bottom:10px;">
+									PURCHASE REQUISITION (PR)
+								</div>
+								<div style="font-size:12px;color:#374151;line-height:1.55;">
+									<div><strong>Document No:</strong> #${escapeHtml(document.document_number || '-')}</div>
+									<div><strong>Date:</strong> ${formatDateForMail(document.document_date)}</div>
+									<div><strong>Credit Term:</strong> ${escapeHtml(document.credit_term || 0)} days</div>
+									<div><strong>Job Order:</strong> ${escapeHtml(document.job_number || '-')}</div>
+									<div><strong>Reference:</strong> ${escapeHtml(document.reference_doc || '-')}</div>
+								</div>
+							</td>
+						</tr>
+					</table>
+					<div style="height:1px;background:#334155;margin:4px 0 10px 0;"></div>
+					<table style="width:100%;border-collapse:collapse;">
+						<tr>
+							<td style="width:34%;vertical-align:top;padding-right:12px;">
+								<div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;letter-spacing:0.4px;">VENDOR</div>
+								<div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:2px;">${escapeHtml(document.vendor_name || '-')}</div>
+								<div style="font-size:12px;color:#374151;line-height:1.45;">${escapeHtml(document.vendor_address || '-')}</div>
+								<div style="font-size:12px;color:#374151;line-height:1.45;"><strong>Tax ID:</strong> ${escapeHtml(document.vendor_tax_id || '-')}</div>
+							</td>
+							<td style="width:33%;vertical-align:top;padding-right:12px;">
+								<div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;letter-spacing:0.4px;">SHIP TO</div>
 								<div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:2px;">${escapeHtml(document.delivery_location_name || '-')}</div>
-								<div style="font-size:12px;color:#374151;line-height:1.5;">${escapeHtml(document.delivery_address_line || '-')}</div>
-								<div style="font-size:12px;color:#374151;line-height:1.5;"><strong>Receiver:</strong> ${escapeHtml(document.delivery_contact_name || '-')}</div>
+								<div style="font-size:12px;color:#374151;line-height:1.45;">${escapeHtml(document.delivery_address_line || '-')}</div>
+								<div style="font-size:12px;color:#374151;line-height:1.45;"><strong>Receiver:</strong> ${escapeHtml(document.delivery_contact_name || '-')}</div>
 							</td>
 							<td style="width:33%;vertical-align:top;">
-								<div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;">MORE INFO</div>
-								<div style="font-size:12px;color:#374151;line-height:1.6;"><strong>Prepared By:</strong> ${escapeHtml(document.created_by_name || '-')}</div>
-								<div style="font-size:12px;color:#059669;line-height:1.6;"><strong>DELIVERY DATE</strong><br>${formatDateForMail(document.delivery_date)}</div>
-								<div style="font-size:12px;color:#dc2626;line-height:1.6;"><strong>DUE DATE</strong><br>${formatDateForMail(document.due_date)}</div>
+								<div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;letter-spacing:0.4px;">MORE INFO</div>
+								<div style="font-size:12px;color:#374151;line-height:1.5;"><strong>Prepared By:</strong> ${escapeHtml(document.created_by_name || '-')}</div>
+								<div style="font-size:12px;color:#059669;line-height:1.5;margin-top:4px;"><strong>DELIVERY DATE</strong><br>${formatDateForMail(document.delivery_date)}</div>
+								<div style="font-size:12px;color:#dc2626;line-height:1.5;margin-top:4px;"><strong>DUE DATE</strong><br>${formatDateForMail(document.due_date)}</div>
 							</td>
 						</tr>
 					</table>
@@ -275,6 +287,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 		if (rows.length === 0) throw error(404, 'Purchase Document not found');
 		const document = rows[0];
+		let canEdit = true;
+		if (String(document.document_type || '').toUpperCase() === 'PR') {
+			const [poRows] = await pool.query<any[]>(
+				`SELECT id
+				 FROM purchase_documents
+				 WHERE document_type = 'PO'
+				   AND reference_doc LIKE ?
+				 LIMIT 1`,
+				[`%${String(document.document_number || '')}%`]
+			);
+			canEdit = poRows.length === 0;
+		}
 
 		// ดึงรายการสินค้า
 		const [items] = await pool.query<any[]>(
@@ -309,6 +333,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			items: JSON.parse(JSON.stringify(items)),
 			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
+			canEdit,
 			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void']
 		};
 	} catch (err: any) {

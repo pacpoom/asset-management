@@ -56,6 +56,19 @@ async function ensureCanAccessPurchaseDocument(documentId: number, user: App.Use
 	}
 }
 
+async function hasIssuedPurchaseOrderFromPr(prDocumentNumber: string): Promise<boolean> {
+	if (!prDocumentNumber) return false;
+	const [rows] = await pool.query<any[]>(
+		`SELECT id
+		 FROM purchase_documents
+		 WHERE document_type = 'PO'
+		   AND reference_doc LIKE ?
+		 LIMIT 1`,
+		[`%${prDocumentNumber}%`]
+	);
+	return rows.length > 0;
+}
+
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const documentId = parseInt(params.id);
 	if (isNaN(documentId)) throw error(404, 'Invalid Document ID');
@@ -68,6 +81,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		]);
 		if (docRows.length === 0) throw error(404, 'Purchase Document not found');
 		const document = docRows[0];
+		if (
+			String(document.document_type || '').toUpperCase() === 'PR' &&
+			(await hasIssuedPurchaseOrderFromPr(String(document.document_number || '')))
+		) {
+			throw error(403, 'Cannot edit this PR because a PO has already been issued');
+		}
 
 		const [itemRows] = await pool.query<any[]>(
 			'SELECT * FROM purchase_document_items WHERE document_id = ? ORDER BY item_order ASC',
@@ -114,6 +133,20 @@ export const actions: Actions = {
 		const documentId = parseInt(params.id);
 		const formData = await request.formData();
 		await ensureCanAccessPurchaseDocument(documentId, locals.user);
+		const [docRows] = await pool.query<any[]>(
+			'SELECT document_type, document_number FROM purchase_documents WHERE id = ? LIMIT 1',
+			[documentId]
+		);
+		const currentDoc = docRows[0];
+		if (
+			currentDoc &&
+			String(currentDoc.document_type || '').toUpperCase() === 'PR' &&
+			(await hasIssuedPurchaseOrderFromPr(String(currentDoc.document_number || '')))
+		) {
+			return fail(403, {
+				message: 'ไม่สามารถแก้ไข PR นี้ได้ เนื่องจากมีการออก PO ไปแล้ว'
+			});
+		}
 
 		const vendor_id = formData.get('vendor_id');
 		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null;

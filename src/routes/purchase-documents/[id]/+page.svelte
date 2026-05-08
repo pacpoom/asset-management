@@ -174,12 +174,23 @@
 			<span>{$t('Print PDF')}</span>
 		</a>
 
-		<a
-			href="/purchase-documents/{document.id}/edit"
-			class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-50"
-		>
-			{$t('Edit')}
-		</a>
+		{#if data.canEdit}
+			<a
+				href="/purchase-documents/{document.id}/edit"
+				class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-50"
+			>
+				{$t('Edit')}
+			</a>
+		{:else}
+			<button
+				type="button"
+				class="rounded-lg bg-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700"
+				title="PR นี้มีการออก PO แล้ว จึงไม่สามารถแก้ไขได้"
+				disabled
+			>
+				{$t('Edit')}
+			</button>
+		{/if}
 
 		<div class="relative">
 			<select
