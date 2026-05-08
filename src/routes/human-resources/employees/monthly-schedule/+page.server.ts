@@ -33,7 +33,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         // 1. ดึง Master Data (กะการทำงานทั้งหมด) พร้อมทำ Lookup สำหรับสี
         const [shifts] = await pool.execute('SELECT shift_code, shift_name, color_theme FROM shift_master WHERE status = ?', ['Active']);
         const shiftColorMap: Record<string, string> = {};
-        (shifts as any[]).forEach(s => { shiftColorMap[s.shift_code] = s.color_theme; });
+        
+        // ใช้ for...of แทน .forEach ป้องกันปัญหา ASI (Automatic Semicolon Insertion) ตอนที่ Svelte/Vite Compile
+        for (const s of shifts as any[]) {
+            shiftColorMap[s.shift_code] = s.color_theme;
+        }
 
         // 2. ดึงรายชื่อพนักงาน
         let employees: any[] = [];
@@ -52,11 +56,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         }
 
         const scheduleMap: Record<string, Record<string, any>> = {};
-        employees.forEach(emp => {
+        for (const emp of employees) {
             scheduleMap[emp.emp_id] = {};
-        });
+        }
 
-        const empIds = (employees as any[]).map(e => e.emp_id);
+        const empIds = employees.map(e => e.emp_id);
         
         if (empIds.length > 0) {
             const placeholders = empIds.map(() => '?').join(',');
@@ -85,7 +89,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             // 5. รวม (Merge) ข้อมูลแผนกะการทำงาน กับ การเข้างานจริง เข้าด้วยกัน
             
             // Step 5.1: วางแผนกะ (DAY OFF และกะล่วงหน้า) ลงใน Map ก่อน
-            (plannedShifts as any[]).forEach(plan => {
+            for (const plan of plannedShifts as any[]) {
                 if (scheduleMap[plan.emp_id]) {
                     scheduleMap[plan.emp_id][plan.work_date] = {
                         shift: plan.shift_code,
@@ -95,10 +99,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                         otHours: 0
                     };
                 }
-            });
+            }
 
             // Step 5.2: นำข้อมูลการสแกนนิ้วจริง (IN/OUT/OT) มาอัปเดตทับลงไป
-            (logs as any[]).forEach(log => {
+            for (const log of logs as any[]) {
                 if (scheduleMap[log.emp_id]) {
                     const existingPlan = scheduleMap[log.emp_id][log.work_date];
                     
@@ -121,7 +125,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                         };
                     }
                 }
-            });
+            }
         }
 
         return {
