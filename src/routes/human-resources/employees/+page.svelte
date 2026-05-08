@@ -2,7 +2,17 @@
 	import { t } from '$lib/i18n';
 	import { enhance } from '$app/forms';
 	import { slide, fade } from 'svelte/transition';
+	import Select from 'svelte-select';
+	import { browser } from '$app/environment';
 	let { data, form } = $props();
+
+	let deptOptions = $derived(
+		(data.departments || []).map((d: any) => ({
+			value: d.id,
+			label: d.name
+		}))
+	);
+	let selectedDept = $state<any>(null);
 
 	let employees = $derived(data.employees || []);
 
@@ -106,12 +116,15 @@
 	let selectedItem = $state<any>(null);
 	let itemToDelete = $state<any>(null);
 	let showBulkDeleteModal = $state(false);
-	
-	// สถานะสำหรับโหมดลาออก
+
+	let showBulkShiftModal = $state(false);
+	let isChangingShift = $state(false);
+	let bulkNewShift = $state('');
+
 	let showResignModal = $state(false);
 	let employeeToResign = $state<any>(null);
 	let isResigning = $state(false);
-	
+
 	let isSaving = $state(false);
 	let isDeleting = $state(false);
 
@@ -138,6 +151,7 @@
 			};
 		} else {
 			selectedItem = { ...item };
+			selectedDept = deptOptions.find((opt: any) => opt.value === item.department_id) || null;
 			selectedItem.start_date = parseDateToInput(item.start_date);
 			selectedItem.default_shift = item.default_shift || '';
 
@@ -164,6 +178,8 @@
 			itemToDelete = null;
 			showBulkDeleteModal = false;
 			showResignModal = false;
+			showBulkShiftModal = false;
+			bulkNewShift = '';
 			employeeToResign = null;
 			selectedIds = [];
 		}
@@ -184,6 +200,15 @@
 		{/if}
 
 		{#if selectedIds.length > 0}
+			<button
+				onclick={() => (showBulkShiftModal = true)}
+				transition:fade
+				class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+			>
+				<span class="material-symbols-outlined text-[18px]">schedule</span>
+				{$t(`เปลี่ยนกะ (${selectedIds.length})`)}
+			</button>
+
 			<button
 				onclick={() => (showBulkDeleteModal = true)}
 				transition:fade
@@ -242,7 +267,9 @@
 		<p class="text-sm font-medium text-gray-500">{$t('พนักงานทั้งหมด')}</p>
 		<p class="mt-2 text-3xl font-bold text-gray-900">{stats.total}</p>
 	</div>
-	<div class="rounded-lg border border-l-4 border-gray-100 border-l-green-500 bg-white p-5 shadow-sm">
+	<div
+		class="rounded-lg border border-l-4 border-gray-100 border-l-green-500 bg-white p-5 shadow-sm"
+	>
 		<p class="text-sm font-medium text-gray-500">{$t('ทำงานอยู่ (Active)')}</p>
 		<p class="mt-2 text-3xl font-bold text-green-600">{stats.active}</p>
 	</div>
@@ -250,11 +277,15 @@
 		<p class="text-sm font-medium text-gray-500">{$t('ลาออก (Resigned)')}</p>
 		<p class="mt-2 text-3xl font-bold text-red-600">{stats.resigned}</p>
 	</div>
-	<div class="rounded-lg border border-l-4 border-gray-100 border-l-purple-500 bg-white p-5 shadow-sm">
+	<div
+		class="rounded-lg border border-l-4 border-gray-100 border-l-purple-500 bg-white p-5 shadow-sm"
+	>
 		<p class="text-sm font-medium text-gray-500">{$t('Sub Contract')}</p>
 		<p class="mt-2 text-3xl font-bold text-purple-600">{stats.subContract}</p>
 	</div>
-	<div class="rounded-lg border border-l-4 border-gray-100 border-l-blue-500 bg-white p-5 shadow-sm">
+	<div
+		class="rounded-lg border border-l-4 border-gray-100 border-l-blue-500 bg-white p-5 shadow-sm"
+	>
 		<p class="text-sm font-medium text-gray-500">{$t('Permanent')}</p>
 		<p class="mt-2 text-3xl font-bold text-blue-600">{stats.permanent}</p>
 	</div>
@@ -389,6 +420,7 @@
 							>
 						</div>
 					</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Department')}</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
 						onclick={() => toggleSort('employee_type')}
@@ -460,6 +492,7 @@
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Group')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Position')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Project')}</th>
+					<th class="px-4 py-3 whitespace-nowrap">{$t('Sync')}</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
 						onclick={() => toggleSort('status')}
@@ -482,7 +515,7 @@
 			<tbody>
 				{#if paginatedEmployees.length === 0}
 					<tr
-						><td colspan="18" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
+						><td colspan="19" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
 						></tr
 					>
 				{/if}
@@ -509,6 +542,10 @@
 						<td class="px-4 py-3 font-mono whitespace-nowrap">{emp.citizen_id || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
 
+						<td class="px-4 py-3 font-semibold whitespace-nowrap text-gray-700">
+							{emp.department_name || '-'}
+						</td>
+
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-purple-600"
 							>{emp.employee_type || 'Sub Contract'}</td
 						>
@@ -534,6 +571,23 @@
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_group || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.position_name || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.project || '-'}</td>
+						<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-500">
+							{#if emp.last_sync_time}
+								{@const d = new Date(emp.last_sync_time)}
+								{String(d.getDate()).padStart(2, '0')}/{String(d.getMonth() + 1).padStart(
+									2,
+									'0'
+								)}/{d.getFullYear()}
+								<span class="font-bold text-blue-600"
+									>{d.getHours().toString().padStart(2, '0')}:{d
+										.getMinutes()
+										.toString()
+										.padStart(2, '0')}</span
+								>
+							{:else}
+								<span class="text-gray-300">ยังไม่เคยซิงค์</span>
+							{/if}
+						</td>
 						<td class="px-4 py-3 whitespace-nowrap">
 							<span
 								class="rounded-full px-2.5 py-1 text-xs font-semibold {emp.status === 'Active'
@@ -585,16 +639,37 @@
 										><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg
 									>
 								</button>
-								
+
 								<!-- เพิ่มปุ่มลากออก (Resign) -->
 								<button
-									onclick={() => { employeeToResign = { ...emp, resign_date: new Date().toISOString().split('T')[0], resign_reason: '' }; showResignModal = true; }}
-									class="rounded p-1.5 transition-colors {emp.status === 'Resigned' ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-orange-50 hover:text-orange-600'}"
+									onclick={() => {
+										employeeToResign = {
+											...emp,
+											resign_date: new Date().toISOString().split('T')[0],
+											resign_reason: ''
+										};
+										showResignModal = true;
+									}}
+									class="rounded p-1.5 transition-colors {emp.status === 'Resigned'
+										? 'cursor-not-allowed text-gray-300'
+										: 'text-gray-500 hover:bg-orange-50 hover:text-orange-600'}"
 									title={$t('Resign')}
 									disabled={emp.status === 'Resigned'}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-										<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline
+											points="16 17 21 12 16 7"
+										/><line x1="21" y1="12" x2="9" y2="12" />
 									</svg>
 								</button>
 
@@ -859,6 +934,35 @@
 									: ''}"
 							/>
 						</div>
+
+						<div>
+							<label for="department" class="mb-1 block text-sm font-semibold text-gray-700">
+								{$t('Department')} (ฝ่าย) <span class="text-red-500">*</span>
+							</label>
+							{#if modalMode === 'view'}
+								<input
+									type="text"
+									value={selectedItem.department_name || '-'}
+									readonly
+									class="w-full rounded-md border-gray-300 bg-gray-50 text-gray-600 shadow-sm"
+								/>
+							{:else}
+								<Select
+									items={deptOptions}
+									bind:value={selectedDept}
+									placeholder={$t('เลือกฝ่าย...')}
+									container={browser ? document.body : null}
+									class="svelte-select-custom"
+								/>
+								<input
+									type="hidden"
+									name="department_id"
+									value={selectedDept?.value || ''}
+									required
+								/>
+							{/if}
+						</div>
+
 						<div>
 							<label for="citizen_id" class="mb-1 block text-sm font-semibold text-gray-700"
 								>{$t('National ID card')}</label
@@ -1174,15 +1278,28 @@
 
 <!-- Modal ทำรายการลาออก -->
 {#if showResignModal && employeeToResign}
-	<div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" transition:fade={{ duration: 150 }}>
-		<div class="w-full max-w-md rounded-xl bg-white shadow-2xl" transition:slide={{ duration: 200 }}>
+	<div
+		class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+		transition:fade={{ duration: 150 }}
+	>
+		<div
+			class="w-full max-w-md rounded-xl bg-white shadow-2xl"
+			transition:slide={{ duration: 200 }}
+		>
 			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h3 class="text-lg font-bold text-gray-900">{$t('แจ้งพนักงานลาออก')}</h3>
-				<button type="button" onclick={() => { showResignModal = false; employeeToResign = null; }} class="text-gray-400 hover:text-gray-600">
+				<button
+					type="button"
+					onclick={() => {
+						showResignModal = false;
+						employeeToResign = null;
+					}}
+					class="text-gray-400 hover:text-gray-600"
+				>
 					<span class="material-symbols-outlined">close</span>
 				</button>
 			</div>
-			
+
 			<form
 				method="POST"
 				action="?/resign"
@@ -1196,14 +1313,19 @@
 				class="p-6"
 			>
 				<input type="hidden" name="emp_id" value={employeeToResign.emp_id} />
-				
+
 				<div class="mb-4 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
-					คุณกำลังทำรายการให้พนักงาน <strong class="text-gray-900">{employeeToResign.emp_name}</strong> (รหัส: {employeeToResign.emp_id}) เปลี่ยนสถานะเป็น <b>"ลาออก"</b>
+					คุณกำลังทำรายการให้พนักงาน <strong class="text-gray-900"
+						>{employeeToResign.emp_name}</strong
+					>
+					(รหัส: {employeeToResign.emp_id}) เปลี่ยนสถานะเป็น <b>"ลาออก"</b>
 				</div>
 
 				<div class="space-y-4">
 					<div>
-						<label for="resign_date" class="mb-1 block text-sm font-semibold text-gray-700">{$t('วันที่ลาออก (มีผล)')} <span class="text-red-500">*</span></label>
+						<label for="resign_date" class="mb-1 block text-sm font-semibold text-gray-700"
+							>{$t('วันที่ลาออก (มีผล)')} <span class="text-red-500">*</span></label
+						>
 						<input
 							id="resign_date"
 							type="date"
@@ -1214,7 +1336,9 @@
 						/>
 					</div>
 					<div>
-						<label for="resign_reason" class="mb-1 block text-sm font-semibold text-gray-700">{$t('สาเหตุการลาออก')}</label>
+						<label for="resign_reason" class="mb-1 block text-sm font-semibold text-gray-700"
+							>{$t('สาเหตุการลาออก')}</label
+						>
 						<textarea
 							id="resign_reason"
 							name="resign_reason"
@@ -1229,7 +1353,10 @@
 				<div class="mt-6 flex justify-end gap-3">
 					<button
 						type="button"
-						onclick={() => { showResignModal = false; employeeToResign = null; }}
+						onclick={() => {
+							showResignModal = false;
+							employeeToResign = null;
+						}}
 						class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
 					>
 						{$t('Cancel')}
@@ -1338,6 +1465,82 @@
 				>
 					{isDeleting ? $t('Deleting...') : $t('Delete Selected')}
 				</button>
+			</form>
+		</div>
+	</div>
+{/if}
+
+{#if showBulkShiftModal}
+	<div
+		class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+		transition:fade={{ duration: 150 }}
+	>
+		<div
+			class="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl"
+			transition:slide={{ duration: 200 }}
+		>
+			<div
+				class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600"
+			>
+				<span class="material-symbols-outlined text-[24px]">schedule</span>
+			</div>
+			<h3 class="text-lg font-bold text-gray-900">{$t('เปลี่ยนกะการทำงาน')}</h3>
+			<p class="mt-2 text-sm text-gray-600">
+				เลือกกะใหม่สำหรับพนักงานที่เลือก <strong class="text-lg text-indigo-600"
+					>{selectedIds.length}</strong
+				> รายการ
+			</p>
+
+			<form
+				method="POST"
+				action="?/bulkChangeShift"
+				use:enhance={() => {
+					isChangingShift = true;
+					return async ({ update }) => {
+						await update();
+						isChangingShift = false;
+					};
+				}}
+				class="mt-6 text-left"
+			>
+				<input type="hidden" name="ids" value={JSON.stringify(selectedIds)} />
+
+				<div class="mb-6">
+					<label for="bulk_new_shift" class="mb-2 block text-sm font-semibold text-gray-700"
+						>{$t('กะการทำงานใหม่')} <span class="text-red-500">*</span></label
+					>
+					<select
+						id="bulk_new_shift"
+						name="new_shift"
+						bind:value={bulkNewShift}
+						required
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+					>
+						<option value="" disabled selected>{$t('- โปรดเลือกกะ -')}</option>
+						{#if data.shifts && data.shifts.length > 0}
+							{#each data.shifts as shift}
+								<option value={shift.shift_code}>{shift.shift_code} - {shift.shift_name}</option>
+							{/each}
+						{/if}
+					</select>
+				</div>
+
+				<div class="flex justify-center gap-3">
+					<button
+						type="button"
+						onclick={() => (showBulkShiftModal = false)}
+						class="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+					>
+						{$t('Cancel')}
+					</button>
+					<button
+						type="submit"
+						disabled={isChangingShift || !bulkNewShift}
+						class="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-70"
+					>
+						{isChangingShift ? $t('Saving...') : $t('ยืนยัน')}
+					</button>
+				</div>
 			</form>
 		</div>
 	</div>

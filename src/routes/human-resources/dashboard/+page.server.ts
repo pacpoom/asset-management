@@ -90,21 +90,27 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const [recentLogs]: any = await pool.execute(logQuery, logParams);
 
 		const statsQuery = `
-    SELECT 
-        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, 
-        
-        COUNT(DISTINCT r.raw_emp_id) as total_scanned, 
-        SUM(CASE WHEN TIME(r.scan_datetime) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00') THEN 1 ELSE 0 END) as late,
-        
-        (SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) - COUNT(DISTINCT r.raw_emp_id) as absent
+			SELECT 
+				(SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, 
+				
+				COUNT(DISTINCT al.emp_id) as total_scanned, 
+				SUM(CASE WHEN al.is_late = 1 THEN 1 ELSE 0 END) as late,
+				
+				(SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) - COUNT(DISTINCT al.emp_id) as absent
 
-    FROM raw_attendance_logs r
-    INNER JOIN employees e ON r.raw_emp_id = e.raw_id 
-    LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
-    WHERE DATE(r.scan_datetime) = ? ${empWhere}
-`;
+			FROM attendance_logs al
+			INNER JOIN employees e ON al.emp_id = e.emp_id 
+			WHERE al.work_date = ? ${empWhere}
+		`;
 
 		const [statsRow]: any = await pool.execute(statsQuery, [displayDate, ...filterParams]);
+
+		const [scanners]: any = await pool.execute(
+			`SELECT device_name, ip_address, status, last_sync 
+			 FROM fingerprint_scanners 
+			 WHERE status = 'Active' OR status = 1 
+			 ORDER BY device_name ASC`
+		);
 
 		return {
 			title: 'Workforce Dashboard',
@@ -114,6 +120,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			displayDate,
 			searchQuery: search,
 			statusFilter,
+			scanners,
 			sectionFilter,
 			groupFilter,
 			sections: sectionsRows.map((s: any) => s.section),
@@ -392,6 +399,11 @@ export const actions: Actions = {
 					await zkInstance.createSocket();
 					console.log(`Connected to ZKTeco: ${ip}`);
 
+					await pool.execute(
+						'UPDATE fingerprint_scanners SET last_sync = DATE_ADD(NOW(), INTERVAL 7 HOUR) WHERE ip_address = ?',
+						[ip]
+					);
+
 					const machineInfo = await zkInstance.getInfo();
 
 					if (!machineInfo || machineInfo.logCounts === 0) {
@@ -445,59 +457,100 @@ export const actions: Actions = {
 
 			console.log(`กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`);
 
-			// ⭐️ ประมวลผลและแก้ไขปัญหา กะกลางคืน (Night Shift) และการแยก Time In / Out ของกะกลางวันอย่างแม่นยำ
-			// โดยมีการเชื่อมตาราง employees แบบ e.raw_id = r.raw_emp_id ตามที่ต้องการ
 			const processQuery = `
 				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
 				SELECT 
 					base.emp_id, 
 					base.emp_name, 
 					base.logical_work_date, 
-					base.shift_type, 
+					base.actual_shift as shift_type, 
 					base.scan_in, 
 					base.scan_out, 
 					
-					-- ⭐️ เกณฑ์การมาสาย วัดจาก scan_in 
 					IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
 					
 					'Present' as status,
 					
-					-- ⭐️ คำนวณ OT วัดจาก scan_out
-					IF(base.scan_out IS NOT NULL, 
-						FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(base.scan_out), IFNULL(sm.ot_start_time, '17:10:00'))) / 60) / 30) * 0.5, 
-						0
-					) as ot_hours
+					/* คำนวณ OT */
+					CASE 
+						/* กะดึก (N) */
+						WHEN sm.ot_start_time IS NOT NULL AND sm.ot_end_time <= sm.start_time THEN
+							IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) < sm.ot_end_time,
+								FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(sm.ot_end_time, GREATEST(TIME(base.scan_in), sm.ot_start_time))) / 60) / 30) * 0.5,
+								0
+							)
+							
+						/* กะเช้า (D) */
+						ELSE
+							(
+								/* OT เช้ามืด */
+								IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) >= '04:00:00' AND TIME(base.scan_in) < '07:30:00',
+									FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF('07:30:00', GREATEST(TIME(base.scan_in), '05:30:00'))) / 60) / 30) * 0.5,
+									0
+								)
+							)
+							+
+							(
+								/* OT เย็นหลังเลิกงาน */
+								IF(base.scan_out IS NOT NULL,
+									FLOOR(GREATEST(0, 
+										(
+											TIME_TO_SEC(TIME(base.scan_out)) 
+											+ IF(TIME(base.scan_out) < sm.start_time, 86400, 0) /* เผื่อทำโอทีทะลุเที่ยงคืน */
+											- TIME_TO_SEC(IFNULL(sm.ot_start_time, '17:10:00'))
+										) / 60
+									) / 30) * 0.5,
+									0
+								)
+							)
+					END as ot_hours
+					
 				FROM (
 					SELECT 
-						e.emp_id, 
-						e.emp_name, 
+						r_base.emp_id,
+						r_base.emp_name,
+						r_base.actual_shift,
 						
-						-- ปรับวันที่ให้กะดึก
-						DATE(DATE_SUB(r.scan_datetime, INTERVAL IF(IFNULL(e.default_shift, 'D') = 'N', 12, 0) HOUR)) as logical_work_date,
+						DATE(DATE_SUB(r_base.scan_datetime, INTERVAL IF(r_base.actual_shift = 'N', 12, 0) HOUR)) as logical_work_date,
 						
-						IFNULL(e.default_shift, 'D') as shift_type,
-						
-						-- ⭐️ Time In: สำหรับกะที่ไม่ใช่ N (เช่น D, O) จะใช้เฉพาะช่วง 01:00-12:59 เท่านั้น
 						MIN(
 							CASE 
-								WHEN IFNULL(e.default_shift, 'D') != 'N' THEN 
-									IF(TIME(r.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r.scan_datetime, NULL)
-								ELSE r.scan_datetime 
+								WHEN r_base.actual_shift = 'N' THEN 
+									IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
+								ELSE 
+									IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
 							END
 						) as scan_in,
 						
-						-- ⭐️ Time Out: สำหรับกะที่ไม่ใช่ N จะนับเฉพาะการสแกนตั้งแต่ 13:00 ขึ้นไป
-						IF(IFNULL(e.default_shift, 'D') != 'N',
-							MAX(CASE WHEN TIME(r.scan_datetime) >= '13:00:00' THEN r.scan_datetime ELSE NULL END),
-							IF((UNIX_TIMESTAMP(MAX(r.scan_datetime)) - UNIX_TIMESTAMP(MIN(r.scan_datetime))) >= 3600, MAX(r.scan_datetime), NULL)
+						MAX(
+							CASE 
+								WHEN r_base.actual_shift = 'N' THEN 
+									IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
+								ELSE 
+									IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
+							END
 						) as scan_out
+						
+					FROM (
+						SELECT 
+							e.emp_id, e.emp_name, r.scan_datetime,
 
-					FROM raw_attendance_logs r
-					JOIN employees e ON e.raw_id = r.raw_emp_id 
-					WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY) 
-					GROUP BY e.emp_id, e.emp_name, logical_work_date, shift_type
+							IF(TIME(r.scan_datetime) BETWEEN '00:00:00' AND '12:00:00',
+								IF(
+									(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(DATE_SUB(r.scan_datetime, INTERVAL 1 DAY)) LIMIT 1) = 'N',
+									'N',
+									COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
+								),
+								COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
+							) as actual_shift
+							
+						FROM raw_attendance_logs r
+						JOIN employees e ON e.raw_id = r.raw_emp_id
+						WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
+					) as r_base
+					GROUP BY r_base.emp_id, r_base.emp_name, logical_work_date, actual_shift
 				) as base
-				LEFT JOIN shift_master sm ON base.shift_type = sm.shift_code
+				LEFT JOIN shift_master sm ON base.actual_shift = sm.shift_code
 				
 				ON DUPLICATE KEY UPDATE 
 					shift_type = VALUES(shift_type),

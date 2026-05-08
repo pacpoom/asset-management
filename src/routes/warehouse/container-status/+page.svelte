@@ -545,7 +545,7 @@
 								{item.status == 1
 									? $t('LCB')
 									: item.status == 2
-										? $t('Received')
+										? 'Receive'
 										: item.status == 4
 											? $t('Returned')
 											: $t('Shipped Out')}

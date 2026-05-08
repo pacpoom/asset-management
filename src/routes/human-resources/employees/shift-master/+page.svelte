@@ -128,12 +128,12 @@
 		<table class="w-full text-left text-sm text-gray-600">
 			<thead class="bg-gray-50 text-xs text-gray-700 uppercase">
 				<tr>
-					<th class="px-6 py-4">{$t('พรีวิว (Preview)')}</th>
-					<th class="px-6 py-4">{$t('รหัสกะ (Code)')}</th>
-					<th class="px-6 py-4">{$t('ชื่อกะ (Name)')}</th>
-					<th class="px-6 py-4">{$t('ประเภท')}</th>
-					<th class="px-6 py-4">{$t('เวลาทำงาน / OT')}</th>
-					<th class="px-6 py-4">{$t('สถานะ')}</th>
+					<th class="px-6 py-4">{$t('Preview')}</th>
+					<th class="px-6 py-4">{$t('Code Name')}</th>
+					<th class="px-6 py-4">{$t('Shift Name')}</th>
+					<th class="px-6 py-4">{$t('Type')}</th>
+					<th class="px-6 py-4">{$t('Working hours/OT')}</th>
+					<th class="px-6 py-4">{$t('Status')}</th>
 					<th class="px-6 py-4 text-center">{$t('Actions')}</th>
 				</tr>
 			</thead>
@@ -226,7 +226,7 @@
 		>
 			<div class="flex items-center justify-between border-b bg-gray-50 px-6 py-4">
 				<h2 class="text-lg font-bold text-gray-900">
-					{modalMode === 'add' ? $t('เพิ่มรูปแบบกะใหม่') : $t('แก้ไขข้อมูลกะ')}
+					{modalMode === 'add' ? $t('Add New Shift Format') : $t('Edit Shift Information')}
 				</h2>
 				<button onclick={closeModal} class="text-gray-400 hover:text-gray-600">
 					<span class="material-symbols-outlined">close</span>
@@ -262,7 +262,7 @@
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-1">
 						<label for="shift_code" class="mb-1 block text-sm font-semibold text-gray-700"
-							>{$t('รหัสกะ (ตัวย่อ)')} *</label
+							>{$t('Code Name')}</label
 						>
 						<input
 							id="shift_code"
@@ -277,7 +277,7 @@
 					</div>
 					<div class="col-span-1">
 						<label for="shift_name" class="mb-1 block text-sm font-semibold text-gray-700"
-							>{$t('ชื่อเต็มของกะ')} *</label
+							>{$t('Shift Full Name')} *</label
 						>
 						<input
 							id="shift_name"
@@ -292,7 +292,7 @@
 
 					<div class="col-span-2">
 						<label for="shift_category" class="mb-1 block text-sm font-semibold text-gray-700"
-							>{$t('ประเภทกะ (มีผลกับสูตรคำนวณ OT)')}</label
+							>{$t('Shift type (Affects OT Calculation Formula)')}</label
 						>
 						<select
 							id="shift_category"
@@ -300,11 +300,11 @@
 							bind:value={selectedItem.shift_category}
 							class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
 						>
-							<option value="Normal">วันทำงานปกติ (Normal)</option>
-							<option value="Holiday">วันหยุด / วันหยุดนักขัตฤกษ์ (Holiday)</option>
+							<option value="Normal">{$t('Normal work day')}'</option>
+							<option value="Holiday">{$t('Holiday')}</option>
 						</select>
 						<p class="mt-1 text-[11px] text-gray-500">
-							หากเลือก 'วันหยุด' ระบบจะคำนวณ OT: 8 ชม.แรก = 1 แรง, หลังจากนั้น = 3 แรง
+							{$t('หากเลือก วันหยุด ระบบจะคำนวณ OT: 8 ชม.แรก = 1 แรง, หลังจากนั้น = 3 แรง')}
 						</p>
 					</div>
 
@@ -384,7 +384,7 @@
 
 					<div class="col-span-2">
 						<label for="status" class="mb-1 block text-sm font-semibold text-gray-700"
-							>{$t('สถานะ')}</label
+							>{$t('Status')}</label
 						>
 						<select
 							id="status"
@@ -411,7 +411,7 @@
 						disabled={isSaving}
 						class="rounded-md bg-indigo-600 px-6 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-70"
 					>
-						{isSaving ? $t('Saving...') : $t('Save Changes')}
+						{isSaving ? $t('Saving...') : $t('Save')}
 					</button>
 				</div>
 			</form>

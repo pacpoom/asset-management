@@ -11,6 +11,7 @@ export const GET: RequestHandler = async () => {
 			e.emp_id,
 			e.citizen_id,
 			e.emp_name,
+            d.name as department_name, 
 			e.start_date,
 			e.phone_number,
 			e.division,
@@ -20,6 +21,7 @@ export const GET: RequestHandler = async () => {
 			e.project
 		FROM employees e
 		LEFT JOIN job_positions jp ON e.position_id = jp.id
+        LEFT JOIN departments d ON e.department_id = d.id 
 		ORDER BY e.emp_id ASC
 	`);
 
@@ -33,6 +35,7 @@ export const GET: RequestHandler = async () => {
 		{ header: 'ID No.', key: 'emp_id', width: 15 },
 		{ header: 'ID', key: 'citizen_id', width: 20 },
 		{ header: 'Name', key: 'emp_name', width: 30 },
+		{ header: 'Department', key: 'department_name', width: 20 },
 		{ header: 'Start Date', key: 'start_date', width: 15 },
 		{ header: 'Phone Number', key: 'phone_number', width: 15 },
 		{ header: 'Dis.', key: 'division', width: 10 },
@@ -59,6 +62,7 @@ export const GET: RequestHandler = async () => {
 			emp_id: row.emp_id || '-',
 			citizen_id: row.citizen_id || '-',
 			emp_name: row.emp_name || '-',
+			department_name: row.department_name || '-',
 			start_date: row.start_date ? new Date(row.start_date).toLocaleDateString('en-GB') : '-',
 			phone_number: row.phone_number || '-',
 			division: row.division || '-',
@@ -75,7 +79,7 @@ export const GET: RequestHandler = async () => {
 	return new Response(buffer as ArrayBuffer, {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-			'Content-Disposition': `attachment; filename="Employee_Master_${today}.xlsx"` // เปลี่ยนชื่อไฟล์ให้มีวันที่
+			'Content-Disposition': `attachment; filename="Employee_Master_${today}.xlsx"`
 		}
 	});
 };

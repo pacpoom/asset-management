@@ -11,13 +11,36 @@
 	let recentLogs = $derived(data.recentLogs || []);
 
 	let stats = $derived({
-		total: data.statsData.total_scanned || 0,
+		total: data.statsData.total_plan || 0,
 		present: data.statsData.total_scanned || 0,
 		late: data.statsData.late || 0,
 		absent: data.statsData.absent || 0
 	});
 
 	let isSubmitting = $state(false);
+
+	let scanners = $derived(data.scanners || []);
+	let scannerStatus = $state<Record<string, string>>({});
+
+	async function checkScannerStatus(ip: string) {
+		scannerStatus[ip] = 'checking...';
+		try {
+			const res = await fetch(`/api/scanner-status?ip=${ip}`);
+			const result = await res.json();
+			scannerStatus[ip] = result.online ? 'Online' : 'Offline';
+		} catch (e) {
+			scannerStatus[ip] = 'Offline';
+		}
+	}
+	$effect(() => {
+		if (scanners.length > 0) {
+			scanners.forEach((s: any) => {
+				if (s.ip_address && !scannerStatus[s.ip_address]) {
+					checkScannerStatus(s.ip_address);
+				}
+			});
+		}
+	});
 
 	let sectionOptions = $derived([
 		{ value: 'All', label: '-- All --' },
@@ -259,6 +282,73 @@
 	<div class="rounded-lg border border-l-4 border-gray-100 border-l-red-500 bg-white p-6 shadow-sm">
 		<p class="text-sm font-medium text-gray-500">{$t('Absent/Leave')}</p>
 		<p class="mt-2 text-3xl font-bold text-red-600">{stats.absent}</p>
+	</div>
+</div>
+
+<div class="mb-6">
+	<h2 class="mb-3 text-lg font-semibold text-gray-800">{$t('สถานะเครื่องสแกนนิ้ว')} (Scanners)</h2>
+	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		{#each scanners as scanner}
+			<div
+				class="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+			>
+				<div class="flex items-start justify-between">
+					<div>
+						<p class="text-sm font-bold text-gray-800">{scanner.device_name || 'Scanner'}</p>
+						<p class="font-mono text-xs text-gray-500">{scanner.ip_address}</p>
+					</div>
+					{#if scannerStatus[scanner.ip_address] === 'checking...'}
+						<span
+							class="animate-pulse rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500"
+							>Checking...</span
+						>
+					{:else if scannerStatus[scanner.ip_address] === 'Online'}
+						<span
+							class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-600 ring-1 ring-green-500/20"
+						>
+							<div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
+							 Online
+						</span>
+					{:else}
+						<span
+							class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600 ring-1 ring-red-500/20"
+						>
+							<div class="h-1.5 w-1.5 rounded-full bg-red-500"></div>
+							 Offline
+						</span>
+					{/if}
+				</div>
+				<div
+					class="mt-2 flex items-center justify-between border-t border-gray-50 pt-2 text-xs text-gray-500"
+				>
+					<span>Sync ล่าสุด:</span>
+					<span class="font-medium text-gray-700">
+						{#if scanner.last_sync}
+							{@const d = new Date(scanner.last_sync)}
+							{String(d.getDate()).padStart(2, '0')}/{String(d.getMonth() + 1).padStart(
+								2,
+								'0'
+							)}/{d.getFullYear()}
+							<span class="text-blue-600"
+								>{String(d.getHours()).padStart(2, '0')}:{String(d.getMinutes()).padStart(
+									2,
+									'0'
+								)}</span
+							>
+						{:else}
+							<span class="text-gray-300">-</span>
+						{/if}
+					</span>
+				</div>
+			</div>
+		{/each}
+		{#if scanners.length === 0}
+			<div
+				class="col-span-full rounded-lg border border-gray-100 bg-white py-6 text-center text-sm text-gray-500"
+			>
+				{$t('ไม่พบข้อมูลเครื่องสแกนในระบบ')}
+			</div>
+		{/if}
 	</div>
 </div>
 

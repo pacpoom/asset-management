@@ -5,11 +5,33 @@
 
 	let { data, form } = $props();
 
-	let activeTab = $state<'division' | 'section' | 'position' | 'group' | 'project' | 'scanner'>(
-		'division'
-	);
+	let activeTab = $state<
+		'division' | 'section' | 'position' | 'group' | 'project' | 'scanner' | 'leave_type'
+	>('division');
 
-	// สถานะ Modal (อิงตามโค้ดเดิมของคุณ)
+	let scannerStatus = $state<Record<string, string>>({});
+
+	async function checkScannerStatus(ip: string) {
+		scannerStatus[ip] = 'checking...';
+		try {
+			const res = await fetch(`/api/scanner-status?ip=${ip}`);
+			const data = await res.json();
+			scannerStatus[ip] = data.online ? 'Online' : 'Offline';
+		} catch (e) {
+			scannerStatus[ip] = 'Offline';
+		}
+	}
+
+	$effect(() => {
+		if (activeTab === 'scanner') {
+			currentData().forEach((item: any) => {
+				if (item.ip_address && !scannerStatus[item.ip_address]) {
+					checkScannerStatus(item.ip_address);
+				}
+			});
+		}
+	});
+
 	let modalMode = $state<'add' | 'edit' | null>(null);
 	let selectedItem = $state<any>(null);
 	let itemToDelete = $state<any>(null);
@@ -21,7 +43,23 @@
 		if (activeTab === 'group') return data.groups || [];
 		if (activeTab === 'project') return data.projects || [];
 		if (activeTab === 'scanner') return data.scanners || [];
+		if (activeTab === 'leave_type') return data.leaveTypes || [];
 		return data.divisions || [];
+	});
+
+	let dataList = $derived(currentData());
+	let currentPage = $state(1);
+	let itemsPerPage = $state(10);
+	let totalPages = $derived(Math.ceil(dataList.length / itemsPerPage) || 1);
+	let validPage = $derived(Math.min(currentPage, totalPages) || 1);
+
+	let paginatedData = $derived(
+		dataList.slice((validPage - 1) * itemsPerPage, validPage * itemsPerPage)
+	);
+
+	$effect(() => {
+		activeTab;
+		currentPage = 1;
 	});
 
 	function openModal(mode: 'add' | 'edit', item: any = null) {
@@ -35,11 +73,17 @@
 					item.position_name ||
 					item.group_name ||
 					item.project_name ||
-					item.device_name, // 🌟 เติม || item.device_name
-				ip_address: item.ip_address || ''
+					item.device_name ||
+					item.leave_name_th,
+				name_en: item.leave_name_en || '',
+				ip_address: item.ip_address || '',
+				status:
+					item.status === 1 || item.status === 'Active' || item.is_active === 1
+						? 'Active'
+						: 'Inactive'
 			};
 		} else {
-			selectedItem = { name: '', description: '', ip_address: '', status: 'Active' };
+			selectedItem = { name: '', name_en: '', description: '', ip_address: '', status: 'Active' };
 		}
 	}
 
@@ -78,57 +122,50 @@
 	</div>
 </div>
 
-<div class="mb-6 flex border-b border-gray-200">
+<div class="mb-6 flex overflow-x-auto border-b border-gray-200">
 	<button
 		onclick={() => (activeTab = 'division')}
-		class="px-6 py-2 font-medium {activeTab === 'division'
+		class="px-6 py-2 font-medium whitespace-nowrap {activeTab === 'division'
 			? 'border-b-2 border-blue-600 text-blue-600'
-			: 'text-gray-500 hover:text-blue-500'}"
+			: 'text-gray-500 hover:text-blue-500'}">{$t('Divisions')}</button
 	>
-		{$t('Divisions')}
-	</button>
 	<button
 		onclick={() => (activeTab = 'section')}
-		class="px-6 py-2 font-medium {activeTab === 'section'
+		class="px-6 py-2 font-medium whitespace-nowrap {activeTab === 'section'
 			? 'border-b-2 border-blue-600 text-blue-600'
-			: 'text-gray-500 hover:text-blue-500'}"
+			: 'text-gray-500 hover:text-blue-500'}">{$t('Sections')}</button
 	>
-		{$t('Sections')}
-	</button>
 	<button
 		onclick={() => (activeTab = 'position')}
-		class="px-6 py-2 font-medium {activeTab === 'position'
+		class="px-6 py-2 font-medium whitespace-nowrap {activeTab === 'position'
 			? 'border-b-2 border-blue-600 text-blue-600'
-			: 'text-gray-500 hover:text-blue-500'}"
+			: 'text-gray-500 hover:text-blue-500'}">{$t('Positions')}</button
 	>
-		{$t('Positions')}
-	</button>
-
 	<button
 		onclick={() => (activeTab = 'group')}
-		class="px-6 py-2 font-medium {activeTab === 'group'
+		class="px-6 py-2 font-medium whitespace-nowrap {activeTab === 'group'
 			? 'border-b-2 border-blue-600 text-blue-600'
-			: 'text-gray-500 hover:text-blue-500'}"
+			: 'text-gray-500 hover:text-blue-500'}">{$t('Groups')}</button
 	>
-		{$t('Groups')}
-	</button>
 	<button
 		onclick={() => (activeTab = 'project')}
-		class="px-6 py-2 font-medium {activeTab === 'project'
+		class="px-6 py-2 font-medium whitespace-nowrap {activeTab === 'project'
 			? 'border-b-2 border-blue-600 text-blue-600'
-			: 'text-gray-500 hover:text-blue-500'}"
+			: 'text-gray-500 hover:text-blue-500'}">{$t('Projects')}</button
 	>
-		{$t('Projects')}
-	</button>
-
 	<button
 		onclick={() => (activeTab = 'scanner')}
-		class="px-6 py-2 font-medium {activeTab === 'scanner'
+		class="px-6 py-2 font-medium whitespace-nowrap {activeTab === 'scanner'
 			? 'border-b-2 border-blue-600 text-blue-600'
-			: 'text-gray-500 hover:text-blue-500'}"
+			: 'text-gray-500 hover:text-blue-500'}">{$t('Scanners')}</button
 	>
-		{$t('Scanners')}
-	</button>
+
+	<button
+		onclick={() => (activeTab = 'leave_type')}
+		class="px-6 py-2 font-medium whitespace-nowrap {activeTab === 'leave_type'
+			? 'border-b-2 border-blue-600 text-blue-600'
+			: 'text-gray-500 hover:text-blue-500'}">{$t('Leave Types')}</button
+	>
 </div>
 
 <div class="overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
@@ -136,20 +173,35 @@
 		<table class="w-full text-left text-sm text-gray-600">
 			<thead class="border-b border-gray-100 bg-gray-50 text-xs font-bold text-gray-700 uppercase">
 				<tr>
-					<th class="px-6 py-4">{$t('Name')}</th>
-					<th class="px-6 py-4">{activeTab === 'scanner' ? 'IP Address' : $t('Description')}</th>
+					<th class="px-6 py-4">{activeTab === 'leave_type' ? $t('Name') : $t('Name')}</th>
+					<th class="px-6 py-4"
+						>{activeTab === 'scanner'
+							? 'IP Address'
+							: activeTab === 'leave_type'
+								? $t('Abbreviation')
+								: $t('Description')}</th
+					>
+
+					{#if activeTab === 'scanner'}
+						<th class="px-6 py-4 text-center">{$t('Last Sync')}</th>
+					{/if}
+
 					<th class="px-6 py-4 text-center">{$t('Status')}</th>
 					<th class="px-6 py-4 text-center">{$t('Actions')}</th>
 				</tr>
 			</thead>
 			<tbody>
-				{#if currentData().length === 0}
-					<tr
-						><td colspan="4" class="px-6 py-10 text-center text-gray-500">{$t('No data found')}</td
-						></tr
-					>
+				{#if paginatedData.length === 0}
+					<tr>
+						<td
+							colspan={activeTab === 'scanner' ? 5 : 4}
+							class="px-6 py-10 text-center text-gray-500"
+						>
+							{$t('No data found')}
+						</td>
+					</tr>
 				{/if}
-				{#each currentData() as item}
+				{#each paginatedData as item}
 					<tr class="border-b border-gray-50 transition-colors hover:bg-gray-50">
 						<td class="px-6 py-4 font-bold text-gray-900">
 							{item.division_name ||
@@ -157,34 +209,87 @@
 								item.position_name ||
 								item.group_name ||
 								item.project_name ||
-								item.device_name}
+								item.device_name ||
+								item.leave_name_th}
 						</td>
+
 						<td class="px-6 py-4 text-gray-500">
-							{activeTab === 'scanner' ? item.ip_address : item.description || '-'}
+							{activeTab === 'scanner'
+								? item.ip_address
+								: activeTab === 'leave_type'
+									? item.leave_name_en
+									: item.description || '-'}
 						</td>
+
+						{#if activeTab === 'scanner'}
+							<td class="px-6 py-4 text-center font-mono text-sm text-gray-500">
+								{#if item.last_sync}
+									{@const d = new Date(item.last_sync)}
+									{@const dd = String(d.getDate()).padStart(2, '0')}
+									{@const mm = String(d.getMonth() + 1).padStart(2, '0')}
+									{@const yyyy = d.getFullYear()}
+									{@const time = d.toLocaleTimeString('th-TH', {
+										hour: '2-digit',
+										minute: '2-digit'
+									})}
+									<span class="font-medium text-gray-800">{dd}/{mm}/{yyyy}</span>
+									<span class="text-xs">{time}</span>
+								{:else}
+									-
+								{/if}
+							</td>
+						{/if}
+
 						<td class="px-6 py-4 text-center">
-							<span
-								class="rounded-full px-2.5 py-1 text-xs font-semibold {item.status === 'Active'
-									? 'bg-green-100 text-green-700'
-									: 'bg-red-100 text-red-700'}"
-							>
-								{item.status}
-							</span>
+							{#if activeTab === 'scanner'}
+								{#if scannerStatus[item.ip_address] === 'checking...'}
+									<span
+										class="animate-pulse rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500"
+									>
+										Checking...
+									</span>
+								{:else if scannerStatus[item.ip_address] === 'Online'}
+									<span
+										class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"
+									>
+										<div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
+										Online
+									</span>
+								{:else}
+									<span
+										class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700"
+									>
+										<div class="h-1.5 w-1.5 rounded-full bg-red-500"></div>
+										Offline
+									</span>
+								{/if}
+							{:else}
+								<span
+									class="rounded-full px-2.5 py-1 text-xs font-semibold {item.status === 'Active' ||
+									item.status === 1 ||
+									item.is_active === 1
+										? 'bg-green-100 text-green-700'
+										: 'bg-red-100 text-red-700'}"
+								>
+									{item.status === 'Active' || item.status === 1 || item.is_active === 1
+										? 'Active'
+										: 'Inactive'}
+								</span>
+							{/if}
 						</td>
+
 						<td class="px-6 py-4 text-center">
 							<div class="flex items-center justify-center gap-2">
 								<button
 									onclick={() => openModal('edit', item)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600"
+									><span class="material-symbols-outlined text-[20px]">edit</span></button
 								>
-									<span class="material-symbols-outlined text-[20px]">edit</span>
-								</button>
 								<button
 									onclick={() => (itemToDelete = item)}
 									class="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600"
+									><span class="material-symbols-outlined text-[20px]">delete</span></button
 								>
-									<span class="material-symbols-outlined text-[20px]">delete</span>
-								</button>
 							</div>
 						</td>
 					</tr>
@@ -192,6 +297,59 @@
 			</tbody>
 		</table>
 	</div>
+	{#if dataList.length > 0}
+		<div
+			class="mt-auto flex items-center justify-between border-t border-gray-100 bg-gray-50 px-4 py-3 sm:px-6"
+		>
+			<div class="flex flex-col gap-4 sm:flex-1 sm:flex-row sm:items-center sm:justify-between">
+				<div class="flex flex-wrap items-center gap-4">
+					<div class="flex items-center gap-2 text-sm text-gray-700">
+						<span>{$t('แสดงหน้าละ')}:</span>
+						<select
+							aria-label="Items per page"
+							bind:value={itemsPerPage}
+							onchange={() => (currentPage = 1)}
+							class="w-20 cursor-pointer rounded border border-gray-300 bg-white py-1 pr-8 pl-3 text-sm font-medium focus:border-blue-500 focus:outline-none"
+						>
+							<option value={10}>10</option>
+							<option value={50}>50</option>
+							<option value={100}>100</option>
+						</select>
+					</div>
+					<p class="hidden text-sm text-gray-700 md:block">
+						{$t('แสดง')} <span class="font-medium">{(validPage - 1) * itemsPerPage + 1}</span>
+						{$t('ถึง')}
+						<span class="font-medium">{Math.min(validPage * itemsPerPage, dataList.length)}</span>
+						{$t('จากทั้งหมด')}
+						<span class="font-medium">{dataList.length}</span>
+						{$t('รายการ')}
+					</p>
+				</div>
+				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+					<button
+						aria-label="ก่อนหน้า"
+						onclick={() => (currentPage = validPage - 1)}
+						disabled={validPage === 1}
+						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+					>
+						<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+					</button>
+					<span
+						class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 ring-inset"
+						>{validPage} / {totalPages}</span
+					>
+					<button
+						aria-label="ถัดไป"
+						onclick={() => (currentPage = validPage + 1)}
+						disabled={validPage === totalPages}
+						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+					>
+						<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+					</button>
+				</nav>
+			</div>
+		</div>
+	{/if}
 </div>
 
 {#if modalMode && selectedItem}
@@ -230,7 +388,11 @@
 					<div class="space-y-4">
 						<div>
 							<label for="name" class="mb-1 block text-sm font-semibold text-gray-700">
-								{activeTab === 'scanner' ? 'Device Name (ชื่อจุดสแกน)' : $t('Name')}
+								{activeTab === 'leave_type'
+									? 'ชื่อภาษาไทย'
+									: activeTab === 'scanner'
+										? 'Device Name (ชื่อจุดสแกน)'
+										: $t('Name')}
 							</label>
 							<input
 								name="name"
@@ -252,6 +414,19 @@
 									bind:value={selectedItem.ip_address}
 									required
 									placeholder="ex. 192.168.1.100"
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
+						{:else if activeTab === 'leave_type'}
+							<div>
+								<label for="name_en" class="mb-1 block text-sm font-semibold text-gray-700"
+									>{$t('ตัวย่อ')}</label
+								>
+								<input
+									name="name_en"
+									type="text"
+									bind:value={selectedItem.name_en}
+									required
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							</div>
@@ -315,7 +490,8 @@
 						itemToDelete.position_name ||
 						itemToDelete.group_name ||
 						itemToDelete.project_name ||
-						itemToDelete.device_name}</strong
+						itemToDelete.device_name ||
+						itemToDelete.leave_name_th}</strong
 				> ใช่หรือไม่?
 			</p>
 			<form method="POST" action="?/delete" use:enhance class="mt-6 flex justify-center gap-3">

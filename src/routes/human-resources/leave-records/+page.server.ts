@@ -6,6 +6,7 @@ import path from 'path';
 
 export const load: PageServerLoad = async ({ url }) => {
 	const search = url.searchParams.get('search') || '';
+	const sectionFilter = url.searchParams.get('section') || 'All';
 
 	try {
 		let query = `
@@ -19,6 +20,11 @@ export const load: PageServerLoad = async ({ url }) => {
 			WHERE 1=1
 		`;
 		const params: any[] = [];
+
+		if (sectionFilter !== 'All') {
+			query += ` AND e.section = ?`;
+			params.push(sectionFilter);
+		}
 
 		if (search) {
 			query += ` AND (lr.emp_id LIKE ? OR e.emp_name LIKE ? OR e.section LIKE ?)`;
@@ -34,14 +40,33 @@ export const load: PageServerLoad = async ({ url }) => {
 			`SELECT emp_id, emp_name FROM employees ORDER BY emp_name ASC`
 		);
 
+		const [leaveTypes]: any = await pool.execute(
+			`SELECT * FROM leave_types WHERE is_active = 1 ORDER BY id ASC`
+		);
+
+		const [sectionsRows]: any = await pool.execute(
+			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
+		);
+		const sections = sectionsRows.map((s: any) => s.section);
+
 		return {
 			leaves,
 			employees,
-			searchQuery: search
+			leaveTypes,
+			sections,
+			searchQuery: search,
+			sectionFilter
 		};
 	} catch (err) {
 		console.error('Error loading leave records:', err);
-		return { leaves: [], employees: [], searchQuery: search };
+		return {
+			leaves: [],
+			employees: [],
+			leaveTypes: [],
+			sections: [],
+			searchQuery: search,
+			sectionFilter: 'All'
+		};
 	}
 };
 

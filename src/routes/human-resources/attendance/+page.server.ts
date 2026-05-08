@@ -34,14 +34,14 @@ export const load: PageServerLoad = async ({ url }) => {
 				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
                 sm.start_time as shift_start_time,
                 sm.ot_start_time as shift_ot_start_time,
-                IFNULL(e.default_shift, 'D') as real_shift
+                COALESCE(al.shift_type, (SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = ? LIMIT 1), e.default_shift, 'D') as real_shift
 			FROM attendance_logs al
 			INNER JOIN employees e ON al.emp_id = e.emp_id
 			LEFT JOIN job_positions jp ON e.position_id = jp.id
             LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code 
 			WHERE al.work_date = ?  
 		`;
-		const params: any[] = [selectedDate];
+		const params: any[] = [selectedDate, selectedDate];
 
 		if (sectionFilter !== 'All') {
 			logQuery += ` AND e.section = ?`;
