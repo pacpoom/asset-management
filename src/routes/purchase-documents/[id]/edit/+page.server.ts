@@ -85,7 +85,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			String(document.document_type || '').toUpperCase() === 'PR' &&
 			(await hasIssuedPurchaseOrderFromPr(String(document.document_number || '')))
 		) {
-			throw error(403, 'Cannot edit this PR because a PO has already been issued');
+			const msg = encodeURIComponent('PR นี้ออก PO เรียบร้อยแล้ว ห้ามแก้ไข');
+			throw redirect(303, `/purchase-documents/${documentId}?edit_blocked=1&message=${msg}`);
 		}
 
 		const [itemRows] = await pool.query<any[]>(
@@ -124,6 +125,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		};
 	} catch (err: any) {
 		console.error('Load edit error:', err);
+		if (err?.status) throw err;
 		throw error(500, err.message);
 	}
 };
