@@ -1,9 +1,10 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect, isHttpError } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import { env } from '$env/dynamic/private';
 import { sendMail } from '$lib/server/mailer';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
+import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
 
 function splitEmailList(raw: string | undefined): string[] {
 	return (raw || '')
@@ -245,7 +246,10 @@ async function ensureCanAccessPurchaseDocument(documentId: number, user: App.Use
 		 LIMIT 1`,
 		[documentId]
 	);
-	if (rows.length === 0) throw error(404, 'Purchase Document not found');
+	if (rows.length === 0) {
+		await throwIfDeletedPurchaseRequisition(documentId, user);
+		throw error(404, 'Purchase Document not found');
+	}
 	const creatorDepartmentId =
 		rows[0].creator_department_id != null ? Number(rows[0].creator_department_id) : null;
 	if (!canAccessPurchaseDocumentByDepartment(user, creatorDepartmentId)) {
@@ -260,8 +264,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	}
 
 	try {
-		await ensureCanAccessPurchaseDocument(id, locals.user);
-
 		// ดึงข้อมูลเอกสารจัดซื้อ (Join กับ vendors, contacts, contracts, addresses และ job_orders)
 		const [rows] = await pool.query<any[]>(
 			`
@@ -270,6 +272,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
                    vc.name as contact_name, vc.phone as contact_phone, vc.email as contact_email,
                    vco.title as contract_title, vco.contract_number,
                    u.full_name as created_by_name,
+                   u.department_id AS creator_department_id,
                    da.name as delivery_location_name, da.address_line as delivery_address_line,
                    da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone,
                    j.job_number
@@ -285,8 +288,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			[id]
 		);
 
-		if (rows.length === 0) throw error(404, 'Purchase Document not found');
+		if (rows.length === 0) {
+			await throwIfDeletedPurchaseRequisition(id, locals.user);
+			throw error(404, 'Purchase Document not found');
+		}
+
 		const document = rows[0];
+		const creatorDepartmentId =
+			document.creator_department_id != null ? Number(document.creator_department_id) : null;
+		if (!canAccessPurchaseDocumentByDepartment(locals.user, creatorDepartmentId)) {
+			throw error(403, 'Forbidden: document is outside your department scope');
+		}
 		let canEdit = true;
 		if (String(document.document_type || '').toUpperCase() === 'PR') {
 			const [poRows] = await pool.query<any[]>(
@@ -336,9 +348,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			canEdit,
 			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void']
 		};
-	} catch (err: any) {
+	} catch (err: unknown) {
+		if (isHttpError(err)) throw err;
 		console.error('Error loading purchase document:', err);
-		throw error(500, err.message);
+		const message = err instanceof Error ? err.message : 'Unknown error';
+		throw error(500, message);
 	}
 };
 

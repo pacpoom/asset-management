@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
+import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -48,7 +49,10 @@ async function ensureCanAccessPurchaseDocument(documentId: number, user: App.Use
 		 LIMIT 1`,
 		[documentId]
 	);
-	if (rows.length === 0) throw error(404, 'Purchase Document not found');
+	if (rows.length === 0) {
+		await throwIfDeletedPurchaseRequisition(documentId, user);
+		throw error(404, 'Purchase Document not found');
+	}
 	const creatorDepartmentId =
 		rows[0].creator_department_id != null ? Number(rows[0].creator_department_id) : null;
 	if (!canAccessPurchaseDocumentByDepartment(user, creatorDepartmentId)) {
