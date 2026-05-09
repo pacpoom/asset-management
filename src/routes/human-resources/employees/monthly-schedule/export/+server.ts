@@ -203,7 +203,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
 						cell.font = { color: { argb: 'FF9CA3AF' } };
 					} else if (val.includes('OT:')) {
-						// 🌟 ไฮไลท์สีเขียวสำหรับช่องที่มีโอที (กรณีที่ไม่ตรงกับเงื่อนไขกะด้านบน)
 						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
 						cell.font = { color: { argb: 'FF166534' } };
 					}
