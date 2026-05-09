@@ -2,144 +2,173 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 
+interface LocalUser {
+	id?: number;
+	role?: string;
+	username?: string;
+	email?: string;
+	department_id?: number | null;
+}
+
 export const load: PageServerLoad = async ({ url, locals }) => {
-    // ตรวจสอบการ Login และดึง department_id ของ User
-    const user = locals.user;
-    if (!user) {
-        throw redirect(302, '/login');
-    }
+	const user = locals.user as LocalUser;
 
-    const userDepartmentId = user.department_id ?? null;
+	if (!user) {
+		throw redirect(302, '/login');
+	}
 
-    // รับค่าเดือนและปีจาก URL query (ถ้าไม่มีให้ใช้เดือนปัจจุบัน)
-    const today = new Date();
-    const monthQuery = url.searchParams.get('month');
-    
-    let targetYear = today.getFullYear();
-    let targetMonth = today.getMonth() + 1;
+	const userDepartmentId = user.department_id ?? null;
+	const today = new Date();
+	const monthQuery = url.searchParams.get('month');
 
-    if (monthQuery && /^\d{4}-\d{2}$/.test(monthQuery)) {
-        const parts = monthQuery.split('-');
-        targetYear = parseInt(parts[0]);
-        targetMonth = parseInt(parts[1]);
-    }
+	let targetYear = today.getFullYear();
+	let targetMonth = today.getMonth() + 1;
 
-    // หาวันแรกและวันสุดท้ายของเดือน
-    const startDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
-    const lastDay = new Date(targetYear, targetMonth, 0).getDate();
-    const endDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${lastDay}`;
+	if (monthQuery && /^\d{4}-\d{2}$/.test(monthQuery)) {
+		const parts = monthQuery.split('-');
+		targetYear = parseInt(parts[0]);
+		targetMonth = parseInt(parts[1]);
+	}
 
-    try {
-        // 1. ดึง Master Data (กะการทำงานทั้งหมด) พร้อมทำ Lookup สำหรับสี
-        const [shifts] = await pool.execute('SELECT shift_code, shift_name, color_theme FROM shift_master WHERE status = ?', ['Active']);
-        const shiftColorMap: Record<string, string> = {};
-        
-        // ใช้ for...of แทน .forEach ป้องกันปัญหา ASI (Automatic Semicolon Insertion) ตอนที่ Svelte/Vite Compile
-        for (const s of shifts as any[]) {
-            shiftColorMap[s.shift_code] = s.color_theme;
-        }
+	const startDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
+	const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+	const endDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${lastDay}`;
 
-        // 2. ดึงรายชื่อพนักงาน
-        let employees: any[] = [];
-        if (userDepartmentId === null) {
-            const [allEmps] = await pool.execute(
-                'SELECT emp_id, emp_name FROM employees WHERE status = ?',
-                ['Active']
-            );
-            employees = allEmps as any[];
-        } else {
-            const [deptEmps] = await pool.execute(
-                'SELECT emp_id, emp_name FROM employees WHERE department_id = ? AND status = ?',
-                [userDepartmentId, 'Active']
-            );
-            employees = deptEmps as any[];
-        }
+	try {
+		const [shifts] = await pool.execute(
+			'SELECT shift_code, shift_name, color_theme FROM shift_master WHERE status = ?',
+			['Active']
+		);
+		const shiftColorMap: Record<string, string> = {};
+		for (const s of shifts as any[]) {
+			shiftColorMap[s.shift_code] = s.color_theme;
+		}
 
-        const scheduleMap: Record<string, Record<string, any>> = {};
-        for (const emp of employees) {
-            scheduleMap[emp.emp_id] = {};
-        }
+		let employees: any[] = [];
+		if (userDepartmentId === null) {
+			const [allEmps] = await pool.execute(
+				'SELECT emp_id, emp_name FROM employees WHERE status = ?',
+				['Active']
+			);
+			employees = allEmps as any[];
+		} else {
+			const [deptEmps] = await pool.execute(
+				'SELECT emp_id, emp_name FROM employees WHERE department_id = ? AND status = ?',
+				[userDepartmentId, 'Active']
+			);
+			employees = deptEmps as any[];
+		}
 
-        const empIds = employees.map(e => e.emp_id);
-        
-        if (empIds.length > 0) {
-            const placeholders = empIds.map(() => '?').join(',');
+		const scheduleMap: Record<string, Record<string, any>> = {};
+		for (const emp of employees) {
+			scheduleMap[emp.emp_id] = {};
+		}
 
-            // 3. ดึงข้อมูล "แผนการจัดกะ" จาก employee_shifts (เป็นโครงตารางหลัก ทำให้รู้วัน Day Off)
-            const [plannedShifts] = await pool.execute(
-                `SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_code
-                 FROM employee_shifts
-                 WHERE emp_id IN (${placeholders}) 
-                   AND work_date BETWEEN ? AND ?`,
-                [...empIds, startDate, endDate]
-            );
+		const empIds = employees.map((e) => e.emp_id);
 
-            // 4. ดึงข้อมูล "การเข้างานจริง" จาก attendance_logs (ดึงเวลาเข้า-ออก และชั่วโมง OT)
-            const [logs] = await pool.execute(
-                `SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_type,
-                        DATE_FORMAT(scan_in_time, '%H:%i') as time_in,
-                        DATE_FORMAT(scan_out_time, '%H:%i') as time_out,
-                        ot_hours
-                 FROM attendance_logs
-                 WHERE emp_id IN (${placeholders}) 
-                   AND work_date BETWEEN ? AND ?`,
-                [...empIds, startDate, endDate]
-            );
+		if (empIds.length > 0) {
+			const placeholders = empIds.map(() => '?').join(',');
 
-            // 5. รวม (Merge) ข้อมูลแผนกะการทำงาน กับ การเข้างานจริง เข้าด้วยกัน
-            
-            // Step 5.1: วางแผนกะ (DAY OFF และกะล่วงหน้า) ลงใน Map ก่อน
-            for (const plan of plannedShifts as any[]) {
-                if (scheduleMap[plan.emp_id]) {
-                    scheduleMap[plan.emp_id][plan.work_date] = {
-                        shift: plan.shift_code,
-                        color: shiftColorMap[plan.shift_code] || 'gray',
-                        timeIn: null,
-                        timeOut: null,
-                        otHours: 0
-                    };
-                }
-            }
+			const [plannedShifts] = await pool.execute(
+				`SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_code
+                 FROM employee_shifts WHERE emp_id IN (${placeholders}) AND work_date BETWEEN ? AND ?`,
+				[...empIds, startDate, endDate]
+			);
 
-            // Step 5.2: นำข้อมูลการสแกนนิ้วจริง (IN/OUT/OT) มาอัปเดตทับลงไป
-            for (const log of logs as any[]) {
-                if (scheduleMap[log.emp_id]) {
-                    const existingPlan = scheduleMap[log.emp_id][log.work_date];
+			const [logs] = await pool.execute(
+				`SELECT 
+                    al.emp_id, 
+                    DATE_FORMAT(al.work_date, '%Y-%m-%d') as work_date, 
+                    COALESCE(es.shift_code, al.shift_type) as shift_type,
+                    DATE_FORMAT(al.scan_in_time, '%H:%i') as time_in,
+                    DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
                     
-                    if (existingPlan) {
-                        // ถ้ามีในแผนอยู่แล้ว ให้อัปเดตเวลาเข้าออก และ OT
-                        // (ถ้ามีการสลับกะหน้างาน จะใช้กะจากระบบสแกนนิ้วเป็นหลัก)
-                        existingPlan.shift = log.shift_type || existingPlan.shift;
-                        existingPlan.color = shiftColorMap[existingPlan.shift] || existingPlan.color;
-                        existingPlan.timeIn = log.time_in;
-                        existingPlan.timeOut = log.time_out;
-                        existingPlan.otHours = log.ot_hours;
-                    } else {
-                        // กรณีไม่ได้ถูกจัดกะในแผน แต่พนักงานมาสแกนทำงานจริง
-                        scheduleMap[log.emp_id][log.work_date] = {
-                            shift: log.shift_type || 'Unknown',
-                            color: shiftColorMap[log.shift_type] || 'gray',
-                            timeIn: log.time_in,
-                            timeOut: log.time_out,
-                            otHours: log.ot_hours
-                        };
-                    }
-                }
-            }
-        }
+                    /* คำนวณ OT สดๆ ตามตั้งค่าใน Shift Master */
+                    CASE 
+                        /* กะดึก (N) - ot_start_time น้อยกว่า start_time (เช่นเข้าดึก เลิกเช้า) */
+                        WHEN sm.ot_start_time IS NOT NULL AND sm.ot_start_time <= sm.start_time THEN
+                            IF(al.scan_out_time IS NOT NULL AND TIME(al.scan_out_time) > sm.ot_start_time,
+                                FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(al.scan_out_time), sm.ot_start_time)) / 60) / 30) * 0.5,
+                                0
+                            )
+                            
+                        /* กะเช้า (D) - คำนวณ OT หลังเลิกงาน + OT เช้ามืด */
+                        ELSE
+                            (
+                                IF(al.scan_out_time IS NOT NULL,
+                                    FLOOR(GREATEST(0, 
+                                        (
+                                            TIME_TO_SEC(TIME(al.scan_out_time)) 
+                                            + IF(TIME(al.scan_out_time) < sm.start_time AND TIME(al.scan_out_time) < '12:00:00', 86400, 0)
+                                            - TIME_TO_SEC(IFNULL(sm.ot_start_time, '17:10:00'))
+                                        ) / 60
+                                    ) / 30) * 0.5,
+                                    0
+                                )
+                            )
+                            +
+                            (
+                                IF(al.scan_in_time IS NOT NULL AND TIME(al.scan_in_time) >= '04:00:00' AND TIME(al.scan_in_time) < IFNULL(sm.start_time, '07:30:00'),
+                                    FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(IFNULL(sm.start_time, '07:30:00'), GREATEST(TIME(al.scan_in_time), '05:30:00'))) / 60) / 30) * 0.5,
+                                    0
+                                )
+                            )
+                    END as ot_hours
 
-        return {
-            currentMonth: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
-            daysInMonth: lastDay,
-            targetYear,
-            targetMonth,
-            shifts: shifts as any[],
-            employees: employees,
-            scheduleMap
-        };
+                 FROM attendance_logs al
+                 LEFT JOIN employee_shifts es ON al.emp_id = es.emp_id AND al.work_date = es.work_date
+                 LEFT JOIN shift_master sm ON COALESCE(es.shift_code, al.shift_type) = sm.shift_code
+                 WHERE al.emp_id IN (${placeholders}) 
+                   AND al.work_date BETWEEN ? AND ?`,
+				[...empIds, startDate, endDate]
+			);
 
-    } catch (error) {
-        console.error('Error fetching monthly schedule:', error);
-        throw error;
-    }
+			for (const plan of plannedShifts as any[]) {
+				if (scheduleMap[plan.emp_id]) {
+					scheduleMap[plan.emp_id][plan.work_date] = {
+						shift: plan.shift_code,
+						color: shiftColorMap[plan.shift_code] || 'gray',
+						timeIn: null,
+						timeOut: null,
+						otHours: 0
+					};
+				}
+			}
+
+			for (const log of logs as any[]) {
+				if (scheduleMap[log.emp_id]) {
+					const existingPlan = scheduleMap[log.emp_id][log.work_date];
+					if (existingPlan) {
+						existingPlan.shift = log.shift_type || existingPlan.shift;
+						existingPlan.color = shiftColorMap[existingPlan.shift] || existingPlan.color;
+						existingPlan.timeIn = log.time_in;
+						existingPlan.timeOut = log.time_out;
+
+						existingPlan.otHours = Number(log.ot_hours);
+					} else {
+						scheduleMap[log.emp_id][log.work_date] = {
+							shift: log.shift_type || 'Unknown',
+							color: shiftColorMap[log.shift_type] || 'gray',
+							timeIn: log.time_in,
+							timeOut: log.time_out,
+							otHours: Number(log.ot_hours)
+						};
+					}
+				}
+			}
+		}
+
+		return {
+			currentMonth: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
+			daysInMonth: lastDay,
+			targetYear,
+			targetMonth,
+			shifts: shifts as any[],
+			employees: employees,
+			scheduleMap
+		};
+	} catch (error) {
+		console.error('Error fetching monthly schedule:', error);
+		throw error;
+	}
 };

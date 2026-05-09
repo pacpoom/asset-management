@@ -51,13 +51,55 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			`SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_code FROM employee_shifts WHERE emp_id IN (${placeholders}) AND work_date BETWEEN ? AND ?`,
 			[...empIds, startDate, endDate]
 		);
+
 		const [logs]: any = await pool.execute(
-			`SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_type, DATE_FORMAT(scan_in_time, '%H:%i') as time_in, DATE_FORMAT(scan_out_time, '%H:%i') as time_out, ot_hours FROM attendance_logs WHERE emp_id IN (${placeholders}) AND work_date BETWEEN ? AND ?`,
+			`SELECT 
+                al.emp_id, 
+                DATE_FORMAT(al.work_date, '%Y-%m-%d') as work_date, 
+                COALESCE(es.shift_code, al.shift_type) as shift_type,
+                DATE_FORMAT(al.scan_in_time, '%H:%i') as time_in,
+                DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
+                
+                CASE 
+                    WHEN sm.ot_start_time IS NOT NULL AND sm.ot_start_time <= sm.start_time THEN
+                        IF(al.scan_out_time IS NOT NULL AND TIME(al.scan_out_time) > sm.ot_start_time,
+                            FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(TIME(al.scan_out_time), sm.ot_start_time)) / 60) / 30) * 0.5,
+                            0
+                        )
+                    ELSE
+                        (
+                            IF(al.scan_out_time IS NOT NULL,
+                                FLOOR(GREATEST(0, 
+                                    (
+                                        TIME_TO_SEC(TIME(al.scan_out_time)) 
+                                        + IF(TIME(al.scan_out_time) < sm.start_time AND TIME(al.scan_out_time) < '12:00:00', 86400, 0)
+                                        - TIME_TO_SEC(IFNULL(sm.ot_start_time, '17:10:00'))
+                                    ) / 60
+                                ) / 30) * 0.5,
+                                0
+                            )
+                        )
+                        +
+                        (
+                            IF(al.scan_in_time IS NOT NULL AND TIME(al.scan_in_time) >= '04:00:00' AND TIME(al.scan_in_time) < IFNULL(sm.start_time, '07:30:00'),
+                                FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(IFNULL(sm.start_time, '07:30:00'), GREATEST(TIME(al.scan_in_time), '05:30:00'))) / 60) / 30) * 0.5,
+                                0
+                            )
+                        )
+                END as ot_hours
+
+             FROM attendance_logs al
+             LEFT JOIN employee_shifts es ON al.emp_id = es.emp_id AND al.work_date = es.work_date
+             LEFT JOIN shift_master sm ON COALESCE(es.shift_code, al.shift_type) = sm.shift_code
+             WHERE al.emp_id IN (${placeholders}) 
+               AND al.work_date BETWEEN ? AND ?`,
 			[...empIds, startDate, endDate]
 		);
 
 		const workbook = new ExcelJS.Workbook();
-		const worksheet = workbook.addWorksheet(`Schedule ${targetYear}-${targetMonth}`);
+		const worksheet = workbook.addWorksheet(
+			`Schedule ${targetYear}-${String(targetMonth).padStart(2, '0')}`
+		);
 
 		worksheet.mergeCells('A1:B1');
 		worksheet.getCell('A1').value = 'Shift Legend (คำอธิบายสัญลักษณ์)';
@@ -123,7 +165,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				if (log) {
 					const inTime = log.time_in || '-';
 					const outTime = log.time_out || '-';
-					const ot = Number(log.ot_hours) > 0 ? `\nOT: ${log.ot_hours}` : '';
+					const otHoursNum = Number(log.ot_hours);
+					const ot = otHoursNum > 0 ? `\nOT: ${otHoursNum}` : '';
+
 					if (inTime !== '-' || outTime !== '-') cellValue += `\n${inTime} - ${outTime}${ot}`;
 				}
 				rowData.push(cellValue);
@@ -147,17 +191,21 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 					const val = cell.value ? cell.value.toString() : '';
 
 					if (val.includes('[D]')) {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } }; // ส้มอ่อน
+						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
 						cell.font = { color: { argb: 'FF9A3412' } };
 					} else if (val.includes('[N]')) {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }; // น้ำเงินเลย
-						cell.font = { color: { argb: 'FFFFFFFF' }, bold: true }; // ตัวหนังสือขาวเพื่อให้เด่น
+						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+						cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
 					} else if (val.includes('[L]')) {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } }; // พื้นหลังสีแดง
+						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
 						cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
 					} else if (val.includes('[O]') || val.includes('[DAY OFF]') || val === '-') {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } }; // เทา (หยุด)
+						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
 						cell.font = { color: { argb: 'FF9CA3AF' } };
+					} else if (val.includes('OT:')) {
+						// 🌟 ไฮไลท์สีเขียวสำหรับช่องที่มีโอที (กรณีที่ไม่ตรงกับเงื่อนไขกะด้านบน)
+						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+						cell.font = { color: { argb: 'FF166534' } };
 					}
 				}
 			});
