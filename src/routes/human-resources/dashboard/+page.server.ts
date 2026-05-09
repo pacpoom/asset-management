@@ -24,11 +24,34 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	const groupFilter = url.searchParams.get('group') || 'All';
 
 	try {
+		const [currentUserRows]: any = await pool.execute(
+			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
+			[locals.user?.id || 0]
+		);
+		const actualDeptId = currentUserRows.length > 0 ? currentUserRows[0].department_id : 0;
+
+		const user = locals.user as LocalUser;
+		const isSuperAdmin =
+			user?.role === 'admin' &&
+			(user?.username === 'admin' ||
+				user?.email?.startsWith('admin') ||
+				user?.id === 1 ||
+				user?.id === 2);
+
+		let securityWhere = '';
+		let securityParams: any[] = [];
+		if (!isSuperAdmin) {
+			securityWhere = ' AND e.department_id = ?';
+			securityParams.push(actualDeptId);
+		}
+
 		const [sectionsRows]: any = await pool.execute(
-			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
+			`SELECT DISTINCT section FROM employees e WHERE section IS NOT NULL AND section != '-' ${securityWhere} ORDER BY section`,
+			securityParams
 		);
 		const [groupsRows]: any = await pool.execute(
-			`SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-' ORDER BY emp_group`
+			`SELECT DISTINCT emp_group FROM employees e WHERE emp_group IS NOT NULL AND emp_group != '-' ${securityWhere} ORDER BY emp_group`,
+			securityParams
 		);
 
 		let empWhere = '';
@@ -51,12 +74,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				SUM(CASE WHEN al.status IN ('Present', 'Late') OR al.scan_in_time IS NOT NULL THEN 1 ELSE 0 END) as attendance
 			FROM employees e
 			LEFT JOIN attendance_logs al ON e.emp_id = al.emp_id AND al.work_date = ?
-			WHERE e.section IS NOT NULL AND e.section != '-' ${empWhere}
+			WHERE e.section IS NOT NULL AND e.section != '-' ${securityWhere} ${empWhere}
 			GROUP BY e.section, e.emp_group
 			ORDER BY e.section ASC, e.emp_group ASC
 		`;
 		const [departmentSummary]: any = await pool.execute(summaryQuery, [
 			displayDate,
+			...securityParams,
 			...filterParams
 		]);
 
@@ -78,11 +102,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				IFNULL(jp.position_name, '-') as position,
 				al.is_late
 			FROM attendance_logs al
-			LEFT JOIN employees e ON al.emp_id = e.emp_id
+			INNER JOIN employees e ON al.emp_id = e.emp_id
 			LEFT JOIN job_positions jp ON e.position_id = jp.id
-			WHERE al.work_date = ? ${empWhere}
+			WHERE al.work_date = ? ${securityWhere} ${empWhere}
 		`;
-		const logParams: any[] = [displayDate, ...filterParams];
+		const logParams: any[] = [displayDate, ...securityParams, ...filterParams];
 
 		if (search) {
 			logQuery += ` AND (al.emp_id LIKE ? OR e.emp_name LIKE ? OR e.section LIKE ?)`;
@@ -99,33 +123,27 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const statsQuery = `
 			SELECT 
-				(SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) as total_plan, 
+				(SELECT COUNT(emp_id) FROM employees e WHERE status != 'Resigned' ${securityWhere} ${empWhere}) as total_plan, 
 				
 				COUNT(DISTINCT al.emp_id) as total_scanned, 
 				SUM(CASE WHEN al.is_late = 1 THEN 1 ELSE 0 END) as late,
 				
-				(SELECT COUNT(emp_id) FROM employees WHERE status != 'Resigned' ${empWhere.replace('e.', '')}) - COUNT(DISTINCT al.emp_id) as absent
+				(SELECT COUNT(emp_id) FROM employees e WHERE status != 'Resigned' ${securityWhere} ${empWhere}) - COUNT(DISTINCT al.emp_id) as absent
 
 			FROM attendance_logs al
 			INNER JOIN employees e ON al.emp_id = e.emp_id 
-			WHERE al.work_date = ? ${empWhere}
+			WHERE al.work_date = ? ${securityWhere} ${empWhere}
 		`;
 
-		const [statsRow]: any = await pool.execute(statsQuery, [displayDate, ...filterParams]);
-
-		const [currentUserRows]: any = await pool.execute(
-			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
-			[locals.user?.id || 0]
-		);
-		const actualDeptId = currentUserRows.length > 0 ? currentUserRows[0].department_id : 0;
-
-		const user = locals.user as LocalUser;
-		const isSuperAdmin =
-			user?.role === 'admin' &&
-			(user?.username === 'admin' ||
-				user?.email?.startsWith('admin') ||
-				user?.id === 1 ||
-				user?.id === 2);
+		const [statsRow]: any = await pool.execute(statsQuery, [
+			...securityParams,
+			...filterParams,
+			...securityParams,
+			...filterParams,
+			displayDate,
+			...securityParams,
+			...filterParams
+		]);
 
 		let scannerQuery = `
 			SELECT device_name, ip_address, status, last_sync 
@@ -406,7 +424,6 @@ export const actions: Actions = {
 
 		const ZKLib = (await import('node-zklib')).default;
 
-		// 🌟 2. ดึงแผนกจริงๆ ก่อนกดซิงค์
 		const [currentUserRows]: any = await pool.execute(
 			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
 			[locals.user?.id || 0]
