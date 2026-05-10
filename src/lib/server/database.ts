@@ -51,4 +51,16 @@ export const btpool = mysql.createPool({
 	queueLimit: 0
 });
 
+// 5. AF DB Pool (เพิ่มเข้ามาใหม่)
+export const afpool = mysql.createPool({
+	host: env.AF_HOST || '192.168.111.52',
+	port: Number(env.AF_PORT) || 3307,
+	user: env.AF_USER || 'root',
+	password: env.AF_PASSWORD || 'Anji@12345',
+	database: env.AF_DATABASE || 'afwms_db',
+	waitForConnections: true,
+	connectionLimit: 5,
+	queueLimit: 0
+});
+
 export default pool;
