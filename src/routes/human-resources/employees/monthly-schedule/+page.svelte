@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
-    import { page } from '$app/stores';
+    import { page, navigating } from '$app/stores';
+    import { t } from '$lib/i18n';
     import type { PageData } from './$types';
 
 	export let data: PageData;
@@ -30,8 +31,8 @@
     }
 </script>
 
-<!-- หน้าจอ Loading Overlay (จะแสดงก็ต่อเมื่อ isLoading = true) -->
-{#if isLoading}
+<!-- หน้าจอ Loading Overlay (จะแสดงก็ต่อเมื่อมีการเปลี่ยนหน้าหรือดึงข้อมูลใหม่) -->
+{#if $navigating}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-sm transition-opacity">
         <div class="flex flex-col items-center p-6 bg-white rounded-xl shadow-lg border border-gray-100">
             <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
