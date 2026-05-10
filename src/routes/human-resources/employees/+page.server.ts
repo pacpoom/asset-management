@@ -5,7 +5,9 @@ import { fail } from '@sveltejs/kit';
 import path from 'path';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
+	// ดึงข้อมูล user ที่ login อยู่ปัจจุบันจาก locals (ได้มาจาก hooks.server.ts)
+	const user = locals.user; 
 	const search = url.searchParams.get('search') || '';
 
 	try {
@@ -43,6 +45,21 @@ export const load: PageServerLoad = async ({ url }) => {
 	`;
 
 		const params: any[] = [];
+
+		// ==========================================
+		// ลอจิกใหม่: กรองข้อมูลตาม department_id ของ User
+		// ==========================================
+		if (user && user.role !== 'admin') {
+			if (user.department_id) {
+				// ให้แสดงเฉพาะพนักงานที่มี department_id ตรงกับ user ที่ล็อกอิน
+				query += ` AND e.department_id = ?`;
+				params.push(user.department_id);
+			} else {
+				// กรณี User ไม่มีสังกัดแผนก (ป้องกันไม่ให้มองเห็นข้อมูลพนักงานคนอื่นโดยบังเอิญ)
+				query += ` AND 1=0`; // บังคับให้ query ไม่คืนค่าใดๆ กลับไป
+			}
+		}
+		// ==========================================
 
 		if (search) {
 			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?)`;
