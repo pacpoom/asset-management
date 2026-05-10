@@ -34,7 +34,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         const [shifts] = await pool.execute('SELECT shift_code, shift_name, color_theme FROM shift_master WHERE status = ?', ['Active']);
         const shiftColorMap: Record<string, string> = {};
         
-        // ใช้ for...of แทน .forEach ป้องกันปัญหา ASI (Automatic Semicolon Insertion) ตอนที่ Svelte/Vite Compile
         for (const s of shifts as any[]) {
             shiftColorMap[s.shift_code] = s.color_theme;
         }
@@ -65,7 +64,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         if (empIds.length > 0) {
             const placeholders = empIds.map(() => '?').join(',');
 
-            // 3. ดึงข้อมูล "แผนการจัดกะ" จาก employee_shifts (เป็นโครงตารางหลัก ทำให้รู้วัน Day Off)
+            // 3. ดึงข้อมูล "แผนการจัดกะ"
             const [plannedShifts] = await pool.execute(
                 `SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_code
                  FROM employee_shifts
@@ -74,21 +73,25 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 [...empIds, startDate, endDate]
             );
 
-            // 4. ดึงข้อมูล "การเข้างานจริง" จาก attendance_logs (ดึงเวลาเข้า-ออก และชั่วโมง OT)
+            // 4. ดึงข้อมูล "การเข้างานจริง" พร้อม Join เอา ot_start_time มาจาก shift_master
+            // เพื่อใช้คำนวณ OT ในกรณีที่ฟิลด์ ot_hours ในฐานข้อมูลมีค่าเป็น 0
             const [logs] = await pool.execute(
-                `SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date, shift_type,
-                        DATE_FORMAT(scan_in_time, '%H:%i') as time_in,
-                        DATE_FORMAT(scan_out_time, '%H:%i') as time_out,
-                        ot_hours
-                 FROM attendance_logs
-                 WHERE emp_id IN (${placeholders}) 
-                   AND work_date BETWEEN ? AND ?`,
+                `SELECT a.emp_id, DATE_FORMAT(a.work_date, '%Y-%m-%d') as work_date, a.shift_type,
+                        DATE_FORMAT(a.scan_in_time, '%H:%i') as time_in,
+                        DATE_FORMAT(a.scan_out_time, '%H:%i') as time_out,
+                        a.scan_out_time as raw_scan_out,
+                        a.ot_hours as db_ot_hours,
+                        s.ot_start_time
+                 FROM attendance_logs a
+                 LEFT JOIN shift_master s ON a.shift_type = s.shift_code
+                 WHERE a.emp_id IN (${placeholders}) 
+                   AND a.work_date BETWEEN ? AND ?`,
                 [...empIds, startDate, endDate]
             );
 
-            // 5. รวม (Merge) ข้อมูลแผนกะการทำงาน กับ การเข้างานจริง เข้าด้วยกัน
+            // 5. รวมข้อมูล
             
-            // Step 5.1: วางแผนกะ (DAY OFF และกะล่วงหน้า) ลงใน Map ก่อน
+            // Step 5.1: วางแผนกะ
             for (const plan of plannedShifts as any[]) {
                 if (scheduleMap[plan.emp_id]) {
                     scheduleMap[plan.emp_id][plan.work_date] = {
@@ -101,27 +104,50 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 }
             }
 
-            // Step 5.2: นำข้อมูลการสแกนนิ้วจริง (IN/OUT/OT) มาอัปเดตทับลงไป
+            // Step 5.2: นำข้อมูลการสแกนนิ้วมาอัปเดตทับ พร้อมคำนวณ OT
             for (const log of logs as any[]) {
                 if (scheduleMap[log.emp_id]) {
+                    let finalOtHours = Number(log.db_ot_hours || 0);
+
+                    // ==========================================
+                    // ระบบคำนวณ OT อัตโนมัติ (Dynamic OT Calculation)
+                    // ทำงานเมื่อ DB เป็น 0 และ พนักงานมีการสแกนออก
+                    // ==========================================
+                    if (finalOtHours === 0 && log.raw_scan_out && log.ot_start_time) {
+                        try {
+                            // แปลงเวลาให้เป็น Object Date ของ Javascript เพื่อให้คำนวณง่าย
+                            const scanOutDate = log.raw_scan_out instanceof Date ? log.raw_scan_out : new Date(log.raw_scan_out);
+                            const otStartDate = new Date(`${log.work_date}T${log.ot_start_time}`);
+
+                            // ถ้าเวลาออกงาน มากกว่า เวลาเริ่มนับ OT ให้คำนวณ
+                            if (scanOutDate > otStartDate) {
+                                const diffMs = scanOutDate.getTime() - otStartDate.getTime();
+                                const diffHours = diffMs / (1000 * 60 * 60);
+
+                                // ปัดเศษลงทีละครึ่งชั่วโมง (0.5) ตามมาตรฐานโรงงานทั่วไป
+                                // เช่น คำนวณได้ 3.1 ชม. -> จะเหลือ 3.0 ชม.
+                                finalOtHours = Math.floor(diffHours * 2) / 2;
+                            }
+                        } catch (e) {
+                            console.error("Error calculating OT for", log.emp_id, e);
+                        }
+                    }
+
                     const existingPlan = scheduleMap[log.emp_id][log.work_date];
                     
                     if (existingPlan) {
-                        // ถ้ามีในแผนอยู่แล้ว ให้อัปเดตเวลาเข้าออก และ OT
-                        // (ถ้ามีการสลับกะหน้างาน จะใช้กะจากระบบสแกนนิ้วเป็นหลัก)
                         existingPlan.shift = log.shift_type || existingPlan.shift;
                         existingPlan.color = shiftColorMap[existingPlan.shift] || existingPlan.color;
                         existingPlan.timeIn = log.time_in;
                         existingPlan.timeOut = log.time_out;
-                        existingPlan.otHours = log.ot_hours;
+                        existingPlan.otHours = finalOtHours;
                     } else {
-                        // กรณีไม่ได้ถูกจัดกะในแผน แต่พนักงานมาสแกนทำงานจริง
                         scheduleMap[log.emp_id][log.work_date] = {
                             shift: log.shift_type || 'Unknown',
                             color: shiftColorMap[log.shift_type] || 'gray',
                             timeIn: log.time_in,
                             timeOut: log.time_out,
-                            otHours: log.ot_hours
+                            otHours: finalOtHours
                         };
                     }
                 }
