@@ -30,6 +30,7 @@
 	let appliedDisplayLimit: '10' | '20' | '50' | '100' | '200' | 'all' = '20';
 	let isDeleting = false;
 	let statusUpdatingId: number | null = null;
+	let effectiveDateUpdatingId: number | null = null;
 	let uploadingFileId: number | null = null;
 	let removingFileId: number | null = null;
 	let isCreating = false;
@@ -391,6 +392,49 @@
 		return `${month} ${day}, ${year}`;
 	}
 
+	function toInputDateValue(dateString: string): string {
+		if (!dateString) return '';
+		const raw = String(dateString).trim();
+		if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+		const date = new Date(raw);
+		if (Number.isNaN(date.getTime())) return '';
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
+	async function updateDocumentEffectiveDate(docId: number, newEffectiveDate: string) {
+		if (!newEffectiveDate) {
+			alert('กรุณาเลือก Effective Date');
+			return;
+		}
+
+		effectiveDateUpdatingId = docId;
+		try {
+			const formData = new FormData();
+			formData.append('id', String(docId));
+			formData.append('effective_date', newEffectiveDate);
+
+			const response = await fetch('?/updateEffectiveDate', {
+				method: 'POST',
+				body: formData
+			});
+
+			const result = await parseActionData(response);
+			if (result.success) {
+				window.location.reload();
+			} else {
+				alert('Error: ' + (result.error || result.message || 'Failed to update effective date'));
+			}
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			alert('Error: ' + message);
+		} finally {
+			effectiveDateUpdatingId = null;
+		}
+	}
+
 	function getDocTypeColor(type: string): string {
 		const colors: Record<string, string> = {
 			QM: 'bg-purple-100 text-purple-800',
@@ -688,7 +732,21 @@
 									<td class="px-6 py-4">
 										<span class="font-mono font-bold text-slate-900">Rev.{doc.current_revision}</span>
 									</td>
-									<td class="whitespace-nowrap px-6 py-4 text-slate-600">{formatEffectiveDate(doc.effective_date)}</td>
+									<td class="whitespace-nowrap px-6 py-4 text-slate-600">
+										<div class="flex items-center gap-2">
+											<input
+												type="date"
+												value={toInputDateValue(doc.effective_date)}
+												class="rounded border border-slate-300 px-2 py-1 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+												disabled={effectiveDateUpdatingId === doc.id || isDeleting}
+												onchange={(e) => {
+													const nextValue = (e.currentTarget as HTMLInputElement).value;
+													updateDocumentEffectiveDate(doc.id, nextValue);
+												}}
+											/>
+											<span class="text-[11px] text-slate-500">{formatEffectiveDate(doc.effective_date)}</span>
+										</div>
+									</td>
 									<td class="w-[6.5rem] max-w-[6.5rem] px-2 py-3 whitespace-nowrap">
 										<select
 											class={`w-full max-w-full rounded border py-1 pl-1.5 pr-6 text-xs font-medium focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 ${

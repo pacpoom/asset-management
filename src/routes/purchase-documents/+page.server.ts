@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import { getPurchaseDepartmentScope } from '$lib/purchaseDocumentAccess';
+import { insertPurchaseDocumentDeletionLog } from '$lib/server/purchaseDocumentDeletionLog';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const page = parseInt(url.searchParams.get('page') || '1', 10);
@@ -112,20 +113,38 @@ export const actions: Actions = {
 		const id = formData.get('id');
 
 		if (!id) return fail(400, { message: 'ไม่พบรหัสเอกสาร' });
+		if (!locals.user?.id) return fail(401, { message: 'กรุณาเข้าสู่ระบบ' });
 
 		try {
 			const scopedDepartmentId = getPurchaseDepartmentScope(locals.user);
+			const [docRows] = await pool.query<any[]>(
+				`SELECT pd.id, pd.document_type, pd.document_number, creator.department_id AS creator_department_id
+				 FROM purchase_documents pd
+				 LEFT JOIN users creator ON creator.id = pd.created_by_user_id
+				 WHERE pd.id = ?
+				 LIMIT 1`,
+				[id]
+			);
+			if (docRows.length === 0) return fail(404, { message: 'ไม่พบเอกสาร' });
+
 			if (scopedDepartmentId !== null) {
-				const [docRows] = await pool.query<any[]>(
-					`SELECT pd.id
-					 FROM purchase_documents pd
-					 LEFT JOIN users creator ON creator.id = pd.created_by_user_id
-					 WHERE pd.id = ? AND creator.department_id = ?
-					 LIMIT 1`,
-					[id, scopedDepartmentId]
-				);
-				if (docRows.length === 0) return fail(403, { message: 'ไม่มีสิทธิ์ลบเอกสารข้ามแผนก' });
+				const creatorDept = docRows[0].creator_department_id;
+				if (creatorDept == null || Number(creatorDept) !== scopedDepartmentId) {
+					return fail(403, { message: 'ไม่มีสิทธิ์ลบเอกสารข้ามแผนก' });
+				}
 			}
+
+			await insertPurchaseDocumentDeletionLog({
+				documentId: Number(id),
+				documentType: String(docRows[0].document_type || ''),
+				documentNumber:
+					docRows[0].document_number != null ? String(docRows[0].document_number) : null,
+				creatorDepartmentId:
+					docRows[0].creator_department_id != null
+						? Number(docRows[0].creator_department_id)
+						: null,
+				deletedByUserId: locals.user.id
+			});
 
 			await pool.execute('DELETE FROM purchase_document_items WHERE document_id = ?', [id]);
 			await pool.execute('DELETE FROM purchase_document_attachments WHERE document_id = ?', [id]);

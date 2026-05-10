@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
+import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -48,12 +49,28 @@ async function ensureCanAccessPurchaseDocument(documentId: number, user: App.Use
 		 LIMIT 1`,
 		[documentId]
 	);
-	if (rows.length === 0) throw error(404, 'Purchase Document not found');
+	if (rows.length === 0) {
+		await throwIfDeletedPurchaseRequisition(documentId, user);
+		throw error(404, 'Purchase Document not found');
+	}
 	const creatorDepartmentId =
 		rows[0].creator_department_id != null ? Number(rows[0].creator_department_id) : null;
 	if (!canAccessPurchaseDocumentByDepartment(user, creatorDepartmentId)) {
 		throw error(403, 'Forbidden: document is outside your department scope');
 	}
+}
+
+async function hasIssuedPurchaseOrderFromPr(prDocumentNumber: string): Promise<boolean> {
+	if (!prDocumentNumber) return false;
+	const [rows] = await pool.query<any[]>(
+		`SELECT id
+		 FROM purchase_documents
+		 WHERE document_type = 'PO'
+		   AND reference_doc LIKE ?
+		 LIMIT 1`,
+		[`%${prDocumentNumber}%`]
+	);
+	return rows.length > 0;
 }
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -68,6 +85,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		]);
 		if (docRows.length === 0) throw error(404, 'Purchase Document not found');
 		const document = docRows[0];
+		if (
+			String(document.document_type || '').toUpperCase() === 'PR' &&
+			(await hasIssuedPurchaseOrderFromPr(String(document.document_number || '')))
+		) {
+			const msg = encodeURIComponent('PR นี้ออก PO เรียบร้อยแล้ว ห้ามแก้ไข');
+			throw redirect(303, `/purchase-documents/${documentId}?edit_blocked=1&message=${msg}`);
+		}
 
 		const [itemRows] = await pool.query<any[]>(
 			'SELECT * FROM purchase_document_items WHERE document_id = ? ORDER BY item_order ASC',
@@ -105,6 +129,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		};
 	} catch (err: any) {
 		console.error('Load edit error:', err);
+		if (err?.status) throw err;
 		throw error(500, err.message);
 	}
 };
@@ -114,6 +139,20 @@ export const actions: Actions = {
 		const documentId = parseInt(params.id);
 		const formData = await request.formData();
 		await ensureCanAccessPurchaseDocument(documentId, locals.user);
+		const [docRows] = await pool.query<any[]>(
+			'SELECT document_type, document_number FROM purchase_documents WHERE id = ? LIMIT 1',
+			[documentId]
+		);
+		const currentDoc = docRows[0];
+		if (
+			currentDoc &&
+			String(currentDoc.document_type || '').toUpperCase() === 'PR' &&
+			(await hasIssuedPurchaseOrderFromPr(String(currentDoc.document_number || '')))
+		) {
+			return fail(403, {
+				message: 'ไม่สามารถแก้ไข PR นี้ได้ เนื่องจากมีการออก PO ไปแล้ว'
+			});
+		}
 
 		const vendor_id = formData.get('vendor_id');
 		const vendor_contact_id = formData.get('vendor_contact_id')?.toString() || null;

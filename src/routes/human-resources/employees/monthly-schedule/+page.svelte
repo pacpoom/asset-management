@@ -1,24 +1,21 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
-    import { navigating } from '$app/stores'; // Import navigating เพื่อใช้ทำ Loading State
+    import { page } from '$app/stores';
     import type { PageData } from './$types';
 
-    export let data: PageData;
+	export let data: PageData;
 
     let selectedMonth = data.currentMonth;
 
-    // เช็คว่า SvelteKit กำลังโหลด/เปลี่ยนหน้าอยู่หรือไม่
-    $: isLoading = !!$navigating;
+	// ฟังก์ชันสร้าง Array ของวันที่ (1 ถึงจำนวนวันสิ้นเดือน)
+	$: daysArray = Array.from({ length: data.daysInMonth || 31 }, (_, i) => i + 1);
 
-    // ฟังก์ชันสร้าง Array ของวันที่ (1 ถึงจำนวนวันสิ้นเดือน)
-    $: daysArray = Array.from({ length: data.daysInMonth || 31 }, (_, i) => i + 1);
-
-    // จัดการเมื่อเปลี่ยนเดือน
-    function handleMonthChange() {
-        if (selectedMonth) {
-            goto(`?month=${selectedMonth}`);
-        }
-    }
+	// จัดการเมื่อเปลี่ยนเดือน
+	function handleMonthChange() {
+		if (selectedMonth) {
+			goto(`?month=${selectedMonth}`);
+		}
+	}
 
     // ฟังก์ชันช่วยแปลงสีจากฐานข้อมูลเป็น Tailwind Class
     function getColorClass(colorStr: string) {
@@ -26,7 +23,6 @@
             'orange': 'bg-orange-100 text-orange-800 border-orange-200',
             'red': 'bg-red-100 text-red-800 border-red-200',
             'blue': 'bg-blue-100 text-blue-800 border-blue-200',
-            'indigo': 'bg-indigo-100 text-indigo-800 border-indigo-200',
             'gray': 'bg-gray-100 text-gray-800 border-gray-200',
             'green': 'bg-green-100 text-green-800 border-green-200',
         };
@@ -45,12 +41,14 @@
     </div>
 {/if}
 
-<div class="p-6 max-w-[100vw]">
-    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800">ตารางการทำงานรายเดือน</h1>
-            <p class="text-gray-500 text-sm mt-1">แสดงข้อมูลเวลาเข้า-ออก และชั่วโมงโอทีของพนักงาน (Active Employees)</p>
-        </div>
+<div class="max-w-[100vw] p-6">
+	<div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+		<div>
+			<h1 class="text-2xl font-bold text-gray-800">{$t('ตารางการทำงานรายเดือน')}</h1>
+			<p class="mt-1 text-sm text-gray-500">
+				{$t('แสดงข้อมูลเวลาเข้า-ออก และชั่วโมงโอทีของพนักงาน (Active Employees)')}
+			</p>
+		</div>
 
         <!-- ตัวเลือกเดือน -->
         <div class="flex items-center gap-2">
@@ -60,40 +58,33 @@
                 id="month" 
                 bind:value={selectedMonth} 
                 on:change={handleMonthChange}
-                disabled={isLoading}
-                class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-50"
+                class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
         </div>
     </div>
 
-    <!-- แจ้งเตือนกรณี Error -->
-    {#if data.error}
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
-            <p class="text-red-700">{data.error}</p>
-        </div>
-    {/if}
-
-    <!-- คำอธิบายกะ (Legend) -->
-    <div class="mb-4 flex flex-wrap gap-3 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-        <span class="text-sm font-medium text-gray-700 mr-2">สัญลักษณ์กะ:</span>
-        {#each data.shifts as shift}
-            <div class="flex items-center gap-1.5 text-xs">
-                <span class="px-2 py-0.5 rounded border {getColorClass(shift.color_theme)} font-semibold">
-                    {shift.shift_code}
-                </span>
-                <span class="text-gray-600">= {shift.shift_name}</span>
-            </div>
-        {/each}
-        <div class="flex items-center gap-1.5 text-xs ml-2 border-l pl-3 border-gray-300">
-            <span class="px-2 py-0.5 rounded border bg-gray-200 text-gray-600 border-gray-300 font-semibold">
-                DAY OFF
-            </span>
-            <span class="text-gray-600">= วันหยุด</span>
-        </div>
-    </div>
+	<div class="mb-4 flex flex-wrap gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+		<span class="mr-2 text-sm font-medium text-gray-700">{$t('สัญลักษณ์กะ:')}</span>
+		{#each data.shifts as shift}
+			<div class="flex items-center gap-1.5 text-xs">
+				<span class="rounded border px-2 py-0.5 {getColorClass(shift.color_theme)} font-semibold">
+					{shift.shift_code}
+				</span>
+				<span class="text-gray-600">= {shift.shift_name}</span>
+			</div>
+		{/each}
+		<div class="ml-2 flex items-center gap-1.5 border-l border-gray-300 pl-3 text-xs">
+			<span
+				class="rounded border border-gray-300 bg-gray-200 px-2 py-0.5 font-semibold text-gray-600"
+			>
+				DAY OFF
+			</span>
+			<span class="text-gray-600">= {$t('วันหยุด')}</span>
+		</div>
+	</div>
 
     <!-- ตารางข้อมูล -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto w-full max-h-[70vh] custom-scrollbar">
             <table class="min-w-max w-full text-left text-sm whitespace-nowrap border-collapse">
                 <thead class="bg-gray-50 sticky top-0 z-20 shadow-sm text-gray-600">
@@ -105,6 +96,7 @@
                         
                         <!-- คอลัมน์วันที่ 1-31 -->
                         {#each daysArray as day}
+                            <!-- เพิ่มความกว้างคอลัมน์เพื่อรองรับข้อมูล 3 ช่อง -->
                             <th class="px-2 py-3 font-semibold border-b border-gray-200 text-center min-w-[130px]">
                                 วันที่ {day}
                             </th>
@@ -132,13 +124,17 @@
                                             {@const hasOT = Number(shiftData.otHours) > 0}
                                             {@const hasWork = shiftData.timeIn || shiftData.timeOut || hasOT}
                                             
+                                            <!-- กล่องแสดงข้อมูล 1 วัน (กะด้านบน, IN/OUT/OT ด้านล่าง) -->
                                             <div class="flex flex-col bg-white border {isDayOff ? 'border-gray-200' : 'border-gray-200'} rounded shadow-sm overflow-hidden h-full {isDayOff && !hasWork ? 'opacity-80' : 'hover:border-blue-300'} transition-colors">
                                                 
+                                                <!-- ส่วนหัวกะการทำงาน (Shift หรือ DAY OFF) -->
                                                 <div class="text-center py-1 border-b border-gray-200 {isDayOff ? 'bg-gray-200 text-gray-600' : getColorClass(shiftData.color)}">
                                                     <span class="text-[11px] font-bold tracking-wide">{isDayOff ? 'DAY OFF' : shiftData.shift}</span>
                                                 </div>
                                                 
+                                                <!-- ส่วนแบ่งข้อมูล IN / OUT / OT ออกเป็น 3 ช่อง -->
                                                 {#if isDayOff && !hasWork}
+                                                    <!-- กรณีเป็นวันหยุดและไม่ได้มาสแกนทำงาน (พักผ่อน) -->
                                                     <div class="flex-grow flex items-center justify-center bg-gray-50 text-gray-400 text-[10px] font-medium py-3">
                                                         พักผ่อน
                                                     </div>
@@ -152,6 +148,7 @@
                                                             <span class="text-gray-400 text-[8px] uppercase font-medium">OUT</span>
                                                             <span class="font-medium {shiftData.timeOut ? 'text-orange-600' : 'text-gray-400'}">{shiftData.timeOut || '-'}</span>
                                                         </div>
+                                                        <!-- ไฮไลท์ช่อง OT หากมีการทำโอที -->
                                                         <div class="py-1.5 flex flex-col justify-center {hasOT ? 'bg-blue-100' : (isDayOff ? 'bg-gray-50' : 'bg-blue-50/30')}">
                                                             <span class="{hasOT ? 'text-blue-800' : 'text-gray-400'} text-[8px] uppercase font-medium">OT</span>
                                                             <span class="font-bold {hasOT ? 'text-blue-700' : 'text-gray-400 font-medium'}">
@@ -163,6 +160,7 @@
                                                 
                                             </div>
                                         {:else}
+                                            <!-- กรณีไม่มีข้อมูลเข้างาน -->
                                             <div class="flex items-center justify-center w-full h-full min-h-[48px] rounded-md bg-gray-50/50 border border-dashed border-gray-200">
                                                 <span class="text-gray-300 text-xs font-light">-</span>
                                             </div>
@@ -185,6 +183,7 @@
 </div>
 
 <style>
+    /* ปรับ Scrollbar ให้ดูสะอาดตาขึ้น */
     .custom-scrollbar::-webkit-scrollbar {
         height: 10px;
         width: 10px;

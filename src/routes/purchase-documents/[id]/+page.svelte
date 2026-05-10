@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/stores';
 	import { tick } from 'svelte';
 	import type { ActionData, PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
@@ -14,6 +15,15 @@
 	let isSaving = $state(false);
 	let updateStatusForm: HTMLFormElement;
 	let statusToUpdate = $state('');
+	let showEditBlockedPopup = $state(false);
+	let editBlockedMessage = $state('');
+
+	$effect(() => {
+		const blocked = $page.url.searchParams.get('edit_blocked');
+		const msg = $page.url.searchParams.get('message');
+		showEditBlockedPopup = blocked === '1';
+		editBlockedMessage = msg || 'PR นี้ออก PO เรียบร้อยแล้ว ห้ามแก้ไข';
+	});
 
 	$effect(() => {
 		document = data.document;
@@ -174,12 +184,23 @@
 			<span>{$t('Print PDF')}</span>
 		</a>
 
-		<a
-			href="/purchase-documents/{document.id}/edit"
-			class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-50"
-		>
-			{$t('Edit')}
-		</a>
+		{#if data.canEdit}
+			<a
+				href="/purchase-documents/{document.id}/edit"
+				class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-50"
+			>
+				{$t('Edit')}
+			</a>
+		{:else}
+			<button
+				type="button"
+				class="rounded-lg bg-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700"
+				title="PR นี้มีการออก PO แล้ว จึงไม่สามารถแก้ไขได้"
+				disabled
+			>
+				{$t('Edit')}
+			</button>
+		{/if}
 
 		<div class="relative">
 			<select
@@ -200,6 +221,28 @@
 		</div>
 	</div>
 </div>
+
+{#if showEditBlockedPopup}
+	<div class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/30 p-4">
+		<div class="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+			<h3 class="mb-2 text-lg font-bold text-gray-900">ไม่สามารถแก้ไขเอกสาร</h3>
+			<p class="text-sm text-gray-700">{editBlockedMessage}</p>
+			<div class="mt-4 flex justify-end">
+				<button
+					type="button"
+					class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+					onclick={() => {
+						showEditBlockedPopup = false;
+						const cleanUrl = `${$page.url.pathname}`;
+						window.history.replaceState({}, '', cleanUrl);
+					}}
+				>
+					ตกลง
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <div class="mb-6 rounded-lg border bg-white p-6 shadow-sm">
 	<div class="flex flex-col justify-between gap-4 pb-4 md:flex-row">
