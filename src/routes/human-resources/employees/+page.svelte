@@ -270,11 +270,11 @@
 	<div
 		class="rounded-lg border border-l-4 border-gray-100 border-l-green-500 bg-white p-5 shadow-sm"
 	>
-		<p class="text-sm font-medium text-gray-500">{$t('ทำงานอยู่ (Active)')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Actives')}</p>
 		<p class="mt-2 text-3xl font-bold text-green-600">{stats.active}</p>
 	</div>
 	<div class="rounded-lg border border-l-4 border-gray-100 border-l-red-500 bg-white p-5 shadow-sm">
-		<p class="text-sm font-medium text-gray-500">{$t('ลาออก (Resigned)')}</p>
+		<p class="text-sm font-medium text-gray-500">{$t('Resigned')}</p>
 		<p class="mt-2 text-3xl font-bold text-red-600">{stats.resigned}</p>
 	</div>
 	<div
@@ -1240,8 +1240,8 @@
 									bind:value={selectedItem.status}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								>
-									<option value="Active">{$t('ทำงานอยู่ (Active)')}</option>
-									<option value="Resigned">{$t('ลาออก (Resigned)')}</option>
+									<option value="Active">{$t('Active')}</option>
+									<option value="Resigned">{$t('Resigned')}</option>
 								</select>
 							{/if}
 						</div>
