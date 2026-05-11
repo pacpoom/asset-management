@@ -543,7 +543,7 @@
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_name}</td>
 
 						<td class="px-4 py-3 font-semibold whitespace-nowrap text-gray-700">
-							{emp.department_name || '-'}
+							{emp.actual_dept_name || '-'}
 						</td>
 
 						<td class="px-4 py-3 font-medium whitespace-nowrap text-purple-600"
@@ -942,7 +942,7 @@
 							{#if modalMode === 'view'}
 								<input
 									type="text"
-									value={selectedItem.department_name || '-'}
+									value={selectedItem.actual_dept_name || '-'}
 									readonly
 									class="w-full rounded-md border-gray-300 bg-gray-50 text-gray-600 shadow-sm"
 								/>

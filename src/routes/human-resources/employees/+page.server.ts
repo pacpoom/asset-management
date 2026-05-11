@@ -6,8 +6,7 @@ import path from 'path';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-	// ดึงข้อมูล user ที่ login อยู่ปัจจุบันจาก locals (ได้มาจาก hooks.server.ts)
-	const user = locals.user; 
+	const user = locals.user;
 	const search = url.searchParams.get('search') || '';
 
 	try {
@@ -15,7 +14,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		SELECT 
 			e.*, 
 			jp.position_name,
-			d.name as department_name,
+			d.name as actual_dept_name,
 			sm.start_time as shift_start_time,
 			sm.end_time as shift_end_time,
 			(SELECT MAX(r_sub.scan_datetime) FROM raw_attendance_logs r_sub WHERE r_sub.raw_emp_id = e.raw_id) as last_sync_time,
