@@ -295,7 +295,7 @@
 	<form method="GET" class="flex flex-wrap items-end gap-4">
 		<div class="min-w-[250px] flex-1">
 			<label for="searchInput" class="mb-1 block text-sm font-medium text-gray-700"
-				>{$t('ค้นหารหัส / Raw ID / บัตรประชาชน / ชื่อพนักงาน')}</label
+				>{$t('ค้นหารหัส / บัตรประชาชน / ชื่อพนักงาน')}</label
 			>
 			<input
 				id="searchInput"
