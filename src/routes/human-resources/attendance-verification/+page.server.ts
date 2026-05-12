@@ -102,6 +102,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			return { ...row, percent_att: Math.round(percent * 10) / 10 };
 		});
 
+		const [leaveTypes]: any = await pool.execute(
+			`SELECT leave_name_en FROM leave_types WHERE is_active = 1 ORDER BY leave_name_en ASC`
+		);
+
 		return {
 			displayDate,
 			filterSection,
@@ -110,6 +114,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			groups: groups.map((g: any) => g.emp_group),
 			summary: processedSummary,
 			employeeList,
+			leaveTypes,
 			user
 		};
 	} catch (error) {
@@ -122,6 +127,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			groups: [],
 			summary: [],
 			employeeList: [],
+			leaveTypes: [],
 			user: locals.user || { role: 'staff' }
 		};
 	}

@@ -8,7 +8,7 @@
 	let { data, form } = $props();
 
 	let summary = $derived(data.summary || []);
-	let employeeList = $derived(data.employeeList || []);
+	let employeeList = $state(data.employeeList || []);
 	let isSubmitting = $state(false);
 	let showErrorModal = $state(false);
 
@@ -173,6 +173,10 @@
 	let empPerPage = $state(10);
 	let empTotalPages = $derived(Math.ceil(filteredEmpList.length / empPerPage) || 1);
 	let validEmpPage = $derived(Math.min(empCurrentPage, empTotalPages) || 1);
+
+	$effect(() => {
+		employeeList = data.employeeList || [];
+	});
 </script>
 
 <svelte:head>
@@ -697,10 +701,12 @@
 								<input
 									type="time"
 									name="time_in[]"
-									value={emp.time_in || ''}
-									readonly={isLocked}
+									bind:value={emp.time_in}
+									readonly={hasScan}
 									class="w-full rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-sm focus:border-blue-500 focus:outline-none
-									{isLocked ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-white font-bold text-green-600'}"
+        {hasScan
+										? 'cursor-not-allowed bg-gray-100 text-gray-400'
+										: 'bg-white font-bold text-green-600'}"
 								/>
 							</td>
 
@@ -708,10 +714,12 @@
 								<input
 									type="time"
 									name="time_out[]"
-									value={emp.time_out || ''}
-									readonly={isLocked}
+									bind:value={emp.time_out}
+									readonly={hasScan}
 									class="w-full rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-sm focus:border-blue-500 focus:outline-none
-									{isLocked ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-white font-bold text-purple-600'}"
+        {hasScan
+										? 'cursor-not-allowed bg-gray-100 text-gray-400'
+										: 'bg-white font-bold text-purple-600'}"
 								/>
 							</td>
 
@@ -719,57 +727,66 @@
 								<select
 									aria-label="Status"
 									name="status[]"
-									disabled={isLocked}
+									bind:value={emp.status}
+									onchange={() => {
+										if (emp.status.includes('Leave')) {
+											emp.remark = '';
+										}
+									}}
 									class="w-full cursor-pointer rounded border py-1.5 text-center text-sm font-medium focus:border-blue-500 focus:outline-none
-										{isLocked
-										? 'cursor-not-allowed border-gray-300 bg-gray-200 font-bold text-gray-600'
-										: needsCheck
-											? 'animate-pulse border-red-400 bg-red-100 text-red-700 ring-1 ring-red-400'
-											: isNightPending
-												? 'border-gray-300 bg-gray-100 text-gray-500'
-												: emp.status === 'Present' || (hasScan && emp.status === 'Pending')
-													? 'border-green-300 bg-green-50 text-green-700'
-													: emp.status === 'Late'
-														? 'border-yellow-300 bg-yellow-50 text-yellow-700'
-														: emp.status.includes('Leave')
-															? 'border-orange-300 bg-orange-50 text-orange-700'
-															: emp.status === 'Absent'
-																? 'border-red-300 bg-red-50 text-red-700'
-																: 'border-gray-300 bg-white'}"
+        							{needsCheck
+										? 'animate-pulse border-red-400 bg-red-100 text-red-700 ring-1 ring-red-400'
+										: isNightPending
+											? 'border-gray-300 bg-gray-100 text-gray-500'
+											: emp.status === 'Present' || (hasScan && emp.status === 'Pending')
+												? 'border-green-300 bg-green-50 text-green-700'
+												: emp.status === 'Late'
+													? 'border-yellow-300 bg-yellow-50 text-yellow-700'
+													: emp.status.includes('Leave')
+														? 'border-orange-300 bg-orange-50 text-orange-700'
+														: emp.status === 'Absent'
+															? 'border-red-300 bg-red-50 text-red-700'
+															: 'border-gray-300 bg-white'}"
 								>
 									{#if needsCheck || isNightPending}
-										<option value="Pending" selected hidden>
+										<option value="Pending" hidden>
 											{isNightPending ? 'รอกะดึกเข้างาน...' : $t('รอระบุสถานะ...')}
 										</option>
 									{/if}
 									{#each statusOptions as opt}
-										<option
-											value={opt.value}
-											selected={emp.status === opt.value ||
-												(hasScan && emp.status === 'Pending' && opt.value === 'Present')}
-										>
+										<option value={opt.value}>
 											{opt.label}
 										</option>
 									{/each}
 								</select>
-								{#if isLocked}<input type="hidden" name="status[]" value={emp.status} />{/if}
 							</td>
 
 							<td class="px-4 py-2">
-								<input
-									aria-label="Remark"
-									type="text"
-									name="remark[]"
-									value={emp.remark || ''}
-									placeholder={needsCheck
-										? $t('ระบุเหตุผลที่ไม่ได้สแกนนิ้ว...')
-										: isNightPending
-											? '-'
-											: $t('หมายเหตุเพิ่มเติม (ถ้ามี)')}
-									readonly={isLocked || isNightPending}
-									class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none
-									{isLocked || isNightPending ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-white'}"
-								/>
+								{#if emp.status && emp.status.includes('Leave')}
+									<select
+										name="remark[]"
+										disabled={isNightPending}
+										bind:value={emp.remark}
+										class="w-full rounded border border-orange-300 bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-700"
+									>
+										<option value="" disabled>{$t('- เลือกประเภทการลา -')}</option>
+
+										{#each data.leaveTypes || [] as leave}
+											<option value={leave.leave_name_en}>
+												{leave.leave_name_en}
+											</option>
+										{/each}
+									</select>
+								{:else}
+									<input
+										type="text"
+										name="remark[]"
+										bind:value={emp.remark}
+										placeholder={$t('หมายเหตุเพิ่มเติม...')}
+										readonly={isNightPending}
+										class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+									/>
+								{/if}
 							</td>
 						</tr>
 					{/each}

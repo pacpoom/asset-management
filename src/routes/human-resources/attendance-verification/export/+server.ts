@@ -44,9 +44,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
 				IFNULL(al.status, 'Pending') as status,
 				IFNULL(al.shift_type, 'Day') as shift_type,
-				al.remark
+				al.remark,
+				lt.leave_name_th 
 			FROM employees e
 			LEFT JOIN attendance_logs al ON e.emp_id = al.emp_id AND al.work_date = ?
+			LEFT JOIN leave_types lt ON al.remark = lt.leave_name_en 
 			WHERE 1=1 ${empWhere}
 			ORDER BY e.emp_group ASC, e.emp_name ASC
 		`;
@@ -102,7 +104,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				time_in: emp.time_in || '-',
 				time_out: emp.time_out || '-',
 				status: statusMap[emp.status] || emp.status,
-				remark: emp.remark || '-'
+				remark: emp.leave_name_th ? `${emp.leave_name_th} (${emp.remark})` : emp.remark || '-'
 			});
 
 			row.eachCell((cell, colNumber) => {
