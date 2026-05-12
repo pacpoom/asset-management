@@ -263,12 +263,15 @@
 		return dt.toLocaleString($locale === 'th' ? 'th-TH' : 'en-US');
 	}
 
-	function calcMargin(p: { purchase_cost?: number | null; selling_price?: number | null } | null) {
-		const cost = p?.purchase_cost;
-		const price = p?.selling_price;
-		if (cost === null || cost === undefined || price === null || price === undefined) return null;
+	function calcMargin(p: { purchase_cost?: number | string | null; selling_price?: number | string | null } | null) {
+		const costRaw = p?.purchase_cost;
+		const priceRaw = p?.selling_price;
+		if (costRaw === null || costRaw === undefined || priceRaw === null || priceRaw === undefined) return null;
+		const cost = Number(costRaw);
+		const price = Number(priceRaw);
+		if (!Number.isFinite(cost) || !Number.isFinite(price)) return null;
 		if (price === 0) return null;
-		return ((Number(price) - Number(cost)) / Number(price)) * 100;
+		return ((price - cost) / price) * 100;
 	}
 
 	function stockBadge(p: Product) {
