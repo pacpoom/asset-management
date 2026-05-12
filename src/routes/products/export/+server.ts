@@ -140,7 +140,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			{ header: 'Purchase Cost', key: 'purchase_cost', width: 15, style: { numFmt: '#,##0.00' } },
 			{ header: 'Selling Price', key: 'selling_price', width: 15, style: { numFmt: '#,##0.00' } },
 			{ header: 'Tax Rate %', key: 'tax_rate', width: 10, style: { numFmt: '#,##0.00' } },
-			{ header: 'Margin %', key: 'margin', width: 10, style: { numFmt: '#,##0.00' } },
+			{ header: 'Margin %', key: 'margin', width: 10, style: { numFmt: '#,##0' } },
 			{ header: 'Quantity on Hand', key: 'quantity_on_hand', width: 15, style: { numFmt: '#,##0' } },
 			{ header: 'Reorder Level', key: 'reorder_level', width: 15, style: { numFmt: '#,##0' } },
 			{ header: 'Is Active', key: 'is_active', width: 10 },

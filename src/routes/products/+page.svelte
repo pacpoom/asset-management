@@ -743,7 +743,7 @@
 						<td class="whitespace-nowrap px-3 py-2.5 text-right text-xs">
 							{#if margin !== null}
 								<span class={margin < 0 ? 'font-semibold text-red-600' : 'text-gray-600'}>
-									{margin.toFixed(1)}%
+									{Math.round(margin)}%
 								</span>
 							{:else}
 								<span class="text-gray-300">-</span>
@@ -1243,7 +1243,7 @@
 						<div>
 							<strong class="block text-gray-500">{$t('Margin')}:</strong>
 							{#if calcMargin(productToView) !== null}
-								{calcMargin(productToView)?.toFixed(2)}%
+								{Math.round(calcMargin(productToView)!)}%
 							{:else}-{/if}
 						</div>
 						<div><strong class="block text-gray-500">{$t('Preferred Vendor')}:</strong> {productToView.vendor_name ?? '-'}</div>
