@@ -3,7 +3,7 @@ import pool from '$lib/server/database';
 import ExcelJS from 'exceljs';
 import { fail } from '@sveltejs/kit';
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const today = new Date();
 	const offset = today.getTimezoneOffset() * 60000;
 	const defaultDate = new Date(today.getTime() - offset).toISOString().split('T')[0];
@@ -13,15 +13,32 @@ export const load: PageServerLoad = async ({ url }) => {
 	const search = url.searchParams.get('search') || '';
 	const sectionFilter = url.searchParams.get('section') || 'All';
 
-	try {
-		const [employees]: any = await pool.execute(
-			`SELECT emp_id, emp_name FROM employees ORDER BY emp_name ASC`
-		);
+	// ดึง department_id ของ User ที่ Login อยู่
+	const userDeptId = locals.user?.department_id;
 
-		const [sectionsRows]: any = await pool.execute(
-			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
-		);
+	try {
+		// 1. ดึงรายชื่อพนักงาน (กรองตาม department_id ถ้ามี)
+		let empQuery = `SELECT emp_id, emp_name FROM employees`;
+		let empParams: any[] = [];
+		if (userDeptId) {
+			empQuery += ` WHERE department_id = ?`;
+			empParams.push(userDeptId);
+		}
+		empQuery += ` ORDER BY emp_name ASC`;
+		const [employees]: any = await pool.execute(empQuery, empParams);
+
+		// 2. ดึงรายชื่อแผนก/section (กรองตาม department_id ถ้ามี)
+		let secQuery = `SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-'`;
+		let secParams: any[] = [];
+		if (userDeptId) {
+			secQuery += ` AND department_id = ?`;
+			secParams.push(userDeptId);
+		}
+		secQuery += ` ORDER BY section`;
+		const [sectionsRows]: any = await pool.execute(secQuery, secParams);
 		const sections = sectionsRows.map((s: any) => s.section);
+
+		// 3. ดึงข้อมูลประวัติการลงเวลา (กรองตาม department_id ถ้ามี)
 		let logQuery = `
 			SELECT 
 				al.*, 
@@ -42,6 +59,12 @@ export const load: PageServerLoad = async ({ url }) => {
 			WHERE al.work_date = ?  
 		`;
 		const params: any[] = [selectedDate, selectedDate];
+
+		// เพิ่มเงื่อนไขกรองตาม Department ID ของ User
+		if (userDeptId) {
+			logQuery += ` AND e.department_id = ?`;
+			params.push(userDeptId);
+		}
 
 		if (sectionFilter !== 'All') {
 			logQuery += ` AND e.section = ?`;

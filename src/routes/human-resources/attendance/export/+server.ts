@@ -2,11 +2,14 @@ import type { RequestHandler } from './$types';
 import pool from '$lib/server/database';
 import ExcelJS from 'exceljs';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
 	const selectedDate = url.searchParams.get('date');
 	const search = url.searchParams.get('search') || '';
 	const sectionFilter = url.searchParams.get('section') || 'All';
 	const empFilter = url.searchParams.get('emp_id') || 'All';
+
+	// ดึง department_id ของ User ที่ Login อยู่
+	const userDeptId = locals.user?.department_id;
 
 	let query = `
 		SELECT 
@@ -31,6 +34,12 @@ export const GET: RequestHandler = async ({ url }) => {
 		WHERE al.work_date = ?
 	`;
 	const params: any[] = [selectedDate];
+
+	// เพิ่มเงื่อนไขกรองตาม Department ID ของ User
+	if (userDeptId) {
+		query += ` AND e.department_id = ?`;
+		params.push(userDeptId);
+	}
 
 	if (sectionFilter !== 'All') {
 		query += ` AND e.section = ?`;

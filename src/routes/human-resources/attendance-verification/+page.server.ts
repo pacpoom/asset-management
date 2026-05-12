@@ -5,6 +5,8 @@ import ExcelJS from 'exceljs';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const user: any = locals.user || { role: 'staff' };
+	// ดึง department_id จาก user ที่ login
+	const userDeptId = user.department_id;
 
 	let displayDate = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
 
@@ -14,6 +16,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	try {
 		let whereClause = `e.status != 'Resigned'`;
 		let params: any[] = [];
+
+		// เพิ่มเงื่อนไขกรองตาม department_id
+		if (userDeptId) {
+			whereClause += ` AND e.department_id = ?`;
+			params.push(userDeptId);
+		}
 
 		if (filterSection !== 'All') {
 			whereClause += ` AND e.section = ?`;
@@ -25,12 +33,22 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(filterGroup);
 		}
 
-		const [sections]: any = await pool.execute(
-			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
-		);
-		const [groups]: any = await pool.execute(
-			`SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-' ORDER BY emp_group`
-		);
+		// ดึง section และ group โดยอ้างอิงจาก department_id ของ user ด้วย
+		let sectionQuery = `SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-'`;
+		let groupQuery = `SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-'`;
+		let secGroupParams: any[] = [];
+
+		if (userDeptId) {
+			sectionQuery += ` AND department_id = ?`;
+			groupQuery += ` AND department_id = ?`;
+			secGroupParams.push(userDeptId);
+		}
+
+		sectionQuery += ` ORDER BY section`;
+		groupQuery += ` ORDER BY emp_group`;
+
+		const [sections]: any = await pool.execute(sectionQuery, secGroupParams);
+		const [groups]: any = await pool.execute(groupQuery, secGroupParams);
 
 		const summaryQuery = `
 			SELECT 
