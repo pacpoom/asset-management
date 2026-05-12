@@ -239,16 +239,22 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const total = countResult[0].total;
 		const totalPages = Math.ceil(total / limit);
 
-		// Aggregate counts for filter chips
+		// Aggregate counts + stock value for dashboard cards
 		const [statsRows] = await pool.execute<any[]>(
 			`SELECT
 				SUM(CASE WHEN product_type='Stock' AND quantity_on_hand <= 0 THEN 1 ELSE 0 END) AS out_stock,
 				SUM(CASE WHEN product_type='Stock' AND reorder_level IS NOT NULL AND quantity_on_hand > 0 AND quantity_on_hand <= reorder_level THEN 1 ELSE 0 END) AS low_stock,
 				SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) AS inactive_count,
+				SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active_count,
+				SUM(CASE WHEN product_type='Stock' THEN 1 ELSE 0 END) AS stock_type_count,
+				SUM(CASE WHEN product_type='NonStock' THEN 1 ELSE 0 END) AS non_stock_count,
+				SUM(CASE WHEN product_type='Service' THEN 1 ELSE 0 END) AS service_count,
+				COALESCE(SUM(CASE WHEN product_type='Stock' THEN quantity_on_hand * COALESCE(purchase_cost, 0) ELSE 0 END), 0) AS stock_value_cost,
+				COALESCE(SUM(CASE WHEN product_type='Stock' THEN quantity_on_hand * COALESCE(selling_price, 0) ELSE 0 END), 0) AS stock_value_sell,
 				COUNT(*) AS total_count
 			 FROM products`
 		);
-		const stats = statsRows[0] || { out_stock: 0, low_stock: 0, inactive_count: 0, total_count: 0 };
+		const stats = statsRows[0] || {};
 
 		const productsSql = `
 			SELECT
@@ -317,6 +323,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				out_stock: Number(stats.out_stock || 0),
 				low_stock: Number(stats.low_stock || 0),
 				inactive_count: Number(stats.inactive_count || 0),
+				active_count: Number(stats.active_count || 0),
+				stock_type_count: Number(stats.stock_type_count || 0),
+				non_stock_count: Number(stats.non_stock_count || 0),
+				service_count: Number(stats.service_count || 0),
+				stock_value_cost: Number(stats.stock_value_cost || 0),
+				stock_value_sell: Number(stats.stock_value_sell || 0),
 				total_count: Number(stats.total_count || 0)
 			},
 			can: {

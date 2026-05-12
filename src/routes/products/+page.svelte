@@ -440,30 +440,105 @@
 	</div>
 </div>
 
-<!-- Stats / Quick filter chips -->
-<div class="mb-3 flex flex-wrap items-center gap-2">
+<!-- Dashboard Cards -->
+<div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+	<!-- Total Products -->
 	<button
 		type="button"
-		onclick={() => applyFilter('stock', filterStock === 'low' ? null : 'low')}
-		class="rounded-full border px-3 py-1 text-xs font-medium {filterStock === 'low' ? 'border-amber-400 bg-amber-100 text-amber-900' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}"
+		onclick={clearAllFilters}
+		class="group flex flex-col rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-blue-300 hover:shadow"
 	>
-		⚠ {$t('Low Stock')}: {data.stats?.low_stock ?? 0}
+		<div class="flex items-center justify-between">
+			<span class="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">{$t('Total Products')}</span>
+			<span class="rounded-md bg-blue-50 p-1 text-blue-600">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>
+			</span>
+		</div>
+		<div class="mt-1 text-2xl font-bold text-gray-900">{data.stats?.total_count ?? 0}</div>
+		<div class="mt-0.5 text-[11px] text-gray-500">
+			S:{data.stats?.stock_type_count ?? 0} · N:{data.stats?.non_stock_count ?? 0} · Sv:{data.stats?.service_count ?? 0}
+		</div>
 	</button>
+
+	<!-- Active -->
 	<button
 		type="button"
-		onclick={() => applyFilter('stock', filterStock === 'out' ? null : 'out')}
-		class="rounded-full border px-3 py-1 text-xs font-medium {filterStock === 'out' ? 'border-red-400 bg-red-100 text-red-900' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}"
+		onclick={() => applyFilter('active', filterActive === '1' ? null : '1')}
+		class="group flex flex-col rounded-xl border bg-white p-3 text-left shadow-sm transition hover:shadow {filterActive === '1' ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200 hover:border-emerald-300'}"
 	>
-		✕ {$t('Out of Stock')}: {data.stats?.out_stock ?? 0}
+		<div class="flex items-center justify-between">
+			<span class="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">{$t('Active')}</span>
+			<span class="rounded-md bg-emerald-50 p-1 text-emerald-600">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>
+			</span>
+		</div>
+		<div class="mt-1 text-2xl font-bold text-emerald-700">{data.stats?.active_count ?? 0}</div>
+		<div class="mt-0.5 text-[11px] text-gray-500">{$t('Can be sold/purchased')}</div>
 	</button>
+
+	<!-- Inactive -->
 	<button
 		type="button"
 		onclick={() => applyFilter('active', filterActive === '0' ? null : '0')}
-		class="rounded-full border px-3 py-1 text-xs font-medium {filterActive === '0' ? 'border-gray-500 bg-gray-200 text-gray-900' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}"
+		class="group flex flex-col rounded-xl border bg-white p-3 text-left shadow-sm transition hover:shadow {filterActive === '0' ? 'border-gray-500 ring-2 ring-gray-200' : 'border-gray-200 hover:border-gray-400'}"
 	>
-		{$t('Inactive')}: {data.stats?.inactive_count ?? 0}
+		<div class="flex items-center justify-between">
+			<span class="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">{$t('Inactive')}</span>
+			<span class="rounded-md bg-gray-100 p-1 text-gray-600">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
+			</span>
+		</div>
+		<div class="mt-1 text-2xl font-bold text-gray-700">{data.stats?.inactive_count ?? 0}</div>
+		<div class="mt-0.5 text-[11px] text-gray-500">{$t('Hidden from selection')}</div>
 	</button>
-	<span class="ml-auto text-xs text-gray-500">{$t('Total')}: {data.stats?.total_count ?? 0}</span>
+
+	<!-- Low Stock -->
+	<button
+		type="button"
+		onclick={() => applyFilter('stock', filterStock === 'low' ? null : 'low')}
+		class="group flex flex-col rounded-xl border bg-white p-3 text-left shadow-sm transition hover:shadow {filterStock === 'low' ? 'border-amber-400 ring-2 ring-amber-200' : 'border-gray-200 hover:border-amber-300'}"
+	>
+		<div class="flex items-center justify-between">
+			<span class="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">{$t('Low Stock')}</span>
+			<span class="rounded-md bg-amber-50 p-1 text-amber-600">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+			</span>
+		</div>
+		<div class="mt-1 text-2xl font-bold text-amber-700">{data.stats?.low_stock ?? 0}</div>
+		<div class="mt-0.5 text-[11px] text-gray-500">{$t('At/below reorder level')}</div>
+	</button>
+
+	<!-- Out of Stock -->
+	<button
+		type="button"
+		onclick={() => applyFilter('stock', filterStock === 'out' ? null : 'out')}
+		class="group flex flex-col rounded-xl border bg-white p-3 text-left shadow-sm transition hover:shadow {filterStock === 'out' ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-200 hover:border-red-300'}"
+	>
+		<div class="flex items-center justify-between">
+			<span class="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">{$t('Out of Stock')}</span>
+			<span class="rounded-md bg-red-50 p-1 text-red-600">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+			</span>
+		</div>
+		<div class="mt-1 text-2xl font-bold text-red-700">{data.stats?.out_stock ?? 0}</div>
+		<div class="mt-0.5 text-[11px] text-gray-500">{$t('Qty is zero or negative')}</div>
+	</button>
+
+	<!-- Stock Value -->
+	<div class="flex flex-col rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+		<div class="flex items-center justify-between">
+			<span class="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">{$t('Stock Value')}</span>
+			<span class="rounded-md bg-indigo-50 p-1 text-indigo-600">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+			</span>
+		</div>
+		<div class="mt-1 text-xl font-bold text-indigo-700" title={String(data.stats?.stock_value_cost ?? 0)}>
+			{formatCurrency(data.stats?.stock_value_cost, '0')}
+		</div>
+		<div class="mt-0.5 text-[11px] text-gray-500" title={String(data.stats?.stock_value_sell ?? 0)}>
+			{$t('Sell')}: {formatCurrency(data.stats?.stock_value_sell, '0')}
+		</div>
+	</div>
 </div>
 
 <!-- Search + filter row -->
@@ -575,7 +650,7 @@
 	<table class="min-w-full divide-y divide-gray-200 text-sm">
 		<thead class="bg-gray-50">
 			<tr>
-				<th class="w-10 px-4 py-3 text-left">
+				<th class="w-10 px-3 py-2.5 text-left">
 					<input
 						type="checkbox"
 						checked={allOnPageSelected}
@@ -583,33 +658,33 @@
 						class="h-4 w-4 rounded border-gray-300"
 					/>
 				</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Image')}</th>
-				<th class="cursor-pointer px-4 py-3 text-left font-semibold text-gray-600 hover:text-blue-600" onclick={() => toggleSort('sku')}>
-					{$t('SKU')} <span class="text-xs">{sortIcon('sku')}</span>
+				<th class="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase">{$t('Image')}</th>
+				<th class="cursor-pointer whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase select-none hover:text-blue-600" onclick={() => toggleSort('sku')}>
+					{$t('SKU')} <span class="ml-0.5 text-[10px] text-gray-400">{sortIcon('sku')}</span>
 				</th>
-				<th class="cursor-pointer px-4 py-3 text-left font-semibold text-gray-600 hover:text-blue-600" onclick={() => toggleSort('name')}>
-					{$t('Name')} <span class="text-xs">{sortIcon('name')}</span>
+				<th class="cursor-pointer whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase select-none hover:text-blue-600" onclick={() => toggleSort('name')}>
+					{$t('Name')} <span class="ml-0.5 text-[10px] text-gray-400">{sortIcon('name')}</span>
 				</th>
-				<th class="cursor-pointer px-4 py-3 text-left font-semibold text-gray-600 hover:text-blue-600" onclick={() => toggleSort('product_type')}>
-					{$t('Type')} <span class="text-xs">{sortIcon('product_type')}</span>
+				<th class="cursor-pointer whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase select-none hover:text-blue-600" onclick={() => toggleSort('product_type')}>
+					{$t('Type')} <span class="ml-0.5 text-[10px] text-gray-400">{sortIcon('product_type')}</span>
 				</th>
-				<th class="cursor-pointer px-4 py-3 text-left font-semibold text-gray-600 hover:text-blue-600" onclick={() => toggleSort('category_name')}>
-					{$t('Category')} <span class="text-xs">{sortIcon('category_name')}</span>
+				<th class="cursor-pointer whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase select-none hover:text-blue-600" onclick={() => toggleSort('category_name')}>
+					{$t('Category')} <span class="ml-0.5 text-[10px] text-gray-400">{sortIcon('category_name')}</span>
 				</th>
-				<th class="cursor-pointer px-4 py-3 text-right font-semibold text-gray-600 hover:text-blue-600" onclick={() => toggleSort('quantity_on_hand')}>
-					{$t('Qty on Hand')} <span class="text-xs">{sortIcon('quantity_on_hand')}</span>
+				<th class="cursor-pointer whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-gray-600 uppercase select-none hover:text-blue-600" onclick={() => toggleSort('quantity_on_hand')}>
+					{$t('Qty on Hand')} <span class="ml-0.5 text-[10px] text-gray-400">{sortIcon('quantity_on_hand')}</span>
 				</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Unit')}</th>
-				<th class="cursor-pointer px-4 py-3 text-right font-semibold text-gray-600 hover:text-blue-600" onclick={() => toggleSort('purchase_cost')}>
-					{$t('Cost')} <span class="text-xs">{sortIcon('purchase_cost')}</span>
+				<th class="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase">{$t('Unit')}</th>
+				<th class="cursor-pointer whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-gray-600 uppercase select-none hover:text-blue-600" onclick={() => toggleSort('purchase_cost')}>
+					{$t('Cost')} <span class="ml-0.5 text-[10px] text-gray-400">{sortIcon('purchase_cost')}</span>
 				</th>
-				<th class="cursor-pointer px-4 py-3 text-right font-semibold text-gray-600 hover:text-blue-600" onclick={() => toggleSort('selling_price')}>
-					{$t('Price')} <span class="text-xs">{sortIcon('selling_price')}</span>
+				<th class="cursor-pointer whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-gray-600 uppercase select-none hover:text-blue-600" onclick={() => toggleSort('selling_price')}>
+					{$t('Price')} <span class="ml-0.5 text-[10px] text-gray-400">{sortIcon('selling_price')}</span>
 				</th>
-				<th class="px-4 py-3 text-right font-semibold text-gray-600">{$t('Margin')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Stock')}</th>
-				<th class="px-4 py-3 text-center font-semibold text-gray-600">{$t('Active')}</th>
-				<th class="px-4 py-3 text-left font-semibold text-gray-600">{$t('Actions')}</th>
+				<th class="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-gray-600 uppercase">{$t('Margin')}</th>
+				<th class="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-gray-600 uppercase">{$t('Stock')}</th>
+				<th class="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-gray-600 uppercase">{$t('Active')}</th>
+				<th class="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase">{$t('Actions')}</th>
 			</tr>
 		</thead>
 		<tbody class="divide-y divide-gray-200 bg-white">
@@ -624,7 +699,7 @@
 					{@const badge = stockBadge(product)}
 					{@const margin = calcMargin(product)}
 					<tr class="hover:bg-gray-50 {selectedIds.has(product.id) ? 'bg-blue-50/40' : ''}">
-						<td class="px-4 py-2">
+						<td class="px-3 py-2">
 							<input
 								type="checkbox"
 								checked={selectedIds.has(product.id)}
@@ -632,7 +707,7 @@
 								class="h-4 w-4 rounded border-gray-300"
 							/>
 						</td>
-						<td class="px-4 py-2">
+						<td class="px-3 py-2">
 							<div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded border bg-gray-50">
 								{#if product.image_url}
 									<img src={product.image_url} alt={product.name} class="h-full w-full object-contain" loading="lazy" />
@@ -643,14 +718,14 @@
 								{/if}
 							</div>
 						</td>
-						<td class="px-4 py-3 font-mono text-xs text-gray-700">
+						<td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-gray-700">
 							{product.sku}
 							{#if product.barcode}
 								<div class="text-[10px] text-gray-400">📊 {product.barcode}</div>
 							{/if}
 						</td>
 						<td
-							class="max-w-xs cursor-pointer truncate px-4 py-3 font-medium text-gray-900 hover:text-blue-600 hover:underline"
+							class="max-w-xs cursor-pointer truncate px-3 py-2.5 font-medium text-gray-900 hover:text-blue-600 hover:underline"
 							title={product.name}
 							onclick={() => openDetailModal(product)}
 							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openDetailModal(product)}
@@ -659,13 +734,13 @@
 						>
 							{product.name}
 						</td>
-						<td class="px-4 py-3 text-xs text-gray-600">{product.product_type}</td>
-						<td class="max-w-[150px] truncate px-4 py-3 text-gray-600">{product.category_name ?? '-'}</td>
-						<td class="px-4 py-3 text-right font-medium text-blue-700">{formatQuantity(product.quantity_on_hand, '0')}</td>
-						<td class="px-4 py-3 text-xs text-gray-500">{product.unit_symbol ?? '-'}</td>
-						<td class="px-4 py-3 text-right text-gray-600">{formatCurrency(product.purchase_cost)}</td>
-						<td class="px-4 py-3 text-right font-medium text-green-700">{formatCurrency(product.selling_price)}</td>
-						<td class="px-4 py-3 text-right text-xs">
+						<td class="whitespace-nowrap px-3 py-2.5 text-xs text-gray-600">{product.product_type}</td>
+						<td class="max-w-[150px] truncate px-3 py-2.5 text-gray-600">{product.category_name ?? '-'}</td>
+						<td class="whitespace-nowrap px-3 py-2.5 text-right font-medium text-blue-700">{formatQuantity(product.quantity_on_hand, '0')}</td>
+						<td class="whitespace-nowrap px-3 py-2.5 text-xs text-gray-500">{product.unit_symbol ?? '-'}</td>
+						<td class="whitespace-nowrap px-3 py-2.5 text-right text-gray-600">{formatCurrency(product.purchase_cost)}</td>
+						<td class="whitespace-nowrap px-3 py-2.5 text-right font-medium text-green-700">{formatCurrency(product.selling_price)}</td>
+						<td class="whitespace-nowrap px-3 py-2.5 text-right text-xs">
 							{#if margin !== null}
 								<span class={margin < 0 ? 'font-semibold text-red-600' : 'text-gray-600'}>
 									{margin.toFixed(1)}%
@@ -674,7 +749,7 @@
 								<span class="text-gray-300">-</span>
 							{/if}
 						</td>
-						<td class="px-4 py-3 text-center">
+						<td class="whitespace-nowrap px-3 py-2.5 text-center">
 							{#if badge}
 								<span class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold {badge.cls}">
 									{badge.label}
@@ -683,10 +758,10 @@
 								<span class="text-xs text-gray-300">-</span>
 							{/if}
 						</td>
-						<td class="px-4 py-3 text-center">
+						<td class="whitespace-nowrap px-3 py-2.5 text-center">
 							{#if product.is_active}<span class="text-green-600">✓</span>{:else}<span class="text-red-500">✕</span>{/if}
 						</td>
-						<td class="px-4 py-3 whitespace-nowrap">
+						<td class="whitespace-nowrap px-3 py-2.5">
 							<div class="flex items-center gap-1">
 								<button
 									onclick={() => openModal('edit', product)}
