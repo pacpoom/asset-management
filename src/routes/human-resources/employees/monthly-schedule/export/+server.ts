@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import pool from '$lib/server/database';
-// 1. แก้ไขวิธีการ Import ExcelJS ให้รองรับ ES Modules ของ SvelteKit
 import pkg from 'exceljs';
 const { Workbook } = pkg;
 
@@ -37,102 +36,197 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const endDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${lastDay}`;
 
 	try {
-        // 2. เปลี่ยน "Active" เป็น 'Active' (Single Quote)
+		const [shifts]: any = await pool.query(
+			`SELECT shift_code, shift_name, start_time, end_time, ot_start_time, color_theme FROM shift_master WHERE status = 'Active'`
+		);
+
+		const shiftDataMap: Record<string, any> = {};
+		if (Array.isArray(shifts)) {
+			for (const s of shifts) {
+				shiftDataMap[s.shift_code] = {
+					name: s.shift_name,
+					color: s.color_theme,
+					start_time: s.start_time,
+					ot_start_time: s.ot_start_time
+				};
+			}
+		}
+
 		let empQuery = `
             SELECT 
                 e.emp_id, 
-                e.emp_name,
+                e.emp_name, 
+                e.department_id, 
                 e.division,
                 e.section,
                 e.emp_group,
                 jp.position_name
             FROM employees e
             LEFT JOIN job_positions jp ON e.position_id = jp.id
-            WHERE e.status = 'Active' 
+            WHERE e.status = 'Active'
         `;
-		let empParams: any[] = [];
+		const empParams: any[] = [];
 		if (!isSuperAdmin && userDepartmentId !== null) {
 			empQuery += ' AND e.department_id = ?';
 			empParams.push(userDepartmentId);
 		}
-        
-        // 3. เปลี่ยน execute เป็น query ป้องกันปัญหา Prepared Statement เต็ม
 		const [employees]: any = await pool.query(empQuery, empParams);
-		const empIds = employees.map((e: any) => e.emp_id);
 
-		if (empIds.length === 0) return new Response('No data', { status: 404 });
+		if (!Array.isArray(employees) || employees.length === 0) {
+			return new Response('No data', { status: 404 });
+		}
+
+		const scheduleMap: Record<string, Record<string, any>> = {};
+		const empIds = employees.map((e) => e.emp_id);
+		for (const emp of employees) {
+			scheduleMap[emp.emp_id] = {};
+		}
 
 		const placeholders = empIds.map(() => '?').join(',');
-		
-        // เปลี่ยน execute เป็น query 
+
 		const [plannedShifts]: any = await pool.query(
-			`SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date_str, shift_code FROM employee_shifts WHERE emp_id IN (${placeholders}) AND work_date BETWEEN ? AND ?`,
+			`SELECT emp_id, DATE_FORMAT(work_date, '%Y-%m-%d') as work_date_str, shift_code 
+             FROM employee_shifts WHERE emp_id IN (${placeholders}) AND work_date BETWEEN ? AND ?`,
 			[...empIds, startDate, endDate]
 		);
 
-        // เปลี่ยน execute เป็น query และดึงข้อมูลเวลาเพื่อคำนวณ OT เหมือนในหน้าเว็บ
+		if (Array.isArray(plannedShifts)) {
+			for (const plan of plannedShifts) {
+				if (scheduleMap[plan.emp_id]) {
+					const shiftData = shiftDataMap[plan.shift_code] || { color: 'gray' };
+					scheduleMap[plan.emp_id][plan.work_date_str] = {
+						shift: plan.shift_code,
+						color: shiftData.color,
+						timeIn: null,
+						timeOut: null,
+						otHours: 0
+					};
+				}
+			}
+		}
+
 		const [logs]: any = await pool.query(
 			`SELECT 
-                al.emp_id, 
-                DATE_FORMAT(al.work_date, '%Y-%m-%d') as work_date_str, 
-                COALESCE(es.shift_code, al.shift_type) as shift_type,
-                al.scan_in_time, 
-                al.scan_out_time, 
-                al.ot_hours,
-                sm.start_time,
-                sm.ot_start_time
-             FROM attendance_logs al
-             LEFT JOIN employee_shifts es ON al.emp_id = es.emp_id AND al.work_date = es.work_date
-             LEFT JOIN shift_master sm ON COALESCE(es.shift_code, al.shift_type) = sm.shift_code
-             WHERE al.emp_id IN (${placeholders}) 
-               AND al.work_date BETWEEN ? AND ?`,
+                emp_id, 
+                DATE_FORMAT(work_date, '%Y-%m-%d') as work_date_str, 
+                shift_type, 
+                scan_in_time, 
+                scan_out_time, 
+                ot_hours 
+             FROM attendance_logs 
+             WHERE emp_id IN (${placeholders}) AND work_date BETWEEN ? AND ?`,
 			[...empIds, startDate, endDate]
 		);
 
-        // 4. สร้าง Workbook ด้วยคลาสที่ Destructure มา
+		if (Array.isArray(logs)) {
+			for (const log of logs) {
+				if (scheduleMap[log.emp_id]) {
+					const existingPlan = scheduleMap[log.emp_id][log.work_date_str];
+					const shiftCode = log.shift_type || existingPlan?.shift || 'Unknown';
+					const shiftData = shiftDataMap[shiftCode] || { color: 'gray' };
+
+					let calculatedOtHours = Number(log.ot_hours) || 0;
+
+					if (
+						calculatedOtHours === 0 &&
+						log.scan_out_time &&
+						shiftData.ot_start_time &&
+						shiftData.start_time
+					) {
+						try {
+							const [wYear, wMonth, wDay] = log.work_date_str.split('-').map(Number);
+							const scanOutDate = new Date(log.scan_out_time);
+							const [startH, startM] = shiftData.start_time.split(':').map(Number);
+							const [otH, otM] = shiftData.ot_start_time.split(':').map(Number);
+							const isNextDay = otH < startH;
+							const targetOtStart = new Date(
+								wYear,
+								wMonth - 1,
+								isNextDay ? wDay + 1 : wDay,
+								otH,
+								otM,
+								0
+							);
+
+							if (scanOutDate >= targetOtStart) {
+								const diffMs = scanOutDate.getTime() - targetOtStart.getTime();
+								const diffMins = Math.floor(diffMs / 60000);
+								const calculated = Math.floor(diffMins / 30) * 0.5;
+								if (calculated > 0) calculatedOtHours = calculated;
+							}
+						} catch (e) {}
+					}
+
+					if (existingPlan) {
+						existingPlan.shift = shiftCode;
+						existingPlan.color = shiftData.color;
+						existingPlan.timeIn = log.scan_in_time;
+						existingPlan.timeOut = log.scan_out_time;
+						existingPlan.otHours = calculatedOtHours;
+					} else {
+						scheduleMap[log.emp_id][log.work_date_str] = {
+							shift: shiftCode,
+							color: shiftData.color,
+							timeIn: log.scan_in_time,
+							timeOut: log.scan_out_time,
+							otHours: calculatedOtHours
+						};
+					}
+				}
+			}
+		}
+
+		const formatTime = (dateTimeStr: any) => {
+			if (!dateTimeStr) return null;
+			let d: Date;
+			if (dateTimeStr instanceof Date) {
+				d = dateTimeStr;
+			} else {
+				const normalizedStr =
+					typeof dateTimeStr === 'string' ? dateTimeStr.replace(' ', 'T') : String(dateTimeStr);
+				d = new Date(normalizedStr);
+			}
+			if (isNaN(d.getTime())) return null;
+			return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+		};
+
+		const excelColors: Record<string, { bg: string; fg: string }> = {
+			orange: { bg: 'FFFFEDD5', fg: 'FF9A3412' },
+			red: { bg: 'FFFEE2E2', fg: 'FF991B1B' },
+			blue: { bg: 'FFDBEAFE', fg: 'FF1E40AF' },
+			gray: { bg: 'FFF3F4F6', fg: 'FF4B5563' },
+			green: { bg: 'FFDCFCE7', fg: 'FF166534' }
+		};
+
 		const workbook = new Workbook();
 		const worksheet = workbook.addWorksheet(
 			`Schedule ${targetYear}-${String(targetMonth).padStart(2, '0')}`
 		);
 
-		worksheet.mergeCells('A1:F1');
+		worksheet.mergeCells('A1:B1');
 		worksheet.getCell('A1').value = 'Shift Legend (คำอธิบายสัญลักษณ์)';
 		worksheet.getCell('A1').font = { bold: true, size: 12 };
 
-		const legends = [
-			{ code: 'D', name: 'Day Shift (กะเช้า)', bg: 'FFFFEDD5', fg: 'FF9A3412' },
-			{ code: 'N', name: 'Night Shift (กะดึก)', bg: 'FF2563EB', fg: 'FFFFFFFF' },
-			{ code: 'L', name: 'Leave (ลา)', bg: 'FFDC2626', fg: 'FFFFFFFF' },
-			{ code: 'O', name: 'Day Off (วันหยุด)', bg: 'FFF3F4F6', fg: 'FF4B5563' },
-			{ code: 'DAY OFF', name: 'Day Off (วันหยุด)', bg: 'FFF3F4F6', fg: 'FF4B5563' }
-		];
-
-		legends.forEach((l, i) => {
-			const rowIdx = i + 2;
+		let rowIdx = 2;
+		for (const [code, data] of Object.entries(shiftDataMap)) {
+			const color = excelColors[data.color] || excelColors['gray'];
 			const codeCell = worksheet.getCell(`A${rowIdx}`);
 			const nameCell = worksheet.getCell(`B${rowIdx}`);
-			codeCell.value = l.code;
-			nameCell.value = `= ${l.name}`;
-
-			codeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: l.bg } };
-			codeCell.font = { bold: true, color: { argb: l.fg } };
+			codeCell.value = code;
+			nameCell.value = `= ${data.name}`;
+			codeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color.bg } };
+			codeCell.font = { bold: true, color: { argb: color.fg } };
 			codeCell.alignment = { horizontal: 'center' };
-			codeCell.border = {
-				top: { style: 'thin' },
-				left: { style: 'thin' },
-				bottom: { style: 'thin' },
-				right: { style: 'thin' }
-			};
-		});
+			rowIdx++;
+		}
 
-		const tableStartRow = 8;
-		worksheet.views = [{ state: 'frozen', xSplit: 6, ySplit: tableStartRow }];
-
-		const headerRowValues = ['รหัสพนักงาน', 'ชื่อ-นามสกุล', 'Division', 'Section', 'Group', 'Position'];
-		for (let d = 1; d <= lastDay; d++) headerRowValues.push(`วันที่ ${d}`);
+		const tableStartRow = rowIdx + 1;
+		worksheet.views = [{ state: 'frozen', xSplit: 1, ySplit: tableStartRow }];
+		const headerRowValues = ['ข้อมูลพนักงาน'];
+		for (let d = 1; d <= lastDay; d++) headerRowValues.push(`${d}`);
 		const headerRow = worksheet.getRow(tableStartRow);
 		headerRow.values = headerRowValues;
-		headerRow.height = 25;
+		headerRow.height = 30;
 
 		headerRow.eachCell((cell) => {
 			cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -147,81 +241,40 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		});
 
 		employees.forEach((emp: any) => {
-			const rowData: any[] = [
-				emp.emp_id, 
-				emp.emp_name,
-				emp.division || '-',
-				emp.section || '-',
-				emp.emp_group || '-',
-				emp.position_name || '-'
-			];
+			let empInfo = `${emp.emp_name}  (${emp.emp_id})`;
+			if (emp.division || emp.section)
+				empInfo += `\nDiv/Sec:  ${emp.division || '-'} / ${emp.section || '-'}`;
+			if (emp.emp_group) empInfo += `\nGroup:  ${emp.emp_group}`;
+			if (emp.position_name) empInfo += `\nPosition:  ${emp.position_name}`;
+
+			const rowData: any[] = [empInfo];
+
 			for (let d = 1; d <= lastDay; d++) {
 				const dateKey = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-				const plan = plannedShifts.find(
-					(p: any) => p.emp_id === emp.emp_id && p.work_date_str === dateKey
-				);
-				const log = logs.find((l: any) => l.emp_id === emp.emp_id && l.work_date_str === dateKey);
+				const dayData = scheduleMap[emp.emp_id][dateKey];
 
-				let shiftCode = plan ? plan.shift_code : (log && log.shift_type ? log.shift_type : '-');
-				let cellValue = shiftCode !== '-' ? `[${shiftCode}]` : '-';
+				if (dayData) {
+					const tIn = formatTime(dayData.timeIn);
+					const tOut = formatTime(dayData.timeOut);
 
-				if (log) {
-                    // คำนวณ OT เหมือนหน้าเว็บ
-                    let calculatedOtHours = Number(log.ot_hours) || 0;
+					let cellVal = `${dayData.shift}`;
+					if (dayData.otHours > 0) {
+						cellVal += `      ${dayData.otHours}h`;
+					}
 
-                    if (calculatedOtHours === 0 && log.scan_out_time && log.ot_start_time && log.start_time) {
-                        try {
-                            const [wYear, wMonth, wDay] = log.work_date_str.split('-').map(Number);
-                            const scanOutDate = new Date(log.scan_out_time);
-                            
-                            const [startH, startM] = log.start_time.split(':').map(Number);
-                            const [otH, otM] = log.ot_start_time.split(':').map(Number);
-
-                            const isNextDay = otH < startH;
-                            const targetOtStart = new Date(wYear, wMonth - 1, isNextDay ? wDay + 1 : wDay, otH, otM, 0);
-
-                            if (scanOutDate >= targetOtStart) {
-                                const diffMs = scanOutDate.getTime() - targetOtStart.getTime();
-                                const diffMins = Math.floor(diffMs / 60000);
-                                const calculated = Math.floor(diffMins / 30) * 0.5;
-                                if (calculated > 0) {
-                                    calculatedOtHours = calculated;
-                                }
-                            }
-                        } catch (e) {
-                            console.error(`Error calculating OT for ${log.emp_id} on ${log.work_date_str}:`, e);
-                        }
-                    }
-
-                    const formatTime = (dateTimeStr: any) => {
-                        if (!dateTimeStr) return '-';
-                        let d: Date;
-                        if (dateTimeStr instanceof Date) {
-                            d = dateTimeStr;
-                        } else {
-                            const normalizedStr = typeof dateTimeStr === 'string' ? dateTimeStr.replace(' ', 'T') : String(dateTimeStr);
-                            d = new Date(normalizedStr);
-                        }
-                        if (isNaN(d.getTime())) return '-';
-                        return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-                    };
-
-					const inTime = formatTime(log.scan_in_time);
-					const outTime = formatTime(log.scan_out_time);
-					const ot = calculatedOtHours > 0 ? `\nOT: ${calculatedOtHours}` : '';
-
-					if (inTime !== '-' || outTime !== '-') {
-                        if (cellValue === '-') cellValue = '';
-                        else cellValue += '\n';
-                        
-                        cellValue += `${inTime} - ${outTime}${ot}`;
-                    }
+					if (tIn || tOut) {
+						cellVal += `\n${tIn || '--:--'} | ${tOut || '--:--'}`;
+					} else {
+						cellVal += `\nไม่มีสแกน`;
+					}
+					rowData.push(cellVal);
+				} else {
+					rowData.push('-');
 				}
-				rowData.push(cellValue);
 			}
 
 			const row = worksheet.addRow(rowData);
-			row.height = 45;
+			row.height = 75;
 
 			row.eachCell((cell, colNumber) => {
 				cell.border = {
@@ -231,39 +284,36 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 					right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
 				};
 
-				if (colNumber <= 6) {
-					cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'center' : 'left' };
-				} else {
-					cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
-					const val = cell.value ? cell.value.toString() : '';
+				cell.alignment = {
+					wrapText: true,
+					vertical: 'middle',
+					horizontal: colNumber === 1 ? 'left' : 'center'
+				};
 
-					if (val.includes('[D]')) {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
-						cell.font = { color: { argb: 'FF9A3412' } };
-					} else if (val.includes('[N]')) {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-						cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
-					} else if (val.includes('[L]')) {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
-						cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
-					} else if (val.includes('[O]') || val.includes('[DAY OFF]') || val === '-') {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+				if (colNumber > 1) {
+					const d = colNumber - 1;
+					const dateKey = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+					const dayData = scheduleMap[emp.emp_id]?.[dateKey];
+
+					if (dayData && cell.value !== '-') {
+						const color = excelColors[dayData.color] || excelColors['gray'];
+						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color.bg } };
+
+						if (dayData.color === 'gray' || dayData.shift === 'O' || dayData.shift === '0') {
+							cell.font = { color: { argb: 'FF9CA3AF' }, bold: true };
+						} else {
+							cell.font = { color: { argb: color.fg }, bold: true };
+						}
+					} else {
+						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
 						cell.font = { color: { argb: 'FF9CA3AF' } };
-					} else if (val.includes('OT:')) {
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
-						cell.font = { color: { argb: 'FF166534' } };
 					}
 				}
 			});
 		});
 
-		worksheet.getColumn(1).width = 18; 
-		worksheet.getColumn(2).width = 25; 
-		worksheet.getColumn(3).width = 15; 
-		worksheet.getColumn(4).width = 20; 
-		worksheet.getColumn(5).width = 20; 
-		worksheet.getColumn(6).width = 18; 
-		for (let i = 7; i <= lastDay + 6; i++) worksheet.getColumn(i).width = 14;
+		worksheet.getColumn(1).width = 45;
+		for (let i = 2; i <= lastDay + 1; i++) worksheet.getColumn(i).width = 16;
 
 		const buffer = await workbook.xlsx.writeBuffer();
 		return new Response(buffer as BodyInit, {
@@ -273,7 +323,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			}
 		});
 	} catch (error) {
-		console.error("Export Error:", error);
+		console.error('Export Error:', error);
 		return new Response('Error Server Internal', { status: 500 });
 	}
 };
