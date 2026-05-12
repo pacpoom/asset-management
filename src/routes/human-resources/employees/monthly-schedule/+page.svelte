@@ -4,21 +4,32 @@
 	import { t } from '$lib/i18n';
 	import type { PageData } from './$types';
 
-	export let data: PageData;
+	let { data } = $props<{ data: PageData }>();
 
-	let selectedMonth = data.currentMonth;
+	let selectedMonth = $state(data.currentMonth);
 
-	// ฟังก์ชันสร้าง Array ของวันที่ (1 ถึงจำนวนวันสิ้นเดือน)
-	$: daysArray = Array.from({ length: data.daysInMonth || 31 }, (_, i) => i + 1);
+	let perPage = $state(10);
+	let currentPage = $state(1);
 
-	// จัดการเมื่อเปลี่ยนเดือน
+	let totalEmployees = $derived(data.employees?.length || 0);
+	let totalPages = $derived(Math.ceil(totalEmployees / perPage));
+	let paginatedEmployees = $derived(
+		data.employees?.slice((currentPage - 1) * perPage, currentPage * perPage) || []
+	);
+
+	function handlePerPageChange() {
+		currentPage = 1;
+	}
+
+	let daysArray = $derived(Array.from({ length: data.daysInMonth || 31 }, (_, i) => i + 1));
+
 	function handleMonthChange() {
 		if (selectedMonth) {
+			currentPage = 1;
 			goto(`?month=${selectedMonth}`);
 		}
 	}
 
-	// ฟังก์ชันช่วยแปลงสีจากฐานข้อมูลเป็น Tailwind Class
 	function getColorClass(colorStr: string) {
 		const colors: Record<string, string> = {
 			orange: 'bg-orange-100 text-orange-800 border-orange-200',
@@ -30,82 +41,54 @@
 		return colors[colorStr] || 'bg-gray-100 text-gray-800 border-gray-200';
 	}
 
-	// ฟังก์ชันคำนวณและแสดงผล OT
 	function getOTDisplay(dayData: any, dateStr: string) {
 		if (!dayData) return null;
-
-		// 1. ถ้ามีชั่วโมง OT จากฐานข้อมูล (คำนวณแล้ว) ให้ยึดค่าจาก DB เป็นหลัก
 		if (dayData.otHours && Number(dayData.otHours) > 0) {
 			return `${Number(dayData.otHours)}h`;
 		}
-
-		// 2. ตรวจสอบข้อมูลเบื้องต้น
 		const actualTimeOut = dayData.timeOut || dayData.scan_out_time;
 		if (!actualTimeOut || !dateStr || !dayData.shift) return null;
-
-		// 3. หาข้อมูลกะจาก shift_master (ดึงผ่านตัวแปร data.shifts ที่มาจาก +page.server.ts)
 		const shift = data.shifts?.find((s: any) => s.shift_code === dayData.shift);
 		if (!shift || !shift.ot_start_time || !shift.start_time) return null;
 
 		try {
 			const [wYear, wMonth, wDay] = dateStr.split('-').map(Number);
-
-			// ปรับแก้ Date parsing รองรับ String จาก SQL ที่มักจะคั่นด้วยช่องว่าง "YYYY-MM-DD HH:mm:ss"
 			const normalizedTimeOut =
 				typeof actualTimeOut === 'string' ? actualTimeOut.replace(' ', 'T') : actualTimeOut;
 			const scanOutDate = new Date(normalizedTimeOut);
-
 			const [startH, startM] = shift.start_time.split(':').map(Number);
 			const [otH, otM] = shift.ot_start_time.split(':').map(Number);
-
-			// ตรวจสอบว่าเวลาเริ่ม OT ข้ามไปวันถัดไปหรือไม่?
 			const isNextDay = otH < startH;
-
-			// สร้าง Date Object สำหรับเทียบเวลาสแกนออก กับ เวลาเริ่ม OT ของกะนั้นๆ
 			const targetOtStart = new Date(wYear, wMonth - 1, isNextDay ? wDay + 1 : wDay, otH, otM, 0);
-
-			// 4. ถ้าเวลาสแกนออก มากกว่าหรือเท่ากับ เวลาเริ่ม OT
 			if (scanOutDate >= targetOtStart) {
-				// คำนวณความต่างของเวลาเป็นนาที
 				const diffMs = scanOutDate.getTime() - targetOtStart.getTime();
 				const diffMins = Math.floor(diffMs / 60000);
-
-				// คำนวณชั่วโมง (ปัดเศษลงทุกๆ 30 นาที จะได้ 0.5 ชั่วโมง)
 				const calculatedHours = Math.floor(diffMins / 30) * 0.5;
-
-				if (calculatedHours > 0) {
-					return `${calculatedHours}h*`; // มี * ต่อท้ายให้รู้ว่าระบบคำนวณสด
-				}
-				return 'OT'; // หากเลยเวลาเริ่มมานิดหน่อย (ไม่ถึง 30 นาที) โชว์ป้าย OT ไว้
+				if (calculatedHours > 0) return `${calculatedHours}h*`;
+				return 'OT';
 			}
 		} catch (e) {
 			console.error('Error calculating real-time OT:', e);
 		}
-
 		return null;
 	}
 
-	// ฟังก์ชันช่วย Format เวลาให้ดูอ่านง่าย (เช่น 07:30) และรองรับ SQL Date String ป้องกันบัค Invalid Date
 	function formatTime(dateTimeStr: string | Date | null | undefined) {
 		if (!dateTimeStr) return '';
-
 		let d: Date;
 		if (dateTimeStr instanceof Date) {
 			d = dateTimeStr;
 		} else {
-			// เติม T เข้าไประหว่างวันที่กับเวลา ถ้ามีเว้นวรรค
 			const normalizedStr =
 				typeof dateTimeStr === 'string' ? dateTimeStr.replace(' ', 'T') : String(dateTimeStr);
 			d = new Date(normalizedStr);
 		}
-
-		if (isNaN(d.getTime())) return ''; // หากแปลงไม่ได้ส่งค่าว่างกลับไป ให้ Fallback แสดง --:--
-
+		if (isNaN(d.getTime())) return '';
 		return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 	}
 </script>
 
-<div class="flex h-screen flex-col bg-gray-50">
+<div class="flex h-screen flex-col bg-gray-50 text-black">
 	<div class="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
 		<div>
 			<h1 class="text-xl font-bold text-gray-800">{$t('ตารางกะการทำงาน (Monthly Schedule)')}</h1>
@@ -136,33 +119,26 @@
 			<input
 				type="month"
 				bind:value={selectedMonth}
-				on:change={handleMonthChange}
-				class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				onchange={handleMonthChange}
+				class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-black shadow-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
 
 			<button
-				on:click={() => {
+				onclick={() => {
 					const basePath = window.location.pathname.replace(/\/$/, '');
 					window.location.href = `${basePath}/export?month=${selectedMonth}`;
 				}}
 				class="flex items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-700"
 			>
-				<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-					></path></svg
-				>
+				<span class="material-symbols-outlined mr-2 text-[18px]">download</span>
 				{$t('Export Excel')}
 			</button>
 		</div>
 	</div>
 
-	<div class="flex-1 overflow-hidden p-6">
+	<div class="flex flex-1 flex-col overflow-hidden p-6">
 		<div
-			class="custom-scrollbar h-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm"
+			class="custom-scrollbar flex-1 overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm"
 		>
 			<table class="w-full text-left text-sm whitespace-nowrap">
 				<thead class="sticky top-0 z-20 bg-gray-100 text-gray-700 shadow-sm">
@@ -174,7 +150,7 @@
 						</th>
 						{#each daysArray as day}
 							<th
-								class="min-w-[120px] border-b border-gray-200 px-3 py-3 text-center font-semibold"
+								class="min-w-[120px] border-b border-gray-200 px-3 py-3 text-center font-semibold text-black"
 							>
 								{day}
 							</th>
@@ -182,11 +158,11 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200">
-					{#if data.employees && data.employees.length > 0}
-						{#each data.employees as emp}
+					{#if paginatedEmployees.length > 0}
+						{#each paginatedEmployees as emp}
 							<tr class="transition-colors hover:bg-blue-50/50">
 								<td
-									class="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-blue-50/50"
+									class="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"
 								>
 									<div class="flex flex-col gap-1">
 										<div class="flex items-baseline justify-between">
@@ -197,45 +173,29 @@
 												{emp.emp_id}
 											</span>
 										</div>
-
 										<div class="mt-1 grid grid-cols-1 gap-1 text-[11px] text-black">
 											{#if emp.division || emp.section}
-												<div
-													class="flex items-center truncate"
-													title="{emp.division || '-'} / {emp.section || '-'}"
-												>
-													<span class="w-12 shrink-0 font-bold text-black">Div/Sec:</span>
+												<div class="flex items-center truncate">
+													<span class="w-12 shrink-0 font-bold text-black">{$t('Div/Sec:')}</span>
 													<span class="truncate font-medium text-black">
 														{emp.division || '-'} <span class="mx-0.5 text-gray-400">/</span>
 														{emp.section || '-'}
 													</span>
 												</div>
 											{/if}
-
 											{#if emp.emp_group}
-												<div class="flex items-center truncate" title={emp.emp_group}>
-													<span class="w-12 shrink-0 font-bold text-black">Group:</span>
+												<div class="flex items-center truncate">
+													<span class="w-12 shrink-0 font-bold text-black">{$t('Group:')}</span>
 													<span class="truncate font-medium text-black">{emp.emp_group}</span>
-												</div>
-											{/if}
-
-											{#if emp.position_name}
-												<div class="mt-0.5 flex">
-													<span
-														class="truncate rounded border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700"
-														title={emp.position_name}
-													>
-														{emp.position_name}
-													</span>
 												</div>
 											{/if}
 										</div>
 									</div>
 								</td>
+
 								{#each daysArray as day}
 									{@const dateStr = `${data.targetYear}-${String(data.targetMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`}
 									{@const dayData = data.scheduleMap?.[emp.emp_id]?.[dateStr]}
-
 									<td
 										class="border-r border-gray-100 px-2 py-2 text-center align-top last:border-r-0"
 									>
@@ -243,29 +203,25 @@
 											{@const actualTimeIn = dayData.timeIn || dayData.scan_in_time}
 											{@const actualTimeOut = dayData.timeOut || dayData.scan_out_time}
 											{@const otDisplay = getOTDisplay(dayData, dateStr)}
-
 											<div
-												class="flex flex-col items-center gap-1.5 rounded-lg border p-1.5 {getColorClass(
+												class="flex h-full flex-col items-center justify-center gap-1.5 rounded-lg border p-1.5 {getColorClass(
 													dayData.color
-												)} bg-opacity-30 h-full justify-center"
+												)} bg-opacity-30"
 											>
 												<div class="flex items-center justify-center gap-1">
 													<span
-														class="bg-opacity-75 rounded bg-white px-1.5 py-0.5 text-xs font-bold shadow-sm"
+														class="bg-opacity-75 rounded bg-white px-1.5 py-0.5 text-xs font-bold text-black shadow-sm"
 													>
 														{dayData.shift}
 													</span>
-
 													{#if otDisplay}
 														<span
 															class="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600 shadow-sm"
-															title="OT (Real-time Calculation)"
 														>
 															{otDisplay}
 														</span>
 													{/if}
 												</div>
-
 												<div
 													class="mt-0.5 flex w-full flex-col items-center rounded bg-white px-2 py-1 text-[10px] font-medium shadow-sm"
 												>
@@ -305,11 +261,74 @@
 				</tbody>
 			</table>
 		</div>
+
+		<div
+			class="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+		>
+			<div class="flex items-center gap-4">
+				<div class="flex items-center gap-2 text-sm text-black">
+					<span>{$t('Show')}:</span>
+					<select
+						bind:value={perPage}
+						onchange={handlePerPageChange}
+						class="rounded border border-gray-300 bg-white px-2 py-1 text-sm font-medium focus:border-blue-500 focus:outline-none"
+					>
+						<option value={10}>10</option>
+						<option value={50}>50</option>
+						<option value={100}>100</option>
+						<option value={200}>200</option>
+					</select>
+				</div>
+				<p class="text-sm text-black">
+					{$t('แสดง')}
+					<span class="font-bold">{totalEmployees > 0 ? (currentPage - 1) * perPage + 1 : 0}</span>
+					{$t('ถึง')}
+					<span class="font-bold">{Math.min(currentPage * perPage, totalEmployees)}</span>
+					{$t('จาก')} <span class="font-bold">{totalEmployees}</span>
+					{$t('รายการ')}
+				</p>
+			</div>
+
+			<nav class="flex items-center gap-2">
+				<button
+					onclick={() => (currentPage = 1)}
+					disabled={currentPage === 1}
+					class="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-black hover:bg-gray-50 disabled:opacity-30"
+				>
+					{$t('First')}
+				</button>
+				<button
+					onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+					disabled={currentPage === 1}
+					class="flex items-center rounded border border-gray-300 px-2 py-1 text-black hover:bg-gray-50 disabled:opacity-30"
+				>
+					<span class="material-symbols-outlined">chevron_left</span>
+				</button>
+
+				<span class="rounded bg-gray-100 px-4 py-1 text-sm font-bold text-black">
+					{currentPage} / {totalPages || 1}
+				</span>
+
+				<button
+					onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
+					disabled={currentPage === totalPages || totalPages === 0}
+					class="flex items-center rounded border border-gray-300 px-2 py-1 text-black hover:bg-gray-50 disabled:opacity-30"
+				>
+					<span class="material-symbols-outlined">chevron_right</span>
+				</button>
+				<button
+					onclick={() => (currentPage = totalPages)}
+					disabled={currentPage === totalPages || totalPages === 0}
+					class="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-black hover:bg-gray-50 disabled:opacity-30"
+				>
+					{$t('Last')}
+				</button>
+			</nav>
+		</div>
 	</div>
 </div>
 
 <style>
-	/* ปรับ Scrollbar ให้ดูสะอาดตาขึ้น */
 	.custom-scrollbar::-webkit-scrollbar {
 		height: 10px;
 		width: 10px;
