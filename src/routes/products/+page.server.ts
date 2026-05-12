@@ -437,21 +437,36 @@ export const actions: Actions = {
 		const connection = await pool.getConnection();
 
 		try {
-			// Check duplicate name
-			let nameCheckSql = 'SELECT id FROM products WHERE name = ?';
-			const nameCheckParams: (string | number)[] = [data.name];
+			// Check duplicate name — only when creating a new product, or when an existing
+			// product's name is actually being changed. This lets users edit other fields on
+			// rows whose name happens to clash with legacy duplicates already in the DB.
+			let nameChanged = !id;
 			if (id) {
-				nameCheckSql += ' AND id != ?';
-				nameCheckParams.push(parseInt(id));
+				const [currentRow] = await connection.execute<any[]>(
+					'SELECT name FROM products WHERE id = ?',
+					[parseInt(id)]
+				);
+				nameChanged = currentRow.length > 0 && currentRow[0].name !== data.name;
 			}
-			const [existingProducts] = await connection.execute<any[]>(nameCheckSql, nameCheckParams);
-			if (existingProducts.length > 0) {
-				connection.release();
-				return fail(400, {
-					action: 'saveProduct',
-					success: false,
-					message: `The product name "${data.name}" already exists. Please use a different name.`
-				});
+			if (nameChanged) {
+				let nameCheckSql = 'SELECT id FROM products WHERE name = ?';
+				const nameCheckParams: (string | number)[] = [data.name];
+				if (id) {
+					nameCheckSql += ' AND id != ?';
+					nameCheckParams.push(parseInt(id));
+				}
+				const [existingProducts] = await connection.execute<any[]>(
+					nameCheckSql,
+					nameCheckParams
+				);
+				if (existingProducts.length > 0) {
+					connection.release();
+					return fail(400, {
+						action: 'saveProduct',
+						success: false,
+						message: `The product name "${data.name}" already exists. Please use a different name.`
+					});
+				}
 			}
 
 			await connection.beginTransaction();
