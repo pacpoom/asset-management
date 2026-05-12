@@ -1,8 +1,15 @@
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
+	// ดึงข้อมูล User จาก session
+	const user: any = locals.user;
+	if (!user) {
+		throw redirect(302, '/login');
+	}
+	const userDepartmentId = user.department_id ?? null;
+
 	// รับค่าเดือนและปีจาก URL (ถ้าไม่มีใช้เดือน/ปี ปัจจุบัน)
 	const now = new Date();
 	const month = parseInt(url.searchParams.get('month') || String(now.getMonth() + 1));
@@ -18,6 +25,13 @@ export const load: PageServerLoad = async ({ url }) => {
             WHERE e.status = 'Active'
         `;
         const empParams: any[] = [];
+
+		// 🌟 เพิ่มเงื่อนไขกรองพนักงานตาม department_id ของ User ที่ Login
+		if (userDepartmentId) {
+			empQuery += ` AND e.department_id = ?`;
+			empParams.push(userDepartmentId);
+		}
+
         if (search) {
 			empQuery += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ?)`;
 			const searchPattern = `%${search.trim()}%`;
