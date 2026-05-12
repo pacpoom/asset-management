@@ -8,6 +8,7 @@
 
 	let selectedMonth = $state(data.currentMonth);
 
+	// --- ส่วนของ Pagination ---
 	let perPage = $state(10);
 	let currentPage = $state(1);
 
@@ -21,6 +22,7 @@
 		currentPage = 1;
 	}
 
+	// ฟังก์ชันสร้าง Array ของวันที่
 	let daysArray = $derived(Array.from({ length: data.daysInMonth || 31 }, (_, i) => i + 1));
 
 	function handleMonthChange() {
@@ -120,7 +122,7 @@
 				type="month"
 				bind:value={selectedMonth}
 				onchange={handleMonthChange}
-				class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-black shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-black shadow-sm focus:border-blue-500 focus:ring-blue-500"
 			/>
 
 			<button
@@ -160,9 +162,9 @@
 				<tbody class="divide-y divide-gray-200">
 					{#if paginatedEmployees.length > 0}
 						{#each paginatedEmployees as emp}
-							<tr class="transition-colors hover:bg-blue-50/50">
+							<tr class="group transition-colors hover:bg-blue-50/50">
 								<td
-									class="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"
+									class="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-blue-50/50"
 								>
 									<div class="flex flex-col gap-1">
 										<div class="flex items-baseline justify-between">
@@ -271,7 +273,7 @@
 					<select
 						bind:value={perPage}
 						onchange={handlePerPageChange}
-						class="rounded border border-gray-300 bg-white px-2 py-1 text-sm font-medium focus:border-blue-500 focus:outline-none"
+						class="w-20 cursor-pointer rounded border border-gray-300 bg-white py-1 pr-8 pl-3 text-sm font-medium focus:border-blue-500 focus:outline-none"
 					>
 						<option value={10}>10</option>
 						<option value={50}>50</option>
