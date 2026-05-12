@@ -2,7 +2,7 @@ import pool from '$lib/server/database';
 import ExcelJS from 'exceljs';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
 	let displayDate = url.searchParams.get('date');
 	if (!displayDate) {
 		const todayObj = new Date();
@@ -12,10 +12,19 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const sectionFilter = url.searchParams.get('section') || 'All';
 	const groupFilter = url.searchParams.get('group') || 'All';
+	
+	// ดึง department_id จาก user ที่ login
+	const userDeptId = locals.user?.department_id;
 
 	try {
 		let empWhere = '';
 		const params: any[] = [displayDate];
+
+		// เพิ่มเงื่อนไขกรองตาม department_id
+		if (userDeptId) {
+			empWhere += ` AND e.department_id = ?`;
+			params.push(userDeptId);
+		}
 
 		if (sectionFilter !== 'All') {
 			empWhere += ` AND e.section = ?`;

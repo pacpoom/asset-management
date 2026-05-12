@@ -4,9 +4,13 @@ import { fail } from '@sveltejs/kit';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import path from 'path';
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const search = url.searchParams.get('search') || '';
 	const sectionFilter = url.searchParams.get('section') || 'All';
+
+	// ดึงข้อมูล user และ department_id จาก session
+	const user: any = (locals as any).user || {};
+	const userDeptId = user.department_id;
 
 	try {
 		let query = `
@@ -20,6 +24,12 @@ export const load: PageServerLoad = async ({ url }) => {
 			WHERE 1=1
 		`;
 		const params: any[] = [];
+
+		// 1. เพิ่มเงื่อนไขกรองประวัติการลาตาม department_id
+		if (userDeptId) {
+			query += ` AND e.department_id = ?`;
+			params.push(userDeptId);
+		}
 
 		if (sectionFilter !== 'All') {
 			query += ` AND e.section = ?`;
@@ -36,17 +46,29 @@ export const load: PageServerLoad = async ({ url }) => {
 
 		const [leaves]: any = await pool.execute(query, params);
 
-		const [employees]: any = await pool.execute(
-			`SELECT emp_id, emp_name FROM employees ORDER BY emp_name ASC`
-		);
+		// 2. กรองตัวเลือกรายชื่อพนักงานใน Dropdown ให้เหลือเฉพาะในแผนกเดียวกัน
+		let empQuery = `SELECT emp_id, emp_name FROM employees`;
+		let empParams: any[] = [];
+		if (userDeptId) {
+			empQuery += ` WHERE department_id = ?`;
+			empParams.push(userDeptId);
+		}
+		empQuery += ` ORDER BY emp_name ASC`;
+		const [employees]: any = await pool.execute(empQuery, empParams);
 
 		const [leaveTypes]: any = await pool.execute(
 			`SELECT * FROM leave_types WHERE is_active = 1 ORDER BY id ASC`
 		);
 
-		const [sectionsRows]: any = await pool.execute(
-			`SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-' ORDER BY section`
-		);
+		// 3. กรองตัวเลือก Section ให้เหลือเฉพาะ Section ในแผนกเดียวกัน
+		let secQuery = `SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-'`;
+		let secParams: any[] = [];
+		if (userDeptId) {
+			secQuery += ` AND department_id = ?`;
+			secParams.push(userDeptId);
+		}
+		secQuery += ` ORDER BY section`;
+		const [sectionsRows]: any = await pool.execute(secQuery, secParams);
 		const sections = sectionsRows.map((s: any) => s.section);
 
 		return {
@@ -84,7 +106,8 @@ export const actions: Actions = {
 		const remark = data.get('remark')?.toString() || '';
 		const status = data.get('status')?.toString() || 'Pending';
 		const existing_document_path = data.get('existing_document_path')?.toString() || null;
-		const created_by = (locals as any).user?.name || 'Admin';
+		// ใช้ full_name เพื่อให้ตรงกับข้อมูลที่ส่งมาจาก hooks
+		const created_by = (locals as any).user?.full_name || 'Admin';
 
 		const file = data.get('document') as File;
 		let documentPath = existing_document_path;
