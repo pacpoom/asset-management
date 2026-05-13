@@ -7,6 +7,7 @@ import mime from 'mime-types';
 
 import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
 import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
+import { normalizePurchaseDocumentDateInput } from '$lib/purchaseDocumentDateFormat';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -139,10 +140,12 @@ export const actions: Actions = {
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
 		const job_id = formData.get('job_id')?.toString() || null;
 
-		const document_date = formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
+		const document_date =
+			normalizePurchaseDocumentDateInput(formData.get('document_date')?.toString()) ||
+			new Date().toISOString().split('T')[0];
 		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
-		const due_date = formData.get('due_date')?.toString() || null;
-		const delivery_date = formData.get('delivery_date')?.toString() || null;
+		const due_date = normalizePurchaseDocumentDateInput(formData.get('due_date')?.toString());
+		const delivery_date = normalizePurchaseDocumentDateInput(formData.get('delivery_date')?.toString());
 
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';

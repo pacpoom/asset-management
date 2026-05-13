@@ -4,6 +4,7 @@
 	import type { PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
 	import { onMount } from 'svelte';
+	import { isoToDisplay, displayToIso } from '$lib/purchaseDocumentDateFormat';
 
 	// อัปเดต Type ให้ครอบคลุมข้อมูลที่ส่งมาจาก Server เพื่อแก้ TypeScript Error
 	export let data: PageData & { totalItems: number, fromDate: string, toDate: string, pageSize: number };
@@ -17,47 +18,6 @@
 	let fromDateStr = '';
 	let toDateStr = '';
 	let pageSizeInput = pageSize || 10;
-
-	const MONTH_ABBR_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-	function pad2(n: number): string {
-		return String(n).padStart(2, '0');
-	}
-
-	function isoDatePart(raw: string): string {
-		const s = String(raw || '').trim();
-		if (!s) return '';
-		if (s.includes('T')) return s.split('T')[0]!;
-		if (s.includes(' ')) return s.split(' ')[0]!;
-		return s.slice(0, 10);
-	}
-
-	/** YYYY-MM-DD → 01/Jun/2026 */
-	function isoToDisplay(iso: string): string {
-		const part = isoDatePart(iso);
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(part)) return '';
-		const [y, m, d] = part.split('-').map((x) => parseInt(x, 10));
-		if (!y || !m || !d) return '';
-		const dt = new Date(y, m - 1, d);
-		if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return '';
-		return `${pad2(d)}/${MONTH_ABBR_EN[m - 1]}/${y}`;
-	}
-
-	/** 01/Jun/2026 → YYYY-MM-DD */
-	function displayToIso(display: string): string | null {
-		const t = display.trim();
-		if (!t) return null;
-		if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-		const m = t.match(/^(\d{1,2})\/([A-Za-z]{3})\/(\d{4})$/);
-		if (!m) return null;
-		const day = parseInt(m[1]!, 10);
-		const monIdx = MONTH_ABBR_EN.findIndex((x) => x.toLowerCase() === m[2]!.toLowerCase());
-		if (monIdx < 0) return null;
-		const y = parseInt(m[3]!, 10);
-		const dt = new Date(y, monIdx, day);
-		if (dt.getFullYear() !== y || dt.getMonth() !== monIdx || dt.getDate() !== day) return null;
-		return `${y}-${pad2(monIdx + 1)}-${pad2(day)}`;
-	}
 
 	$: {
 		fromDateStr = fromDate ? isoToDisplay(fromDate) : '';
@@ -182,8 +142,7 @@
 
 	function formatDate(dateStr: string) {
 		if (!dateStr) return '-';
-		const part = isoDatePart(dateStr);
-		return part ? isoToDisplay(part) : '-';
+		return isoToDisplay(dateStr) || '-';
 	}
 </script>
 
