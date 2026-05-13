@@ -1,4 +1,4 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, redirect, error, isHttpError } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import fs from 'fs/promises';
@@ -6,6 +6,7 @@ import path from 'path';
 import mime from 'mime-types';
 
 import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
+import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -47,7 +48,7 @@ function resolvePurchasePrefix(docType: string): string {
 	}
 }
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const sourceId = url.searchParams.get('source_id');
 	const targetType = url.searchParams.get('target_type') || 'PR';
 	let prefillData = null;
@@ -71,6 +72,16 @@ export const load: PageServerLoad = async ({ url }) => {
 					attachments: attachments,
 					targetType: targetType
 				};
+			}
+		}
+
+		if (
+			prefillData &&
+			String(prefillData.document.document_type || '').toUpperCase() === 'PR' &&
+			String(targetType).toUpperCase() === 'PO'
+		) {
+			if (!userCanIssuePurchaseOrderFromPr(locals.user)) {
+				throw error(403, 'ไม่มีสิทธิ์ออก PO จาก PR');
 			}
 		}
 
@@ -110,8 +121,9 @@ export const load: PageServerLoad = async ({ url }) => {
 			vendorContractsData: JSON.parse(JSON.stringify(vendorContractsData)),
 			prefillData: prefillData ? JSON.parse(JSON.stringify(prefillData)) : null 
 		};
-	} catch (error: any) {
-		console.error('Load data error:', error);
+	} catch (err: unknown) {
+		if (isHttpError(err)) throw err;
+		console.error('Load data error:', err);
 		return { vendors: [], vendorContacts: [], products: [], units: [], jobOrders: [], categories: [], accounts: [], deliveryAddresses: [], vendorContractsData: [], prefillData: null };
 	}
 };
@@ -147,6 +159,21 @@ export const actions: Actions = {
 		const source_document_id = formData.get('source_document_id')?.toString() || '';
 
 		if (!vendor_id) return fail(400, { message: 'กรุณาเลือกผู้จำหน่าย (Vendor)' });
+
+		if (String(document_type).toUpperCase() === 'PO') {
+			const srcId = parseInt(source_document_id, 10);
+			if (Number.isInteger(srcId) && srcId > 0) {
+				const [srcRows] = await pool.query<any[]>(
+					'SELECT document_type FROM purchase_documents WHERE id = ?',
+					[srcId]
+				);
+				if (srcRows[0] && String(srcRows[0].document_type || '').toUpperCase() === 'PR') {
+					if (!userCanIssuePurchaseOrderFromPr(locals.user)) {
+						return fail(403, { message: 'ไม่มีสิทธิ์ออก PO จาก PR' });
+					}
+				}
+			}
+		}
 
 		// PR ต้องมีไฟล์แนบอย่างน้อย 1 ไฟล์ (อัปโหลดใหม่ หรือสืบทอดจากเอกสารต้นทางที่มีแนบไว้)
 		if (String(document_type).toUpperCase() === 'PR') {

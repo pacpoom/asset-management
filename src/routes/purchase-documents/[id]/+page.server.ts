@@ -5,6 +5,7 @@ import { env } from '$env/dynamic/private';
 import { sendMail } from '$lib/server/mailer';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
 import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
+import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
 
 function splitEmailList(raw: string | undefined): string[] {
 	return (raw || '')
@@ -351,6 +352,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			canEdit,
+			canIssuePo: userCanIssuePurchaseOrderFromPr(locals.user),
 			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void', 'Complete']
 		};
 	} catch (err: unknown) {

@@ -1,8 +1,9 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
+import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = parseInt(params.id);
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
@@ -40,7 +41,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		return {
 			pr: JSON.parse(JSON.stringify(pr)),
 			items: JSON.parse(JSON.stringify(items)),
-			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null
+			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
+			canIssuePo: userCanIssuePurchaseOrderFromPr(locals.user)
 		};
 	} catch (err: any) {
 		console.error('Error loading PR:', err);
