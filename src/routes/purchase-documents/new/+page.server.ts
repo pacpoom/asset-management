@@ -1,6 +1,7 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
+import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
 import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
@@ -44,35 +45,63 @@ async function generateDocumentNumber(docType: string, dateStr: string, connecti
 		default: prefix = 'DOC-';
 	}
 
+	// Use LAST_INSERT_ID() trick so the incremented value is connection-local,
+	// preventing duplicate sequence numbers under concurrent requests.
 	const updateQuery = `
         INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
         VALUES (?, ?, ?, ?, 1, 4)
-        ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+        ON DUPLICATE KEY UPDATE last_number = LAST_INSERT_ID(last_number + 1);
     `;
 	await connection.execute(updateQuery, [docType, prefix, year, month]);
 
-	const selectQuery = `
-        SELECT last_number, padding_length 
-        FROM document_sequences 
-        WHERE document_type = ? AND year = ? AND month = ?
-    `;
-	const [rows] = await connection.execute(selectQuery, [docType, year, month]);
+	const [[seqRow]] = await connection.execute(`SELECT LAST_INSERT_ID() as seq_val`);
+	// On first INSERT, LAST_INSERT_ID() returns the auto-increment PK of the new row,
+	// not 1. Fall back to a direct SELECT in that case (seq_val > 1e6 signals it's a PK).
+	let lastNumber: number = Number(seqRow.seq_val);
+	if (lastNumber > 1_000_000) {
+		const selectQuery = `
+            SELECT last_number, padding_length
+            FROM document_sequences
+            WHERE document_type = ? AND year = ? AND month = ?
+        `;
+		const [rows] = await connection.execute(selectQuery, [docType, year, month]);
+		lastNumber = rows[0].last_number;
+	}
 
-	const lastNumber = rows[0].last_number;
-	const padding = rows[0].padding_length;
+	const [[paddingRow]] = await connection.execute(
+		`SELECT padding_length FROM document_sequences WHERE document_type = ? AND year = ? AND month = ?`,
+		[docType, year, month]
+	);
+	const padding = paddingRow?.padding_length ?? 4;
 
 	const runningNumber = String(lastNumber).padStart(padding, '0');
 	return `${prefix}${year}${monthStr}-${runningNumber}`;
 }
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const sourceId = url.searchParams.get('source_id');
 	const targetType = url.searchParams.get('target_type') || 'PR';
 	let prefillData = null;
 
 	try {
 		if (sourceId) {
-			const [docs] = await pool.query<any[]>('SELECT * FROM purchase_documents WHERE id = ?', [sourceId]);
+			const [docs] = await pool.query<any[]>(
+				`SELECT pd.*, u.department_id AS creator_department_id
+				 FROM purchase_documents pd
+				 LEFT JOIN users u ON u.id = pd.created_by_user_id
+				 WHERE pd.id = ?
+				 LIMIT 1`,
+				[sourceId]
+			);
+
+			if (docs.length > 0) {
+				const creatorDepartmentId =
+					docs[0].creator_department_id != null ? Number(docs[0].creator_department_id) : null;
+				if (!canAccessPurchaseDocumentByDepartment(locals.user, creatorDepartmentId)) {
+					throw error(403, 'Forbidden: source document is outside your department scope');
+				}
+			}
+
 			const [items] = await pool.query<any[]>('SELECT * FROM purchase_document_items WHERE document_id = ? ORDER BY item_order ASC', [sourceId]);
 			const [attachments] = await pool.query<any[]>(
 				`SELECT id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id
@@ -81,7 +110,7 @@ export const load: PageServerLoad = async ({ url }) => {
 				 ORDER BY id ASC`,
 				[sourceId]
 			);
-			
+
 			if (docs.length > 0) {
 				prefillData = {
 					document: docs[0],

@@ -1,4 +1,4 @@
-import { error, fail, redirect, isHttpError } from '@sveltejs/kit';
+import { error, fail, redirect, isHttpError, isRedirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import { env } from '$env/dynamic/private';
@@ -301,13 +301,19 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		}
 		let canEdit = true;
 		if (String(document.document_type || '').toUpperCase() === 'PR') {
+			const prNum = String(document.document_number || '');
 			const [poRows] = await pool.query<any[]>(
 				`SELECT id
 				 FROM purchase_documents
 				 WHERE document_type = 'PO'
-				   AND reference_doc LIKE ?
+				   AND (
+				     reference_doc = ?
+				     OR reference_doc LIKE ?
+				     OR reference_doc LIKE ?
+				     OR reference_doc LIKE ?
+				   )
 				 LIMIT 1`,
-				[`%${String(document.document_number || '')}%`]
+				[prNum, `${prNum},%`, `%,${prNum}`, `%,${prNum},%`]
 			);
 			canEdit = poRows.length === 0;
 		}
@@ -456,8 +462,10 @@ export const actions: Actions = {
 			}
 
 			return { success: true };
-		} catch (err: any) {
-			return fail(500, { message: err.message });
+		} catch (err: unknown) {
+			if (isHttpError(err) || isRedirect(err)) throw err;
+			const message = err instanceof Error ? err.message : String(err);
+			return fail(500, { message });
 		}
 	}
 };
