@@ -605,6 +605,11 @@
 			</div>
 
 			<div class="relative z-30 grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-4">
+				<p class="col-span-full text-xs text-gray-500">
+					{$locale === 'th'
+						? 'รูปแบบวันที่: DD/MMM/YYYY (เช่น 13/May/2026)'
+						: 'Date format: DD/MMM/YYYY (e.g. 13/May/2026)'}
+				</p>
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
