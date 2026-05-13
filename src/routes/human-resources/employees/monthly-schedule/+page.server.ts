@@ -69,6 +69,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         `;
         const empParams: any[] = [];
 
+        // 🌟 เพิ่มเงื่อนไขกรองตาม department_id ของ User ที่ Login 
+        if (userDepartmentId) {
+            empQuery += ` AND e.department_id = ?`;
+            empParams.push(userDepartmentId);
+        }
+
         const [employees]: any = await pool.query(empQuery, empParams);
 
         // 3. เตรียม Map โครงสร้างตาราง

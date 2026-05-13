@@ -12,6 +12,7 @@ const STATIC_UPLOADS_DIR = path.join(process.cwd(), 'static', 'uploads', 'produc
 
 interface ProductExportData extends RowDataPacket {
 	sku: string;
+	barcode: string | null;
 	name: string;
 	description: string | null;
 	product_type: string;
@@ -20,9 +21,10 @@ interface ProductExportData extends RowDataPacket {
 	purchase_unit_symbol?: string | null;
 	sales_unit_symbol?: string | null;
 	vendor_name?: string | null;
-	customer_name?: string | null; // Added
+	customer_name?: string | null;
 	purchase_cost: number | null;
 	selling_price: number | null;
+	tax_rate: number | null;
 	quantity_on_hand: number | null;
 	reorder_level: number | null;
 	is_active: boolean;
@@ -37,33 +39,67 @@ interface ProductExportData extends RowDataPacket {
 export const POST: RequestHandler = async ({ request }) => {
 	const formData = await request.formData();
 	const searchQuery = formData.get('search')?.toString() || '';
+	const filterType = formData.get('type')?.toString() || '';
+	const filterCategory = formData.get('category')?.toString() || '';
+	const filterActive = formData.get('active')?.toString() || '';
+	const filterStock = formData.get('stock')?.toString() || '';
 
 	try {
 		let whereClause = ' WHERE 1=1 ';
-		const params: string[] = [];
+		const params: (string | number)[] = [];
 
 		if (searchQuery) {
 			whereClause += ` AND (
                 p.sku LIKE ? OR
+                p.barcode LIKE ? OR
                 p.name LIKE ? OR
+                p.description LIKE ? OR
                 pc.name LIKE ? OR
                 v.name LIKE ? OR
 				c.name LIKE ?
             ) `;
 			const searchTerm = `%${searchQuery}%`;
-			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+			params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+		}
+
+		if (filterType && ['Stock', 'NonStock', 'Service'].includes(filterType)) {
+			whereClause += ' AND p.product_type = ? ';
+			params.push(filterType);
+		}
+		if (filterCategory === 'none') {
+			whereClause += ' AND p.category_id IS NULL ';
+		} else if (filterCategory) {
+			const catId = parseInt(filterCategory, 10);
+			if (!isNaN(catId)) {
+				whereClause += ' AND p.category_id = ? ';
+				params.push(catId);
+			}
+		}
+		if (filterActive === '1' || filterActive === '0') {
+			whereClause += ' AND p.is_active = ? ';
+			params.push(filterActive === '1' ? 1 : 0);
+		}
+		if (filterStock === 'low') {
+			whereClause +=
+				' AND p.product_type = "Stock" AND p.reorder_level IS NOT NULL AND p.quantity_on_hand <= p.reorder_level AND p.quantity_on_hand > 0 ';
+		} else if (filterStock === 'out') {
+			whereClause += ' AND p.product_type = "Stock" AND p.quantity_on_hand <= 0 ';
+		} else if (filterStock === 'in') {
+			whereClause +=
+				' AND p.product_type = "Stock" AND (p.reorder_level IS NULL OR p.quantity_on_hand > p.reorder_level) ';
 		}
 
 		const sql = `
             SELECT
-                p.sku, p.name, p.description, p.product_type,
+                p.sku, p.barcode, p.name, p.description, p.product_type,
                 pc.name AS category_name,
                 u.symbol AS unit_symbol,
                 pu.symbol AS purchase_unit_symbol,
                 su.symbol AS sales_unit_symbol,
                 v.name AS vendor_name,
 				c.name AS customer_name,
-                p.purchase_cost, p.selling_price, p.quantity_on_hand, p.reorder_level,
+                p.purchase_cost, p.selling_price, p.tax_rate,
+                p.quantity_on_hand, p.reorder_level,
                 p.is_active, p.image_url,
                 coa_asset.account_code AS asset_account_code,
                 coa_income.account_code AS income_account_code,
@@ -89,19 +125,22 @@ export const POST: RequestHandler = async ({ request }) => {
 		const worksheet = workbook.addWorksheet('Products');
 
 		worksheet.columns = [
-			{ header: 'Image', key: 'image', width: 15 }, // ลดความกว้างคอลัมน์ (เดิม 20 -> 15)
+			{ header: 'Image', key: 'image', width: 15 },
 			{ header: 'SKU', key: 'sku', width: 20 },
+			{ header: 'Barcode', key: 'barcode', width: 16 },
 			{ header: 'Name', key: 'name', width: 35 },
 			{ header: 'Description', key: 'description', width: 40, style: { alignment: { wrapText: true } } },
 			{ header: 'Product Type', key: 'product_type', width: 15 },
 			{ header: 'Category', key: 'category_name', width: 20 },
-			{ header: 'Base Unit', key: 'unit_symbol', width: 10 },
+			{ header: 'Unit', key: 'unit_symbol', width: 10 },
 			{ header: 'Purchase Unit', key: 'purchase_unit_symbol', width: 12 },
 			{ header: 'Sales Unit', key: 'sales_unit_symbol', width: 10 },
 			{ header: 'Preferred Vendor', key: 'vendor_name', width: 25 },
-			{ header: 'Preferred Customer', key: 'customer_name', width: 25 }, // Added
+			{ header: 'Preferred Customer', key: 'customer_name', width: 25 },
 			{ header: 'Purchase Cost', key: 'purchase_cost', width: 15, style: { numFmt: '#,##0.00' } },
 			{ header: 'Selling Price', key: 'selling_price', width: 15, style: { numFmt: '#,##0.00' } },
+			{ header: 'Tax Rate %', key: 'tax_rate', width: 10, style: { numFmt: '#,##0.00' } },
+			{ header: 'Margin %', key: 'margin', width: 10, style: { numFmt: '#,##0' } },
 			{ header: 'Quantity on Hand', key: 'quantity_on_hand', width: 15, style: { numFmt: '#,##0' } },
 			{ header: 'Reorder Level', key: 'reorder_level', width: 15, style: { numFmt: '#,##0' } },
 			{ header: 'Is Active', key: 'is_active', width: 10 },
@@ -116,36 +155,39 @@ export const POST: RequestHandler = async ({ request }) => {
 		worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'left' };
 
 		for (const [index, product] of productRows.entries()) {
-			const rowNumber = index + 2; // Excel rows are 1-based, +1 for header
+			const rowNumber = index + 2;
             const row = worksheet.getRow(rowNumber);
+            const cost = product.purchase_cost === null || product.purchase_cost === undefined ? null : Number(product.purchase_cost);
+            const price = product.selling_price === null || product.selling_price === undefined ? null : Number(product.selling_price);
+            const margin = cost !== null && price !== null && price !== 0 ? ((price - cost) / price) * 100 : null;
 
             row.getCell('B').value = product.sku;
-            row.getCell('C').value = product.name;
-            row.getCell('D').value = product.description;
-            row.getCell('E').value = product.product_type;
-            row.getCell('F').value = product.category_name;
-            row.getCell('G').value = product.unit_symbol;
-            row.getCell('H').value = product.purchase_unit_symbol;
-            row.getCell('I').value = product.sales_unit_symbol;
-            row.getCell('J').value = product.vendor_name;
-			row.getCell('K').value = product.customer_name;
-            row.getCell('L').value = product.purchase_cost;
-            row.getCell('M').value = product.selling_price;
-            row.getCell('N').value = product.product_type === 'Stock' ? product.quantity_on_hand : null;
-            row.getCell('O').value = product.reorder_level;
-            row.getCell('P').value = product.is_active ? 'Yes' : 'No';
-            row.getCell('Q').value = product.asset_account_code;
-            row.getCell('R').value = product.income_account_code;
-            row.getCell('S').value = product.expense_account_code;
-            row.getCell('T').value = product.created_at ? new Date(product.created_at) : null;
-            row.getCell('U').value = product.updated_at ? new Date(product.updated_at) : null;
+            row.getCell('C').value = product.barcode;
+            row.getCell('D').value = product.name;
+            row.getCell('E').value = product.description;
+            row.getCell('F').value = product.product_type;
+            row.getCell('G').value = product.category_name;
+            row.getCell('H').value = product.unit_symbol;
+            row.getCell('I').value = product.purchase_unit_symbol;
+            row.getCell('J').value = product.sales_unit_symbol;
+            row.getCell('K').value = product.vendor_name;
+            row.getCell('L').value = product.customer_name;
+            row.getCell('M').value = product.purchase_cost;
+            row.getCell('N').value = product.selling_price;
+            row.getCell('O').value = product.tax_rate;
+            row.getCell('P').value = margin;
+            row.getCell('Q').value = product.product_type === 'Stock' ? product.quantity_on_hand : null;
+            row.getCell('R').value = product.reorder_level;
+            row.getCell('S').value = product.is_active ? 'Yes' : 'No';
+            row.getCell('T').value = product.asset_account_code;
+            row.getCell('U').value = product.income_account_code;
+            row.getCell('V').value = product.expense_account_code;
+            row.getCell('W').value = product.created_at ? new Date(product.created_at) : null;
+            row.getCell('X').value = product.updated_at ? new Date(product.updated_at) : null;
 
-
-            // ปรับความสูงของแถวให้พอดีกับรูปภาพขนาดเล็กลง
-            row.height = 100; // ลดความสูงแถว (ประมาณ 80px)
+            row.height = 100;
 			row.alignment = { vertical: 'middle', horizontal: 'left' };
 
-			// *** Image Handling Logic ***
 			if (product.image_url) {
                 const imageName = path.basename(product.image_url);
 				
