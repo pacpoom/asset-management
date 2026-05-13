@@ -55,6 +55,149 @@
 		if (!raw || raw.length !== 8) return '-';
 		return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
 	}
+
+	// ===== Import Modal State =====
+	let showImportModal = $state(false);
+
+	// Step: 1 = กรอก customer+date, 2 = อัปโหลด+preview, 3 = สำเร็จ
+	let importStep = $state(1);
+
+	// Step 1
+	let customerSearch = $state('');
+	let customerList = $state<{ customer_code: string; customer_name: string }[]>([]);
+	let selectedCustomer = $state<{ customer_code: string; customer_name: string } | null>(null);
+	let importDeliveryDate = $state('');
+	let showCustomerDropdown = $state(false);
+	let customerLoading = $state(false);
+
+	// Step 2
+	let importFile = $state<File | null>(null);
+	let previewRows = $state<any[]>([]);
+	let previewErrors = $state<string[]>([]);
+	let previewLoading = $state(false);
+	let importLoading = $state(false);
+	let importError = $state('');
+
+	// Step 3
+	let importResult = $state<{ count: number; message: string } | null>(null);
+
+	function openImportModal() {
+		showImportModal = true;
+		importStep = 1;
+		customerSearch = '';
+		customerList = [];
+		selectedCustomer = null;
+		importDeliveryDate = '';
+		showCustomerDropdown = false;
+		importFile = null;
+		previewRows = [];
+		previewErrors = [];
+		importError = '';
+		importResult = null;
+	}
+
+	function closeImportModal() {
+		showImportModal = false;
+	}
+
+	async function searchCustomers() {
+		if (customerSearch.length < 1) { customerList = []; return; }
+		customerLoading = true;
+		try {
+			const res = await fetch(`/warehouse/af/sale_order/customers?q=${encodeURIComponent(customerSearch)}`);
+			customerList = await res.json();
+			showCustomerDropdown = true;
+		} finally {
+			customerLoading = false;
+		}
+	}
+
+	function selectCustomer(c: { customer_code: string; customer_name: string }) {
+		selectedCustomer = c;
+		customerSearch = `${c.customer_code} / ${c.customer_name}`;
+		showCustomerDropdown = false;
+		customerList = [];
+	}
+
+	function clearCustomer() {
+		selectedCustomer = null;
+		customerSearch = '';
+		customerList = [];
+	}
+
+	function goToStep2() {
+		if (!selectedCustomer) { alert('กรุณาเลือก Customer'); return; }
+		if (!importDeliveryDate) { alert('กรุณาเลือก Delivery Date'); return; }
+		importStep = 2;
+	}
+
+	async function handleFileChange(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0] ?? null;
+		importFile = file;
+		previewRows = [];
+		previewErrors = [];
+		importError = '';
+		if (!file) return;
+
+		previewLoading = true;
+		try {
+			const fd = new FormData();
+			fd.append('file', file);
+			const res = await fetch('/warehouse/af/sale_order/import', { method: 'PUT', body: fd });
+			const result = await res.json();
+			if (result.success) {
+				previewRows = result.rows;
+				previewErrors = result.errors;
+			} else {
+				importError = result.message;
+				previewRows = [];
+			}
+		} catch {
+			importError = 'ไม่สามารถอ่านไฟล์ได้';
+		} finally {
+			previewLoading = false;
+		}
+	}
+
+	async function handleImport() {
+		if (!importFile || !selectedCustomer || !importDeliveryDate) return;
+		if (previewErrors.length > 0) { importError = 'กรุณาแก้ไขข้อผิดพลาดในไฟล์ก่อน'; return; }
+
+		importLoading = true;
+		importError = '';
+		try {
+			const fd = new FormData();
+			fd.append('file', importFile);
+			fd.append('customer_code', selectedCustomer.customer_code);
+			fd.append('customer_name', selectedCustomer.customer_name);
+			fd.append('delivery_date', importDeliveryDate);
+
+			const res = await fetch('/warehouse/af/sale_order/import', { method: 'POST', body: fd });
+			const result = await res.json();
+			if (result.success) {
+				importResult = { count: result.count, message: result.message };
+				importStep = 3;
+			} else {
+				importError = result.message;
+				if (result.errors?.length) importError += '\n' + result.errors.join('\n');
+			}
+		} catch {
+			importError = 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล';
+		} finally {
+			importLoading = false;
+		}
+	}
+
+	function downloadTemplate() {
+		window.location.href = '/warehouse/af/sale_order/template';
+	}
+
+	function finishImport() {
+		closeImportModal();
+		// reload page เพื่อแสดงข้อมูลใหม่
+		window.location.reload();
+	}
 </script>
 
 <svelte:head>
@@ -67,18 +210,32 @@
 			<h1 class="text-2xl font-bold text-gray-800">{$t('Sale Order Search Title')}</h1>
 			<p class="mt-1 text-sm text-gray-500">{$t('Sale Order Search Desc')}</p>
 		</div>
-		{#if data.searched && data.total > 0}
+		<div class="flex shrink-0 items-center gap-2">
+			<!-- Import Button -->
 			<button
 				type="button"
-				onclick={handleExport}
-				class="flex shrink-0 items-center gap-2 rounded-lg border border-green-600 bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+				onclick={openImportModal}
+				class="flex items-center gap-2 rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+					<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4 4l4-4m0 0l4 4m-4-4V4" />
 				</svg>
-				Export Excel
+				Import Excel
 			</button>
-		{/if}
+			<!-- Export Button -->
+			{#if data.searched && data.total > 0}
+				<button
+					type="button"
+					onclick={handleExport}
+					class="flex items-center gap-2 rounded-lg border border-green-600 bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+					</svg>
+					Export Excel
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Dashboard Cards -->
@@ -386,3 +543,373 @@
 		{/if}
 	</div>
 </div>
+
+<!-- ===== Import Modal ===== -->
+{#if showImportModal}
+	<!-- Backdrop -->
+	<div
+		class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+		role="button"
+		tabindex="-1"
+		onclick={closeImportModal}
+		onkeydown={(e) => e.key === 'Escape' && closeImportModal()}
+	></div>
+
+	<!-- Modal Panel -->
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+		<div class="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+
+			<!-- Modal Header -->
+			<div class="flex items-center justify-between rounded-t-2xl border-b border-gray-200 bg-blue-600 px-6 py-4">
+				<div class="flex items-center gap-3">
+					<div class="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4 4l4-4m0 0l4 4m-4-4V4" />
+						</svg>
+					</div>
+					<div>
+						<h2 class="text-base font-bold text-white">Import Sale Order</h2>
+						<p class="text-xs text-blue-100">
+							{#if importStep === 1}ขั้นตอนที่ 1/2 — เลือก Customer และวันที่{:else if importStep === 2}ขั้นตอนที่ 2/2 — อัปโหลดและตรวจสอบข้อมูล{:else}นำเข้าข้อมูลสำเร็จ{/if}
+						</p>
+					</div>
+				</div>
+				<button onclick={closeImportModal} class="rounded-lg p-1.5 text-white/80 hover:bg-white/20 hover:text-white">
+					<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+
+			<!-- Step Indicator -->
+			<div class="flex items-center gap-0 border-b border-gray-100 bg-gray-50 px-6 py-3">
+				{#each [{ n: 1, label: 'เลือก Customer & วันที่' }, { n: 2, label: 'อัปโหลดและ Preview' }] as step}
+					<div class="flex flex-1 items-center gap-2">
+						<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold
+							{importStep > step.n ? 'bg-green-500 text-white' : importStep === step.n ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}">
+							{#if importStep > step.n}
+								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+								</svg>
+							{:else}
+								{step.n}
+							{/if}
+						</div>
+						<span class="text-xs {importStep === step.n ? 'font-semibold text-blue-700' : 'text-gray-400'}">{step.label}</span>
+						{#if step.n < 2}<div class="ml-2 h-px flex-1 bg-gray-200"></div>{/if}
+					</div>
+				{/each}
+			</div>
+
+			<!-- Modal Body -->
+			<div class="max-h-[70vh] overflow-y-auto px-6 py-5">
+
+				<!-- ===== STEP 1: Customer + Date ===== -->
+				{#if importStep === 1}
+					<div class="space-y-5">
+						<!-- Customer Search -->
+						<div>
+							<label class="mb-1.5 block text-sm font-semibold text-gray-700">
+								Customer <span class="text-red-500">*</span>
+							</label>
+							<div class="relative">
+								<input
+									type="text"
+									bind:value={customerSearch}
+									oninput={searchCustomers}
+									placeholder="พิมพ์รหัสหรือชื่อ Customer..."
+									class="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+								/>
+								{#if customerLoading}
+									<div class="absolute right-3 top-1/2 -translate-y-1/2">
+										<svg class="h-4 w-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+										</svg>
+									</div>
+								{:else if selectedCustomer}
+									<button onclick={clearCustomer} class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500">
+										<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								{/if}
+
+								<!-- Dropdown -->
+								{#if showCustomerDropdown && customerList.length > 0}
+									<div class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+										{#each customerList as c}
+											<button
+												type="button"
+												onclick={() => selectCustomer(c)}
+												class="flex w-full items-center gap-3 border-b border-gray-50 px-3 py-2.5 text-left last:border-0 hover:bg-blue-50"
+											>
+												<span class="shrink-0 rounded bg-blue-100 px-2 py-0.5 font-mono text-xs font-bold text-blue-700">{c.customer_code}</span>
+												<span class="text-gray-300">/</span>
+												<span class="truncate text-sm text-gray-800">{c.customer_name || '—'}</span>
+											</button>
+										{/each}
+									</div>
+								{:else if showCustomerDropdown && customerList.length === 0 && !customerLoading}
+									<div class="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-4 text-center text-sm text-gray-400 shadow-lg">
+										ไม่พบ Customer ที่ค้นหา
+									</div>
+								{/if}
+							</div>
+							{#if selectedCustomer}
+								<p class="mt-1.5 flex items-center gap-1.5 text-xs text-green-600">
+									<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+									</svg>
+									<span class="font-mono font-bold">{selectedCustomer.customer_code}</span>
+									<span class="text-green-400">/</span>
+									<span>{selectedCustomer.customer_name}</span>
+								</p>
+							{/if}
+						</div>
+
+						<!-- Delivery Date -->
+						<div>
+							<label for="import_delivery_date" class="mb-1.5 block text-sm font-semibold text-gray-700">
+								Delivery Date <span class="text-red-500">*</span>
+							</label>
+							<input
+								type="date"
+								id="import_delivery_date"
+								bind:value={importDeliveryDate}
+								class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+							/>
+							<p class="mt-1 text-xs text-gray-400">วันที่จะนำไปใช้กับทุกรายการในไฟล์</p>
+						</div>
+
+						<!-- Template Download -->
+						<div class="rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4">
+							<div class="flex items-center justify-between">
+								<div>
+									<p class="text-sm font-semibold text-blue-700">ดาวน์โหลด Template</p>
+									<p class="mt-0.5 text-xs text-blue-500">Fields: Delivery_no, Item_number_delivery, Material_Number, Planed_quantity, Delivery_Type</p>
+								</div>
+								<button
+									type="button"
+									onclick={downloadTemplate}
+									class="flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+									</svg>
+									Download
+								</button>
+							</div>
+						</div>
+					</div>
+
+				<!-- ===== STEP 2: Upload + Preview ===== -->
+				{:else if importStep === 2}
+					<div class="space-y-4">
+						<!-- Customer/Date summary -->
+						<div class="flex flex-wrap items-center gap-4 rounded-lg bg-gray-50 px-4 py-3 text-sm">
+							<div class="flex items-center gap-1.5">
+								<span class="text-gray-500">Customer:</span>
+								<span class="rounded bg-blue-100 px-2 py-0.5 font-mono text-xs font-bold text-blue-700">{selectedCustomer?.customer_code}</span>
+								<span class="text-gray-400">/</span>
+								<span class="font-semibold text-gray-800">{selectedCustomer?.customer_name}</span>
+							</div>
+							<div class="flex items-center gap-1.5">
+								<span class="text-gray-500">Delivery Date:</span>
+								<span class="font-semibold text-gray-800">{importDeliveryDate}</span>
+							</div>
+						</div>
+
+						<!-- File Upload -->
+						<div>
+							<label class="mb-1.5 block text-sm font-semibold text-gray-700">
+								เลือกไฟล์ Excel <span class="text-red-500">*</span>
+							</label>
+							<label
+								class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-8 transition hover:border-blue-400 hover:bg-blue-50"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="mb-2 h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+								</svg>
+								{#if importFile}
+									<p class="text-sm font-semibold text-blue-600">{importFile.name}</p>
+									<p class="text-xs text-gray-400">{(importFile.size / 1024).toFixed(1)} KB — คลิกเพื่อเปลี่ยน</p>
+								{:else}
+									<p class="text-sm font-semibold text-gray-600">คลิกเพื่อเลือกไฟล์ .xlsx</p>
+									<p class="text-xs text-gray-400">รองรับเฉพาะ .xlsx เท่านั้น</p>
+								{/if}
+								<input
+									type="file"
+									accept=".xlsx"
+									class="hidden"
+									onchange={handleFileChange}
+								/>
+							</label>
+						</div>
+
+						<!-- Loading -->
+						{#if previewLoading}
+							<div class="flex items-center justify-center gap-2 py-4 text-sm text-blue-600">
+								<svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+								</svg>
+								กำลังอ่านไฟล์...
+							</div>
+						{/if}
+
+						<!-- Import Error -->
+						{#if importError}
+							<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+								<p class="text-sm font-semibold text-red-700">⚠ {importError}</p>
+							</div>
+						{/if}
+
+						<!-- Validation Errors -->
+						{#if previewErrors.length > 0}
+							<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+								<p class="mb-2 text-sm font-semibold text-red-700">พบข้อผิดพลาด {previewErrors.length} รายการ</p>
+								<ul class="space-y-0.5">
+									{#each previewErrors as err}
+										<li class="text-xs text-red-600">• {err}</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+
+						<!-- Preview Table -->
+						{#if previewRows.length > 0}
+							<div>
+								<div class="mb-2 flex items-center gap-2">
+									<p class="text-sm font-semibold text-gray-700">Preview ข้อมูล</p>
+									<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{previewRows.length} รายการ</span>
+									{#if previewErrors.length > 0}
+										<span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{previewErrors.length} ข้อผิดพลาด</span>
+									{:else}
+										<span class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">✓ พร้อม Import</span>
+									{/if}
+								</div>
+								<div class="overflow-x-auto rounded-lg border border-gray-200">
+									<table class="min-w-full divide-y divide-gray-200 text-xs">
+										<thead class="bg-gray-50">
+											<tr>
+												<th class="whitespace-nowrap px-3 py-2 text-left font-semibold text-gray-600">Row</th>
+												<th class="whitespace-nowrap px-3 py-2 text-left font-semibold text-gray-600">Delivery No.</th>
+												<th class="whitespace-nowrap px-3 py-2 text-left font-semibold text-gray-600">Item No.</th>
+												<th class="whitespace-nowrap px-3 py-2 text-left font-semibold text-gray-600">Material No.</th>
+												<th class="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-600">Planed Qty</th>
+												<th class="whitespace-nowrap px-3 py-2 text-left font-semibold text-gray-600">Delivery Type</th>
+												<th class="whitespace-nowrap px-3 py-2 text-center font-semibold text-gray-600">Delivery Order<br/><span class="font-normal text-gray-400">(sensitive_flg)</span></th>
+												<th class="whitespace-nowrap px-3 py-2 text-left font-semibold text-gray-600">สถานะ</th>
+											</tr>
+										</thead>
+										<tbody class="divide-y divide-gray-100">
+											{#each previewRows as row}
+												<tr class="{row.hasError ? 'bg-red-50' : 'hover:bg-gray-50'}">
+													<td class="px-3 py-2 text-gray-400">{row.rowNum}</td>
+													<td class="px-3 py-2 font-mono text-gray-800">{row.deliveryNo || '—'}</td>
+													<td class="px-3 py-2 text-gray-700">{row.itemNumber || '—'}</td>
+													<td class="px-3 py-2 font-mono {row.sensitiveFlg === null || row.sensitiveFlg === undefined ? 'text-red-600 font-semibold' : 'text-gray-800'}">{row.materialNumber || '—'}</td>
+													<td class="px-3 py-2 text-right text-gray-800">{row.planedQty?.toLocaleString() ?? '—'}</td>
+													<td class="px-3 py-2 text-gray-700">{row.deliveryType || '—'}</td>
+													<td class="px-3 py-2 text-center">
+														{#if row.sensitiveFlg !== null && row.sensitiveFlg !== undefined}
+															<span class="rounded bg-indigo-100 px-2 py-0.5 font-mono font-semibold text-indigo-700">{row.sensitiveFlg}</span>
+														{:else}
+															<span class="text-red-500">ไม่พบใน Master</span>
+														{/if}
+													</td>
+													<td class="px-3 py-2">
+														{#if row.hasError}
+															<span class="inline-flex items-center gap-1 text-red-600">
+																<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+																Error
+															</span>
+														{:else}
+															<span class="inline-flex items-center gap-1 text-green-600">
+																<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+																OK
+															</span>
+														{/if}
+													</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+				<!-- ===== STEP 3: Success ===== -->
+				{:else}
+					<div class="flex flex-col items-center py-8 text-center">
+						<div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+							<svg class="h-9 w-9 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+							</svg>
+						</div>
+						<h3 class="text-lg font-bold text-gray-800">นำเข้าข้อมูลสำเร็จ!</h3>
+						<p class="mt-1 text-sm text-gray-500">{importResult?.message}</p>
+						<div class="mt-4 rounded-xl bg-green-50 px-8 py-4">
+							<p class="text-3xl font-bold text-green-600">{importResult?.count}</p>
+							<p class="text-sm text-green-700">รายการที่นำเข้า</p>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Modal Footer -->
+			<div class="flex items-center justify-between rounded-b-2xl border-t border-gray-100 bg-gray-50 px-6 py-4">
+				{#if importStep === 1}
+					<button onclick={closeImportModal} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+						ยกเลิก
+					</button>
+					<button
+						onclick={goToStep2}
+						disabled={!selectedCustomer || !importDeliveryDate}
+						class="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						ถัดไป
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+						</svg>
+					</button>
+				{:else if importStep === 2}
+					<button onclick={() => (importStep = 1)} class="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+						</svg>
+						ย้อนกลับ
+					</button>
+					<button
+						onclick={handleImport}
+						disabled={!importFile || previewRows.length === 0 || previewErrors.length > 0 || importLoading}
+						class="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						{#if importLoading}
+							<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+							</svg>
+							กำลังนำเข้า...
+						{:else}
+							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4 4l4-4m0 0l4 4m-4-4V4" />
+							</svg>
+							Import {previewRows.length > 0 ? `(${previewRows.length} รายการ)` : ''}
+						{/if}
+					</button>
+				{:else}
+					<div></div>
+					<button
+						onclick={finishImport}
+						class="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white hover:bg-green-700"
+					>
+						เสร็จสิ้น
+					</button>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
