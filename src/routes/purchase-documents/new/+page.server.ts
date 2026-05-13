@@ -311,7 +311,15 @@ export const actions: Actions = {
 			await connection.rollback();
 			if (err.status === 303) throw err;
 			console.error('Create document error:', err);
-			return fail(500, { message: 'Error: ' + err.message });
+			let message = err?.message || 'Unknown error';
+			if (
+				typeof message === 'string' &&
+				message.includes("Data truncated for column 'status'")
+			) {
+				message +=
+					" — DB column purchase_documents.status likely cannot store 'Complete' (PR auto-close after PO). Run sql/purchase_documents_status_column_fix.sql on the database.";
+			}
+			return fail(500, { message: 'Error: ' + message });
 		} finally {
 			connection.release();
 		}
