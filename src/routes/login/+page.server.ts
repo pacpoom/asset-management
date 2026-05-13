@@ -46,7 +46,7 @@ export const actions: Actions = {
 
 		if (!identifier || !password) {
 			return fail(400, {
-				message: 'Please enter credentials',
+				message: 'กรุณากรอกข้อมูลให้ครบถ้วน',
 				identifier: identifier as string
 			});
 		}
@@ -59,13 +59,13 @@ export const actions: Actions = {
 			const user = rows[0];
 
 			if (!user) {
-				return fail(401, { message: 'Invalid credentials', identifier }); // 🌟 เปลี่ยนเป็น Translation Key
+				return fail(401, { message: 'Username or Password is incorrect', identifier });
 			}
 
 			if (user.is_locked || user.failed_attempts >= 3) {
 				return fail(403, {
 					isLocked: true,
-					message: 'Account locked',
+					message: 'บัญชีถูกระงับ',
 					identifier
 				});
 			}
@@ -89,13 +89,13 @@ export const actions: Actions = {
 				if (isLocked) {
 					return fail(403, {
 						isLocked: true,
-						message: 'Account locked',
+						message: 'บัญชีถูกระงับ',
 						identifier
 					});
 				}
 
 				return fail(401, {
-					message: 'Invalid credentials',
+					message: 'Username or Password is incorrect',
 					attemptsLeft: 3 - newFailedAttempts,
 					identifier
 				});
@@ -143,7 +143,7 @@ export const actions: Actions = {
 			if (isRedirect(err)) throw err;
 			console.error(err);
 			return fail(400, {
-				message: 'System connection error',
+				message: 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ',
 				identifier: identifier as string
 			});
 		}

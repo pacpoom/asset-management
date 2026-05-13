@@ -252,52 +252,68 @@
 
 {#if showErrorModal && form?.message}
 	<div
-		class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm transition-all"
-		transition:fade={{ duration: 200 }}
+		class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md transition-all"
+		transition:fade={{ duration: 300 }}
 	>
 		<div
-			class="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl"
-			transition:scale={{ duration: 300, start: 0.8, opacity: 0 }}
+			class="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/20 bg-white/95 p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl"
+			transition:scale={{ duration: 400, start: 0.8, opacity: 0 }}
 		>
+			<div class="absolute -top-20 -right-20 h-48 w-48 rounded-full bg-red-400/20 blur-3xl"></div>
 			<div
-				class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border-[3px] border-red-500 bg-white"
-			>
-				{#if form.isLocked}
-					<span class="material-symbols-outlined text-[40px] text-red-500">lock</span>
-				{:else}
-					<span class="material-symbols-outlined text-[50px] font-light text-red-500">close</span>
-				{/if}
-			</div>
+				class="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-rose-400/20 blur-3xl"
+			></div>
 
-			<h2 class="mb-4 text-3xl font-semibold text-gray-700">
-				{#if form.isLocked}
-					{$t('Account Suspended')}
-				{:else}
-					Oops...
-				{/if}
-			</h2>
-
-			<div class="mb-8 text-gray-500">
-				{#if form.isLocked}
-					<p class="text-base">{$t('You have entered the wrong password more than 3 times')}</p>
-					<p class="text-base">{$t('Contact IT to unlock')}</p>
-				{:else}
-					<p class="text-base">{$t(form.message)}</p>
-					{#if form.attemptsLeft}
-						<p class="mt-1.5 font-semibold text-red-500">
-							({$t('Attempts remaining')}: {form.attemptsLeft})
-						</p>
+			<div class="relative z-10">
+				<div
+					class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-rose-600 shadow-lg ring-4 shadow-red-500/40 ring-red-50"
+				>
+					{#if form.isLocked}
+						<span class="material-symbols-outlined text-[36px] text-white">lock</span>
+					{:else}
+						<span class="material-symbols-outlined text-[40px] text-white">warning</span>
 					{/if}
-				{/if}
-			</div>
+				</div>
 
-			<button
-				type="button"
-				onclick={() => (showErrorModal = false)}
-				class="w-full rounded-xl bg-[#7066e0] px-4 py-3.5 text-lg font-bold text-white shadow-sm transition-all hover:bg-[#5b52b8] active:scale-95"
-			>
-				ตกลง
-			</button>
+				<h3 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-900">
+					{#if form.isLocked}
+						{$t('Account Suspended')}
+					{:else}
+						{$t('Login Failed')}
+					{/if}
+				</h3>
+
+				<div class="mb-8 text-sm leading-relaxed text-gray-500">
+					{#if form.isLocked}
+						<p>{$t('You have entered the wrong password more than 3 times')}</p>
+						<p class="mt-1 font-medium text-rose-600">{$t('Contact IT to unlock')}</p>
+					{:else}
+						<p class="text-base text-gray-600">{$t(form.message)}</p>
+						{#if form.attemptsLeft}
+							<div
+								class="mt-3 inline-block rounded-full border border-rose-100 bg-rose-50 px-4 py-1.5"
+							>
+								<span class="font-semibold text-rose-600">
+									{$t('Remaining attempts')}
+									{form.attemptsLeft}
+									{$t('times before lock')}
+								</span>
+							</div>
+						{/if}
+					{/if}
+				</div>
+
+				<button
+					type="button"
+					onclick={() => (showErrorModal = false)}
+					class="group relative w-full overflow-hidden rounded-xl bg-gray-900 px-4 py-3.5 font-bold text-white transition-all hover:bg-gray-800 hover:shadow-lg hover:shadow-gray-900/30 active:scale-[0.98]"
+				>
+					<div
+						class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-500 group-hover:translate-x-full"
+					></div>
+					<span class="relative">{$t('Try Again')}</span>
+				</button>
+			</div>
 		</div>
 	</div>
 {/if}
