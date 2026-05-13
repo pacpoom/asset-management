@@ -400,13 +400,6 @@
 
 			<div class="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
 				{#each Object.entries(groupedByDivision) as [divisionName, divData]}
-					{@const currentPage = divPages[divisionName] || 1}
-					{@const totalPages = Math.ceil(divData.sections.length / 4)}
-					{@const paginatedSections = divData.sections.slice(
-						(currentPage - 1) * 4,
-						currentPage * 4
-					)}
-
 					<div
 						class="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
 					>
@@ -446,7 +439,7 @@
 							</div>
 						</div>
 
-						<div class="flex flex-1 flex-col justify-between p-0">
+						<div class="flex flex-1 flex-col p-0">
 							<table class="w-full text-left text-sm">
 								<thead class="bg-gray-50 text-[10px] text-gray-500 uppercase">
 									<tr>
@@ -457,7 +450,7 @@
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-100">
-									{#each paginatedSections as sec}
+									{#each divData.sections as sec}
 										<tr class="transition-colors hover:bg-gray-50">
 											<td class="px-4 py-2.5">
 												<div
@@ -494,31 +487,6 @@
 									{/each}
 								</tbody>
 							</table>
-
-							{#if totalPages > 1}
-								<div
-									class="mt-auto flex items-center justify-between border-t border-gray-100 bg-white px-4 py-2.5"
-								>
-									<button
-										class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-										disabled={currentPage === 1}
-										onclick={() => (divPages[divisionName] = currentPage - 1)}
-									>
-										{$t('Previous')}
-									</button>
-									<span class="text-xs font-medium text-gray-500">{currentPage} / {totalPages}</span
-									>
-									<button
-										class="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-										disabled={currentPage === totalPages}
-										onclick={() => (divPages[divisionName] = (divPages[divisionName] || 1) + 1)}
-									>
-										{$t('Next')}
-									</button>
-								</div>
-							{:else}
-								<div class="mt-auto h-[45px] border-t border-transparent"></div>
-							{/if}
 						</div>
 					</div>
 				{/each}
