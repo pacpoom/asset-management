@@ -17,22 +17,24 @@
 	let toDateInput = toDate;
 	let pageSizeInput = pageSize || 10;
 
-	// ตั้งค่า Default Date เป็นเดือนปัจจุบัน (ถ้าไม่มีการส่งค่ามา)
+	// Default ช่วงวันที่: ตั้งแต่ต้นเดือนปัจจุบัน ถึง สิ้นเดือนถัดไป (รวม 2 เดือน)
 	onMount(() => {
 		if (!fromDateInput || !toDateInput) {
 			const now = new Date();
 			const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-			const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+			const lastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
 			// ปรับเวลาให้เป็น Local TimeZone เพื่อป้องกันการเลื่อนวัน
 			const offsetFirst = firstDay.getTimezoneOffset() * 60000;
 			const offsetLast = lastDay.getTimezoneOffset() * 60000;
-			
-			if(!fromDateInput) fromDateInput = new Date(firstDay.getTime() - offsetFirst).toISOString().split('T')[0];
-			if(!toDateInput) toDateInput = new Date(lastDay.getTime() - offsetLast).toISOString().split('T')[0];
-			
+
+			if (!fromDateInput)
+				fromDateInput = new Date(firstDay.getTime() - offsetFirst).toISOString().split('T')[0];
+			if (!toDateInput)
+				toDateInput = new Date(lastDay.getTime() - offsetLast).toISOString().split('T')[0];
+
 			// Auto search if defaults were applied
-			if(!fromDate && !toDate) applyFilters(); 
+			if (!fromDate && !toDate) applyFilters();
 		}
 	});
 
@@ -84,6 +86,7 @@
 			case 'Paid': return 'bg-green-100 text-green-800';
 			case 'Overdue': return 'bg-red-100 text-red-800';
 			case 'Void': return 'bg-gray-300 text-gray-600';
+			case 'Complete': return 'bg-emerald-100 text-emerald-800';
 			default: return 'bg-gray-100 text-gray-800';
 		}
 	}
@@ -184,6 +187,7 @@
 				<option value="Paid">{$t('Status_Paid')}</option>
 				<option value="Overdue">{$t('Status_Overdue')}</option>
 				<option value="Void">{$t('Status_Void')}</option>
+				<option value="Complete">{$t('Status_Complete')}</option>
 			</select>
 		</div>
 	</div>
@@ -320,13 +324,22 @@
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
 										</span>
 									{/if}
-									<a
-										href="/purchase-documents/{doc.id}/edit"
-										class="text-gray-400 transition-colors hover:text-yellow-600"
-										title={$t('Edit')}
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
-									</a>
+									{#if doc.document_type !== 'PR' || doc.can_edit}
+										<a
+											href="/purchase-documents/{doc.id}/edit"
+											class="text-gray-400 transition-colors hover:text-yellow-600"
+											title={$t('Edit')}
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+										</a>
+									{:else}
+										<span
+											class="cursor-not-allowed text-gray-200"
+											title={$t('PR locked after PO is created') || 'มีการออก PO จาก PR นี้แล้ว — แก้ไขไม่ได้'}
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+										</span>
+									{/if}
 									<button
 										type="button"
 										on:click={() => openDeleteModal(doc)}

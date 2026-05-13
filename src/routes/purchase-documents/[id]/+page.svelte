@@ -56,7 +56,8 @@
 			Received: 'bg-indigo-100 text-indigo-800',
 			Paid: 'bg-green-100 text-green-800',
 			Overdue: 'bg-red-100 text-red-800',
-			Void: 'bg-gray-300 text-gray-600'
+			Void: 'bg-gray-300 text-gray-600',
+			Complete: 'bg-emerald-100 text-emerald-800'
 		};
 		return statusMap[status] || 'bg-gray-100 text-gray-800';
 	}
@@ -146,7 +147,7 @@
 			{$t('Status_' + document.status) || document.status}
 		</span>
 
-		{#if document.document_type === 'PR'}
+		{#if document.document_type === 'PR' && data.canEdit}
 			<a
 				href="/purchase-documents/new?source_id={document.id}&target_type=PO"
 				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"

@@ -9,6 +9,8 @@ import { pipeline } from 'stream/promises';
 import path from 'path';
 import mime from 'mime-types';
 
+import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
+
 const UPLOAD_DIR = path.resolve('uploads', 'sales_documents');
 
 async function saveFile(file: any) {
@@ -39,41 +41,21 @@ async function saveFile(file: any) {
 	}
 }
 
-async function generateDocumentNumber(docType: string, dateStr: string, connection: any) {
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const month = date.getMonth() + 1;
-	const monthStr = String(month).padStart(2, '0');
-
-	let prefix = '';
+function resolveSalesPrefix(docType: string): string {
 	switch (docType) {
-		case 'QT': prefix = 'QT-'; break;
-		case 'BN': prefix = 'BN-'; break;
-		case 'D-INV': prefix = 'D-INV-'; break;
-		case 'INV': prefix = 'INV-'; break;
-		case 'RE': prefix = 'RE-'; break;
-		default: prefix = 'DOC-';
+		case 'QT':
+			return 'QT-';
+		case 'BN':
+			return 'BN-';
+		case 'D-INV':
+			return 'D-INV-';
+		case 'INV':
+			return 'INV-';
+		case 'RE':
+			return 'RE-';
+		default:
+			return 'DOC-';
 	}
-
-	const updateQuery = `
-        INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
-        VALUES (?, ?, ?, ?, 1, 4)
-        ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-    `;
-	await connection.execute(updateQuery, [docType, prefix, year, month]);
-
-	const selectQuery = `
-        SELECT last_number, padding_length 
-        FROM document_sequences 
-        WHERE document_type = ? AND year = ? AND month = ?
-    `;
-	const [rows] = await connection.execute(selectQuery, [docType, year, month]);
-
-	const lastNumber = rows[0].last_number;
-	const padding = rows[0].padding_length;
-
-	const runningNumber = String(lastNumber).padStart(padding, '0');
-	return `${prefix}${year}${monthStr}-${runningNumber}`;
 }
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -178,7 +160,12 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			const document_number = await generateDocumentNumber(document_type, document_date, connection);
+			const document_number = await allocateMonthlyDocumentNumber(
+				connection,
+				document_type,
+				document_date,
+				resolveSalesPrefix
+			);
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO sales_documents 

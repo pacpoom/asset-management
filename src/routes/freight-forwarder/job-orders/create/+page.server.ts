@@ -3,6 +3,7 @@ import pool from '$lib/server/database';
 import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
+import { allocateMonthlySequence } from '$lib/server/monthlyDocumentSequence';
 
 const UPLOAD_DIR = path.resolve('uploads', 'job_orders');
 
@@ -32,39 +33,10 @@ interface DbConnection {
 }
 
 async function generateJobNumber(jobType: string, dateStr: string, connection: DbConnection) {
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const month = date.getMonth() + 1;
-	const yy = String(year).slice(-2);
-	const mm = String(month).padStart(2, '0');
-
-	const selectQuery = `SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' LIMIT 1`;
-	const [rows] = await connection.execute(selectQuery);
-	const seqRows = rows as { last_number: number; padding_length: number }[];
-
-	let lastNumber = 0;
-	let padding = 4;
-
-	if (seqRows.length > 0) {
-		await connection.execute(
-			`UPDATE document_sequences 
-             SET last_number = last_number + 1, year = ?, month = ? 
-             WHERE document_type = 'JOB'`,
-			[year, month]
-		);
-		lastNumber = seqRows[0].last_number + 1;
-		padding = seqRows[0].padding_length;
-	} else {
-		await connection.execute(
-			`INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length) 
-             VALUES ('JOB', '[SI,SE,AI,AF,SP]', ?, ?, 1, 4)`,
-			[year, month]
-		);
-		lastNumber = 1;
-	}
-
-	const runningNumber = String(lastNumber).padStart(padding, '0');
-	return `${jobType}${yy}${mm}${runningNumber}`;
+	const meta = await allocateMonthlySequence(connection, 'JOB', dateStr, () => '[SI,SE,AI,AF,SP]');
+	const yy = String(meta.year).slice(-2);
+	const runningNumber = String(meta.seq).padStart(meta.padding, '0');
+	return `${jobType}${yy}${meta.monthStr}${runningNumber}`;
 }
 
 export const load = async () => {
@@ -102,8 +74,12 @@ export const load = async () => {
 		'SELECT id, port_name FROM ports WHERE is_active = 1 ORDER BY port_name ASC'
 	);
 
+	const today = new Date();
+	const previewYear = today.getFullYear();
+	const previewMonth = today.getMonth() + 1;
 	const [seqRows] = await pool.query(
-		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' LIMIT 1`
+		`SELECT last_number, padding_length FROM document_sequences WHERE document_type = 'JOB' AND year = ? AND month = ?`,
+		[previewYear, previewMonth]
 	);
 	
 	const typedSeqRows = seqRows as { last_number: number; padding_length: number }[];

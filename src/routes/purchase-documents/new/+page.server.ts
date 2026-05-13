@@ -5,6 +5,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
 
+import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
+
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
 async function saveFile(file: File) {
@@ -28,41 +30,21 @@ async function saveFile(file: File) {
 	}
 }
 
-async function generateDocumentNumber(docType: string, dateStr: string, connection: any) {
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const month = date.getMonth() + 1;
-	const monthStr = String(month).padStart(2, '0');
-
-	let prefix = '';
+function resolvePurchasePrefix(docType: string): string {
 	switch (docType) {
-		case 'PR': prefix = 'PR-'; break;
-		case 'PO': prefix = 'PO-'; break;
-		case 'GR': prefix = 'GR-'; break;
-		case 'AP': prefix = 'AP-'; break;
-		case 'PV': prefix = 'PV-'; break;
-		default: prefix = 'DOC-';
+		case 'PR':
+			return 'PR-';
+		case 'PO':
+			return 'PO-';
+		case 'GR':
+			return 'GR-';
+		case 'AP':
+			return 'AP-';
+		case 'PV':
+			return 'PV-';
+		default:
+			return 'DOC-';
 	}
-
-	const updateQuery = `
-        INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
-        VALUES (?, ?, ?, ?, 1, 4)
-        ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-    `;
-	await connection.execute(updateQuery, [docType, prefix, year, month]);
-
-	const selectQuery = `
-        SELECT last_number, padding_length 
-        FROM document_sequences 
-        WHERE document_type = ? AND year = ? AND month = ?
-    `;
-	const [rows] = await connection.execute(selectQuery, [docType, year, month]);
-
-	const lastNumber = rows[0].last_number;
-	const padding = rows[0].padding_length;
-
-	const runningNumber = String(lastNumber).padStart(padding, '0');
-	return `${prefix}${year}${monthStr}-${runningNumber}`;
 }
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -166,11 +148,34 @@ export const actions: Actions = {
 
 		if (!vendor_id) return fail(400, { message: 'กรุณาเลือกผู้จำหน่าย (Vendor)' });
 
+		// PR ต้องมีไฟล์แนบอย่างน้อย 1 ไฟล์ (อัปโหลดใหม่ หรือสืบทอดจากเอกสารต้นทางที่มีแนบไว้)
+		if (String(document_type).toUpperCase() === 'PR') {
+			const files = formData.getAll('attachments') as File[];
+			const hasUpload = files.some((f) => f instanceof File && f.size > 0);
+			const srcId = parseInt(source_document_id, 10);
+			let sourceAttachmentCount = 0;
+			if (Number.isInteger(srcId) && srcId > 0) {
+				const [cntRows] = await pool.execute<any[]>(
+					`SELECT COUNT(*) AS c FROM purchase_document_attachments WHERE document_id = ?`,
+					[srcId]
+				);
+				sourceAttachmentCount = Number(cntRows[0]?.c ?? 0);
+			}
+			if (!hasUpload && sourceAttachmentCount === 0) {
+				return fail(400, { message: 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ (PR บังคับ)' });
+			}
+		}
+
 		const connection = await pool.getConnection();
 		try {
 			await connection.beginTransaction();
 
-			const document_number = await generateDocumentNumber(document_type, document_date, connection);
+			const document_number = await allocateMonthlyDocumentNumber(
+				connection,
+				document_type,
+				document_date,
+				resolvePurchasePrefix
+			);
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO purchase_documents 
@@ -256,6 +261,17 @@ export const actions: Actions = {
 							]
 						);
 					}
+				}
+			}
+
+			// สร้าง PO จาก PR → ปิดงาน PR อัตโนมัติ (สถานะ Complete)
+			if (String(document_type).toUpperCase() === 'PO') {
+				const srcId = parseInt(source_document_id, 10);
+				if (Number.isInteger(srcId) && srcId > 0) {
+					await connection.execute(
+						`UPDATE purchase_documents SET status = 'Complete' WHERE id = ? AND document_type = 'PR'`,
+						[srcId]
+					);
 				}
 			}
 

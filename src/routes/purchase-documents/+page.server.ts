@@ -76,7 +76,19 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 pd.id, pd.document_type, pd.document_number, pd.document_date, pd.due_date, pd.total_amount, pd.status,
                 COALESCE(v.company_name, v.name) as vendor_name,
 				j.job_number,
-                u.full_name as created_by_name
+                u.full_name as created_by_name,
+				CASE
+					WHEN pd.document_type <> 'PR' THEN 1
+					WHEN pd.status = 'Complete' THEN 0
+					WHEN EXISTS (
+						SELECT 1 FROM purchase_documents po
+						WHERE po.document_type = 'PO'
+						  AND pd.document_number IS NOT NULL AND TRIM(pd.document_number) <> ''
+						  AND po.reference_doc LIKE CONCAT('%', pd.document_number, '%')
+						LIMIT 1
+					) THEN 0
+					ELSE 1
+				END AS can_edit
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id

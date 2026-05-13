@@ -13,7 +13,24 @@ export function normalizeRoleName(role: string | null | undefined): string {
 	return String(role ?? '')
 		.trim()
 		.toLowerCase()
-		.replace(/[\s-]+/g, '_');
+		.replace(/[\s.\-]+/g, '_')
+		.replace(/_+/g, '_');
+}
+
+/** Admin_Purchase — เห็น PR/เอกสารจัดซื้อทุกแผนก */
+export function userHasAdminPurchaseRole(user: {
+	role: string;
+	roleNames?: string[];
+} | null): boolean {
+	return userHasRoleName(user, 'admin_purchase');
+}
+
+/** Role Purchase (ไม่รวม Admin_Purchase) — ใช้คู่กับสิทธิ์อื่นในโมดูลจัดซื้อ */
+export function userHasPurchaseRole(user: {
+	role: string;
+	roleNames?: string[];
+} | null): boolean {
+	return userHasRoleName(user, 'purchase');
 }
 
 export function userHasRoleName(

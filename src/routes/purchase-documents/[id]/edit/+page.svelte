@@ -75,7 +75,15 @@
 	}
 
 	export let data: PageData;
-	$: ({ document: doc, existingItems: initialItems, vendors, vendorContacts, units, jobOrders } = data);
+	$: ({
+		document: doc,
+		existingItems: initialItems,
+		existingAttachments = [],
+		vendors,
+		vendorContacts,
+		units,
+		jobOrders
+	} = data);
 	
 	let localProducts = data.products || [];
 
@@ -632,7 +640,7 @@
 
 			<div class="relative z-10">
 				<label for="reference_doc" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Other Reference (Quotation/Ref)')}</label
+					>{$t('Other Reference (PR Number On OA)')}</label
 				>
 				<input
 					type="text"
@@ -640,14 +648,22 @@
 					name="reference_doc"
 					bind:value={referenceDoc}
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
-					placeholder={$t('e.g. QT-2023...')}
+					placeholder={$t('e.g. OA PR number')}
 				/>
 			</div>
 
 			<div class="md:col-span-2">
-				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700"
-					>{$t('Attachments')}</label
-				>
+				<label for="attachments" class="mb-1 block text-sm font-medium text-gray-700">
+					{$t('Attachments')}
+					{#if documentType === 'PR'}<span class="text-red-500">*</span>{/if}
+				</label>
+				{#if documentType === 'PR' && existingAttachments?.length}
+					<ul class="mb-2 list-disc pl-5 text-sm text-gray-600">
+						{#each existingAttachments as att (att.id)}
+							<li>{att.file_original_name}</li>
+						{/each}
+					</ul>
+				{/if}
 				<input
 					type="file"
 					id="attachments"
@@ -655,6 +671,11 @@
 					multiple
 					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2"
 				/>
+				{#if documentType === 'PR'}
+					<p class="mt-1 text-xs text-gray-500">
+						{$t('PR documents require at least one attachment.')}
+					</p>
+				{/if}
 			</div>
 		</div>
 

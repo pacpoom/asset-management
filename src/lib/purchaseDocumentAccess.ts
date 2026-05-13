@@ -1,4 +1,8 @@
-import { userHasAdminRole, userHasRoleName } from '$lib/userRole';
+import {
+	userHasAdminRole,
+	userHasAdminPurchaseRole,
+	userHasPurchaseRole
+} from '$lib/userRole';
 
 type SessionUser = {
 	role: string;
@@ -7,16 +11,17 @@ type SessionUser = {
 } | null;
 
 /**
- * Purchase visibility rule:
- * - admin / Admin_Purchase: see all departments
- * - Purchase: only own department
- * - others: keep existing behavior (no department restriction)
+ * Purchase / PR visibility:
+ * - admin, Admin_Purchase: ไม่จำกัดแผนก (เห็นทุก PR)
+ * - Purchase: จำกัดตามแผนกของผู้ใช้ (department_id)
+ * - อื่นๆ: ไม่บังคับ filter แผนกใน scope นี้ (พฤติกรรมเดิม)
  */
 export function getPurchaseDepartmentScope(user: SessionUser): number | null {
 	if (!user) return null;
 	if (userHasAdminRole(user)) return null;
-	if (userHasRoleName(user, 'admin_purchase')) return null;
-	if (!userHasRoleName(user, 'purchase')) return null;
+	// Admin_Purchase ต้องเห็นได้ทุกแผนก — ตรวจก่อน role Purchase เสมอ
+	if (userHasAdminPurchaseRole(user)) return null;
+	if (!userHasPurchaseRole(user)) return null;
 	return user.department_id ?? -1;
 }
 

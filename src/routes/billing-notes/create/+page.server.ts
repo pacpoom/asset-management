@@ -1,39 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
-
-async function generateBillingNoteNumber(dateStr: string, connection: any) {
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const month = date.getMonth() + 1;
-	const mm = String(month).padStart(2, '0');
-
-	const selectQuery = `SELECT prefix, last_number, padding_length FROM document_sequences WHERE document_type = 'BN' LIMIT 1`;
-	const [rows] = await connection.execute(selectQuery);
-
-	let lastNumber = 0;
-	let padding = 4;
-	let prefix = 'BN-';
-
-	if ((rows as any[]).length > 0) {
-		await connection.execute(
-			`UPDATE document_sequences SET last_number = last_number + 1, year = ?, month = ? WHERE document_type = 'BN'`,
-			[year, month]
-		);
-		lastNumber = (rows as any[])[0].last_number + 1;
-		padding = (rows as any[])[0].padding_length;
-		prefix = (rows as any[])[0].prefix;
-	} else {
-		await connection.execute(
-			`INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length) VALUES ('BN', 'BN-', ?, ?, 1, 4)`,
-			[year, month]
-		);
-		lastNumber = 1;
-	}
-
-	const runningNumber = String(lastNumber).padStart(padding, '0');
-	return `${prefix}${year}${mm}-${runningNumber}`;
-}
+import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
 
 export const load: PageServerLoad = async () => {
 	try {
@@ -96,7 +64,12 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			const billing_note_number = await generateBillingNoteNumber(billing_date, connection);
+			const billing_note_number = await allocateMonthlyDocumentNumber(
+				connection,
+				'BN',
+				billing_date,
+				() => 'BN-'
+			);
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO billing_notes 

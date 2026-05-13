@@ -1,6 +1,7 @@
 import { error, fail, redirect, isRedirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
 import type { RowDataPacket } from 'mysql2/promise';
+import { allocateMonthlySequence } from '$lib/server/monthlyDocumentSequence';
 
 export const load = async ({ params }) => {
 	const id = parseInt(params.id);
@@ -134,33 +135,11 @@ export const actions = {
         try {
             await connection.beginTransaction();
 
-            const docType = 'ITE';
-            const prefix = 'ITE-';
-            const date = new Date();
-            const year = date.getFullYear();
-            const month = date.getMonth() + 1;
-
-            // อัปเดต/เพิ่ม document sequences
-            await connection.execute(`
-                INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
-                VALUES (?, ?, ?, ?, 1, 4)
-                ON DUPLICATE KEY UPDATE last_number = last_number + 1
-            `, [docType, prefix, year, month]);
-
-            const [seqResult]: any = await connection.execute(`
-                SELECT prefix, last_number, padding_length
-                FROM document_sequences
-                WHERE document_type = ? AND year = ? AND month = ?
-            `, [docType, year, month]);
-
-            let item_code = '';
-            if (seqResult.length > 0) {
-                const seq = seqResult[0];
-                const yy = year.toString().slice(-2);
-                const mm = month.toString().padStart(2, '0');
-                const runningNo = seq.last_number.toString().padStart(seq.padding_length, '0');
-                item_code = `${seq.prefix}${yy}${mm}${runningNo}`; 
-            }
+            const dateStr = new Date().toISOString().split('T')[0];
+            const meta = await allocateMonthlySequence(connection, 'ITE', dateStr, () => 'ITE-');
+            const yy = meta.year.toString().slice(-2);
+            const runningNo = String(meta.seq).padStart(meta.padding, '0');
+            const item_code = `${meta.prefix}${yy}${meta.monthStr}${runningNo}`;
 
             // บันทึกรายการใหม่
             await connection.execute(

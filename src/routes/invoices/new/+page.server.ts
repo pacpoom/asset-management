@@ -4,6 +4,7 @@ import pool from '$lib/server/database';
 import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
+import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
 
 const UPLOAD_DIR = path.resolve('uploads', 'invoices');
 
@@ -26,39 +27,6 @@ async function saveFile(file: File) {
 		console.error('Save file error:', e);
 		return null;
 	}
-}
-
-async function generateInvoiceNumber(dateStr: string, connection: any) {
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const month = date.getMonth() + 1;
-	const mm = String(month).padStart(2, '0');
-
-	const selectQuery = `SELECT prefix, last_number, padding_length FROM document_sequences WHERE document_type = 'INV' LIMIT 1`;
-	const [rows] = await connection.execute(selectQuery);
-
-	let lastNumber = 0;
-	let padding = 4;
-	let prefix = 'INV-';
-
-	if ((rows as any[]).length > 0) {
-		await connection.execute(
-			`UPDATE document_sequences SET last_number = last_number + 1, year = ?, month = ? WHERE document_type = 'INV'`,
-			[year, month]
-		);
-		lastNumber = (rows as any[])[0].last_number + 1;
-		padding = (rows as any[])[0].padding_length;
-		prefix = (rows as any[])[0].prefix;
-	} else {
-		await connection.execute(
-			`INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length) VALUES ('INV', 'INV-', ?, ?, 1, 4)`,
-			[year, month]
-		);
-		lastNumber = 1;
-	}
-
-	const runningNumber = String(lastNumber).padStart(padding, '0');
-	return `${prefix}${year}${mm}-${runningNumber}`;
 }
 
 interface PrefilledData {
@@ -122,7 +90,12 @@ export const actions: Actions = {
 		try {
 			await connection.beginTransaction();
 
-			const invoice_number = await generateInvoiceNumber(invoice_date, connection);
+			const invoice_number = await allocateMonthlyDocumentNumber(
+				connection,
+				'INV',
+				invoice_date,
+				() => 'INV-'
+			);
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO invoices 

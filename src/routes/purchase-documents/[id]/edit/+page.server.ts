@@ -87,9 +87,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		const document = docRows[0];
 		if (
 			String(document.document_type || '').toUpperCase() === 'PR' &&
-			(await hasIssuedPurchaseOrderFromPr(String(document.document_number || '')))
+			(String(document.status || '') === 'Complete' ||
+				(await hasIssuedPurchaseOrderFromPr(String(document.document_number || ''))))
 		) {
-			const msg = encodeURIComponent('PR นี้ออก PO เรียบร้อยแล้ว ห้ามแก้ไข');
+			const msg = encodeURIComponent(
+				String(document.status || '') === 'Complete'
+					? 'PR นี้ปิดงานแล้ว (Complete) ห้ามแก้ไข'
+					: 'PR นี้ออก PO เรียบร้อยแล้ว ห้ามแก้ไข'
+			);
 			throw redirect(303, `/purchase-documents/${documentId}?edit_blocked=1&message=${msg}`);
 		}
 
@@ -140,17 +145,21 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		await ensureCanAccessPurchaseDocument(documentId, locals.user);
 		const [docRows] = await pool.query<any[]>(
-			'SELECT document_type, document_number FROM purchase_documents WHERE id = ? LIMIT 1',
+			'SELECT document_type, document_number, status FROM purchase_documents WHERE id = ? LIMIT 1',
 			[documentId]
 		);
 		const currentDoc = docRows[0];
 		if (
 			currentDoc &&
 			String(currentDoc.document_type || '').toUpperCase() === 'PR' &&
-			(await hasIssuedPurchaseOrderFromPr(String(currentDoc.document_number || '')))
+			(String(currentDoc.status || '') === 'Complete' ||
+				(await hasIssuedPurchaseOrderFromPr(String(currentDoc.document_number || ''))))
 		) {
 			return fail(403, {
-				message: 'ไม่สามารถแก้ไข PR นี้ได้ เนื่องจากมีการออก PO ไปแล้ว'
+				message:
+					String(currentDoc.status || '') === 'Complete'
+						? 'ไม่สามารถแก้ไข PR ที่ปิดงานแล้ว'
+						: 'ไม่สามารถแก้ไข PR นี้ได้ เนื่องจากมีการออก PO ไปแล้ว'
 			});
 		}
 
@@ -179,6 +188,20 @@ export const actions: Actions = {
 		const total_amount = parseFloat(formData.get('total_amount')?.toString() || '0');
 
 		if (!vendor_id) return fail(400, { message: 'กรุณาเลือกผู้จำหน่าย' });
+
+		// PR ต้องมีไฟล์แนบอย่างน้อย 1 ไฟล์ (ของเดิมในฐานข้อมูล หรืออัปโหลดเพิ่มในครั้งนี้)
+		if (String(currentDoc?.document_type || '').toUpperCase() === 'PR') {
+			const files = formData.getAll('attachments') as File[];
+			const hasNewFile = files.some((f) => f instanceof File && f.size > 0);
+			const [cntRows] = await pool.query<any[]>(
+				`SELECT COUNT(*) AS c FROM purchase_document_attachments WHERE document_id = ?`,
+				[documentId]
+			);
+			const existingCount = Number(cntRows[0]?.c ?? 0);
+			if (!hasNewFile && existingCount === 0) {
+				return fail(400, { message: 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ (PR บังคับ)' });
+			}
+		}
 
 		const connection = await pool.getConnection();
 		try {

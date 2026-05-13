@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
+import { allocateMonthlySequence } from '$lib/server/monthlyDocumentSequence';
 import { fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
@@ -128,48 +129,16 @@ export const actions: Actions = {
 		}
 
 		try {
-			const today = new Date();
-			const year = today.getFullYear();
-			const month = today.getMonth() + 1; // 1-12
-			const yymm = `${year.toString().slice(-2)}${String(month).padStart(2, '0')}`;
-			const request_date = today.toISOString().split('T')[0];
+			const connection = await pool.getConnection();
+			try {
+				await connection.beginTransaction();
 
-			const docType = 'MPR';
-			let prefix = 'MPR-';
-			let lastNumber = 1;
-			let paddingLength = 3;
+				const request_date = new Date().toISOString().split('T')[0];
+				const meta = await allocateMonthlySequence(connection, 'MPR', request_date, () => 'MPR-');
+				const yymm = `${String(meta.year).slice(-2)}${meta.monthStr}`;
+				const request_no = `${meta.prefix}${yymm}${String(meta.seq).padStart(meta.padding, '0')}`;
 
-			const [seqRows]: any = await pool.execute(
-				`SELECT prefix, last_number, padding_length 
-				 FROM document_sequences 
-				 WHERE document_type = ? AND year = ? AND month = ?`,
-				[docType, year, month]
-			);
-
-			if (seqRows.length > 0) {
-				prefix = seqRows[0].prefix || 'MPR-';
-				paddingLength = seqRows[0].padding_length || 3;
-				lastNumber = seqRows[0].last_number + 1;
-
-				await pool.execute(
-					`UPDATE document_sequences 
-					 SET last_number = ? 
-					 WHERE document_type = ? AND year = ? AND month = ?`,
-					[lastNumber, docType, year, month]
-				);
-			} else {
-				await pool.execute(
-					`INSERT INTO document_sequences 
-					 (document_type, prefix, year, month, last_number, padding_length) 
-					 VALUES (?, ?, ?, ?, ?, ?)`,
-					[docType, prefix, year, month, lastNumber, paddingLength]
-				);
-			}
-
-			const paddedNum = String(lastNumber).padStart(paddingLength, '0');
-			const request_no = `${prefix}${yymm}${paddedNum}`;
-
-			await pool.execute(
+				await connection.execute(
 				`INSERT INTO manpower_requests (
 					request_no, request_date, requester_name, department, division, section, emp_group, position_name, report_to, request_qty, target_date, reason, status,
 					position_type, position_period, wage_type, budget_status, req_nature, replacement_name, replacement_resign_date, replacement_reason, additional_reason,
@@ -208,7 +177,14 @@ export const actions: Actions = {
 					cert_other,
 					other_qualifications
 				]
-			);
+				);
+				await connection.commit();
+			} catch (e) {
+				await connection.rollback();
+				throw e;
+			} finally {
+				connection.release();
+			}
 			return { success: true, message: 'Manpower request submitted successfully!' };
 		} catch (error) {
 			console.error('Error creating request:', error);

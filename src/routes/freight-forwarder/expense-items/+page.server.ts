@@ -1,5 +1,6 @@
 import pool from '$lib/server/database';
 import { fail } from '@sveltejs/kit';
+import { allocateMonthlySequence } from '$lib/server/monthlyDocumentSequence';
 
 export const load = async () => {
     const [items] = await pool.query(`
@@ -36,35 +37,11 @@ export const actions = {
 
             // ตรวจสอบว่าถ้าไม่ได้กรอก Item Code มา ให้ Generate อัตโนมัติ
             if (!item_code) {
-                const docType = 'ITE'; // กำหนดประเภทเอกสาร (สามารถเปลี่ยนให้ตรงกับระบบหลักได้)
-                const prefix = 'ITE-'; // คำนำหน้า
-                const date = new Date();
-                const year = date.getFullYear(); // เช่น 2026
-                const month = date.getMonth() + 1; // 1-12
-
-                // 1. อัปเดตตาราง document_sequences (ถ้าไม่มีให้ Insert ใหม่ ถ้ามีให้ +1)
-                await connection.execute(`
-                    INSERT INTO document_sequences (document_type, prefix, year, month, last_number, padding_length)
-                    VALUES (?, ?, ?, ?, 1, 4)
-                    ON DUPLICATE KEY UPDATE last_number = last_number + 1
-                `, [docType, prefix, year, month]);
-
-                // 2. ดึงค่าล่าสุดออกมาใช้งาน
-                const [seqResult]: any = await connection.execute(`
-                    SELECT prefix, last_number, padding_length
-                    FROM document_sequences
-                    WHERE document_type = ? AND year = ? AND month = ?
-                `, [docType, year, month]);
-
-                if (seqResult.length > 0) {
-                    const seq = seqResult[0];
-                    const yy = year.toString().slice(-2); // เอาแค่ 2 หลักท้าย เช่น 26
-                    const mm = month.toString().padStart(2, '0'); // เติม 0 ด้านหน้าถ้าเป็นเลขหลักเดียว เช่น 03
-                    const runningNo = seq.last_number.toString().padStart(seq.padding_length, '0'); // เช่น 0001
-                    
-                    // รูปแบบที่ได้จะเป็น: ITM-26030001
-                    item_code = `${seq.prefix}${yy}${mm}${runningNo}`; 
-                }
+                const dateStr = new Date().toISOString().split('T')[0];
+                const meta = await allocateMonthlySequence(connection, 'ITE', dateStr, () => 'ITE-');
+                const yy = meta.year.toString().slice(-2);
+                const runningNo = String(meta.seq).padStart(meta.padding, '0');
+                item_code = `${meta.prefix}${yy}${meta.monthStr}${runningNo}`;
             }
 
             // บันทึกข้อมูลลงฐานข้อมูลด้วย item_code ที่มีหรือเพิ่งถูกสร้าง

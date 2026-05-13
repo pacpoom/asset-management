@@ -310,6 +310,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				[`%${String(document.document_number || '')}%`]
 			);
 			canEdit = poRows.length === 0;
+			// ข้อมูลเก่า: มี PO แล้วแต่ PR ยังไม่ถูกตั้งเป็น Complete → อัปเดตให้ตรงกัน
+			if (!canEdit && String(document.status || '') !== 'Complete') {
+				await pool.execute(`UPDATE purchase_documents SET status = 'Complete' WHERE id = ?`, [id]);
+				document.status = 'Complete';
+			}
 		}
 
 		// ดึงรายการสินค้า
@@ -346,7 +351,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			canEdit,
-			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void']
+			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void', 'Complete']
 		};
 	} catch (err: unknown) {
 		if (isHttpError(err)) throw err;
