@@ -162,9 +162,9 @@
 				<tbody class="divide-y divide-gray-200">
 					{#if paginatedEmployees.length > 0}
 						{#each paginatedEmployees as emp}
-							<tr class="group transition-colors hover:bg-blue-50/50">
+							<tr class="group transition-colors hover:bg-blue-50">
 								<td
-									class="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-blue-50/50"
+									class="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-blue-50"
 								>
 									<div class="flex flex-col gap-1">
 										<div class="flex items-baseline justify-between">
