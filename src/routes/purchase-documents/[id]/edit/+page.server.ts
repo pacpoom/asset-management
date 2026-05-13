@@ -66,9 +66,14 @@ async function hasIssuedPurchaseOrderFromPr(prDocumentNumber: string): Promise<b
 		`SELECT id
 		 FROM purchase_documents
 		 WHERE document_type = 'PO'
-		   AND reference_doc LIKE ?
+		   AND (
+		     reference_doc = ?
+		     OR reference_doc LIKE ?
+		     OR reference_doc LIKE ?
+		     OR reference_doc LIKE ?
+		   )
 		 LIMIT 1`,
-		[`%${prDocumentNumber}%`]
+		[prDocumentNumber, `${prDocumentNumber},%`, `%,${prDocumentNumber}`, `%,${prDocumentNumber},%`]
 	);
 	return rows.length > 0;
 }

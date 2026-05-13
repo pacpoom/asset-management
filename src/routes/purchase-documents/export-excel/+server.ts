@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		const scopedDepartmentId = getPurchaseDepartmentScope(locals.user);
 
 		if (scopedDepartmentId !== null) {
-			whereClause += ` AND creator.department_id = ? `;
+			whereClause += ` AND u.department_id = ? `;
 			params.push(scopedDepartmentId);
 		}
 
@@ -62,7 +62,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
-			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
             ${whereClause}
             ORDER BY pd.document_date DESC, pd.id DESC
         `;

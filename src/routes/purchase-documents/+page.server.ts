@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const scopedDepartmentId = getPurchaseDepartmentScope(locals.user);
 
 		if (scopedDepartmentId !== null) {
-			whereClause += ` AND creator.department_id = ? `;
+			whereClause += ` AND u.department_id = ? `;
 			params.push(scopedDepartmentId);
 		}
 
@@ -65,7 +65,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
-			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
+			LEFT JOIN users u ON pd.created_by_user_id = u.id
             ${whereClause}`;
 		const [countResult] = await pool.execute<any[]>(countSql, params);
 		const total = countResult[0].total;
@@ -81,7 +81,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             LEFT JOIN vendors v ON pd.vendor_id = v.id
             LEFT JOIN users u ON pd.created_by_user_id = u.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
-			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
             ${whereClause}
             ORDER BY pd.document_date DESC, pd.id DESC
             LIMIT ? OFFSET ?
