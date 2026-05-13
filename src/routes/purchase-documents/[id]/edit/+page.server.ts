@@ -6,6 +6,7 @@ import path from 'path';
 import mime from 'mime-types';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
 import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
+import { normalizePurchaseDocumentDateInput } from '$lib/purchaseDocumentDateFormat';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -169,13 +170,17 @@ export const actions: Actions = {
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
 		const job_id = formData.get('job_id')?.toString() || null;
 		
-		const document_date = formData.get('document_date')?.toString();
+		const document_date = normalizePurchaseDocumentDateInput(formData.get('document_date')?.toString());
 		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
-		const due_date = formData.get('due_date')?.toString() || null;
-		const delivery_date = formData.get('delivery_date')?.toString() || null;
+		const due_date = normalizePurchaseDocumentDateInput(formData.get('due_date')?.toString());
+		const delivery_date = normalizePurchaseDocumentDateInput(formData.get('delivery_date')?.toString());
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
+
+		if (!document_date) {
+			return fail(400, { message: 'กรุณาระบุวันที่เอกสาร (รูปแบบ DD/MMM/YYYY)' });
+		}
 
 		const subtotal = parseFloat(formData.get('subtotal')?.toString() || '0');
 		const discount_amount = parseFloat(formData.get('discount_amount')?.toString() || '0');

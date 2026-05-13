@@ -147,7 +147,7 @@
 			{$t('Status_' + document.status) || document.status}
 		</span>
 
-		{#if document.document_type === 'PR' && data.canEdit}
+		{#if document.document_type === 'PR' && data.canEdit && data.canIssuePo}
 			<a
 				href="/purchase-documents/new?source_id={document.id}&target_type=PO"
 				class="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-600"

@@ -5,12 +5,30 @@ import { env } from '$env/dynamic/private';
 import { sendMail } from '$lib/server/mailer';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
 import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
+import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
 
 function splitEmailList(raw: string | undefined): string[] {
 	return (raw || '')
 		.split(/[;,]/g)
 		.map((s) => s.trim())
 		.filter(Boolean);
+}
+
+/** รวมอีเมลหลายแหล่ง ไม่ซ้ำ (คนกด Sent / ผู้สร้าง PR จะได้รับแม้ยังไม่ตั้ง SENT_EMAIL_NOTICE_PR_ISSUED) */
+function uniqueEmailRecipients(...candidates: (string | null | undefined)[]): string[] {
+	const seen = new Set<string>();
+	const out: string[] = [];
+	for (const raw of candidates) {
+		const e = String(raw ?? '')
+			.trim()
+			.replace(/[\s\u200b]+/g, '');
+		if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) continue;
+		const key = e.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(e);
+	}
+	return out;
 }
 
 function escapeHtml(value: unknown): string {
@@ -351,6 +369,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			attachments: JSON.parse(JSON.stringify(attachmentsWithUrl)),
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			canEdit,
+			canIssuePo: userCanIssuePurchaseOrderFromPr(locals.user),
 			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void', 'Complete']
 		};
 	} catch (err: unknown) {
@@ -396,6 +415,7 @@ export const actions: Actions = {
 						v.address AS vendor_address,
 						v.tax_id AS vendor_tax_id,
 						u.full_name AS created_by_name,
+						u.email AS created_by_email,
 						da.name AS delivery_location_name,
 						da.address_line AS delivery_address_line,
 						da.contact_name AS delivery_contact_name,
@@ -414,8 +434,17 @@ export const actions: Actions = {
 				);
 				const doc = rows[0];
 				if (doc?.document_type === 'PR') {
-					const recipients = splitEmailList(env.SENT_EMAIL_NOTICE_PR_ISSUED);
-					if (recipients.length > 0) {
+					const fromEnv = splitEmailList(env.SENT_EMAIL_NOTICE_PR_ISSUED);
+					const recipients = uniqueEmailRecipients(
+						...fromEnv,
+						doc.created_by_email,
+						locals.user?.email
+					);
+					if (recipients.length === 0) {
+						console.warn(
+							'[purchase-documents] PR issued: no email recipients. Set SENT_EMAIL_NOTICE_PR_ISSUED and/or ensure user/creator has a valid email in the users table.'
+						);
+					} else {
 						const baseUrl = (env.APP_BASE_URL || 'https://bize_core.freedomsoft.in.th/').replace(/\/$/, '');
 						const documentUrl = `${baseUrl}/purchase-documents/${id}`;
 						const [companyRows] = await pool.query<any[]>(`SELECT * FROM company LIMIT 1`);
@@ -448,6 +477,11 @@ export const actions: Actions = {
 							text: `Purchase Requisition ${docNo} has been issued.\nOpen PR: ${documentUrl}`,
 							html: buildPurchaseRequisitionEmailHtml(doc, itemRows, documentUrl, company, baseUrl)
 						}).then((sent) => {
+							if (!sent) {
+								console.warn(
+									'[purchase-documents] PR issued email not sent: check SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM in environment.'
+								);
+							}
 							console.info('[purchase-documents] PR issued email send result', {
 								documentId: id,
 								documentNo: docNo,

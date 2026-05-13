@@ -4,6 +4,7 @@
 	import type { PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
 	import { onMount } from 'svelte';
+	import { isoToDisplay, displayToIso } from '$lib/purchaseDocumentDateFormat';
 
 	// อัปเดต Type ให้ครอบคลุมข้อมูลที่ส่งมาจาก Server เพื่อแก้ TypeScript Error
 	export let data: PageData & { totalItems: number, fromDate: string, toDate: string, pageSize: number };
@@ -13,28 +14,33 @@
 	let searchInput = searchQuery;
 	let statusInput = filterStatus;
 	let typeInput = filterType;
-	let fromDateInput = fromDate;
-	let toDateInput = toDate;
+	/** แสดงใน filter เป็น DD/MMM/YYYY — ส่ง API ยังเป็น YYYY-MM-DD */
+	let fromDateStr = '';
+	let toDateStr = '';
 	let pageSizeInput = pageSize || 10;
+
+	$: {
+		fromDateStr = fromDate ? isoToDisplay(fromDate) : '';
+		toDateStr = toDate ? isoToDisplay(toDate) : '';
+	}
 
 	// Default ช่วงวันที่: ตั้งแต่ต้นเดือนปัจจุบัน ถึง สิ้นเดือนถัดไป (รวม 2 เดือน)
 	onMount(() => {
-		if (!fromDateInput || !toDateInput) {
+		if (!fromDate && !toDate) {
 			const now = new Date();
 			const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
 			const lastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
-			// ปรับเวลาให้เป็น Local TimeZone เพื่อป้องกันการเลื่อนวัน
 			const offsetFirst = firstDay.getTimezoneOffset() * 60000;
 			const offsetLast = lastDay.getTimezoneOffset() * 60000;
 
-			if (!fromDateInput)
-				fromDateInput = new Date(firstDay.getTime() - offsetFirst).toISOString().split('T')[0];
-			if (!toDateInput)
-				toDateInput = new Date(lastDay.getTime() - offsetLast).toISOString().split('T')[0];
+			const fromIso = new Date(firstDay.getTime() - offsetFirst).toISOString().split('T')[0]!;
+			const toIso = new Date(lastDay.getTime() - offsetLast).toISOString().split('T')[0]!;
 
-			// Auto search if defaults were applied
-			if (!fromDate && !toDate) applyFilters();
+			fromDateStr = isoToDisplay(fromIso);
+			toDateStr = isoToDisplay(toIso);
+
+			applyFilters();
 		}
 	});
 
@@ -53,14 +59,28 @@
 	}
 
 	function applyFilters(page = 1) {
+		const fromIso = displayToIso(fromDateStr);
+		const toIso = displayToIso(toDateStr);
 		const params = new URLSearchParams();
 		params.set('page', page.toString());
 		params.set('pageSize', pageSizeInput.toString());
 		if (searchInput) params.set('search', searchInput);
 		if (statusInput) params.set('status', statusInput);
 		if (typeInput) params.set('type', typeInput);
-		if (fromDateInput) params.set('fromDate', fromDateInput);
-		if (toDateInput) params.set('toDate', toDateInput);
+		if (fromDateStr.trim()) {
+			if (!fromIso) {
+				alert($locale === 'th' ? 'รูปแบบวันที่ไม่ถูกต้อง ใช้ DD/MMM/YYYY เช่น 01/Jun/2026' : 'Invalid date format. Use DD/MMM/YYYY e.g. 01/Jun/2026');
+				return;
+			}
+			params.set('fromDate', fromIso);
+		}
+		if (toDateStr.trim()) {
+			if (!toIso) {
+				alert($locale === 'th' ? 'รูปแบบวันที่ไม่ถูกต้อง ใช้ DD/MMM/YYYY เช่น 30/Jun/2026' : 'Invalid date format. Use DD/MMM/YYYY e.g. 30/Jun/2026');
+				return;
+			}
+			params.set('toDate', toIso);
+		}
 		goto(`?${params.toString()}`);
 	}
 
@@ -73,8 +93,10 @@
 		if (searchInput) params.set('search', searchInput);
 		if (statusInput) params.set('status', statusInput);
 		if (typeInput) params.set('type', typeInput);
-		if (fromDateInput) params.set('fromDate', fromDateInput);
-		if (toDateInput) params.set('toDate', toDateInput);
+		const fromIso = displayToIso(fromDateStr);
+		const toIso = displayToIso(toDateStr);
+		if (fromIso) params.set('fromDate', fromIso);
+		if (toIso) params.set('toDate', toIso);
 		return `/purchase-documents/export-excel?${params.toString()}`;
 	}
 
@@ -118,14 +140,10 @@
 	$: formatCurrency = (amount: number) =>
 		new Intl.NumberFormat(currentLoc, { style: 'currency', currency: 'THB' }).format(amount);
 
-	$: formatDate = (dateStr: string) =>
-		dateStr
-			? new Date(dateStr).toLocaleDateString(currentLoc, {
-					year: 'numeric',
-					month: 'short',
-					day: 'numeric'
-				})
-			: '-';
+	function formatDate(dateStr: string) {
+		if (!dateStr) return '-';
+		return isoToDisplay(dateStr) || '-';
+	}
 </script>
 
 <svelte:head>
@@ -197,8 +215,12 @@
 			<label for="fromDateInput" class="mb-1 block text-xs font-semibold text-gray-500">{$t('From Date')}</label>
 			<input
 				id="fromDateInput"
-				type="date"
-				bind:value={fromDateInput}
+				type="text"
+				inputmode="text"
+				autocomplete="off"
+				placeholder="01/Jun/2026"
+				title="DD/MMM/YYYY e.g. 01/Jun/2026"
+				bind:value={fromDateStr}
 				class="w-full rounded-lg border-gray-300 px-4 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
 			/>
 		</div>
@@ -206,8 +228,12 @@
 			<label for="toDateInput" class="mb-1 block text-xs font-semibold text-gray-500">{$t('To Date')}</label>
 			<input
 				id="toDateInput"
-				type="date"
-				bind:value={toDateInput}
+				type="text"
+				inputmode="text"
+				autocomplete="off"
+				placeholder="30/Jun/2026"
+				title="DD/MMM/YYYY e.g. 30/Jun/2026"
+				bind:value={toDateStr}
 				class="w-full rounded-lg border-gray-300 px-4 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
 			/>
 		</div>

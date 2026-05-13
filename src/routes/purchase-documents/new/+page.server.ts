@@ -1,4 +1,4 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, redirect, error, isHttpError } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import fs from 'fs/promises';
@@ -6,6 +6,8 @@ import path from 'path';
 import mime from 'mime-types';
 
 import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
+import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
+import { normalizePurchaseDocumentDateInput } from '$lib/purchaseDocumentDateFormat';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -47,7 +49,7 @@ function resolvePurchasePrefix(docType: string): string {
 	}
 }
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const sourceId = url.searchParams.get('source_id');
 	const targetType = url.searchParams.get('target_type') || 'PR';
 	let prefillData = null;
@@ -71,6 +73,16 @@ export const load: PageServerLoad = async ({ url }) => {
 					attachments: attachments,
 					targetType: targetType
 				};
+			}
+		}
+
+		if (
+			prefillData &&
+			String(prefillData.document.document_type || '').toUpperCase() === 'PR' &&
+			String(targetType).toUpperCase() === 'PO'
+		) {
+			if (!userCanIssuePurchaseOrderFromPr(locals.user)) {
+				throw error(403, 'ไม่มีสิทธิ์ออก PO จาก PR');
 			}
 		}
 
@@ -110,8 +122,9 @@ export const load: PageServerLoad = async ({ url }) => {
 			vendorContractsData: JSON.parse(JSON.stringify(vendorContractsData)),
 			prefillData: prefillData ? JSON.parse(JSON.stringify(prefillData)) : null 
 		};
-	} catch (error: any) {
-		console.error('Load data error:', error);
+	} catch (err: unknown) {
+		if (isHttpError(err)) throw err;
+		console.error('Load data error:', err);
 		return { vendors: [], vendorContacts: [], products: [], units: [], jobOrders: [], categories: [], accounts: [], deliveryAddresses: [], vendorContractsData: [], prefillData: null };
 	}
 };
@@ -127,10 +140,12 @@ export const actions: Actions = {
 		const delivery_address_id = formData.get('delivery_address_id')?.toString() || null;
 		const job_id = formData.get('job_id')?.toString() || null;
 
-		const document_date = formData.get('document_date')?.toString() || new Date().toISOString().split('T')[0];
+		const document_date =
+			normalizePurchaseDocumentDateInput(formData.get('document_date')?.toString()) ||
+			new Date().toISOString().split('T')[0];
 		const credit_term = parseInt(formData.get('credit_term')?.toString() || '0', 10);
-		const due_date = formData.get('due_date')?.toString() || null;
-		const delivery_date = formData.get('delivery_date')?.toString() || null;
+		const due_date = normalizePurchaseDocumentDateInput(formData.get('due_date')?.toString());
+		const delivery_date = normalizePurchaseDocumentDateInput(formData.get('delivery_date')?.toString());
 
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
 		const notes = formData.get('notes')?.toString() || '';
@@ -147,6 +162,21 @@ export const actions: Actions = {
 		const source_document_id = formData.get('source_document_id')?.toString() || '';
 
 		if (!vendor_id) return fail(400, { message: 'กรุณาเลือกผู้จำหน่าย (Vendor)' });
+
+		if (String(document_type).toUpperCase() === 'PO') {
+			const srcId = parseInt(source_document_id, 10);
+			if (Number.isInteger(srcId) && srcId > 0) {
+				const [srcRows] = await pool.query<any[]>(
+					'SELECT document_type FROM purchase_documents WHERE id = ?',
+					[srcId]
+				);
+				if (srcRows[0] && String(srcRows[0].document_type || '').toUpperCase() === 'PR') {
+					if (!userCanIssuePurchaseOrderFromPr(locals.user)) {
+						return fail(403, { message: 'ไม่มีสิทธิ์ออก PO จาก PR' });
+					}
+				}
+			}
+		}
 
 		// PR ต้องมีไฟล์แนบอย่างน้อย 1 ไฟล์ (อัปโหลดใหม่ หรือสืบทอดจากเอกสารต้นทางที่มีแนบไว้)
 		if (String(document_type).toUpperCase() === 'PR') {
@@ -281,7 +311,15 @@ export const actions: Actions = {
 			await connection.rollback();
 			if (err.status === 303) throw err;
 			console.error('Create document error:', err);
-			return fail(500, { message: 'Error: ' + err.message });
+			let message = err?.message || 'Unknown error';
+			if (
+				typeof message === 'string' &&
+				message.includes("Data truncated for column 'status'")
+			) {
+				message +=
+					" — DB column purchase_documents.status likely cannot store 'Complete' (PR auto-close after PO). Run sql/purchase_documents_status_column_fix.sql on the database.";
+			}
+			return fail(500, { message: 'Error: ' + message });
 		} finally {
 			connection.release();
 		}

@@ -33,6 +33,16 @@ export function userHasPurchaseRole(user: {
 	return userHasRoleName(user, 'purchase');
 }
 
+/** ออก PO จาก PR — เฉพาะ admin หรือ Admin_Purchase (ไม่ใช่แค่ role Purchase) */
+export function userCanIssuePurchaseOrderFromPr(user: {
+	role: string;
+	roleNames?: string[];
+} | null): boolean {
+	if (!user) return false;
+	if (userHasAdminRole(user)) return true;
+	return userHasAdminPurchaseRole(user);
+}
+
 export function userHasRoleName(
 	user: { role: string; roleNames?: string[] } | null,
 	roleName: string

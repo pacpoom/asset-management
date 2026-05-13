@@ -161,7 +161,7 @@
 			</a>
 		{/if}
 
-		{#if pr.status === 'APPROVED'}
+		{#if pr.status === 'APPROVED' && data.canIssuePo}
 			<a
 				href="/purchase-orders/create?from_pr_id={pr.id}"
 				class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"

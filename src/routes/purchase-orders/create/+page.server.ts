@@ -1,7 +1,8 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 import { checkPermission } from '$lib/server/auth';
+import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 // Interfaces
@@ -87,6 +88,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const fromPrId = url.searchParams.get('from_pr_id');
 
 		if (fromPrId) {
+			if (!userCanIssuePurchaseOrderFromPr(locals.user)) {
+				throw error(403, 'ไม่มีสิทธิ์ออก PO จาก PR');
+			}
 			// ดึง Header ของ PR
 			const [prRows] = await pool.query<any[]>('SELECT * FROM purchase_requests WHERE id = ?', [
 				fromPrId
@@ -133,6 +137,12 @@ export const actions: Actions = {
 		checkPermission(locals, 'view vendors');
 		const formData = await request.formData();
 		const from_pr_id = formData.get('from_pr_id');
+
+		if (from_pr_id) {
+			if (!userCanIssuePurchaseOrderFromPr(locals.user)) {
+				return fail(403, { message: 'ไม่มีสิทธิ์ออก PO จาก PR' });
+			}
+		}
 
 		const po_number = formData.get('po_number') as string;
 		const date = formData.get('date') as string;

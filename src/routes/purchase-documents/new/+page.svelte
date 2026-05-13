@@ -1,10 +1,18 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, applyAction } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import type { PageData, SubmitFunction } from './$types';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
 	import { t, locale } from '$lib/i18n';
+	import {
+		isoToDisplay,
+		displayToIso,
+		isoDatePart,
+		todayIsoLocal,
+		addCalendarDaysToIso
+	} from '$lib/purchaseDocumentDateFormat';
 
 	interface Vendor {
 		id: number | string;
@@ -119,18 +127,11 @@
 	}));
 
 	let documentType = 'PR';
-	let documentDate = new Date().toISOString().split('T')[0];
+	const t0 = todayIsoLocal();
+	let documentDateStr = isoToDisplay(t0);
 	let creditTerm: number | null = 30;
-	let dueDate = (() => {
-		const d = new Date();
-		d.setDate(d.getDate() + 30);
-		return d.toISOString().split('T')[0];
-	})();
-	let deliveryDate = (() => {
-		const d = new Date();
-		d.setDate(d.getDate() + 14);
-		return d.toISOString().split('T')[0];
-	})();
+	let dueDateStr = isoToDisplay(addCalendarDaysToIso(t0, 30));
+	let deliveryDateStr = isoToDisplay(addCalendarDaysToIso(t0, 14));
 
 	let selectedVendorObj: SelectOption | null = null;
 	let selectedVendorId: string | number = '';
@@ -205,18 +206,52 @@
 		selectedDeliveryObj = null;
 	}
 
+	function calculateDueDate() {
+		if (creditTerm === null || creditTerm === undefined || Number(creditTerm) <= 0) {
+			dueDateStr = '';
+			return;
+		}
+		const iso = displayToIso(documentDateStr);
+		if (!iso) return;
+		dueDateStr = isoToDisplay(addCalendarDaysToIso(iso, Number(creditTerm)));
+	}
+
 	onMount(() => {
 		if (prefillData) {
 			documentType = prefillData.targetType;
-			if (prefillData.document.document_number) {
+
+			const oaRef = prefillData.document.reference_doc?.toString().trim();
+			if (oaRef) {
+				referenceDoc = oaRef;
+			} else if (prefillData.document.document_number) {
 				referenceDoc = `${$locale === 'en' ? 'Ref:' : 'อ้างอิง:'} ${prefillData.document.document_number}`;
 			}
 
 			selectedVendorId = prefillData.document.vendor_id || '';
 			selectedVendorObj = vendorOptions.find((v: SelectOption) => v.value == selectedVendorId) || null;
-			
+
 			selectedContactId = prefillData.document.vendor_contact_id || '';
 			selectedDeliveryId = prefillData.document.delivery_address_id || '';
+
+			creditTerm =
+				prefillData.document.credit_term !== null && prefillData.document.credit_term !== undefined
+					? Number(prefillData.document.credit_term)
+					: 30;
+			discountAmount = parseFloat(prefillData.document.discount_amount || '0');
+			vatRate = parseFloat(prefillData.document.vat_rate || '7');
+
+			if (prefillData.document.document_date) {
+				documentDateStr = isoToDisplay(isoDatePart(prefillData.document.document_date)) || documentDateStr;
+			}
+			if (prefillData.document.delivery_date) {
+				deliveryDateStr = isoToDisplay(isoDatePart(prefillData.document.delivery_date)) || deliveryDateStr;
+			}
+
+			if (prefillData.document.due_date) {
+				dueDateStr = isoToDisplay(isoDatePart(prefillData.document.due_date)) || dueDateStr;
+			} else {
+				calculateDueDate();
+			}
 
 			setTimeout(() => {
 				selectedJobOrderId = prefillData.document.job_id || '';
@@ -224,10 +259,6 @@
 					selectedJobOrderObj = jobOrderOptions.find((j: SelectOption) => j.value == selectedJobOrderId) || null;
 				}
 			}, 150);
-
-			creditTerm = prefillData.document.credit_term !== null && prefillData.document.credit_term !== undefined ? Number(prefillData.document.credit_term) : 30;
-			discountAmount = parseFloat(prefillData.document.discount_amount || '0');
-			vatRate = parseFloat(prefillData.document.vat_rate || '7');
 
 			if (prefillData.items && prefillData.items.length > 0) {
 				items = prefillData.items.map((item: DBItem) => {
@@ -245,7 +276,6 @@
 					};
 				});
 			}
-			calculateDueDate();
 		}
 	});
 
@@ -306,18 +336,6 @@
 			}
 		};
 	};
-
-	function calculateDueDate() {
-		if (creditTerm === null || creditTerm === undefined || Number(creditTerm) <= 0) {
-			dueDate = '';
-			return;
-		}
-		if (documentDate) {
-			const d = new Date(documentDate);
-			d.setDate(d.getDate() + Number(creditTerm));
-			dueDate = d.toISOString().split('T')[0];
-		}
-	}
 
 	function onVendorChange(selected: SelectOption | null) {
 		selectedVendorObj = selected;
@@ -474,14 +492,65 @@
 		method="POST"
 		action="?/create"
 		enctype="multipart/form-data"
-		use:enhance={() => {
+		use:enhance={({ cancel }) => {
+			const docIso = displayToIso(documentDateStr);
+			if (!docIso) {
+				alert(
+					$locale === 'th'
+						? 'รูปแบบวันที่เอกสารไม่ถูกต้อง ใช้ DD/MMM/YYYY เช่น 13/May/2026'
+						: 'Invalid document date. Use DD/MMM/YYYY e.g. 13/May/2026'
+				);
+				cancel();
+				return;
+			}
+			if (dueDateStr.trim() && !displayToIso(dueDateStr)) {
+				alert(
+					$locale === 'th'
+						? 'รูปแบบวันที่ครบกำหนดไม่ถูกต้อง'
+						: 'Invalid due date format.'
+				);
+				cancel();
+				return;
+			}
+			if (deliveryDateStr.trim() && !displayToIso(deliveryDateStr)) {
+				alert(
+					$locale === 'th'
+						? 'รูปแบบวันที่ส่งมอบไม่ถูกต้อง'
+						: 'Invalid delivery date format.'
+				);
+				cancel();
+				return;
+			}
 			isSaving = true;
-			return async ({ update }) => {
-				await update();
-				isSaving = false;
+			return async ({ result }) => {
+				try {
+					if (result.type === 'redirect') {
+						await goto(result.location);
+						return;
+					}
+					if (result.type === 'failure') {
+						const msg = result.data?.message;
+						alert(typeof msg === 'string' ? msg : 'ไม่สามารถบันทึกได้');
+					}
+					await applyAction(result);
+				} finally {
+					isSaving = false;
+				}
 			};
 		}}
 	>
+		<input type="hidden" name="document_date" value={displayToIso(documentDateStr) ?? ''} />
+		<input
+			type="hidden"
+			name="due_date"
+			value={dueDateStr.trim() ? displayToIso(dueDateStr) ?? '' : ''}
+		/>
+		<input
+			type="hidden"
+			name="delivery_date"
+			value={deliveryDateStr.trim() ? displayToIso(deliveryDateStr) ?? '' : ''}
+		/>
+		<input type="hidden" name="discount_amount" value={discountAmount} />
 		<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
 			<div class="relative z-[60]">
 				<label for="document_type" class="mb-1 block text-sm font-medium text-gray-700"
@@ -566,17 +635,23 @@
 			</div>
 
 			<div class="relative z-30 grid grid-cols-1 gap-4 md:grid-cols-4 md:col-span-2">
+				<p class="col-span-full text-xs text-gray-500">
+					{$locale === 'th'
+						? 'รูปแบบวันที่: DD/MMM/YYYY (เช่น 13/May/2026)'
+						: 'Date format: DD/MMM/YYYY (e.g. 13/May/2026)'}
+				</p>
 				<div>
 					<label for="document_date" class="mb-1 block text-sm font-medium text-gray-700"
 						>{$t('Document Date')} <span class="text-red-500">*</span></label
 					>
 					<input
-						type="date"
+						type="text"
 						id="document_date"
-						name="document_date"
-						bind:value={documentDate}
+						bind:value={documentDateStr}
 						on:change={calculateDueDate}
-						required
+						placeholder="13/May/2026"
+						title="DD/MMM/YYYY"
+						autocomplete="off"
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					/>
 				</div>
@@ -604,10 +679,12 @@
 						>{$t('Due Date')}</label
 					>
 					<input
-						type="date"
+						type="text"
 						id="due_date"
-						name="due_date"
-						bind:value={dueDate}
+						bind:value={dueDateStr}
+						placeholder="12/Jun/2026"
+						title="DD/MMM/YYYY"
+						autocomplete="off"
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					/>
 				</div>
@@ -616,10 +693,12 @@
 						>{$t('Delivery Date')}</label
 					>
 					<input
-						type="date"
+						type="text"
 						id="delivery_date"
-						name="delivery_date"
-						bind:value={deliveryDate}
+						bind:value={deliveryDateStr}
+						placeholder="27/May/2026"
+						title="DD/MMM/YYYY"
+						autocomplete="off"
 						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					/>
 				</div>
