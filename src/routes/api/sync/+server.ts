@@ -78,7 +78,16 @@ async function startBackgroundSync() {
 
 						const values = chunk.map((log: any) => {
 							const rawId = log.deviceUserId.toString().trim();
-							return [ip, rawId, log.recordTime];
+
+							let formattedTime = log.recordTime;
+							if (log.recordTime instanceof Date) {
+								const d = log.recordTime;
+								formattedTime = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+							} else if (typeof log.recordTime === 'string') {
+								formattedTime = log.recordTime.replace('T', ' ').split('.')[0];
+							}
+
+							return [ip, rawId, formattedTime];
 						});
 
 						const placeholders = values.map(() => '(?, ?, ?)').join(', ');
