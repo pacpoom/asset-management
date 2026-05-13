@@ -304,6 +304,71 @@
 		'Completed',
 		'Cancelled'
 	];
+
+	// ---- Container state ----
+	interface Container {
+		id: number;
+		container_size: '20' | '40';
+		container_number: string | null;
+		seal_number: string | null;
+		remarks: string | null;
+	}
+	let containers = $derived((data.containers || []) as Container[]);
+	let isContainerModalOpen = $state(false);
+	let isContainerEditOpen = $state(false);
+	let isAddContainerOpen = $state(false);
+	let isSavingContainer = $state(false);
+	let containerDeleteId = $state<number | null>(null);
+	let containerEditData = $state({ id: 0, container_number: '', seal_number: '', remarks: '' });
+	let newContainerSize = $state<'20' | '40'>('20');
+
+	// Import state
+	interface ImportRow { container_size: string; container_number: string; seal_number: string; remarks: string; }
+	let importPreviewRows = $state<ImportRow[]>([]);
+	let isImportPreviewOpen = $state(false);
+	let isImportingContainers = $state(false);
+	let importFileInput: HTMLInputElement;
+
+	function openContainerEdit(c: Container) {
+		containerEditData = { id: c.id, container_number: c.container_number || '', seal_number: c.seal_number || '', remarks: c.remarks || '' };
+		isContainerEditOpen = true;
+	}
+
+	async function downloadContainerTemplate() {
+		const XLSX = await import('xlsx');
+		const ws = XLSX.utils.aoa_to_sheet([
+			['ขนาดตู้ (20 หรือ 40)', 'เบอร์ตู้', 'เบอร์ซีล', 'หมายเหตุ'],
+			...containers.map(c => [c.container_size, c.container_number || '', c.seal_number || '', c.remarks || ''])
+		]);
+		ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 30 }];
+		const wb = XLSX.utils.book_new();
+		XLSX.utils.book_append_sheet(wb, ws, 'Containers');
+		XLSX.writeFile(wb, `containers_${job.job_number || job.id}.xlsx`);
+	}
+
+	async function handleContainerFileUpload(event: Event) {
+		const file = (event.target as HTMLInputElement).files?.[0];
+		if (!file) return;
+		const XLSX = await import('xlsx');
+		const arrayBuffer = await file.arrayBuffer();
+		const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+		const sheet = workbook.Sheets[workbook.SheetNames[0]];
+		const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+		const parsed: ImportRow[] = rows
+			.slice(1)
+			.filter((row) => row.length > 0 && row[0])
+			.map((row) => ({
+				container_size: String(row[0] || '').trim(),
+				container_number: String(row[1] || '').trim().toUpperCase(),
+				seal_number: String(row[2] || '').trim(),
+				remarks: String(row[3] || '').trim()
+			}))
+			.filter((row) => ['20', '40'].includes(row.container_size));
+		(event.target as HTMLInputElement).value = '';
+		if (parsed.length === 0) { alert('ไม่พบข้อมูลที่ถูกต้อง (ขนาดตู้ต้องเป็น 20 หรือ 40 เท่านั้น)'); return; }
+		importPreviewRows = parsed;
+		isImportPreviewOpen = true;
+	}
 </script>
 
 <svelte:head>
@@ -621,6 +686,43 @@
 		</div>
 	</div>
 </div>
+
+<!-- ======================= -->
+<!-- CONTAINERS TRIGGER      -->
+<!-- ======================= -->
+<button type="button" onclick={() => (isContainerModalOpen = true)}
+	class="mb-6 flex w-full items-center justify-between rounded-lg border bg-white p-4 shadow-sm transition-colors hover:bg-blue-50 hover:border-blue-300">
+	<div class="flex items-center gap-3">
+		<div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+			</svg>
+		</div>
+		<div class="text-left">
+			<div class="font-semibold text-gray-800">{$t('Containers')}</div>
+			<div class="text-sm text-gray-500">
+				{#if containers.length > 0}
+					{@const cnt20 = containers.filter(c => c.container_size === '20').length}
+					{@const cnt40 = containers.filter(c => c.container_size === '40').length}
+					{#if cnt20 > 0}<span class="font-medium text-blue-600">{cnt20} x 20'</span>{/if}
+					{#if cnt20 > 0 && cnt40 > 0} &nbsp;+&nbsp; {/if}
+					{#if cnt40 > 0}<span class="font-medium text-orange-600">{cnt40} x 40'</span>{/if}
+					&nbsp;({$t('Total')} {containers.length} {$t('units')})
+				{:else}
+					<span class="text-gray-400">{$t('No containers recorded')}</span>
+				{/if}
+			</div>
+		</div>
+	</div>
+	<div class="flex items-center gap-2">
+		{#if containers.length > 0}
+			<span class="rounded-full bg-blue-100 px-3 py-1 text-sm font-bold text-blue-700">{containers.length}</span>
+		{/if}
+		<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+			<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+		</svg>
+	</div>
+</button>
 
 {#if job.remarks}
 	<div class="mb-6 overflow-hidden rounded-lg border bg-white shadow-sm">
@@ -1677,6 +1779,314 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ============================ -->
+<!-- CONTAINER MAIN MODAL        -->
+<!-- ============================ -->
+{#if isContainerModalOpen}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+		<div class="flex w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" style="max-height: 75vh">
+			<!-- Header -->
+			<div class="flex-shrink-0 border-b bg-gray-50">
+				<!-- Row 1: Title + Close -->
+				<div class="flex items-center justify-between px-5 pt-4 pb-2">
+					<div class="flex items-center gap-2">
+						<div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+							</svg>
+						</div>
+						<div>
+							<span class="font-bold text-gray-800">{$t('Containers')}</span>
+							<span class="ml-2 text-xs text-gray-400">{job.job_number || job.id}</span>
+						</div>
+						{#if containers.length > 0}
+							<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">{containers.length}</span>
+						{/if}
+					</div>
+					<button type="button" onclick={() => (isContainerModalOpen = false)} class="text-gray-400 hover:text-gray-600">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+					</button>
+				</div>
+				<!-- Row 2: Action buttons -->
+				<div class="flex items-center gap-2 px-5 pb-3">
+					<button type="button" onclick={downloadContainerTemplate}
+						class="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+						Template
+					</button>
+					<label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+						นำเข้า Excel
+						<input bind:this={importFileInput} type="file" accept=".xlsx,.xls,.csv" onchange={handleContainerFileUpload} class="hidden" />
+					</label>
+					<button type="button" onclick={() => { newContainerSize = '20'; isAddContainerOpen = true; }}
+						class="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+						{$t('Add Container')}
+					</button>
+				</div>
+			</div>
+
+			<!-- Summary chips -->
+			{#if containers.length > 0}
+				{@const cnt20 = containers.filter(c => c.container_size === '20').length}
+				{@const cnt40 = containers.filter(c => c.container_size === '40').length}
+				<div class="flex gap-3 border-b bg-white px-6 py-3">
+					{#if cnt20 > 0}
+						<span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">{cnt20} x 20'</span>
+					{/if}
+					{#if cnt40 > 0}
+						<span class="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">{cnt40} x 40'</span>
+					{/if}
+					<span class="text-xs text-gray-400 self-center">รวม {containers.length} ตู้</span>
+				</div>
+			{/if}
+
+			<!-- Table -->
+			<div class="min-h-0 flex-1 overflow-y-auto">
+				{#if containers.length > 0}
+					<table class="min-w-full divide-y divide-gray-200 text-sm">
+						<thead class="sticky top-0 bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+							<tr>
+								<th class="px-4 py-3 text-left">#</th>
+								<th class="px-4 py-3 text-left">{$t('Size')}</th>
+								<th class="px-4 py-3 text-left">{$t('Container No.')}</th>
+								<th class="px-4 py-3 text-left">{$t('Seal No.')}</th>
+								<th class="px-4 py-3 text-left">{$t('Remarks')}</th>
+								<th class="px-4 py-3 text-center">{$t('Action')}</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-200 bg-white">
+							{#each containers as container, i (container.id)}
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-3 text-gray-400">{i + 1}</td>
+									<td class="px-4 py-3">
+										<span class="rounded px-2 py-0.5 text-xs font-bold {container.container_size === '40' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
+											{container.container_size}'
+										</span>
+									</td>
+									<td class="px-4 py-3 font-mono font-bold text-gray-800">
+										{#if container.container_number}{container.container_number}{:else}<span class="italic text-gray-400">-</span>{/if}
+									</td>
+									<td class="px-4 py-3 font-mono text-gray-700">
+										{#if container.seal_number}{container.seal_number}{:else}<span class="italic text-gray-400">-</span>{/if}
+									</td>
+									<td class="px-4 py-3 text-gray-600">{container.remarks || ''}</td>
+									<td class="px-4 py-3 text-center">
+										<div class="flex items-center justify-center gap-2">
+											<button type="button" onclick={() => openContainerEdit(container)} class="text-gray-400 hover:text-blue-600" title={$t('Edit')}>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+											</button>
+											<button type="button" onclick={() => (containerDeleteId = container.id)} class="text-gray-400 hover:text-red-600" title={$t('Delete')}>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+											</button>
+										</div>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{:else}
+					<div class="py-16 text-center">
+						<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+						<p class="text-sm text-gray-400">{$t('No containers recorded')}</p>
+						<p class="mt-1 text-xs text-gray-400">กดปุ่ม "เพิ่มตู้" หรือ "นำเข้า Excel" เพื่อเพิ่มข้อมูลตู้</p>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Footer -->
+			<div class="flex justify-end border-t bg-gray-50 px-6 py-3">
+				<button type="button" onclick={() => (isContainerModalOpen = false)}
+					class="rounded-lg bg-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">{$t('Close Modal')}</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- ======================== -->
+<!-- CONTAINER EDIT MODAL    -->
+<!-- ======================== -->
+{#if isContainerEditOpen}
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-2xl">
+			<div class="flex items-center justify-between border-b px-5 py-4">
+				<h3 class="font-bold text-gray-800">{$t('Edit Container')}</h3>
+				<button onclick={() => (isContainerEditOpen = false)} class="text-gray-400 hover:text-gray-600">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+				</button>
+			</div>
+			<form method="POST" action="?/updateContainer" use:enhance={() => {
+				isSavingContainer = true;
+				return async ({ update }) => { await update(); isSavingContainer = false; isContainerEditOpen = false; };
+			}}>
+				<input type="hidden" name="container_id" value={containerEditData.id} />
+				<div class="space-y-4 p-5">
+					<div>
+						<label class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Container No.')}</label>
+						<input type="text" name="container_number" bind:value={containerEditData.container_number}
+							placeholder="e.g. ABCU1234567" class="w-full rounded-md border-gray-300 p-2 font-mono text-sm font-bold uppercase focus:border-blue-500 focus:ring-blue-500" />
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Seal No.')}</label>
+						<input type="text" name="seal_number" bind:value={containerEditData.seal_number}
+							placeholder="Seal number" class="w-full rounded-md border-gray-300 p-2 font-mono text-sm focus:border-blue-500 focus:ring-blue-500" />
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Remarks')}</label>
+						<input type="text" name="remarks" bind:value={containerEditData.remarks}
+							placeholder={$t('Remarks')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+					</div>
+				</div>
+				<div class="flex justify-end gap-3 border-t bg-gray-50 px-5 py-3">
+					<button type="button" onclick={() => (isContainerEditOpen = false)}
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
+					<button type="submit" disabled={isSavingContainer}
+						class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+						{isSavingContainer ? $t('Saving...') : $t('Save')}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ======================== -->
+<!-- CONTAINER ADD MODAL     -->
+<!-- ======================== -->
+{#if isAddContainerOpen}
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="w-full max-w-xs overflow-hidden rounded-xl bg-white shadow-2xl">
+			<div class="flex items-center justify-between border-b px-5 py-4">
+				<h3 class="font-bold text-gray-800">{$t('Add Container')}</h3>
+				<button onclick={() => (isAddContainerOpen = false)} class="text-gray-400 hover:text-gray-600">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+				</button>
+			</div>
+			<form method="POST" action="?/addContainer" use:enhance={() => {
+				isSavingContainer = true;
+				return async ({ update }) => { await update(); isSavingContainer = false; isAddContainerOpen = false; };
+			}}>
+				<div class="p-5">
+					<label class="mb-2 block text-xs font-bold text-gray-500 uppercase">{$t('Container Size')}</label>
+					<div class="flex gap-3">
+						<button type="button" onclick={() => (newContainerSize = '20')}
+							class="flex-1 rounded-lg border-2 py-3 text-sm font-bold transition-colors {newContainerSize === '20' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}">
+							20'
+						</button>
+						<button type="button" onclick={() => (newContainerSize = '40')}
+							class="flex-1 rounded-lg border-2 py-3 text-sm font-bold transition-colors {newContainerSize === '40' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}">
+							40'
+						</button>
+					</div>
+					<input type="hidden" name="container_size" value={newContainerSize} />
+				</div>
+				<div class="flex justify-end gap-3 border-t bg-gray-50 px-5 py-3">
+					<button type="button" onclick={() => (isAddContainerOpen = false)}
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
+					<button type="submit" disabled={isSavingContainer}
+						class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+						{isSavingContainer ? $t('Saving...') : $t('Add')}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ======================== -->
+<!-- CONTAINER DELETE CONFIRM -->
+<!-- ======================== -->
+{#if containerDeleteId !== null}
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-2xl">
+			<div class="p-6 text-center">
+				<div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+					<svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+				</div>
+				<h3 class="mb-1 text-lg font-bold text-gray-900">{$t('Confirm Delete')}</h3>
+				<p class="mb-5 text-sm text-gray-500">{$t('Are you sure you want to delete this container?')}</p>
+				<div class="flex justify-center gap-3">
+					<button type="button" onclick={() => (containerDeleteId = null)}
+						class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
+					<form method="POST" action="?/deleteContainer" use:enhance={() => {
+						return async ({ update }) => { await update(); containerDeleteId = null; };
+					}} class="w-full">
+						<input type="hidden" name="container_id" value={containerDeleteId} />
+						<button type="submit" class="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500">
+							{$t('Confirm Delete')}
+						</button>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- ========================== -->
+<!-- IMPORT PREVIEW MODAL       -->
+<!-- ========================== -->
+{#if isImportPreviewOpen}
+	<div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+		<div class="flex w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" style="max-height: 90vh">
+			<div class="border-b px-6 py-4">
+				<h3 class="font-bold text-gray-800">ตรวจสอบข้อมูลก่อน Import</h3>
+				<p class="mt-0.5 text-sm text-gray-500">
+					พบ <strong>{importPreviewRows.length}</strong> รายการ —
+					<span class="text-amber-600 font-medium">ระบบจะลบตู้เดิมทั้งหมดและแทนที่ด้วยข้อมูลนี้</span>
+				</p>
+			</div>
+			<div class="min-h-0 flex-1 overflow-y-auto">
+				<table class="min-w-full divide-y divide-gray-200 text-sm">
+					<thead class="sticky top-0 bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+						<tr>
+							<th class="px-4 py-2 text-left">#</th>
+							<th class="px-4 py-2 text-left">ขนาด</th>
+							<th class="px-4 py-2 text-left">เบอร์ตู้</th>
+							<th class="px-4 py-2 text-left">เบอร์ซีล</th>
+							<th class="px-4 py-2 text-left">หมายเหตุ</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-gray-200 bg-white">
+						{#each importPreviewRows as row, i}
+							<tr class="hover:bg-gray-50">
+								<td class="px-4 py-2 text-gray-400">{i + 1}</td>
+								<td class="px-4 py-2">
+									<span class="rounded px-2 py-0.5 text-xs font-bold {row.container_size === '40' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
+										{row.container_size}'
+									</span>
+								</td>
+								<td class="px-4 py-2 font-mono font-bold text-gray-800">{row.container_number || '-'}</td>
+								<td class="px-4 py-2 font-mono text-gray-700">{row.seal_number || '-'}</td>
+								<td class="px-4 py-2 text-gray-600">{row.remarks || ''}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<div class="flex justify-end gap-3 border-t bg-gray-50 px-6 py-4">
+				<button type="button" onclick={() => (isImportPreviewOpen = false)}
+					class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+				<form method="POST" action="?/importContainers" use:enhance={() => {
+					isImportingContainers = true;
+					return async ({ update }) => { await update(); isImportingContainers = false; isImportPreviewOpen = false; };
+				}}>
+					<input type="hidden" name="containers_json" value={JSON.stringify(importPreviewRows)} />
+					<button type="submit" disabled={isImportingContainers}
+						class="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">
+						{#if isImportingContainers}
+							<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+							กำลัง Import...
+						{:else}
+							ยืนยัน Import {importPreviewRows.length} รายการ
+						{/if}
+					</button>
+				</form>
+			</div>
 		</div>
 	</div>
 {/if}

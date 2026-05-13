@@ -83,6 +83,12 @@ export const load = async ({ params }) => {
 			'SELECT id, name, company_name FROM vendors ORDER BY name ASC'
 		);
 
+		// 7. ดึงข้อมูล Container ของ Job นี้
+		const [containers] = await pool.query<RowDataPacket[]>(
+			'SELECT id, container_size, container_number, seal_number, remarks FROM job_containers WHERE job_order_id = ? ORDER BY container_size ASC, id ASC',
+			[id]
+		);
+
 		return {
 			job: JSON.parse(JSON.stringify(job)),
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
@@ -92,6 +98,7 @@ export const load = async ({ params }) => {
 			expenseCategories: JSON.parse(JSON.stringify(expenseCategories)),
 			expenseItems: JSON.parse(JSON.stringify(expenseItems)),
             vendors: JSON.parse(JSON.stringify(vendors)),
+			containers: JSON.parse(JSON.stringify(containers)),
 			availableStatuses: ['Pending', 'In Progress', 'Completed', 'Cancelled']
 		};
 	} catch (err: unknown) {
@@ -322,6 +329,113 @@ export const actions = {
 		} catch (err: unknown) {
 			console.error('Delete expense error:', err);
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบค่าใช้จ่าย' });
+		}
+	},
+
+	// เพิ่ม Container ใหม่ (manual)
+	addContainer: async ({ request, params }) => {
+		const job_order_id = parseInt(params.id);
+		const formData = await request.formData();
+		const container_size = formData.get('container_size')?.toString();
+
+		if (!container_size || !['20', '40'].includes(container_size)) {
+			return fail(400, { message: 'กรุณาระบุขนาดตู้ (20 หรือ 40)' });
+		}
+
+		try {
+			await pool.execute(
+				'INSERT INTO job_containers (job_order_id, container_size) VALUES (?, ?)',
+				[job_order_id, container_size]
+			);
+			return { success: true, action: 'addContainer' };
+		} catch (err: unknown) {
+			console.error('Add container error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการเพิ่มตู้' });
+		}
+	},
+
+	// แก้ไข Container (เบอร์ตู้ / เบอร์ซีล / remarks)
+	updateContainer: async ({ request }) => {
+		const formData = await request.formData();
+		const container_id = formData.get('container_id');
+		const container_number = formData.get('container_number')?.toString().trim() || null;
+		const seal_number = formData.get('seal_number')?.toString().trim() || null;
+		const remarks = formData.get('remarks')?.toString().trim() || null;
+
+		if (!container_id) return fail(400, { message: 'ไม่พบรหัสตู้' });
+
+		try {
+			await pool.execute(
+				'UPDATE job_containers SET container_number = ?, seal_number = ?, remarks = ?, updated_at = NOW() WHERE id = ?',
+				[container_number, seal_number, remarks, container_id]
+			);
+			return { success: true, action: 'updateContainer' };
+		} catch (err: unknown) {
+			console.error('Update container error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการแก้ไขข้อมูลตู้' });
+		}
+	},
+
+	// ลบ Container
+	deleteContainer: async ({ request }) => {
+		const formData = await request.formData();
+		const container_id = formData.get('container_id');
+
+		if (!container_id) return fail(400, { message: 'ไม่พบรหัสตู้' });
+
+		try {
+			await pool.execute('DELETE FROM job_containers WHERE id = ?', [container_id]);
+			return { success: true, action: 'deleteContainer' };
+		} catch (err: unknown) {
+			console.error('Delete container error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบตู้' });
+		}
+	},
+
+	// Import containers จาก Excel (แทนที่ข้อมูลทั้งหมด)
+	importContainers: async ({ request, params }) => {
+		const job_order_id = parseInt(params.id);
+		const formData = await request.formData();
+		const data_str = formData.get('containers_json')?.toString();
+
+		if (!data_str) return fail(400, { message: 'ไม่พบข้อมูล' });
+
+		let rows: { container_size: string; container_number: string; seal_number: string; remarks: string }[];
+		try {
+			rows = JSON.parse(data_str);
+		} catch {
+			return fail(400, { message: 'รูปแบบข้อมูลไม่ถูกต้อง' });
+		}
+
+		if (!Array.isArray(rows) || rows.length === 0) {
+			return fail(400, { message: 'ไม่พบข้อมูลในไฟล์' });
+		}
+
+		const connection = await pool.getConnection();
+		try {
+			await connection.beginTransaction();
+			await connection.execute('DELETE FROM job_containers WHERE job_order_id = ?', [job_order_id]);
+			for (const row of rows) {
+				if (!['20', '40'].includes(String(row.container_size))) continue;
+				await connection.execute(
+					'INSERT INTO job_containers (job_order_id, container_size, container_number, seal_number, remarks) VALUES (?, ?, ?, ?, ?)',
+					[
+						job_order_id,
+						String(row.container_size),
+						row.container_number?.trim() || null,
+						row.seal_number?.trim() || null,
+						row.remarks?.trim() || null
+					]
+				);
+			}
+			await connection.commit();
+			return { success: true, action: 'importContainers' };
+		} catch (err: unknown) {
+			await connection.rollback();
+			console.error('Import containers error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล' });
+		} finally {
+			connection.release();
 		}
 	}
 };

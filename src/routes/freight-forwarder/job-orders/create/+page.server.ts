@@ -33,7 +33,7 @@ interface DbConnection {
 }
 
 async function generateJobNumber(jobType: string, dateStr: string, connection: DbConnection) {
-	const meta = await allocateMonthlySequence(connection, 'JOB', dateStr, () => '[SI,SE,AI,AF,SP]');
+	const meta = await allocateMonthlySequence(connection, 'JOB', dateStr, () => 'JOB-');
 	const yy = String(meta.year).slice(-2);
 	const runningNumber = String(meta.seq).padStart(meta.padding, '0');
 	return `${jobType}${yy}${meta.monthStr}${runningNumber}`;
@@ -208,7 +208,7 @@ export const actions = {
 				const savedFile = await saveFile(file);
 				if (savedFile) {
 					await connection.execute(
-						`INSERT INTO job_order_attachments 
+						`INSERT INTO job_order_attachments
                         (job_order_id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id)
                         VALUES (?, ?, ?, ?, ?, ?)`,
 						[
@@ -221,6 +221,22 @@ export const actions = {
 						]
 					);
 				}
+			}
+
+			// สร้าง Container อัตโนมัติตามจำนวนที่ระบุ
+			const qty_20 = Math.min(parseInt(formData.get('qty_20')?.toString() || '0') || 0, 99);
+			const qty_40 = Math.min(parseInt(formData.get('qty_40')?.toString() || '0') || 0, 99);
+			for (let i = 0; i < qty_20; i++) {
+				await connection.execute(
+					'INSERT INTO job_containers (job_order_id, container_size) VALUES (?, ?)',
+					[newJobId, '20']
+				);
+			}
+			for (let i = 0; i < qty_40; i++) {
+				await connection.execute(
+					'INSERT INTO job_containers (job_order_id, container_size) VALUES (?, ?)',
+					[newJobId, '40']
+				);
 			}
 
 			await connection.commit();
