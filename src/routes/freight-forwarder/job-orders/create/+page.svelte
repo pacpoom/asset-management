@@ -78,6 +78,8 @@
 	let jobAmount: number | string = '';
 
 	let isSaving = false;
+	let qty_20: number = 0;
+	let qty_40: number = 0;
 	let selectedCustomer: SelectOption | null = null;
 	let selectedContract: SelectOption | null = null;
 	
@@ -633,6 +635,40 @@
 								<p class="mt-2 text-xs text-gray-500">{$t('* You can upload multiple files (e.g., B/L, Commercial Invoice, Packing List)')}</p>
 							</div>
 						</div>
+					</div>
+				</div>
+
+				<!-- Container Section -->
+				<div class="p-8 border-t border-gray-100">
+					<h2 class="mb-4 border-b pb-2 text-sm font-bold tracking-wider text-gray-600 uppercase">
+						{$t('Container Information')}
+					</h2>
+					<div class="flex flex-wrap items-end gap-6">
+						<div>
+							<label for="qty_20" class="mb-1 block text-xs font-bold text-gray-500 uppercase">20' Container</label>
+							<div class="flex items-center gap-2">
+								<input type="number" id="qty_20" name="qty_20" bind:value={qty_20} min="0" max="99" placeholder="0"
+									class="w-24 rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-blue-500 focus:ring-blue-500" />
+								<span class="text-sm text-gray-500">{$t('units')}</span>
+							</div>
+						</div>
+						<div>
+							<label for="qty_40" class="mb-1 block text-xs font-bold text-gray-500 uppercase">40' Container</label>
+							<div class="flex items-center gap-2">
+								<input type="number" id="qty_40" name="qty_40" bind:value={qty_40} min="0" max="99" placeholder="0"
+									class="w-24 rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-blue-500 focus:ring-blue-500" />
+								<span class="text-sm text-gray-500">{$t('units')}</span>
+							</div>
+						</div>
+						{#if qty_20 > 0 || qty_40 > 0}
+							<div class="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
+								ระบบจะสร้างตู้ให้อัตโนมัติ:
+								{#if qty_20 > 0}<strong>{qty_20} ตู้ 20'</strong>{/if}
+								{#if qty_20 > 0 && qty_40 > 0} + {/if}
+								{#if qty_40 > 0}<strong>{qty_40} ตู้ 40'</strong>{/if}
+								(รวม <strong>{qty_20 + qty_40}</strong> ตู้)
+							</div>
+						{/if}
 					</div>
 				</div>
 

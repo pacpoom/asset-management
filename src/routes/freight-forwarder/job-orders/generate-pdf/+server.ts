@@ -18,6 +18,14 @@ interface CompanyData extends RowDataPacket {
 	tax_id: string | null;
 }
 
+interface ContainerData extends RowDataPacket {
+	id: number;
+	container_size: '20' | '40';
+	container_number: string | null;
+	seal_number: string | null;
+	remarks: string | null;
+}
+
 interface JobOrderData extends RowDataPacket {
 	id: number;
 	job_number: string | null;
@@ -102,7 +110,8 @@ function getJobOrderHtml(
 	companyData: CompanyData | null,
 	jobData: JobOrderData,
 	logoBase64: string | null,
-	locale: string = 'en'
+	locale: string = 'en',
+	containers: ContainerData[] = []
 ): string {
 	// คำแปลภาษา
 	const dict = {
@@ -135,7 +144,13 @@ function getJobOrderHtml(
 			remarks: 'Remarks',
 			approvedBy: 'Approved By',
 			dateLabel: 'Date',
-			flightNo: 'Flight No.' // แปลภาษาสำหรับ Flight No
+			flightNo: 'Flight No.',
+			containers: 'Container Summary',
+			containerSize: 'Size',
+			containerNo: 'Container No.',
+			sealNo: 'Seal No.',
+			containerRemarks: 'Remarks',
+			total: 'Total'
 		},
 		th: {
 			title: 'ใบสั่งงานขนส่ง (JOB ORDER)',
@@ -166,7 +181,13 @@ function getJobOrderHtml(
 			remarks: 'หมายเหตุ (Remarks)',
 			approvedBy: 'ผู้อนุมัติ (Approved By)',
 			dateLabel: 'วันที่',
-			flightNo: 'เที่ยวบิน (Flight No.)'
+			flightNo: 'เที่ยวบิน (Flight No.)',
+			containers: 'สรุปตู้คอนเทนเนอร์',
+			containerSize: 'ขนาด',
+			containerNo: 'เบอร์ตู้',
+			sealNo: 'เบอร์ซีล',
+			containerRemarks: 'หมายเหตุ',
+			total: 'รวม'
 		}
 	};
 
@@ -343,6 +364,21 @@ function getJobOrderHtml(
             </table>
         </div>
         
+        ${containers.length > 0 ? (() => {
+			const cnt20 = containers.filter(c => c.container_size === '20').length;
+			const cnt40 = containers.filter(c => c.container_size === '40').length;
+			return `
+        <div style="margin-top: 16px;">
+            <h3 style="font-size:9pt; font-weight:bold; color:#374151; border-bottom:1px solid #e5e7eb; padding-bottom:5px; margin-bottom:8px; text-transform:uppercase;">${t('containers')}</h3>
+            <div style="display:flex; align-items:center; gap:8px;">
+                ${cnt20 > 0 ? `<span style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:12px; font-size:9pt; font-weight:bold;">${cnt20} x 20'</span>` : ''}
+                ${cnt20 > 0 && cnt40 > 0 ? `<span style="color:#9ca3af; font-size:9pt;">+</span>` : ''}
+                ${cnt40 > 0 ? `<span style="background:#fff7ed; color:#c2410c; padding:3px 12px; border-radius:12px; font-size:9pt; font-weight:bold;">${cnt40} x 40'</span>` : ''}
+                <span style="color:#6b7280; font-size:8.5pt;">(${t('total')} ${containers.length} ${locale === 'th' ? 'ตู้' : 'units'})</span>
+            </div>
+        </div>`;
+		})() : ''}
+
         <div style="margin-top: 20px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
                 <tr>
@@ -439,7 +475,12 @@ export const GET = async ({ url }) => {
 		const companyData = company[0] || null;
 		const logoBase64 = getLogoBase64(companyData?.logo_path);
 
-		const html = getJobOrderHtml(companyData, jobData, logoBase64, locale);
+		const [containerRows] = await connection.execute<ContainerData[]>(
+			'SELECT id, container_size, container_number, seal_number, remarks FROM job_containers WHERE job_order_id = ? ORDER BY container_size ASC, id ASC',
+			[id]
+		);
+
+		const html = getJobOrderHtml(companyData, jobData, logoBase64, locale, containerRows);
 
 		const browser = await puppeteer.launch({
 			args: ['--no-sandbox', '--disable-setuid-sandbox'],
