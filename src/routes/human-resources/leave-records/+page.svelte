@@ -76,13 +76,24 @@
 
 	function openEditModal(leave: any) {
 		isEditMode = true;
-		formData = { ...leave };
-		if (formData.leave_date)
-			formData.leave_date = new Date(formData.leave_date).toISOString().split('T')[0];
-		if (formData.end_date)
-			formData.end_date = new Date(formData.end_date).toISOString().split('T')[0];
 
-		selectedEmp = empOptions.find((opt: any) => opt.value === leave.emp_id) || null;
+		formData = {
+			id: leave.id || '',
+			emp_id: leave.emp_id || '',
+			leave_type: leave.leave_type
+				? leave.leave_type.trim()
+				: leaveTypes.length > 0
+					? leaveTypes[0].id
+					: '',
+			leave_date: leave.leave_date ? new Date(leave.leave_date).toISOString().split('T')[0] : '',
+			end_date: leave.end_date ? new Date(leave.end_date).toISOString().split('T')[0] : '',
+			remark: leave.remark || '',
+			status: leave.status || 'Pending',
+			document_path: leave.document_path || ''
+		};
+
+		selectedEmp = empOptions.find((opt: any) => String(opt.value) === String(leave.emp_id)) || null;
+
 		showModal = true;
 	}
 
@@ -270,7 +281,7 @@
 			<div class="flex flex-col gap-4 sm:flex-1 sm:flex-row sm:items-center sm:justify-between">
 				<div class="flex flex-wrap items-center gap-4">
 					<div class="flex items-center gap-2 text-sm text-gray-700">
-						<span>{$t('แสดงหน้าละ')}:</span>
+						<span>{$t('Show')}:</span>
 						<select
 							aria-label="Items per page"
 							bind:value={itemsPerPage}
@@ -286,7 +297,7 @@
 						{$t('แสดง')} <span class="font-medium">{(validPage - 1) * itemsPerPage + 1}</span>
 						{$t('ถึง')}
 						<span class="font-medium">{Math.min(validPage * itemsPerPage, leaves.length)}</span>
-						{$t('จากทั้งหมด')}
+						{$t('From total')}
 						<span class="font-medium">{leaves.length}</span>
 						{$t('รายการ')}
 					</p>
@@ -398,9 +409,9 @@
 							bind:value={formData.status}
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
 						>
-							<option value="Pending">{$t('รอตรวจสอบ (Pending)')}</option>
-							<option value="Approved">{$t('อนุมัติแล้ว (Approved)')}</option>
-							<option value="Rejected">{$t('ไม่อนุมัติ (Rejected)')}</option>
+							<option value="Pending">{$t('Pending')}</option>
+							<option value="Approved">{$t('Approved')}</option>
+							<option value="Rejected">{$t('Rejected')}</option>
 						</select>
 					</div>
 
