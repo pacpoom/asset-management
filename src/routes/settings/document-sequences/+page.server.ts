@@ -1,19 +1,86 @@
 import { fail } from '@sveltejs/kit';
+import type { RowDataPacket } from 'mysql2';
 import type { PageServerLoad, Actions } from './$types';
 import pool from '$lib/server/database';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ url }) => {
+	const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1);
+	const pageSize = Math.min(200, Math.max(5, parseInt(url.searchParams.get('pageSize') || '25', 10) || 25));
+	const searchQuery = (url.searchParams.get('search') || '').trim();
+	const filterType = (url.searchParams.get('type') || '').trim();
+	const filterYearRaw = (url.searchParams.get('year') || '').trim();
+	const filterMonthRaw = (url.searchParams.get('month') || '').trim();
+
 	try {
-		// โหลดข้อมูลเลขรันทั้งหมด เรียงตาม ปี, เดือน, และประเภทเอกสาร
-		const [rows] = await pool.query(
-			'SELECT * FROM document_sequences ORDER BY year DESC, month DESC, document_type ASC'
+		let whereClause = ' WHERE 1=1 ';
+		const params: (string | number)[] = [];
+
+		if (searchQuery) {
+			whereClause += ` AND (document_type LIKE ? OR prefix LIKE ?) `;
+			const term = `%${searchQuery}%`;
+			params.push(term, term);
+		}
+		if (filterType) {
+			whereClause += ` AND document_type = ? `;
+			params.push(filterType);
+		}
+		if (filterYearRaw && /^\d{4}$/.test(filterYearRaw)) {
+			whereClause += ` AND year = ? `;
+			params.push(parseInt(filterYearRaw, 10));
+		}
+		if (filterMonthRaw) {
+			const m = parseInt(filterMonthRaw, 10);
+			if (Number.isInteger(m) && m >= 1 && m <= 12) {
+				whereClause += ` AND month = ? `;
+				params.push(m);
+			}
+		}
+
+		const [countRows] = await pool.query<RowDataPacket[]>(
+			`SELECT COUNT(*) AS total FROM document_sequences ${whereClause}`,
+			params
 		);
+		const totalItems = Number(countRows[0]?.['total'] ?? 0);
+		const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+		const safePage = Math.min(page, totalPages);
+		const offset = (safePage - 1) * pageSize;
+
+		const [rows] = await pool.query(
+			`SELECT * FROM document_sequences ${whereClause} ORDER BY year DESC, month DESC, document_type ASC LIMIT ? OFFSET ?`,
+			[...params, pageSize, offset]
+		);
+
+		const [typeRows] = await pool.query<RowDataPacket[]>(
+			'SELECT DISTINCT document_type FROM document_sequences ORDER BY document_type ASC'
+		);
+		const distinctTypes = typeRows.map((r) => String(r['document_type'] ?? ''));
+
 		return {
-			sequences: JSON.parse(JSON.stringify(rows))
+			sequences: JSON.parse(JSON.stringify(rows)),
+			currentPage: safePage,
+			totalPages,
+			totalItems,
+			searchQuery,
+			filterType,
+			filterYear: filterYearRaw,
+			filterMonth: filterMonthRaw,
+			pageSize,
+			distinctTypes: JSON.parse(JSON.stringify(distinctTypes))
 		};
 	} catch (err: any) {
 		console.error('Failed to load sequences:', err);
-		return { sequences: [] };
+		return {
+			sequences: [],
+			currentPage: 1,
+			totalPages: 1,
+			totalItems: 0,
+			searchQuery: '',
+			filterType: '',
+			filterYear: '',
+			filterMonth: '',
+			pageSize: 25,
+			distinctTypes: []
+		};
 	}
 };
 
