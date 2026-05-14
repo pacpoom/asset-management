@@ -1,11 +1,57 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
 	import { t } from '$lib/i18n';
 
 	export let data: PageData;
 	export let form: ActionData;
-	$: ({ sequences } = data);
+	$: ({
+		sequences,
+		currentPage,
+		totalPages,
+		totalItems,
+		searchQuery,
+		filterType,
+		filterYear,
+		filterMonth,
+		pageSize,
+		distinctTypes = []
+	} = data);
+
+	const FALLBACK_DOC_TYPES = ['AP', 'BN', 'GR', 'INV', 'JOB', 'PO', 'PR', 'PV', 'QT', 'RE'];
+
+	$: typeFilterOptions =
+		distinctTypes && distinctTypes.length > 0 ? distinctTypes : FALLBACK_DOC_TYPES;
+
+	let searchInput = '';
+	let typeInput = '';
+	let yearInput = '';
+	let monthInput = '';
+	let pageSizeInput = '25';
+
+	$: {
+		searchInput = searchQuery;
+		typeInput = filterType;
+		yearInput = filterYear;
+		monthInput = filterMonth != null && filterMonth !== '' ? String(filterMonth) : '';
+		pageSizeInput = String(pageSize);
+	}
+
+	function applyFilters(page = 1) {
+		const params = new URLSearchParams();
+		params.set('page', String(page));
+		params.set('pageSize', String(pageSizeInput));
+		if (searchInput.trim()) params.set('search', searchInput.trim());
+		if (typeInput) params.set('type', typeInput);
+		if (yearInput.trim()) params.set('year', yearInput.trim());
+		if (monthInput) params.set('month', monthInput);
+		goto(`?${params.toString()}`);
+	}
+
+	function handleSearchKey(e: KeyboardEvent) {
+		if (e.key === 'Enter') applyFilters(1);
+	}
 
 	let isModalOpen = false;
 	let isSaving = false;
@@ -130,6 +176,98 @@
 		</button>
 	</div>
 
+	<div class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+		<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-12 lg:items-end">
+			<div class="lg:col-span-3">
+				<label for="seqSearch" class="mb-1 block text-xs font-semibold text-gray-500">{$t('Search')}</label>
+				<input
+					id="seqSearch"
+					type="search"
+					bind:value={searchInput}
+					on:keypress={handleSearchKey}
+					placeholder={$t('Document Type') + ', ' + $t('Prefix') + '...'}
+					class="w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+				/>
+			</div>
+			<div class="lg:col-span-2">
+				<label for="seqType" class="mb-1 block text-xs font-semibold text-gray-500">{$t('Document Type')}</label>
+				<select
+					id="seqType"
+					bind:value={typeInput}
+					class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+				>
+					<option value="">{$t('All')}</option>
+					{#each typeFilterOptions as dt}
+						<option value={dt}>{dt} — {$t(getDocTypeKey(dt))}</option>
+					{/each}
+				</select>
+			</div>
+			<div class="lg:col-span-2">
+				<label for="seqYear" class="mb-1 block text-xs font-semibold text-gray-500">{$t('Year (YYYY)')}</label>
+				<input
+					id="seqYear"
+					type="text"
+					inputmode="numeric"
+					maxlength="4"
+					bind:value={yearInput}
+					placeholder="2026"
+					class="w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+				/>
+			</div>
+			<div class="lg:col-span-2">
+				<label for="seqMonth" class="mb-1 block text-xs font-semibold text-gray-500">{$t('Month (1-12)')}</label>
+				<select
+					id="seqMonth"
+					bind:value={monthInput}
+					class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+				>
+					<option value="">{$t('All')}</option>
+					{#each Array.from({ length: 12 }, (_, i) => i + 1) as m}
+						<option value={String(m)}>{String(m).padStart(2, '0')}</option>
+					{/each}
+				</select>
+			</div>
+			<div class="lg:col-span-1">
+				<label for="seqPageSize" class="mb-1 block text-xs font-semibold text-gray-500">{$t('Page')}</label>
+				<select
+					id="seqPageSize"
+					bind:value={pageSizeInput}
+					on:change={() => applyFilters(1)}
+					class="w-full rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+				>
+					<option value="10">10</option>
+					<option value="25">25</option>
+					<option value="50">50</option>
+					<option value="100">100</option>
+					<option value="200">200</option>
+				</select>
+			</div>
+			<div class="flex gap-2 lg:col-span-2">
+				<button
+					type="button"
+					on:click={() => applyFilters(1)}
+					class="mt-5 w-full rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-900 lg:mt-0"
+				>
+					{$t('Search')}
+				</button>
+				<button
+					type="button"
+					on:click={() => {
+						searchInput = '';
+						typeInput = '';
+						yearInput = '';
+						monthInput = '';
+						pageSizeInput = '25';
+						goto('?page=1&pageSize=25');
+					}}
+					class="mt-5 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:mt-0"
+				>
+					{$t('Clear filters')}
+				</button>
+			</div>
+		</div>
+	</div>
+
 	<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 		<div class="overflow-x-auto">
 			<table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -239,6 +377,40 @@
 					{/if}
 				</tbody>
 			</table>
+		</div>
+		<div
+			class="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+		>
+			<p class="text-sm text-gray-700">
+				{$t('Showing')}
+				<span class="font-medium">{totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1}</span>
+				{$t('to')}
+				<span class="font-medium">{Math.min(currentPage * pageSize, totalItems)}</span>
+				{$t('of')}
+				<span class="font-medium">{totalItems}</span>
+				{$t('entries')}
+			</p>
+			<div class="flex flex-wrap items-center gap-2">
+				<button
+					type="button"
+					on:click={() => applyFilters(currentPage - 1)}
+					disabled={currentPage <= 1}
+					class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					{$t('Previous')}
+				</button>
+				<span class="text-sm text-gray-600">
+					{$t('Page')} {currentPage} / {totalPages}
+				</span>
+				<button
+					type="button"
+					on:click={() => applyFilters(currentPage + 1)}
+					disabled={currentPage >= totalPages}
+					class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					{$t('Next')}
+				</button>
+			</div>
 		</div>
 	</div>
 </div>
