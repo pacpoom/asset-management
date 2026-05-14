@@ -120,7 +120,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		const [vendorContractsData] = await pool.query('SELECT id, vendor_id, title, contract_number FROM vendor_contracts WHERE status = "Active" ORDER BY title ASC');
 		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 AND category_id = 26 ORDER BY name ASC');
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
-		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
+		const [deliveryAddresses] = await pool.query(
+			'SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY name ASC, contact_name ASC, id ASC'
+		);
 		const [jobOrders] = await pool.query('SELECT id, job_number, vendor_id, bl_number FROM job_orders ORDER BY id DESC');
 		const [departments] = await pool.query<any[]>('SELECT id, name FROM departments ORDER BY name ASC');
 

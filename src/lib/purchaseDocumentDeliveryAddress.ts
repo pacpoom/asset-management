@@ -9,8 +9,33 @@ export function deliveryAddressSelectLabel(row: {
 	return site || '';
 }
 
+/** Ascending sort: location name, then contact, then id (for stable order). */
+export function compareDeliveryAddressesForSort(
+	a: {
+		name?: string | null;
+		contact_name?: string | null;
+		id?: number | string | null;
+	},
+	b: {
+		name?: string | null;
+		contact_name?: string | null;
+		id?: number | string | null;
+	}
+): number {
+	const na = String(a.name ?? '').trim();
+	const nb = String(b.name ?? '').trim();
+	const byName = na.localeCompare(nb, undefined, { sensitivity: 'base', numeric: true });
+	if (byName !== 0) return byName;
+	const ca = String(a.contact_name ?? '').trim();
+	const cb = String(b.contact_name ?? '').trim();
+	const byContact = ca.localeCompare(cb, undefined, { sensitivity: 'base', numeric: true });
+	if (byContact !== 0) return byContact;
+	return String(a.id ?? '').localeCompare(String(b.id ?? ''), undefined, { numeric: true });
+}
+
 export type DeliveryAddressPickRow = {
 	id: number | string;
+	name?: string | null;
 	contact_name?: string | null;
 	department_id?: number | string | null;
 };
@@ -34,16 +59,17 @@ export function pickDefaultDeliveryAddressId(
 	}
 ): string | number | null {
 	if (!rows?.length) return null;
+	const sorted = [...rows].sort(compareDeliveryAddressesForSort);
 	const targetName = normName(String(opts.creatorFullName || ''));
 	if (targetName) {
-		const byContact = rows.find((r) => normName(String(r.contact_name || '')) === targetName);
+		const byContact = sorted.find((r) => normName(String(r.contact_name || '')) === targetName);
 		if (byContact) return byContact.id;
 	}
 	const deptId = opts.creatorDepartmentId;
 	if (deptId != null && !Number.isNaN(Number(deptId))) {
 		const d = Number(deptId);
-		const byDept = rows.find((r) => r.department_id != null && Number(r.department_id) === d);
+		const byDept = sorted.find((r) => r.department_id != null && Number(r.department_id) === d);
 		if (byDept) return byDept.id;
 	}
-	return rows[0]?.id ?? null;
+	return sorted[0]?.id ?? null;
 }

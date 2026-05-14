@@ -16,7 +16,7 @@
 		normalizePurchaseDocumentCurrency,
 		type PurchaseDocumentCurrency
 	} from '$lib/purchaseDocumentCurrency';
-	import { deliveryAddressSelectLabel } from '$lib/purchaseDocumentDeliveryAddress';
+	import { deliveryAddressSelectLabel, compareDeliveryAddressesForSort } from '$lib/purchaseDocumentDeliveryAddress';
 
 	interface Vendor {
 		id: number | string;
@@ -127,7 +127,8 @@
 	}));
 
 	// อัปเดต Dropdown อัตโนมัติเมื่อมีการเพิ่ม/ลบ
-	$: deliveryOptions = localDeliveryAddresses.map((d: DeliveryAddress) => ({
+	$: sortedLocalDeliveryAddresses = [...localDeliveryAddresses].sort(compareDeliveryAddressesForSort);
+	$: deliveryOptions = sortedLocalDeliveryAddresses.map((d: DeliveryAddress) => ({
 		value: d.id,
 		label: deliveryAddressSelectLabel(d)
 	}));
@@ -832,21 +833,6 @@
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					placeholder={$t('e.g. OA PR number')}
 				/>
-				<div class="mt-4">
-					<label for="currency" class="mb-1 block text-sm font-medium text-gray-700"
-						>{$t('Currency')}</label
-					>
-					<select
-						id="currency"
-						name="currency"
-						bind:value={documentCurrency}
-						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
-					>
-						<option value="THB">THB (Thai Baht)</option>
-						<option value="USD">USD (US Dollar)</option>
-						<option value="CNY">CNY (Chinese Yuan)</option>
-					</select>
-				</div>
 			</div>
 
 			<div class="md:col-span-2">
@@ -877,6 +863,21 @@
 		</div>
 
 		<div class="mb-6">
+			<div class="mb-4 max-w-xs">
+				<label for="currency" class="mb-1 block text-sm font-medium text-gray-700"
+					>{$t('Currency')}</label
+				>
+				<select
+					id="currency"
+					name="currency"
+					bind:value={documentCurrency}
+					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+				>
+					<option value="THB">THB (Thai Baht)</option>
+					<option value="USD">USD (US Dollar)</option>
+					<option value="CNY">CNY (Chinese Yuan)</option>
+				</select>
+			</div>
 			<h3 class="mb-2 text-lg font-medium text-gray-800">{$t('Products/Items')}</h3>
 			<div class="relative z-0 overflow-x-visible rounded-lg border">
 				<table class="min-w-full divide-y divide-gray-200">
@@ -1136,7 +1137,7 @@
 							<p class="text-sm text-gray-500">{$t('No addresses found. Please add a new delivery address.')}</p>
 						</div>
 					{:else}
-						{#each localDeliveryAddresses as addr}
+						{#each sortedLocalDeliveryAddresses as addr}
 							<div class="flex items-start justify-between rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
 								<div class="flex-1 pr-4">
 									<p class="font-bold text-gray-800 text-base">{addr.name}</p>
