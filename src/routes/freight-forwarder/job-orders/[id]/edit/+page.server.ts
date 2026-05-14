@@ -66,6 +66,15 @@ export const load = async ({ params }) => {
 		'SELECT id, port_name FROM ports WHERE is_active = 1 ORDER BY port_name ASC'
 	);
 
+	const [vessels] = await pool.query(
+		`SELECT vm.id, vm.vessel_name, vm.liner_id, vm.storage_days, vm.demurrage_days, vm.detention_days,
+		        l.code AS liner_code, l.name AS liner_name
+		 FROM vessel_master vm
+		 LEFT JOIN liners l ON vm.liner_id = l.id
+		 WHERE vm.status = 'Active'
+		 ORDER BY vm.vessel_name ASC`
+	);
+
 	const [attachmentRows] = await pool.query(
 		'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
 		[id]
@@ -86,6 +95,7 @@ export const load = async ({ params }) => {
 		vendorContracts: JSON.parse(JSON.stringify(vendorContracts)),
 		units: JSON.parse(JSON.stringify(units)),
 		ports: JSON.parse(JSON.stringify(ports)),
+		vessels: JSON.parse(JSON.stringify(vessels)),
 		existingAttachments: JSON.parse(JSON.stringify(attachments))
 	};
 };
@@ -235,6 +245,37 @@ export const actions = {
 		} catch (err) {
 			console.error('Manage Port Error:', err);
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการจัดการ Port' });
+		}
+	},
+
+	manageVessel: async ({ request }) => {
+		const formData = await request.formData();
+		const action_type = formData.get('action_type')?.toString();
+		const id = formData.get('id')?.toString();
+		const vessel_name = formData.get('vessel_name')?.toString()?.trim();
+		const liner_id = formData.get('liner_id')?.toString()?.trim() || null;
+		const storage_days = parseInt(formData.get('storage_days')?.toString() || '3') || 3;
+		const demurrage_days = parseInt(formData.get('demurrage_days')?.toString() || '3') || 3;
+		const detention_days = parseInt(formData.get('detention_days')?.toString() || '32') || 32;
+
+		try {
+			if (action_type === 'add' && vessel_name) {
+				await pool.execute(
+					'INSERT INTO vessel_master (vessel_name, liner_id, storage_days, demurrage_days, detention_days) VALUES (?, ?, ?, ?, ?)',
+					[vessel_name, liner_id || null, storage_days, demurrage_days, detention_days]
+				);
+			} else if (action_type === 'edit' && id && vessel_name) {
+				await pool.execute(
+					'UPDATE vessel_master SET vessel_name = ?, liner_id = ?, storage_days = ?, demurrage_days = ?, detention_days = ?, updated_at = NOW() WHERE id = ?',
+					[vessel_name, liner_id || null, storage_days, demurrage_days, detention_days, id]
+				);
+			} else if (action_type === 'delete' && id) {
+				await pool.execute('DELETE FROM vessel_master WHERE id = ?', [id]);
+			}
+			return { success: true };
+		} catch (err) {
+			console.error('Manage Vessel Error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการจัดการ Vessel' });
 		}
 	}
 };
