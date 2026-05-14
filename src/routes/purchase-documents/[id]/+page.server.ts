@@ -7,6 +7,97 @@ import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAcce
 import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
 import { userCanIssuePurchaseOrderFromPr, userCanRejectPurchaseOrder } from '$lib/userRole';
 
+/** ดึงเลข PR จากข้อความอ้างอิง (กรณี OA เท่านั้น แต่มี PR แทรกท้าย หรือรูปแบบอื่น) */
+function extractPrDocumentNumbersFromReference(text: string): string[] {
+	const hay = String(text ?? '');
+	const set = new Set<string>();
+	const re = /\bPR-\d{4,6}-\d+\b/gi;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(hay)) !== null) {
+		const v = m[0].trim();
+		if (v) set.add(v);
+	}
+	return [...set];
+}
+
+type PurchaseSqlExecutor = Pick<typeof pool, 'query' | 'execute'>;
+
+/**
+ * เมื่อ PO เป็น Void: คืน PR ที่ Complete → Draft ถ้าไม่มี PO อื่นที่ยังไม่ Void อ้างถึง PR เดียวกัน
+ * (ใช้ทั้งการ match document_number ใน reference_doc และ regex เลข PR)
+ */
+async function revertLinkedPrsToDraftWhenPoVoided(
+	executor: PurchaseSqlExecutor,
+	excludedPoId: number,
+	referenceDocRaw: string | null | undefined
+): Promise<void> {
+	const refHaystack = String(referenceDocRaw ?? '').trim();
+	if (!refHaystack) return;
+
+	const [prRowsLike] = await executor.query<any[]>(
+		`SELECT id, document_number, status
+		 FROM purchase_documents
+		 WHERE document_type = 'PR'
+		   AND document_number IS NOT NULL
+		   AND TRIM(document_number) <> ''
+		   AND ? LIKE CONCAT('%', document_number, '%')
+		 ORDER BY CHAR_LENGTH(document_number) DESC`,
+		[refHaystack]
+	);
+
+	const seenPrIds = new Set<number>();
+	const candidates: { id: number; document_number: string; status: string }[] = [];
+
+	function pushCandidate(row: { id: unknown; document_number?: unknown; status?: unknown }) {
+		const prId = Number(row.id);
+		if (!Number.isFinite(prId) || seenPrIds.has(prId)) return;
+		const prNo = String(row.document_number ?? '').trim();
+		if (!prNo) return;
+		seenPrIds.add(prId);
+		candidates.push({
+			id: prId,
+			document_number: prNo,
+			status: String(row.status ?? '')
+		});
+	}
+
+	for (const pr of prRowsLike) pushCandidate(pr);
+
+	for (const prNo of extractPrDocumentNumbersFromReference(refHaystack)) {
+		const [exactRows] = await executor.query<any[]>(
+			`SELECT id, document_number, status
+			 FROM purchase_documents
+			 WHERE document_type = 'PR'
+			   AND TRIM(document_number) = ?
+			 LIMIT 5`,
+			[prNo]
+		);
+		for (const row of exactRows) pushCandidate(row);
+	}
+
+	for (const pr of candidates) {
+		const prNo = pr.document_number;
+		if (String(pr.status) !== 'Complete') continue;
+
+		const [cntRows] = await executor.query<any[]>(
+			`SELECT COUNT(*) AS c
+			 FROM purchase_documents
+			 WHERE document_type = 'PO'
+			   AND id <> ?
+			   AND COALESCE(LOWER(status), '') <> 'void'
+			   AND reference_doc LIKE ?`,
+			[excludedPoId, `%${prNo}%`]
+		);
+		const otherCount = Number(cntRows[0]?.c ?? 0);
+		if (otherCount === 0) {
+			await executor.execute(
+				`UPDATE purchase_documents SET status = 'Draft' WHERE id = ? AND document_type = 'PR'`,
+				[pr.id]
+			);
+		}
+	}
+}
+
 function splitEmailList(raw: string | undefined): string[] {
 	return (raw || '')
 		.split(/[;,]/g)
@@ -398,6 +489,18 @@ export const actions: Actions = {
 			await ensureCanAccessPurchaseDocument(id, locals.user);
 			await pool.execute('UPDATE purchase_documents SET status = ? WHERE id = ?', [status, id]);
 
+			const normStatus = String(status).trim().toLowerCase();
+			if (normStatus === 'void') {
+				const [voidMeta] = await pool.query<any[]>(
+					`SELECT document_type, reference_doc FROM purchase_documents WHERE id = ? LIMIT 1`,
+					[id]
+				);
+				const vm = voidMeta[0];
+				if (vm && String(vm.document_type || '').toUpperCase() === 'PO') {
+					await revertLinkedPrsToDraftWhenPoVoided(pool, id, vm.reference_doc);
+				}
+			}
+
 			// Notify purchasing recipients when a PR is issued (status changed to Sent).
 			if (status === 'Sent') {
 				const [rows] = await pool.query<any[]>(
@@ -540,45 +643,7 @@ export const actions: Actions = {
 				return fail(400, { message: 'This PO is already void' });
 			}
 
-			const refHaystack = String(po.reference_doc ?? '').trim();
-			if (refHaystack) {
-				const [prRows] = await connection.query<any[]>(
-					`SELECT id, document_number, status
-					 FROM purchase_documents
-					 WHERE document_type = 'PR'
-					   AND document_number IS NOT NULL
-					   AND TRIM(document_number) <> ''
-					   AND ? LIKE CONCAT('%', document_number, '%')
-					 ORDER BY CHAR_LENGTH(document_number) DESC`,
-					[refHaystack]
-				);
-				const seenPr = new Set<number>();
-				for (const pr of prRows) {
-					const prId = Number(pr.id);
-					if (!Number.isFinite(prId) || seenPr.has(prId)) continue;
-					seenPr.add(prId);
-					const prNo = String(pr.document_number ?? '').trim();
-					if (!prNo) continue;
-					if (String(pr.status || '') !== 'Complete') continue;
-
-					const [cntRows] = await connection.query<any[]>(
-						`SELECT COUNT(*) AS c
-						 FROM purchase_documents
-						 WHERE document_type = 'PO'
-						   AND id <> ?
-						   AND COALESCE(LOWER(status), '') <> 'void'
-						   AND reference_doc LIKE ?`,
-						[id, `%${prNo}%`]
-					);
-					const otherCount = Number(cntRows[0]?.c ?? 0);
-					if (otherCount === 0) {
-						await connection.execute(
-							`UPDATE purchase_documents SET status = 'Draft' WHERE id = ? AND document_type = 'PR'`,
-							[pr.id]
-						);
-					}
-				}
-			}
+			await revertLinkedPrsToDraftWhenPoVoided(connection, id, po.reference_doc);
 
 			await connection.execute(`UPDATE purchase_documents SET status = 'Void' WHERE id = ?`, [id]);
 			await connection.commit();
