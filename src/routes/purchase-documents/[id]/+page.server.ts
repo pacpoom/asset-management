@@ -5,7 +5,7 @@ import { env } from '$env/dynamic/private';
 import { sendMail } from '$lib/server/mailer';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
 import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
-import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
+import { userCanIssuePurchaseOrderFromPr, userCanRejectPurchaseOrder } from '$lib/userRole';
 
 function splitEmailList(raw: string | undefined): string[] {
 	return (raw || '')
@@ -371,7 +371,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			canEdit,
 			canIssuePo: userCanIssuePurchaseOrderFromPr(locals.user),
-			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void', 'Complete']
+			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void', 'Complete'],
+			canRejectPo:
+				String(document.document_type || '').toUpperCase() === 'PO' &&
+				String(document.status || '').toLowerCase() !== 'void' &&
+				userCanRejectPurchaseOrder(locals.user)
 		};
 	} catch (err: unknown) {
 		if (isHttpError(err)) throw err;
@@ -499,6 +503,97 @@ export const actions: Actions = {
 			return { success: true };
 		} catch (err: any) {
 			return fail(500, { message: err.message });
+		}
+	},
+
+	/** Void this PO and set linked PR(s) from Complete → Draft when no other non-Void PO references that PR. */
+	rejectPo: async ({ params, locals }) => {
+		const id = parseInt(params.id);
+		if (!id) return fail(400, { message: 'Invalid document' });
+
+		const connection = await pool.getConnection();
+		try {
+			await ensureCanAccessPurchaseDocument(id, locals.user);
+			if (!userCanRejectPurchaseOrder(locals.user)) {
+				return fail(403, {
+					message:
+						'Only users with the Admin_Purchase role can reject a PO (เฉพาะ Admin_Purchase เท่านั้น)'
+				});
+			}
+			await connection.beginTransaction();
+
+			const [poRows] = await connection.query<any[]>(
+				`SELECT id, document_type, status, reference_doc FROM purchase_documents WHERE id = ?`,
+				[id]
+			);
+			if (!poRows.length) {
+				await connection.rollback();
+				return fail(404, { message: 'Purchase document not found' });
+			}
+			const po = poRows[0];
+			if (String(po.document_type || '').toUpperCase() !== 'PO') {
+				await connection.rollback();
+				return fail(400, { message: 'Reject PO applies to Purchase Order documents only' });
+			}
+			if (String(po.status || '').toLowerCase() === 'void') {
+				await connection.rollback();
+				return fail(400, { message: 'This PO is already void' });
+			}
+
+			const refHaystack = String(po.reference_doc ?? '').trim();
+			if (refHaystack) {
+				const [prRows] = await connection.query<any[]>(
+					`SELECT id, document_number, status
+					 FROM purchase_documents
+					 WHERE document_type = 'PR'
+					   AND document_number IS NOT NULL
+					   AND TRIM(document_number) <> ''
+					   AND ? LIKE CONCAT('%', document_number, '%')
+					 ORDER BY CHAR_LENGTH(document_number) DESC`,
+					[refHaystack]
+				);
+				const seenPr = new Set<number>();
+				for (const pr of prRows) {
+					const prId = Number(pr.id);
+					if (!Number.isFinite(prId) || seenPr.has(prId)) continue;
+					seenPr.add(prId);
+					const prNo = String(pr.document_number ?? '').trim();
+					if (!prNo) continue;
+					if (String(pr.status || '') !== 'Complete') continue;
+
+					const [cntRows] = await connection.query<any[]>(
+						`SELECT COUNT(*) AS c
+						 FROM purchase_documents
+						 WHERE document_type = 'PO'
+						   AND id <> ?
+						   AND COALESCE(LOWER(status), '') <> 'void'
+						   AND reference_doc LIKE ?`,
+						[id, `%${prNo}%`]
+					);
+					const otherCount = Number(cntRows[0]?.c ?? 0);
+					if (otherCount === 0) {
+						await connection.execute(
+							`UPDATE purchase_documents SET status = 'Draft' WHERE id = ? AND document_type = 'PR'`,
+							[pr.id]
+						);
+					}
+				}
+			}
+
+			await connection.execute(`UPDATE purchase_documents SET status = 'Void' WHERE id = ?`, [id]);
+			await connection.commit();
+			return { success: true };
+		} catch (err: unknown) {
+			try {
+				await connection.rollback();
+			} catch {
+				// ignore rollback errors
+			}
+			if (isHttpError(err)) throw err;
+			const msg = err instanceof Error ? err.message : 'Reject PO failed';
+			return fail(500, { message: msg });
+		} finally {
+			connection.release();
 		}
 	}
 };
