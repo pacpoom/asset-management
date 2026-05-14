@@ -12,7 +12,6 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const user = locals.user as LocalUser;
 	if (!user) return new Response('Unauthorized', { status: 401 });
 
-	// 🌟 1. ปรับ Query ให้ดึง raw_id มาด้วย และเพิ่มเงื่อนไขกรองแผนก
 	let query = `
         SELECT 
             e.employee_type,
@@ -29,7 +28,8 @@ export const GET: RequestHandler = async ({ locals }) => {
             e.section,
             e.emp_group,
             jp.position_name,
-            e.project
+            e.project,
+            e.status 
         FROM employees e
         LEFT JOIN job_positions jp ON e.position_id = jp.id
         LEFT JOIN departments d ON e.department_id = d.id 
@@ -49,14 +49,13 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const workbook = new ExcelJS.Workbook();
 	const worksheet = workbook.addWorksheet('Employee_Master');
 
-	// 🌟 2. เพิ่มคอลัมน์ Raw ID และ รหัสเครื่องสแกน เข้าไปในโครงสร้างเดิมของคุณ
 	worksheet.columns = [
 		{ header: 'Employee Type', key: 'employee_type', width: 15 },
 		{ header: 'Default Shift', key: 'default_shift', width: 15 },
 		{ header: 'Subcontract', key: 'subcontractor', width: 15 },
 		{ header: 'ID No.', key: 'emp_id', width: 15 },
-		{ header: 'Raw ID', key: 'raw_id', width: 12 }, // แทรกตรงนี้
-		{ header: 'รหัสเครื่องสแกน', key: 'scan_id', width: 15 }, // แทรกตรงนี้
+		{ header: 'Raw ID', key: 'raw_id', width: 12 },
+		{ header: 'รหัสเครื่องสแกน', key: 'scan_id', width: 15 },
 		{ header: 'ID', key: 'citizen_id', width: 20 },
 		{ header: 'Name', key: 'emp_name', width: 30 },
 		{ header: 'Department', key: 'department_name', width: 20 },
@@ -66,7 +65,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 		{ header: 'Section', key: 'section', width: 20 },
 		{ header: 'Group', key: 'emp_group', width: 20 },
 		{ header: 'Position', key: 'position_name', width: 20 },
-		{ header: 'Project', key: 'project', width: 20 }
+		{ header: 'Project', key: 'project', width: 20 },
+		{ header: 'Status', key: 'status', width: 15 }
 	];
 
 	worksheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -78,15 +78,14 @@ export const GET: RequestHandler = async ({ locals }) => {
 		fgColor: { argb: 'FFE0F7FA' }
 	};
 
-	// 🌟 3. นำ raw_id ยัดใส่ลงไปในแต่ละแถวตอนวนลูป
 	rows.forEach((row: any) => {
 		worksheet.addRow({
 			employee_type: row.employee_type || '-',
 			default_shift: row.default_shift || '-',
 			subcontractor: row.subcontractor || '-',
 			emp_id: row.emp_id || '-',
-			raw_id: row.raw_id || '-', // ใส่ raw_id
-			scan_id: row.raw_id || '-', // ใส่ raw_id ในช่องรหัสสแกนนิ้วด้วย
+			raw_id: row.raw_id || '-',
+			scan_id: row.raw_id || '-',
 			citizen_id: row.citizen_id || '-',
 			emp_name: row.emp_name || '-',
 			department_name: row.department_name || '-',
@@ -96,7 +95,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 			section: row.section || '-',
 			emp_group: row.emp_group || '-',
 			position_name: row.position_name || '-',
-			project: row.project || '-'
+			project: row.project || '-',
+			status: row.status || '-'
 		});
 	});
 
