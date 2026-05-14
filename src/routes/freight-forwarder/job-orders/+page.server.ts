@@ -1,7 +1,7 @@
 import pool from '$lib/server/database';
 import { fail } from '@sveltejs/kit';
 
-export const load = async ({ url }) => {
+export const load = async ({ url, locals }) => {
 	// รับค่าจาก URL params
 	const page = parseInt(url.searchParams.get('page') || '1');
 	const limit = parseInt(url.searchParams.get('limit') || '10');
@@ -10,14 +10,10 @@ export const load = async ({ url }) => {
 
 	// คำนวณวันที่เริ่มต้น (ย้อนหลัง 1 เดือน) และสิ้นสุดของเดือนปัจจุบันเป็น Default
 	const now = new Date();
-	// ตั้งค่าเริ่มต้นเป็นวันที่ 1 ของเดือนที่แล้ว
-	const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1); 
-	// หากต้องการให้เริ่มจากวันที่ปัจจุบันของเดือนที่แล้ว (เช่น 8 เม.ย. ถึง 31 พ.ค.) ให้เปลี่ยนเป็น:
-	// const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-	
+	const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-	// แปลงเป็น YYYY-MM-DD โดยคำนึงถึง Timezone (ใช้ Timezone ปัจจุบันเพื่อหลีกเลี่ยงวันที่เลื่อน)
+	// แปลงเป็น YYYY-MM-DD โดยคำนึงถึง Timezone
 	const formatYMD = (date: Date) => {
 		const y = date.getFullYear();
 		const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -31,9 +27,19 @@ export const load = async ({ url }) => {
 	const startDate = url.searchParams.get('startDate') || defaultStart;
 	const endDate = url.searchParams.get('endDate') || defaultEnd;
 
+	// ตรวจสอบสิทธิ์: admin เห็นทุก job, user ทั่วไปเห็นเฉพาะของตัวเอง
+	const currentUser = locals.user;
+	const isAdmin = currentUser?.role === 'admin';
+
 	// บังคับกรองด้วยวันที่เสมอ
 	let whereClause = 'WHERE j.job_date >= ? AND j.job_date <= ?';
-	const queryParams: string[] = [startDate, endDate];
+	const queryParams: (string | number)[] = [startDate, endDate];
+
+	// กรองเฉพาะ job ของตัวเองถ้าไม่ใช่ admin
+	if (!isAdmin && currentUser?.id) {
+		whereClause += ' AND j.created_by = ?';
+		queryParams.push(currentUser.id);
+	}
 
 	// ถ้ามีการค้นหา ให้เพิ่มเงื่อนไข AND
 	if (search) {
