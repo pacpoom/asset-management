@@ -54,6 +54,18 @@
 		address?: string | null;
 		amount?: number;
 		id?: number;
+		liner_id?: string | number;
+	}
+
+	interface Vessel {
+		id: number;
+		vessel_name: string;
+		liner_id: number | null;
+		liner_code?: string | null;
+		liner_name?: string | null;
+		storage_days?: number;
+		demurrage_days?: number;
+		detention_days?: number;
 	}
 
 	$: customerOptions = data.customers.map((c: Customer) => ({
@@ -116,6 +128,18 @@
 	let selectedPol: SelectOption | null = null;
 	let selectedPod: SelectOption | null = null;
 
+	// Vessel Master Dropdown
+	$: vesselOptions = (data.vessels || []).map((v: Vessel) => ({
+		value: v.vessel_name,
+		label: v.liner_code ? `[${v.liner_code}] ${v.vessel_name}` : v.vessel_name,
+		id: v.id,
+		liner_id: v.liner_id ? String(v.liner_id) : '',
+		storage_days: v.storage_days ?? 3,
+		demurrage_days: v.demurrage_days ?? 3,
+		detention_days: v.detention_days ?? 32
+	}));
+	let selectedVessel: SelectOption | null = null;
+
 	$: activeCurrencies = (
 		data?.currencies && data.currencies.length > 0
 			? data.currencies
@@ -137,13 +161,22 @@
 	];
 
 	let isManageModalOpen = false;
-	let manageModalType: 'jobCode' | 'serviceType' | 'port' | null = null;
+	let manageModalType: 'jobCode' | 'serviceType' | 'port' | 'vessel' | null = null;
 	let manageValue = '';
 	let manageLabel = '';
 	let editingIndex: number | null = null;
 	let managePortId: number | null = null;
 	let portActionType = 'add';
 	let portForm: HTMLFormElement;
+
+	// Vessel manage state
+	let vesselActionType = 'add';
+	let vesselForm: HTMLFormElement;
+	let manageVesselId: string | null = null;
+	let manageVesselLinerId: string = '';
+	let manageVesselStorageDays: number = 3;
+	let manageVesselDemurrageDays: number = 3;
+	let manageVesselDetentionDays: number = 32;
 
 	let toastMessage = '';
 	let toastType: 'success' | 'error' = 'success';
@@ -158,7 +191,7 @@
 		}, 3000);
 	}
 
-	function openManageModal(type: 'jobCode' | 'serviceType' | 'port') {
+	function openManageModal(type: 'jobCode' | 'serviceType' | 'port' | 'vessel') {
 		manageModalType = type;
 		isManageModalOpen = true;
 		resetManageForm();
@@ -174,6 +207,11 @@
 		manageLabel = '';
 		editingIndex = null;
 		managePortId = null;
+		manageVesselId = null;
+		manageVesselLinerId = '';
+		manageVesselStorageDays = 3;
+		manageVesselDemurrageDays = 3;
+		manageVesselDetentionDays = 32;
 	}
 
 	function saveManageOption() {
@@ -185,6 +223,12 @@
 		if (manageModalType === 'port') {
 			portActionType = editingIndex !== null ? 'edit' : 'add';
 			setTimeout(() => portForm.requestSubmit(), 0);
+			return;
+		}
+
+		if (manageModalType === 'vessel') {
+			vesselActionType = editingIndex !== null ? 'edit' : 'add';
+			setTimeout(() => vesselForm.requestSubmit(), 0);
 			return;
 		}
 
@@ -211,10 +255,20 @@
 
 	function editManageOption(index: number) {
 		editingIndex = index;
-		
+
 		if (manageModalType === 'port') {
 			manageLabel = portOptions[index].label;
 			managePortId = portOptions[index].id;
+			return;
+		}
+
+		if (manageModalType === 'vessel') {
+			manageLabel = String(vesselOptions[index].value); // vessel_name
+			manageVesselId = String(vesselOptions[index].id);
+			manageVesselLinerId = String(vesselOptions[index].liner_id || '');
+			manageVesselStorageDays = Number(vesselOptions[index].storage_days) || 3;
+			manageVesselDemurrageDays = Number(vesselOptions[index].demurrage_days) || 3;
+			manageVesselDetentionDays = Number(vesselOptions[index].detention_days) || 32;
 			return;
 		}
 
@@ -240,6 +294,14 @@
 			portActionType = 'delete';
 			managePortId = portOptions[deleteTargetIndex].id;
 			setTimeout(() => portForm.requestSubmit(), 0);
+			showDeleteConfirm = false;
+			return;
+		}
+
+		if (manageModalType === 'vessel') {
+			vesselActionType = 'delete';
+			manageVesselId = String(vesselOptions[deleteTargetIndex].id);
+			setTimeout(() => vesselForm.requestSubmit(), 0);
 			showDeleteConfirm = false;
 			return;
 		}
@@ -347,6 +409,32 @@
 			<input type="hidden" name="action_type" bind:value={portActionType} />
 			<input type="hidden" name="id" bind:value={managePortId} />
 			<input type="hidden" name="port_name" bind:value={manageLabel} />
+		</form>
+
+		<!-- Hidden Vessel Manage Form -->
+		<form method="POST" action="?/manageVessel" bind:this={vesselForm} class="hidden" use:enhance={() => {
+			return async ({ update, result }) => {
+				await update();
+				if (result.type === 'success') {
+					if (vesselActionType === 'delete') {
+						showToast($t('Option deleted successfully'), 'success');
+						deleteTargetIndex = null;
+					} else {
+						showToast(editingIndex !== null ? $t('Data updated successfully') : $t('Added to system successfully'), 'success');
+						resetManageForm();
+					}
+				} else {
+					showToast($t('Error saving data'), 'error');
+				}
+			};
+		}}>
+			<input type="hidden" name="action_type" bind:value={vesselActionType} />
+			<input type="hidden" name="id" bind:value={manageVesselId} />
+			<input type="hidden" name="vessel_name" bind:value={manageLabel} />
+			<input type="hidden" name="liner_id" bind:value={manageVesselLinerId} />
+			<input type="hidden" name="storage_days" bind:value={manageVesselStorageDays} />
+			<input type="hidden" name="demurrage_days" bind:value={manageVesselDemurrageDays} />
+			<input type="hidden" name="detention_days" bind:value={manageVesselDetentionDays} />
 		</form>
 
 		<form
@@ -564,8 +652,16 @@
 						</div>
 
 						<div>
-							<label for="vessel" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Vessel')}</label>
-							<input id="vessel" type="text" name="vessel" placeholder={$t('Vessel Name')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
+							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Vessel')}</div>
+							<div class="flex items-start gap-2">
+								<div class="min-w-0 flex-grow">
+									<Select items={vesselOptions} bind:value={selectedVessel} placeholder={$t('Search or select vessel...')} container={browser ? document.body : null} class="svelte-select-custom" />
+									<input type="hidden" name="vessel" value={selectedVessel?.value || ''} />
+								</div>
+								<button type="button" onclick={() => openManageModal('vessel')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Vessels')}>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+								</button>
+							</div>
 						</div>
 						<div>
 							<label for="feeder" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Feeder')}</label>
@@ -712,8 +808,8 @@
 		<div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
 			<div class="flex items-center justify-between border-b px-5 py-4">
 				<h3 class="font-bold text-gray-800">
-					{$t('Manage Options')} - 
-					{manageModalType === 'jobCode' ? 'Job Code' : manageModalType === 'serviceType' ? 'Service Type' : 'Port'}
+					{$t('Manage Options')} -
+					{manageModalType === 'jobCode' ? 'Job Code' : manageModalType === 'serviceType' ? 'Service Type' : manageModalType === 'vessel' ? 'Vessel' : 'Port'}
 				</h3>
 				<button onclick={closeManageModal} class="text-gray-400 hover:text-gray-600 focus:outline-none" aria-label={$t('Close Modal')} title={$t('Close Modal')}>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -725,17 +821,47 @@
 					<h4 class="mb-3 text-sm font-semibold text-gray-600">
 						{editingIndex !== null ? $t('Edit Option') : $t('Add New Option')}
 					</h4>
-					<div class="mb-3 grid {manageModalType === 'port' ? 'grid-cols-1' : 'grid-cols-2'} gap-3">
-						{#if manageModalType !== 'port'}
+					<div class="mb-3 grid {manageModalType === 'port' || manageModalType === 'vessel' ? 'grid-cols-1' : 'grid-cols-2'} gap-3">
+						{#if manageModalType !== 'port' && manageModalType !== 'vessel'}
 						<div>
 							<label for="manage_value" class="mb-1 block text-xs font-medium text-gray-500">{$t('Value (e.g. SI)')}</label>
 							<input id="manage_value" type="text" bind:value={manageValue} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Value..." />
 						</div>
 						{/if}
 						<div>
-							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500">{$t(manageModalType === 'port' ? 'Port Name' : 'Label (e.g. Sea Import)')}</label>
-							<input id="manage_label" type="text" bind:value={manageLabel} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Label..." onkeydown={(e) => e.key === 'Enter' && saveManageOption()} />
+							<label for="manage_label" class="mb-1 block text-xs font-medium text-gray-500">
+								{manageModalType === 'port' ? $t('Port Name') : manageModalType === 'vessel' ? 'ชื่อเรือ *' : $t('Label (e.g. Sea Import)')}
+							</label>
+							<input id="manage_label" type="text" bind:value={manageLabel} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder={manageModalType === 'vessel' ? 'Vessel Name...' : 'Label...'} onkeydown={(e) => e.key === 'Enter' && saveManageOption()} />
 						</div>
+						{#if manageModalType === 'vessel'}
+						<div>
+							<label class="mb-1 block text-xs font-medium text-gray-500">สายเรือ (Liner)</label>
+							<select bind:value={manageVesselLinerId} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+								<option value="">— ไม่ระบุ —</option>
+								{#each (data.liners || []) as liner}
+									<option value={String(liner.id)}>{liner.code ? `[${liner.code}] ` : ''}{liner.name}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="border-t border-gray-200 pt-3">
+							<p class="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Free Days</p>
+							<div class="grid grid-cols-3 gap-2">
+								<div>
+									<label class="mb-1 block text-xs font-medium text-gray-500">Storage (วัน)</label>
+									<input type="number" bind:value={manageVesselStorageDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium text-gray-500">Demurrage (วัน)</label>
+									<input type="number" bind:value={manageVesselDemurrageDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium text-gray-500">Detention (วัน)</label>
+									<input type="number" bind:value={manageVesselDetentionDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
+								</div>
+							</div>
+						</div>
+						{/if}
 					</div>
 					<div class="flex gap-2">
 						<button onclick={saveManageOption} class="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
@@ -750,11 +876,11 @@
 				<h4 class="mb-2 text-sm font-semibold text-gray-700">{$t('Current Options')}</h4>
 				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
 					<ul class="divide-y divide-gray-100">
-						{#each manageModalType === 'jobCode' ? jobTypeOptions : manageModalType === 'serviceType' ? serviceTypeOptions : portOptions as option, index (option.value)}
+						{#each (manageModalType === 'jobCode' ? jobTypeOptions : manageModalType === 'serviceType' ? serviceTypeOptions : manageModalType === 'vessel' ? vesselOptions : portOptions) as option, index (option.value)}
 							<li class="flex items-center justify-between p-3 hover:bg-gray-50">
 								<div>
 									<span class="text-sm font-semibold text-gray-800">{option.label}</span>
-									{#if manageModalType !== 'port'}
+									{#if manageModalType !== 'port' && manageModalType !== 'vessel'}
 									<span class="ml-2 text-xs text-gray-500">[{option.value}]</span>
 									{/if}
 								</div>
@@ -768,7 +894,7 @@
 								</div>
 							</li>
 						{/each}
-						{#if (manageModalType === 'jobCode' && jobTypeOptions.length === 0) || (manageModalType === 'serviceType' && serviceTypeOptions.length === 0) || (manageModalType === 'port' && portOptions.length === 0)}
+						{#if (manageModalType === 'jobCode' && jobTypeOptions.length === 0) || (manageModalType === 'serviceType' && serviceTypeOptions.length === 0) || (manageModalType === 'port' && portOptions.length === 0) || (manageModalType === 'vessel' && vesselOptions.length === 0)}
 							<li class="p-4 text-center text-sm text-gray-500">{$t('No data available')}</li>
 						{/if}
 					</ul>

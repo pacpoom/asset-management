@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx svelte-check *)",
+      "Bash(where mysql *)",
+      "Bash(where mysqladmin *)",
+      "Read(//c/Program Files/MySQL/**)",
+      "Read(//c/xampp/mysql/bin/**)",
+      "Bash(find /c /d -name \"mysql.exe\")",
+      "Bash(mv \"D:/asset-management/migrations/run_migration.js\" \"D:/asset-management/migrations/run_migration.cjs\")",
+      "Bash(node run_migration.cjs)",
+      "Bash(node run_vessel_master.cjs)"
+    ]
+  }
+}
