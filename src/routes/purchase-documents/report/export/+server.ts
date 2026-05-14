@@ -95,6 +95,10 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 				
 				pd.document_number,
 				pd.reference_doc,
+				CASE
+					WHEN UPPER(TRIM(COALESCE(pd.document_type, ''))) = 'PR' THEN pd.document_number
+					ELSE srcpr.document_number
+				END AS pr_no_bizcore,
 				pd.currency,
 				pd.document_date,
 				pd.document_type,
@@ -103,6 +107,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 				j.job_number
             FROM purchase_document_items pdi
             JOIN purchase_documents pd ON pdi.document_id = pd.id
+			LEFT JOIN purchase_documents srcpr ON srcpr.id = pd.source_pr_id AND srcpr.document_type = 'PR'
 			LEFT JOIN vendors v ON pd.vendor_id = v.id
 			LEFT JOIN job_orders j ON pd.job_id = j.id
 			LEFT JOIN users creator ON pd.created_by_user_id = creator.id
@@ -118,6 +123,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 		worksheet.columns = [
 			{ header: 'Doc Date', key: 'document_date', width: 15 },
 			{ header: 'Doc No.', key: 'document_number', width: 20 },
+			{ header: 'PR_NO (BizCore)', key: 'pr_no_bizcore', width: 22 },
 			{ header: 'PR_NO (OA)', key: 'pr_no_oa', width: 28 },
 			{ header: 'CCY', key: 'currency', width: 8 },
 			{ header: 'Doc Type', key: 'document_type', width: 15 },
@@ -178,6 +184,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 			worksheet.addRow({
 				document_date: row.document_date ? new Date(row.document_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '-',
 				document_number: row.document_number || '-',
+				pr_no_bizcore: String(row.pr_no_bizcore ?? '').trim() || '-',
 				pr_no_oa: row.reference_doc?.toString().trim() || '',
 				currency: String(row.currency || 'THB').toUpperCase(),
 				document_type: row.document_type || '-',
@@ -215,8 +222,8 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 			fgColor: { argb: 'FFE8EAF6' } // สีม่วงอมน้ำเงินอ่อนๆ สำหรับ Purchase
 		};
 
-		// ตั้งค่า Format ตัวเลขทศนิยม
-		['I', 'J', 'K', 'M', 'N', 'O', 'P', 'Q'].forEach((col) => {
+		// ตั้งค่า Format ตัวเลขทศนิยม (คอลัมน์เลขเริ่มที่ Qty หลังแทรก PR_NO BizCore)
+		['J', 'K', 'L', 'N', 'O', 'P', 'Q', 'R'].forEach((col) => {
 			worksheet.getColumn(col).numFmt = '#,##0.00';
 		});
 

@@ -63,7 +63,18 @@ async function ensureCanAccessPurchaseDocument(documentId: number, user: App.Use
 	}
 }
 
-async function hasIssuedPurchaseOrderFromPr(prDocumentNumber: string): Promise<boolean> {
+async function hasIssuedPurchaseOrderFromPr(prId: number, prDocumentNumber: string): Promise<boolean> {
+	if (Number.isFinite(prId) && prId > 0) {
+		const [bySource] = await pool.query<any[]>(
+			`SELECT id
+			 FROM purchase_documents
+			 WHERE document_type = 'PO'
+			   AND source_pr_id = ?
+			 LIMIT 1`,
+			[prId]
+		);
+		if (bySource.length > 0) return true;
+	}
 	if (!prDocumentNumber) return false;
 	const [rows] = await pool.query<any[]>(
 		`SELECT id
@@ -91,7 +102,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		if (
 			String(document.document_type || '').toUpperCase() === 'PR' &&
 			(String(document.status || '') === 'Complete' ||
-				(await hasIssuedPurchaseOrderFromPr(String(document.document_number || ''))))
+				(await hasIssuedPurchaseOrderFromPr(
+					documentId,
+					String(document.document_number || '')
+				)))
 		) {
 			const msg = encodeURIComponent(
 				String(document.status || '') === 'Complete'
@@ -181,7 +195,10 @@ export const actions: Actions = {
 			currentDoc &&
 			String(currentDoc.document_type || '').toUpperCase() === 'PR' &&
 			(String(currentDoc.status || '') === 'Complete' ||
-				(await hasIssuedPurchaseOrderFromPr(String(currentDoc.document_number || ''))))
+				(await hasIssuedPurchaseOrderFromPr(
+					documentId,
+					String(currentDoc.document_number || '')
+				)))
 		) {
 			return fail(403, {
 				message:

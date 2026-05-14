@@ -31,7 +31,10 @@ WHERE pd.document_type = 'PR'
     FROM purchase_documents po
     WHERE po.document_type = 'PO'
       AND COALESCE(LOWER(po.status), '') <> 'void'
-      AND po.reference_doc LIKE CONCAT('%', pd.document_number, '%')
+      AND (
+        po.source_pr_id = pd.id
+        OR po.reference_doc LIKE CONCAT('%', pd.document_number, '%')
+      )
   );
 */
 
