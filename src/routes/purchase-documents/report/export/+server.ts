@@ -94,6 +94,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 				COALESCE(pdi.wht_amount, 0) as wht_amt,
 				
 				pd.document_number,
+				pd.reference_doc,
 				pd.document_date,
 				pd.document_type,
 				pd.status,
@@ -116,6 +117,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 		worksheet.columns = [
 			{ header: 'Doc Date', key: 'document_date', width: 15 },
 			{ header: 'Doc No.', key: 'document_number', width: 20 },
+			{ header: 'PR_NO (OA)', key: 'pr_no_oa', width: 28 },
 			{ header: 'Doc Type', key: 'document_type', width: 15 },
 			{ header: 'Vendor', key: 'vendor_name', width: 35 },
 			{ header: 'Job No.', key: 'job_number', width: 20 },
@@ -174,6 +176,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 			worksheet.addRow({
 				document_date: row.document_date ? new Date(row.document_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '-',
 				document_number: row.document_number || '-',
+				pr_no_oa: row.reference_doc?.toString().trim() || '',
 				document_type: row.document_type || '-',
 				vendor_name: row.vendor_name || '-',
 				job_number: row.job_number || '-',
@@ -210,7 +213,7 @@ export const GET: RequestHandler = async ({ url,locals }) => {
 		};
 
 		// ตั้งค่า Format ตัวเลขทศนิยม
-		['G', 'H', 'I', 'K', 'L', 'M', 'N', 'O'].forEach(col => {
+		['H', 'I', 'J', 'L', 'M', 'N', 'O', 'P'].forEach((col) => {
 			worksheet.getColumn(col).numFmt = '#,##0.00';
 		});
 
