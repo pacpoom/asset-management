@@ -80,9 +80,25 @@ async function startBackgroundSync() {
 							const rawId = log.deviceUserId.toString().trim();
 
 							let formattedTime = log.recordTime;
+
 							if (log.recordTime instanceof Date) {
-								const d = log.recordTime;
-								formattedTime = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+								const parts = new Intl.DateTimeFormat('en-GB', {
+									timeZone: 'Asia/Bangkok',
+									year: 'numeric',
+									month: '2-digit',
+									day: '2-digit',
+									hour: '2-digit',
+									minute: '2-digit',
+									second: '2-digit',
+									hour12: false
+								}).formatToParts(log.recordTime);
+
+								const t: any = {};
+								parts.forEach((p) => (t[p.type] = p.value));
+
+								if (t.hour === '24') t.hour = '00';
+
+								formattedTime = `${t.year}-${t.month}-${t.day} ${t.hour}:${t.minute}:${t.second}`;
 							} else if (typeof log.recordTime === 'string') {
 								formattedTime = log.recordTime.replace('T', ' ').split('.')[0];
 							}
