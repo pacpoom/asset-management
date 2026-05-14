@@ -4,6 +4,10 @@
 	import { tick } from 'svelte';
 	import type { ActionData, PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
+	import {
+		formatPurchaseDocumentCurrency,
+		normalizePurchaseDocumentCurrency
+	} from '$lib/purchaseDocumentCurrency';
 
 	const { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -32,12 +36,15 @@
 		companyData = data.company;
 	});
 
+	const docCurrency = $derived(normalizePurchaseDocumentCurrency(document?.currency));
+
 	const formatCurrency = (amount: number | null | undefined) => {
 		if (amount === null || amount === undefined) return '-';
-		return new Intl.NumberFormat($locale === 'th' ? 'th-TH' : 'en-US', {
-			style: 'currency',
-			currency: 'THB'
-		}).format(amount);
+		return formatPurchaseDocumentCurrency(
+			amount,
+			docCurrency,
+			$locale === 'th' ? 'th-TH' : 'en-US'
+		);
 	};
 
 	const formatDate = (dateStr: string | null | undefined) => {
@@ -287,6 +294,10 @@
 				<div class="text-sm">
 					<span class="font-semibold text-gray-600">{$t('Document No.')}:</span>
 					<span class="font-medium text-gray-800">#{document.document_number}</span>
+				</div>
+				<div class="text-sm">
+					<span class="font-semibold text-gray-600">{$t('Currency')}:</span>
+					<span class="font-medium text-gray-800">{docCurrency}</span>
 				</div>
 				<div class="text-sm">
 					<span class="font-semibold text-gray-600">{$t('Date')}:</span>

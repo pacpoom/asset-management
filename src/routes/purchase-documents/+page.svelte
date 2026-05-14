@@ -3,6 +3,10 @@
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
 	import { t, locale } from '$lib/i18n';
+	import {
+		formatPurchaseDocumentCurrency,
+		normalizePurchaseDocumentCurrency
+	} from '$lib/purchaseDocumentCurrency';
 	import { onMount } from 'svelte';
 	import { isoToDisplay, displayToIso } from '$lib/purchaseDocumentDateFormat';
 
@@ -137,8 +141,10 @@
 
 	$: currentLoc = $locale === 'th' ? 'th-TH' : 'en-US';
 
-	$: formatCurrency = (amount: number) =>
-		new Intl.NumberFormat(currentLoc, { style: 'currency', currency: 'THB' }).format(amount);
+	function formatCurrency(amount: number, currency?: string | null) {
+		const c = normalizePurchaseDocumentCurrency(currency);
+		return formatPurchaseDocumentCurrency(amount, c, currentLoc);
+	}
 
 	function formatDate(dateStr: string) {
 		if (!dateStr) return '-';
@@ -311,7 +317,7 @@
 							>
 							<td class="px-4 py-3 font-medium text-gray-900">{doc.vendor_name}</td>
 							<td class="px-4 py-3 text-right font-semibold text-gray-900"
-								>{formatCurrency(doc.total_amount)}</td
+								>{formatCurrency(doc.total_amount, doc.currency)}</td
 							>
 							<td class="px-4 py-3 text-center text-gray-600 text-xs">
 								{doc.created_by_name || '-'}

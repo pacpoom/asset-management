@@ -158,6 +158,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				COALESCE(pdi.wht_amount, 0) as wht_amt,
 				
 				pd.document_number,
+				pd.currency,
 				pd.document_date,
 				pd.document_type,
 				pd.status,

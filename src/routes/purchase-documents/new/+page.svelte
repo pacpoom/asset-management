@@ -13,6 +13,12 @@
 		todayIsoLocal,
 		addCalendarDaysToIso
 	} from '$lib/purchaseDocumentDateFormat';
+	import {
+		formatPurchaseDocumentCurrency,
+		normalizePurchaseDocumentCurrency,
+		type PurchaseDocumentCurrency
+	} from '$lib/purchaseDocumentCurrency';
+	import { deliveryAddressSelectLabel } from '$lib/purchaseDocumentDeliveryAddress';
 
 	interface Vendor {
 		id: number | string;
@@ -48,6 +54,12 @@
 		address_line: string;
 		contact_name?: string;
 		contact_phone?: string;
+		department_id?: number | string | null;
+	}
+
+	interface Department {
+		id: number | string;
+		name: string;
 	}
 
 	interface SelectOption {
@@ -92,7 +104,7 @@
 	let isAddressModalOpen = false;
 	let addressMode: 'list' | 'form' = 'list';
 	let editingAddressId: string | number | null = null;
-	let addrForm = { name: '', address_line: '', contact_name: '', contact_phone: '' };
+	let addrForm = { name: '', address_line: '', contact_name: '', contact_phone: '', department_id: '' };
 	let isSubmittingAddr = false;
 
 	$: vendorOptions = vendors.map((v: Vendor) => ({
@@ -123,10 +135,14 @@
 	// อัปเดต Dropdown อัตโนมัติเมื่อมีการเพิ่ม/ลบ
 	$: deliveryOptions = localDeliveryAddresses.map((d: DeliveryAddress) => ({
 		value: d.id,
-		label: d.name
+		label: deliveryAddressSelectLabel(d)
 	}));
 
+	$: departments = (data.departments ?? []) as Department[];
+	$: defaultDeliveryAddressIdFromServer = data.defaultDeliveryAddressId ?? null;
+
 	let documentType = 'PR';
+	let documentCurrency: PurchaseDocumentCurrency = 'THB';
 	const t0 = todayIsoLocal();
 	let documentDateStr = isoToDisplay(t0);
 	let creditTerm: number | null = 30;
@@ -144,6 +160,9 @@
 
 	let selectedDeliveryObj: SelectOption | null = null;
 	let selectedDeliveryId: string | number = '';
+
+	let deliveryReceiverName = '';
+	let deliveryReceiverPhone = '';
 
 	let referenceDoc = '';
 	let notes = '';
@@ -219,6 +238,10 @@
 	onMount(() => {
 		if (prefillData) {
 			documentType = prefillData.targetType;
+			documentCurrency = normalizePurchaseDocumentCurrency(prefillData.document.currency);
+
+			deliveryReceiverName = String(prefillData.document.delivery_receiver_name || '').trim();
+			deliveryReceiverPhone = String(prefillData.document.delivery_receiver_phone || '').trim();
 
 			const oaRef = prefillData.document.reference_doc?.toString().trim();
 			if (oaRef) {
@@ -277,6 +300,14 @@
 				});
 			}
 		}
+
+		const defId = defaultDeliveryAddressIdFromServer;
+		if (!selectedDeliveryId && defId != null && String(defId) !== '') {
+			selectedDeliveryId = defId;
+		}
+		if (!deliveryReceiverName && !deliveryReceiverPhone && selectedDeliveryId) {
+			applyReceiverDefaultsFromDeliveryAddress(selectedDeliveryId);
+		}
 	});
 
 	// --- Address Modal Functions ---
@@ -293,10 +324,24 @@
 		addressMode = 'form';
 		if (addr) {
 			editingAddressId = addr.id;
-			addrForm = { ...addr, contact_name: addr.contact_name || '', contact_phone: addr.contact_phone || '' };
+			addrForm = {
+				...addr,
+				contact_name: addr.contact_name || '',
+				contact_phone: addr.contact_phone || '',
+				department_id:
+					addr.department_id != null && String(addr.department_id) !== ''
+						? String(addr.department_id)
+						: ''
+			};
 		} else {
 			editingAddressId = null;
-			addrForm = { name: '', address_line: '', contact_name: '', contact_phone: '' };
+			addrForm = {
+				name: '',
+				address_line: '',
+				contact_name: '',
+				contact_phone: '',
+				department_id: ''
+			};
 		}
 	}
 
@@ -304,7 +349,7 @@
 		isSubmittingAddr = true;
 		return async ({ result }) => {
 			isSubmittingAddr = false;
-			if (result.type === 'success' && result.data) {
+			if (result.type === 'success' && result.data && 'address' in result.data) {
 				const updatedAddr = result.data.address;
 				if (editingAddressId) {
 					localDeliveryAddresses = localDeliveryAddresses.map(a => a.id === updatedAddr.id ? updatedAddr : a);
@@ -313,8 +358,12 @@
 				}
 				// Auto Select หลังจากสร้างหรือแก้ไขสำเร็จ
 				selectedDeliveryId = updatedAddr.id;
-				selectedDeliveryObj = { value: updatedAddr.id, label: updatedAddr.name };
+				selectedDeliveryObj = {
+					value: updatedAddr.id,
+					label: deliveryAddressSelectLabel(updatedAddr)
+				};
 				addressMode = 'list';
+				applyReceiverDefaultsFromDeliveryAddress(updatedAddr.id);
 			} else if (result.type === 'failure') {
 				alert(result.data?.message || 'เกิดข้อผิดพลาดในการบันทึกที่อยู่');
 			}
@@ -323,13 +372,14 @@
 
 	const handleDeleteAddress: SubmitFunction = () => {
 		return async ({ result }) => {
-			if (result.type === 'success' && result.data) {
+			if (result.type === 'success' && result.data && 'deletedId' in result.data) {
 				const deletedId = result.data.deletedId;
 				localDeliveryAddresses = localDeliveryAddresses.filter(a => a.id !== deletedId);
 				// ถ้าที่อยู่ที่ถูกลบกำลังถูกเลือกอยู่ ให้เคลียร์ค่า
 				if (selectedDeliveryId == deletedId) {
 					selectedDeliveryId = '';
 					selectedDeliveryObj = null;
+					applyReceiverDefaultsFromDeliveryAddress('');
 				}
 			} else if (result.type === 'failure') {
 				alert(result.data?.message || 'เกิดข้อผิดพลาดในการลบที่อยู่');
@@ -358,9 +408,29 @@
 		selectedJobOrderId = selected ? selected.value : '';
 	}
 
+	/** Fill document receiver fields from master delivery_addresses (when user picks Ship To). */
+	function applyReceiverDefaultsFromDeliveryAddress(deliveryId: string | number | null | undefined) {
+		if (deliveryId === '' || deliveryId === null || deliveryId === undefined) {
+			deliveryReceiverName = '';
+			deliveryReceiverPhone = '';
+			return;
+		}
+		const addr = localDeliveryAddresses.find(
+			(a: DeliveryAddress) => String(a.id) === String(deliveryId)
+		);
+		if (!addr) {
+			deliveryReceiverName = '';
+			deliveryReceiverPhone = '';
+			return;
+		}
+		deliveryReceiverName = String(addr.contact_name ?? '').trim();
+		deliveryReceiverPhone = String(addr.contact_phone ?? '').trim();
+	}
+
 	function onDeliveryChange(selected: SelectOption | null) {
 		selectedDeliveryObj = selected;
 		selectedDeliveryId = selected ? selected.value : '';
+		applyReceiverDefaultsFromDeliveryAddress(selected ? selected.value : '');
 	}
 
 	// Calculate line items amounts
@@ -459,10 +529,11 @@
 
 	$: currentLoc = $locale === 'th' ? 'th-TH' : 'en-US';
 	$: formatNumber = (amount: number) =>
-		new Intl.NumberFormat(currentLoc, {
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2
-		}).format(amount);
+		formatPurchaseDocumentCurrency(
+			amount,
+			normalizePurchaseDocumentCurrency(documentCurrency),
+			currentLoc
+		);
 </script>
 
 <svelte:head>
@@ -632,6 +703,41 @@
 					--itemIsActive="background: #e0f2fe;"
 				/>
 				<input type="hidden" name="delivery_address_id" value={selectedDeliveryId} />
+				<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+					<p class="col-span-full text-xs text-gray-500">
+						{$locale === 'th'
+							? 'ผู้รับเฉพาะเอกสารนี้ — เว้นว่างให้ใช้ชื่อและเบอร์จากที่อยู่จัดส่งที่เลือก'
+							: 'Receiver for this document only — leave blank to use the name and phone from the selected Ship To address.'}
+					</p>
+					<div>
+						<label for="delivery_receiver_name" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Receiver')}</label
+						>
+						<input
+							type="text"
+							id="delivery_receiver_name"
+							name="delivery_receiver_name"
+							bind:value={deliveryReceiverName}
+							autocomplete="off"
+							class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+							placeholder={$locale === 'th' ? 'เช่น คุณสมชาย (เฉพาะเอกสารนี้)' : 'e.g. John Doe (this document only)'}
+						/>
+					</div>
+					<div>
+						<label for="delivery_receiver_phone" class="mb-1 block text-sm font-medium text-gray-700"
+							>{$t('Phone')}</label
+						>
+						<input
+							type="text"
+							id="delivery_receiver_phone"
+							name="delivery_receiver_phone"
+							bind:value={deliveryReceiverPhone}
+							autocomplete="off"
+							class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+							placeholder="081-234-5678"
+						/>
+					</div>
+				</div>
 			</div>
 
 			<div class="relative z-30 grid grid-cols-1 gap-4 md:grid-cols-4 md:col-span-2">
@@ -738,6 +844,21 @@
 					class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
 					placeholder={$t('e.g. OA PR number')}
 				/>
+				<div class="mt-4">
+					<label for="currency" class="mb-1 block text-sm font-medium text-gray-700"
+						>{$t('Currency')}</label
+					>
+					<select
+						id="currency"
+						name="currency"
+						bind:value={documentCurrency}
+						class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500"
+					>
+						<option value="THB">THB (Thai Baht)</option>
+						<option value="USD">USD (US Dollar)</option>
+						<option value="CNY">CNY (Chinese Yuan)</option>
+					</select>
+				</div>
 			</div>
 
 			<div class="md:col-span-2">
@@ -1053,6 +1174,27 @@
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">{$t('Full Address')} <span class="text-red-500">*</span></label>
 							<textarea name="address_line" bind:value={addrForm.address_line} required rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+						</div>
+						<div>
+							<label for="addr_department_id" class="block text-sm font-medium text-gray-700 mb-1">
+								{$locale === 'th' ? 'แผนก (ค่าเริ่มต้น Ship To)' : 'Department (default Ship To)'}
+							</label>
+							<select
+								id="addr_department_id"
+								name="department_id"
+								bind:value={addrForm.department_id}
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							>
+								<option value="">{$locale === 'th' ? '— ไม่ระบุ —' : '— None —'}</option>
+								{#each departments as dept (dept.id)}
+									<option value={dept.id}>{dept.name}</option>
+								{/each}
+							</select>
+							<p class="mt-1 text-xs text-gray-500">
+								{$locale === 'th'
+									? 'ใช้จับคู่ค่าเริ่มต้นตามแผนกของผู้ออก PR เมื่อไม่มีชื่อผู้ติดต่อตรงกัน'
+									: 'Used with PR creator department when no contact name matches.'}
+							</p>
 						</div>
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 							<div>

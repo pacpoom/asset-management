@@ -73,7 +73,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const fetchSql = `
             SELECT
-                pd.id, pd.document_type, pd.document_number, pd.document_date, pd.due_date, pd.total_amount, pd.status,
+                pd.id, pd.document_type, pd.document_number, pd.currency, pd.document_date, pd.due_date, pd.total_amount, pd.status,
                 COALESCE(v.company_name, v.name) as vendor_name,
 				j.job_number,
                 u.full_name as created_by_name,

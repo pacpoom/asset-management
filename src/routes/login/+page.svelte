@@ -2,18 +2,13 @@
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { onMount } from 'svelte';
-	import { slide, fade, scale } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
 	import { page } from '$app/stores';
 	import { t } from '$lib/i18n';
 
 	const { form, data } = $props<{ form: ActionData; data: PageData }>();
 
 	let isLoading = $state(false);
-
-	let isMounted = $state(false);
-	onMount(() => {
-		isMounted = true;
-	});
 
 	let showPassword = $state(false);
 	let showKickedOutAlert = $state(false);
@@ -31,7 +26,6 @@
 	}
 
 	onMount(() => {
-		isMounted = true;
 		if ($page.url.searchParams.get('kicked_out') === 'true') {
 			showKickedOutAlert = true;
 			window.history.replaceState({}, '', '/login');
@@ -40,11 +34,10 @@
 </script>
 
 <div class="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-	{#if isMounted}
-		<div
-			class="w-full max-w-md space-y-8 rounded-2xl border border-gray-200 bg-white p-8 shadow-sm"
-			transition:fade={{ duration: 300, delay: 100 }}
-		>
+	<div
+		class="w-full max-w-md space-y-8 rounded-2xl border border-gray-200 bg-white p-8 shadow-sm"
+		in:fade={{ duration: 200 }}
+	>
 			<div class="text-center">
 				<div class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
 					<img
@@ -191,8 +184,7 @@
 					</button>
 				</div>
 			</form>
-		</div>
-	{/if}
+	</div>
 </div>
 
 <svelte:head>

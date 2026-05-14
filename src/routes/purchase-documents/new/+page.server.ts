@@ -8,6 +8,8 @@ import mime from 'mime-types';
 import { allocateMonthlyDocumentNumber } from '$lib/server/monthlyDocumentSequence';
 import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
 import { normalizePurchaseDocumentDateInput } from '$lib/purchaseDocumentDateFormat';
+import { normalizePurchaseDocumentCurrency } from '$lib/purchaseDocumentCurrency';
+import { pickDefaultDeliveryAddressId, type DeliveryAddressPickRow } from '$lib/purchaseDocumentDeliveryAddress';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -109,6 +111,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		const [accounts] = await pool.query('SELECT id, account_code, account_name FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code');
 		const [deliveryAddresses] = await pool.query('SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY id ASC');
 		const [vendorContractsData] = await pool.query('SELECT id, vendor_id, title, contract_number FROM vendor_contracts WHERE status = "Active" ORDER BY title ASC');
+		const [departments] = await pool.query<any[]>('SELECT id, name FROM departments ORDER BY name ASC');
+
+		const addrRows = JSON.parse(JSON.stringify(deliveryAddresses)) as DeliveryAddressPickRow[];
+		const defaultDeliveryAddressId = pickDefaultDeliveryAddressId(addrRows, {
+			creatorFullName: locals.user?.full_name,
+			creatorDepartmentId:
+				locals.user?.department_id != null && !Number.isNaN(Number(locals.user.department_id))
+					? Number(locals.user.department_id)
+					: null
+		});
 
 		return {
 			vendors: JSON.parse(JSON.stringify(vendors)),
@@ -119,13 +131,28 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			categories: JSON.parse(JSON.stringify(categories)),
 			accounts: JSON.parse(JSON.stringify(accounts)),
 			deliveryAddresses: JSON.parse(JSON.stringify(deliveryAddresses)),
+			departments: JSON.parse(JSON.stringify(departments)),
+			defaultDeliveryAddressId,
 			vendorContractsData: JSON.parse(JSON.stringify(vendorContractsData)),
 			prefillData: prefillData ? JSON.parse(JSON.stringify(prefillData)) : null 
 		};
 	} catch (err: unknown) {
 		if (isHttpError(err)) throw err;
 		console.error('Load data error:', err);
-		return { vendors: [], vendorContacts: [], products: [], units: [], jobOrders: [], categories: [], accounts: [], deliveryAddresses: [], vendorContractsData: [], prefillData: null };
+		return {
+			vendors: [],
+			vendorContacts: [],
+			products: [],
+			units: [],
+			jobOrders: [],
+			categories: [],
+			accounts: [],
+			deliveryAddresses: [],
+			departments: [],
+			defaultDeliveryAddressId: null,
+			vendorContractsData: [],
+			prefillData: null
+		};
 	}
 };
 
@@ -148,6 +175,11 @@ export const actions: Actions = {
 		const delivery_date = normalizePurchaseDocumentDateInput(formData.get('delivery_date')?.toString());
 
 		const reference_doc = formData.get('reference_doc')?.toString() || '';
+		const currency = normalizePurchaseDocumentCurrency(formData.get('currency')?.toString());
+		const delivery_receiver_name =
+			formData.get('delivery_receiver_name')?.toString().trim() || null;
+		const delivery_receiver_phone =
+			formData.get('delivery_receiver_phone')?.toString().trim() || null;
 		const notes = formData.get('notes')?.toString() || '';
 		const itemsJson = formData.get('items_json')?.toString() || '[]';
 
@@ -209,15 +241,38 @@ export const actions: Actions = {
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO purchase_documents 
-                (document_type, document_number, document_date, credit_term, due_date, delivery_date, vendor_id, vendor_contact_id, contract_id, delivery_address_id, reference_doc, notes, 
+                (document_type, document_number, currency, document_date, credit_term, due_date, delivery_date, vendor_id, vendor_contact_id, contract_id, delivery_address_id, delivery_receiver_name, delivery_receiver_phone, reference_doc, notes, 
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, wht_amount, total_amount,
                  status, created_by_user_id, job_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?)`,
 				[
-					document_type, document_number, document_date, credit_term, due_date, delivery_date, vendor_id, vendor_contact_id, contract_id, delivery_address_id, reference_doc, notes, 
-					subtotal, discount_amount, total_after_discount, vat_rate, vat_amount, wht_rate, wht_amount, wht_amount, total_amount,
-					locals.user?.id || null, job_id
+					document_type,
+					document_number,
+					currency,
+					document_date,
+					credit_term,
+					due_date,
+					delivery_date,
+					vendor_id,
+					vendor_contact_id,
+					contract_id,
+					delivery_address_id,
+					delivery_receiver_name,
+					delivery_receiver_phone,
+					reference_doc,
+					notes,
+					subtotal,
+					discount_amount,
+					total_after_discount,
+					vat_rate,
+					vat_amount,
+					wht_rate,
+					wht_amount,
+					wht_amount,
+					total_amount,
+					locals.user?.id || null,
+					job_id
 				]
 			);
 			const documentId = result.insertId;
@@ -331,6 +386,11 @@ export const actions: Actions = {
 		const address_line = formData.get('address_line')?.toString()?.trim();
 		const contact_name = formData.get('contact_name')?.toString()?.trim();
 		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
+		const department_id_raw = formData.get('department_id')?.toString()?.trim();
+		const department_id =
+			department_id_raw && !Number.isNaN(Number(department_id_raw))
+				? Number(department_id_raw)
+				: null;
 
 		if (!name || !address_line) {
 			return fail(400, { message: 'กรุณากรอกชื่อสถานที่และรายละเอียดที่อยู่' });
@@ -338,8 +398,8 @@ export const actions: Actions = {
 
 		try {
 			const [result] = await pool.execute<any>(
-				`INSERT INTO delivery_addresses (name, address_line, contact_name, contact_phone, is_active) VALUES (?, ?, ?, ?, 1)`,
-				[name, address_line, contact_name || null, contact_phone || null]
+				`INSERT INTO delivery_addresses (name, address_line, contact_name, contact_phone, department_id, is_active) VALUES (?, ?, ?, ?, ?, 1)`,
+				[name, address_line, contact_name || null, contact_phone || null, department_id]
 			);
 			
 			const [newAddress] = await pool.query<any[]>(
@@ -361,6 +421,11 @@ export const actions: Actions = {
 		const address_line = formData.get('address_line')?.toString()?.trim();
 		const contact_name = formData.get('contact_name')?.toString()?.trim();
 		const contact_phone = formData.get('contact_phone')?.toString()?.trim();
+		const department_id_raw = formData.get('department_id')?.toString()?.trim();
+		const department_id =
+			department_id_raw && !Number.isNaN(Number(department_id_raw))
+				? Number(department_id_raw)
+				: null;
 
 		if (!id || !name || !address_line) {
 			return fail(400, { message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
@@ -368,8 +433,8 @@ export const actions: Actions = {
 
 		try {
 			await pool.execute(
-				`UPDATE delivery_addresses SET name = ?, address_line = ?, contact_name = ?, contact_phone = ? WHERE id = ?`,
-				[name, address_line, contact_name || null, contact_phone || null, id]
+				`UPDATE delivery_addresses SET name = ?, address_line = ?, contact_name = ?, contact_phone = ?, department_id = ? WHERE id = ?`,
+				[name, address_line, contact_name || null, contact_phone || null, department_id, id]
 			);
 			
 			const [updatedAddress] = await pool.query<any[]>(

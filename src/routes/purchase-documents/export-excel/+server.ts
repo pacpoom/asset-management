@@ -54,7 +54,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		// ดึงข้อมูลทั้งหมดโดยไม่ Limit และ Offset สำหรับการ Export
 		const fetchSql = `
             SELECT
-                pd.document_type, pd.document_number, pd.document_date, pd.due_date, pd.total_amount, pd.status,
+                pd.document_type, pd.document_number, pd.currency, pd.document_date, pd.due_date, pd.total_amount, pd.status,
                 COALESCE(v.company_name, v.name) as vendor_name,
 				j.job_number,
                 u.full_name as created_by_name
@@ -74,7 +74,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		let csvContent = '\uFEFF';
 		
 		// Header Row
-		csvContent += 'Type,Document No.,Job Order,Date,Vendor,Total Amount,Created By,Status\n';
+		csvContent += 'Type,Document No.,Currency,Job Order,Date,Vendor,Total Amount,Created By,Status\n';
 
 		// Data Rows
 		rows.forEach(row => {
@@ -87,7 +87,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			const createdBy = `"${(row.created_by_name || '').replace(/"/g, '""')}"`;
 			const status = row.status || '';
 
-			csvContent += `${type},${docNo},${job},${date},${vendor},${amount},${createdBy},${status}\n`;
+			const cur = row.currency || 'THB';
+			csvContent += `${type},${docNo},${cur},${job},${date},${vendor},${amount},${createdBy},${status}\n`;
 		});
 
 		// สร้างชื่อไฟล์เป็น purchase_documents_YYYYMMDD.csv

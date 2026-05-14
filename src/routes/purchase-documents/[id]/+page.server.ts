@@ -292,7 +292,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
                    u.full_name as created_by_name,
                    u.department_id AS creator_department_id,
                    da.name as delivery_location_name, da.address_line as delivery_address_line,
-                   da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone,
+                   COALESCE(NULLIF(TRIM(pd.delivery_receiver_name), ''), da.contact_name) as delivery_contact_name,
+                   COALESCE(NULLIF(TRIM(pd.delivery_receiver_phone), ''), da.contact_phone) as delivery_contact_phone,
                    j.job_number
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id
@@ -418,7 +419,8 @@ export const actions: Actions = {
 						u.email AS created_by_email,
 						da.name AS delivery_location_name,
 						da.address_line AS delivery_address_line,
-						da.contact_name AS delivery_contact_name,
+						COALESCE(NULLIF(TRIM(pd.delivery_receiver_name), ''), da.contact_name) AS delivery_contact_name,
+						COALESCE(NULLIF(TRIM(pd.delivery_receiver_phone), ''), da.contact_phone) AS delivery_contact_phone,
 						j.job_number,
 						pa.file_original_name AS first_attachment_name,
 						pa.file_system_name AS first_attachment_file

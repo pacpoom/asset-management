@@ -5,6 +5,10 @@ import path from 'path';
 import pool from '$lib/server/database'; // ใช้ pool ตามมาตรฐานใหม่
 import type { RowDataPacket } from 'mysql2/promise';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
+import {
+	normalizePurchaseDocumentCurrency,
+	purchaseAmountInWords
+} from '$lib/purchaseDocumentCurrency';
 
 /** ISO Document Master List code for the Purchase Order form template (footer stamp on PO PDF). */
 const PO_ISO_FORM_DOC_CODE = 'FM-PU-01-02';
@@ -102,6 +106,7 @@ interface DocumentData extends RowDataPacket {
 	delivery_date: string | null;
 	reference_doc: string | null;
 	notes: string | null;
+	currency?: string | null;
 
 	vendor_name: string;
 	vendor_address: string | null;
@@ -239,63 +244,6 @@ function getLogoBase64(logoPath: string | null): string | null {
 	return null;
 }
 
-function bahttext(input: number | string): string {
-	let num = parseFloat(String(input));
-	if (isNaN(num)) {
-		num = 0;
-	}
-	const THAI_NUMBERS = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
-	const THAI_UNITS = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
-	const THAI_MILLION = 'ล้าน';
-
-	const numberStr = num.toFixed(2);
-	const [integerPart, decimalPart] = numberStr.split('.');
-
-	function convertInteger(numStr: string): string {
-		let result = '';
-		const len = numStr.length;
-		if (len > 7) {
-			const millionsPart = numStr.substring(0, len - 6);
-			const restPart = numStr.substring(len - 6);
-			result = convertInteger(millionsPart) + THAI_MILLION + convertInteger(restPart);
-		} else {
-			for (let i = 0; i < len; i++) {
-				const digit = parseInt(numStr[i]);
-				const unitIndex = len - 1 - i;
-				if (digit === 0) continue;
-				if (digit === 1) {
-					if (unitIndex === 1) result += 'สิบ';
-					else if (unitIndex === 0 && len > 1) result += 'เอ็ด';
-					else result += THAI_NUMBERS[digit] + THAI_UNITS[unitIndex];
-				} else if (digit === 2 && unitIndex === 1) {
-					result += 'ยี่สิบ';
-				} else {
-					result += THAI_NUMBERS[digit] + THAI_UNITS[unitIndex];
-				}
-			}
-		}
-		return result;
-	}
-
-	function convertDecimal(numStr: string): string {
-		if (numStr === '00') return '';
-		let result = '';
-		if (numStr.length === 1) numStr += '0';
-		if (numStr[0] === '1') result += numStr.length > 1 && numStr[1] !== '0' ? 'สิบ' : 'สิบ';
-		else if (numStr[0] === '2') result += 'ยี่สิบ';
-		else if (numStr[0] !== '0') result += THAI_NUMBERS[parseInt(numStr[0])] + 'สิบ';
-
-		if (numStr[1] === '1' && numStr[0] !== '0' && numStr[0] !== '1') result += 'เอ็ด';
-		else if (numStr[1] !== '0') result += THAI_NUMBERS[parseInt(numStr[1])];
-
-		return result;
-	}
-
-	const integerText = convertInteger(integerPart) || 'ศูนย์';
-	const decimalText = convertDecimal(decimalPart);
-	return decimalText ? `${integerText}บาท${decimalText}สตางค์` : `${integerText}บาทถ้วน`;
-}
-
 function getDocumentTitle(type: string): { th: string; en: string } {
 	switch (type) {
 		case 'PR': return { th: 'ใบขอซื้อ', en: 'PURCHASE REQUEST' };
@@ -379,7 +327,6 @@ function getInvoiceHtml(
 	const whtAmt = calculatedWhtAmt > 0 ? calculatedWhtAmt : Number(docData.wht_amount || docData.withholding_tax_amount || 0);
 
 	const netAmount = Number(docData.total_amount || 0);
-	const netAmountText = bahttext(netAmount);
 
 	const docTitle = getDocumentTitle(docData.document_type);
 	const vatableLabel =
@@ -391,6 +338,14 @@ function getInvoiceHtml(
 			? '0.00'
 			: val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 	};
+
+	const docCurrency = normalizePurchaseDocumentCurrency(docData.currency);
+	const fmtCur = (num: number | string) => {
+		const val = typeof num === 'string' ? parseFloat(num) : num;
+		const safe = isNaN(val) ? 0 : val;
+		return `${formatNumber(safe)} ${docCurrency}`;
+	};
+	const netAmountText = purchaseAmountInWords(netAmount, docCurrency);
 
 	const formatDateOnly = (isoString: string | null | undefined) => {
 		if (!isoString) return '-';
@@ -443,6 +398,7 @@ function getInvoiceHtml(
                         ${docData.delivery_date ? `<p style="margin:0; color: #000;"><span style="font-weight: 600;">${tPdf('DeliveryDate', lang)}:</span> ${formatDateOnly(docData.delivery_date)}</p>` : ''}
 						${jobOrderDisplay}
                         ${docData.reference_doc ? `<p style="margin:0;"><span style="font-weight: 600;">${tPdf('Ref', lang)}:</span> ${docData.reference_doc}</p>` : ''}
+                        <p style="margin:0;"><span style="font-weight: 600;">Currency:</span> ${docCurrency}</p>
                     </div>
                 </td>
             </tr>
@@ -510,37 +466,37 @@ function getInvoiceHtml(
 						</td> 
 						
 						<td class="font-bold px-2 py-1 text-right border-t border-gray-400 whitespace-nowrap">${tPdf('Subtotal', lang)}</td>
-						<td class="px-2 py-1 text-right border-t border-gray-400">${formatNumber(subtotal)}</td>
+						<td class="px-2 py-1 text-right border-t border-gray-400">${fmtCur(subtotal)}</td>
 					</tr>
 					
 					<tr>
 						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${vatableLabel}</td>
-						<td class="px-2 py-1 text-right">${formatNumber(vatableAmount)}</td>
+						<td class="px-2 py-1 text-right">${fmtCur(vatableAmount)}</td>
 					</tr>
 
 					<tr>
 						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('NonVatableAmount', lang)}</td>
-						<td class="px-2 py-1 text-right">${formatNumber(nonVatableAmount)}</td>
+						<td class="px-2 py-1 text-right">${fmtCur(nonVatableAmount)}</td>
 					</tr>
 
 					<tr>
 						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('AmountBeforeVAT', lang)}</td>
-						<td class="px-2 py-1 text-right">${formatNumber(amountBeforeVat)}</td>
+						<td class="px-2 py-1 text-right">${fmtCur(amountBeforeVat)}</td>
 					</tr>
 
 					<tr>
 						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap">${tPdf('VAT', lang)} (${vatRate}%)</td>
-						<td class="px-2 py-1 text-right">${formatNumber(vatAmt)}</td>
+						<td class="px-2 py-1 text-right">${fmtCur(vatAmt)}</td>
 					</tr>
 
 					<tr>
 						<td class="font-bold px-2 py-1 text-right border-l border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('WHT', lang)} (${whtRateText}%)</td>
-						<td class="px-2 py-1 text-right" style="font-size: 8pt; color: #000;">${formatNumber(whtAmt)}</td>
+						<td class="px-2 py-1 text-right" style="font-size: 8pt; color: #000;">${fmtCur(whtAmt)}</td>
 					</tr>
 
 					<tr style="background-color: #ffffff;">
 						<td class="font-bold px-2 py-1 text-right border-l border-t border-gray-400 whitespace-nowrap" style="font-size: 8pt; color: #000;">${tPdf('GrandTotal', lang)}</td>
-						<td class="px-2 py-1 text-right border-t border-gray-400" style="font-size: 8pt; font-weight: bold; color: #000;">${formatNumber(netAmount)}</td>
+						<td class="px-2 py-1 text-right border-t border-gray-400" style="font-size: 8pt; font-weight: bold; color: #000;">${fmtCur(netAmount)}</td>
 					</tr>
 				</tfoot>
 			</table>
@@ -646,13 +602,13 @@ function getInvoiceHtml(
         <td class="p-2 text-center" style="vertical-align: top;">${pageInfo.startIndex + i + 1}</td>
         <td class="p-2" style="white-space: pre-wrap; word-break: break-word;">${item.description}</td>
         <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.quantity)}</td>
-        <td class="p-2 text-right" style="vertical-align: top;">${formatNumber(item.unit_price)}</td>
-        <td class="p-2 text-right" style="vertical-align: top;">${nonVatAmt > 0 ? formatNumber(nonVatAmt) : ''}</td>
-        <td class="p-2 text-right" style="vertical-align: top;">${vatableAmt > 0 ? formatNumber(vatableAmt) : ''}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${fmtCur(item.unit_price)}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${nonVatAmt > 0 ? fmtCur(nonVatAmt) : ''}</td>
+        <td class="p-2 text-right" style="vertical-align: top;">${vatableAmt > 0 ? fmtCur(vatableAmt) : ''}</td>
         <td class="p-2 text-center" style="font-weight: 500; vertical-align: top;">
             ${Number(item.wht_rate) > 0 ? Number(item.wht_rate) + '%' : '-'}
         </td>
-        <td class="p-2 text-right" style="vertical-align: top; font-weight: bold;">${formatNumber(item.line_total)}</td>
+        <td class="p-2 text-right" style="vertical-align: top; font-weight: bold;">${fmtCur(item.line_total)}</td>
     </tr>
 `
 					}
@@ -768,7 +724,8 @@ export const GET = async ({ url, fetch, locals }) => {
                    vc.name as contact_name, vc.phone as contact_phone, vc.email as contact_email,
                    u.full_name as created_by_name, u.department_id as created_by_department_id,
                    da.name as delivery_location_name, da.address_line as delivery_address_line,
-                   da.contact_name as delivery_contact_name, da.contact_phone as delivery_contact_phone,
+                   COALESCE(NULLIF(TRIM(pd.delivery_receiver_name), ''), da.contact_name) as delivery_contact_name,
+                   COALESCE(NULLIF(TRIM(pd.delivery_receiver_phone), ''), da.contact_phone) as delivery_contact_phone,
                    j.job_number
             FROM purchase_documents pd
             LEFT JOIN vendors v ON pd.vendor_id = v.id

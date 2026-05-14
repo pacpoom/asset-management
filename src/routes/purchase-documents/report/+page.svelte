@@ -3,6 +3,10 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { t, locale } from '$lib/i18n';
+	import {
+		formatPurchaseDocumentCurrency,
+		normalizePurchaseDocumentCurrency
+	} from '$lib/purchaseDocumentCurrency';
 
 	const { data } = $props<{ data: PageData }>();
 
@@ -87,10 +91,18 @@
 		}
 	}
 
-	function formatCurrency(amount: any) {
+	function formatPlainNumber(amount: any) {
 		const num = Number(amount);
 		if (isNaN(num)) return '0.00';
 		return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	}
+
+	function formatMoney(amount: any, currency: any) {
+		const c = normalizePurchaseDocumentCurrency(currency);
+		const loc = $locale === 'th' ? 'th-TH' : 'en-US';
+		const n = Number(amount);
+		if (isNaN(n)) return formatPurchaseDocumentCurrency(0, c, loc);
+		return formatPurchaseDocumentCurrency(n, c, loc);
 	}
 
 	const paginationRange = $derived.by(() => {
@@ -154,7 +166,7 @@
 			<div>
 				<p class="text-[10px] font-bold text-blue-600 uppercase">{$t('Net Total Value')}</p>
 				<p class="text-lg leading-none font-bold text-gray-900">
-					฿{formatCurrency(data.totalNet)}
+					{formatPlainNumber(data.totalNet)}
 				</p>
 			</div>
 		</div>
@@ -169,7 +181,7 @@
 			<div>
 				<p class="text-[10px] font-bold text-purple-600 uppercase">{$t('Vatable Amt')}</p>
 				<p class="text-lg leading-none font-bold text-gray-900">
-					฿{formatCurrency(data.totalVatable)}
+					{formatPlainNumber(data.totalVatable)}
 				</p>
 			</div>
 		</div>
@@ -184,7 +196,7 @@
 			<div>
 				<p class="text-[10px] font-bold text-gray-600 uppercase">{$t('Non-VAT Amt')}</p>
 				<p class="text-lg leading-none font-bold text-gray-900">
-					฿{formatCurrency(data.totalNonVatable)}
+					{formatPlainNumber(data.totalNonVatable)}
 				</p>
 			</div>
 		</div>
@@ -199,7 +211,7 @@
 			<div>
 				<p class="text-[10px] font-bold text-red-600 uppercase">{$t('Total WHT')}</p>
 				<p class="text-lg leading-none font-bold text-gray-900">
-					฿{formatCurrency(data.totalWht)}
+					{formatPlainNumber(data.totalWht)}
 				</p>
 			</div>
 		</div>
@@ -308,6 +320,7 @@
 			<tr>
 				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600">{$t('Doc Date')}</th>
 				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600">{$t('Doc No.')}</th>
+				<th class="px-4 py-3 text-center font-semibold whitespace-nowrap text-gray-600">CCY</th>
 				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600">{$t('Vendor')}</th>
 				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600">{$t('Job No.')}</th>
 				<th class="px-4 py-3 text-left font-semibold whitespace-nowrap text-gray-600">{$t('Item Description')}</th>
@@ -326,7 +339,7 @@
 		<tbody class="divide-y divide-gray-200 bg-white">
 			{#if data.purchases.length === 0}
 				<tr>
-					<td colspan="15" class="py-12 text-center text-gray-500">
+					<td colspan="16" class="py-12 text-center text-gray-500">
 						{$t('ไม่พบข้อมูลรายการซื้อที่ตรงกับเงื่อนไขการค้นหา')}
 					</td>
 				</tr>
@@ -341,6 +354,9 @@
 								<span class="font-mono text-sm font-bold text-indigo-700">{item.document_number || '-'}</span>
 								<span class="text-[10px] text-gray-500">{item.document_type}</span>
 							</div>
+						</td>
+						<td class="px-4 py-3 text-center font-mono text-xs font-semibold text-gray-700">
+							{normalizePurchaseDocumentCurrency(item.currency)}
 						</td>
 						<td class="px-4 py-3 text-xs text-gray-800">
 							<div class="max-w-[200px] truncate" title={item.vendor_name}>
@@ -359,10 +375,10 @@
 							{Number(item.quantity).toLocaleString()}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-gray-700">
-							{formatCurrency(item.unit_price)}
+							{formatMoney(item.unit_price, item.currency)}
 						</td>
 						<td class="px-4 py-3 text-right font-bold text-gray-900">
-							{formatCurrency(item.line_total)}
+							{formatMoney(item.line_total, item.currency)}
 						</td>
 						
 						<td class="px-4 py-3 text-center text-xs text-gray-600 whitespace-nowrap">
@@ -375,19 +391,19 @@
 							{/if}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-gray-700">
-							{formatCurrency(item.non_vatable_amt)}
+							{formatMoney(item.non_vatable_amt, item.currency)}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-gray-700">
-							{formatCurrency(item.vatable_amt)}
+							{formatMoney(item.vatable_amt, item.currency)}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-gray-700">
-							{formatCurrency(item.vat_amt)}
+							{formatMoney(item.vat_amt, item.currency)}
 						</td>
 						<td class="px-4 py-3 text-right font-medium text-red-600">
-							{formatCurrency(item.wht_amt)}
+							{formatMoney(item.wht_amt, item.currency)}
 						</td>
 						<td class="px-4 py-3 text-right font-bold text-green-700">
-							{formatCurrency(Number(item.vatable_amt) + Number(item.non_vatable_amt) + Number(item.vat_amt) - Number(item.wht_amt))}
+							{formatMoney(Number(item.vatable_amt) + Number(item.non_vatable_amt) + Number(item.vat_amt) - Number(item.wht_amt), item.currency)}
 						</td>
 
 						<td class="px-4 py-3 text-center">
@@ -412,27 +428,27 @@
 		{#if data.purchases.length > 0}
 			<tfoot class="bg-indigo-50/50 border-t-2 border-indigo-200">
 				<tr>
-					<td colspan="7" class="px-4 py-4 text-right font-bold text-gray-800 uppercase text-sm">
+					<td colspan="8" class="px-4 py-4 text-right font-bold text-gray-800 uppercase text-sm">
 						{$t('Grand Total')}
 					</td>
 					<td class="px-4 py-4 text-right font-bold text-indigo-700 text-base">
-						{formatCurrency(data.totalAmount)}
+						{formatPlainNumber(data.totalAmount)}
 					</td>
 					<td class="px-4 py-4"></td>
 					<td class="px-4 py-4 text-right font-bold text-gray-800">
-						{formatCurrency(data.totalNonVatable)}
+						{formatPlainNumber(data.totalNonVatable)}
 					</td>
 					<td class="px-4 py-4 text-right font-bold text-gray-800">
-						{formatCurrency(data.totalVatable)}
+						{formatPlainNumber(data.totalVatable)}
 					</td>
 					<td class="px-4 py-4 text-right font-bold text-gray-800">
-						{formatCurrency(data.totalVat)}
+						{formatPlainNumber(data.totalVat)}
 					</td>
 					<td class="px-4 py-4 text-right font-bold text-red-600">
-						{formatCurrency(data.totalWht)}
+						{formatPlainNumber(data.totalWht)}
 					</td>
 					<td class="px-4 py-4 text-right font-bold text-green-700 text-base">
-						{formatCurrency(data.totalNet)}
+						{formatPlainNumber(data.totalNet)}
 					</td>
 					<td class="px-4 py-4"></td>
 				</tr>
