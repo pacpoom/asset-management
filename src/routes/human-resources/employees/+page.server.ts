@@ -262,8 +262,10 @@ export const actions: Actions = {
 
 					let phone_number = null;
 					if (phoneCol) {
-						const phoneVal = row.getCell(phoneCol).value;
-						if (phoneVal) phone_number = String(phoneVal).replace(/\D/g, '');
+						const phoneCell = row.getCell(phoneCol);
+						if (phoneCell && phoneCell.text) {
+							phone_number = phoneCell.text.trim();
+						}
 					}
 
 					let start_date = null;
