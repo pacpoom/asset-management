@@ -468,7 +468,7 @@ export const actions: Actions = {
 					console.log(`Connected to ZKTeco: ${ip}`);
 
 					await pool.execute(
-						'UPDATE fingerprint_scanners SET last_sync = DATE_ADD(NOW(), INTERVAL 7 HOUR) WHERE ip_address = ?',
+						'UPDATE fingerprint_scanners SET last_sync = NOW() WHERE ip_address = ?',
 						[ip]
 					);
 
