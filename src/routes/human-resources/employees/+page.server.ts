@@ -8,6 +8,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs';
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const user = locals.user;
 	const search = url.searchParams.get('search') || '';
+	const statusFilter = url.searchParams.get('status') || 'Active';
 
 	try {
 		let query = `
@@ -45,20 +46,25 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const params: any[] = [];
 
-		// ==========================================
-		// ลอจิกใหม่: กรองข้อมูลตาม department_id ของ User
-		// ==========================================
+		if (statusFilter !== 'All') {
+			query += ` AND e.status = ?`;
+			params.push(statusFilter);
+		}
+
+		if (search) {
+			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ?)`;
+			const searchParam = `%${search}%`;
+			params.push(searchParam, searchParam, searchParam);
+		}
+
 		if (user && user.role !== 'admin') {
 			if (user.department_id) {
-				// ให้แสดงเฉพาะพนักงานที่มี department_id ตรงกับ user ที่ล็อกอิน
 				query += ` AND e.department_id = ?`;
 				params.push(user.department_id);
 			} else {
-				// กรณี User ไม่มีสังกัดแผนก (ป้องกันไม่ให้มองเห็นข้อมูลพนักงานคนอื่นโดยบังเอิญ)
-				query += ` AND 1=0`; // บังคับให้ query ไม่คืนค่าใดๆ กลับไป
+				query += ` AND 1=0`;
 			}
 		}
-		// ==========================================
 
 		if (search) {
 			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?)`;
@@ -173,7 +179,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			groups: groups,
 			projects: projects,
 			departments: departments,
-			searchQuery: search
+			searchQuery: search,
+			statusFilter: statusFilter
 		};
 	} catch (error) {
 		console.error('Error loading employees:', error);

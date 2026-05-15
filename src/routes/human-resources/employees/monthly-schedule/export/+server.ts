@@ -209,11 +209,23 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 		let rowIdx = 2;
 		for (const [code, data] of Object.entries(shiftDataMap)) {
+			// 🌟 ซ่อน L = Leave
+			if (code === 'L') continue;
+
+			let displayCode = code;
+			let displayName = data.name;
+
+			// 🌟 เปลี่ยน O เป็น H = Holiday
+			if (code === 'O') {
+				displayCode = 'H';
+				displayName = 'Holiday';
+			}
+
 			const color = excelColors[data.color] || excelColors['gray'];
 			const codeCell = worksheet.getCell(`A${rowIdx}`);
 			const nameCell = worksheet.getCell(`B${rowIdx}`);
-			codeCell.value = code;
-			nameCell.value = `= ${data.name}`;
+			codeCell.value = displayCode;
+			nameCell.value = `= ${displayName}`;
 			codeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color.bg } };
 			codeCell.font = { bold: true, color: { argb: color.fg } };
 			codeCell.alignment = { horizontal: 'center' };
@@ -222,8 +234,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 		const tableStartRow = rowIdx + 1;
 		worksheet.views = [{ state: 'frozen', xSplit: 1, ySplit: tableStartRow }];
+
+		// 🌟 แยกคอลัมน์ OT ออกมาต่างหาก (1 ช่องเวลา, 1 ช่อง OT)
 		const headerRowValues = ['ข้อมูลพนักงาน'];
-		for (let d = 1; d <= lastDay; d++) headerRowValues.push(`${d}`);
+		for (let d = 1; d <= lastDay; d++) {
+			headerRowValues.push(`${d}`);
+			headerRowValues.push(`OT`);
+		}
+
 		const headerRow = worksheet.getRow(tableStartRow);
 		headerRow.values = headerRowValues;
 		headerRow.height = 30;
@@ -257,19 +275,26 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 					const tIn = formatTime(dayData.timeIn);
 					const tOut = formatTime(dayData.timeOut);
 
-					let cellVal = `${dayData.shift}`;
-					if (dayData.otHours > 0) {
-						cellVal += `      ${dayData.otHours}h`;
-					}
+					// 🌟 เปลี่ยน O เป็น H
+					let displayShift = dayData.shift === 'O' ? 'H' : dayData.shift;
+					let cellVal = `${displayShift}`;
 
 					if (tIn || tOut) {
 						cellVal += `\n${tIn || '--:--'} | ${tOut || '--:--'}`;
 					} else {
 						cellVal += `\nไม่มีสแกน`;
 					}
-					rowData.push(cellVal);
+					rowData.push(cellVal); // ช่องที่ 1: เวลาเข้า-ออก
+
+					// 🌟 ช่องที่ 2: OT แยกคอลัมน์มาเลย
+					if (dayData.otHours > 0) {
+						rowData.push(`${dayData.otHours}h`);
+					} else {
+						rowData.push('-');
+					}
 				} else {
-					rowData.push('-');
+					rowData.push('-'); // ช่องเวลา
+					rowData.push('-'); // ช่อง OT
 				}
 			}
 
@@ -291,18 +316,27 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				};
 
 				if (colNumber > 1) {
-					const d = colNumber - 1;
+					// 🌟 จัดสีสลับช่อง (ช่องเวลาเป็นสีตามกะ, ช่อง OT เป็นสีชมพูอ่อนตัวแดง)
+					const isOTColumn = colNumber % 2 === 1; // คอลัมน์เลขคี่คือ OT
+					const d = Math.floor(colNumber / 2);
 					const dateKey = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 					const dayData = scheduleMap[emp.emp_id]?.[dateKey];
 
 					if (dayData && cell.value !== '-') {
-						const color = excelColors[dayData.color] || excelColors['gray'];
-						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color.bg } };
-
-						if (dayData.color === 'gray' || dayData.shift === 'O' || dayData.shift === '0') {
-							cell.font = { color: { argb: 'FF9CA3AF' }, bold: true };
+						if (isOTColumn) {
+							// สีช่อง OT
+							cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF0F5' } };
+							cell.font = { color: { argb: 'FFDC2626' }, bold: true };
 						} else {
-							cell.font = { color: { argb: color.fg }, bold: true };
+							// สีช่องเวลา
+							const color = excelColors[dayData.color] || excelColors['gray'];
+							cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color.bg } };
+
+							if (dayData.color === 'gray' || dayData.shift === 'O' || dayData.shift === '0') {
+								cell.font = { color: { argb: 'FF9CA3AF' }, bold: true };
+							} else {
+								cell.font = { color: { argb: color.fg }, bold: true };
+							}
 						}
 					} else {
 						cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
@@ -313,7 +347,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		});
 
 		worksheet.getColumn(1).width = 45;
-		for (let i = 2; i <= lastDay + 1; i++) worksheet.getColumn(i).width = 16;
+		// 🌟 ปรับขนาดความกว้างคอลัมน์ (เวลาให้กว้างหน่อย, OT ให้แคบหน่อย)
+		for (let i = 2; i <= lastDay * 2 + 1; i++) {
+			if (i % 2 === 0) {
+				worksheet.getColumn(i).width = 16;
+			} else {
+				worksheet.getColumn(i).width = 8;
+			}
+		}
 
 		const buffer = await workbook.xlsx.writeBuffer();
 		return new Response(buffer as BodyInit, {
