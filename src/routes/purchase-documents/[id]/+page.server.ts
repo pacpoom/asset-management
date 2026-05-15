@@ -5,7 +5,120 @@ import { env } from '$env/dynamic/private';
 import { sendMail } from '$lib/server/mailer';
 import { canAccessPurchaseDocumentByDepartment } from '$lib/purchaseDocumentAccess';
 import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentDeletionLog';
-import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
+import { userCanIssuePurchaseOrderFromPr, userCanRejectPurchaseOrder } from '$lib/userRole';
+
+/** ดึงเลข PR จากข้อความอ้างอิง (กรณี OA เท่านั้น แต่มี PR แทรกท้าย หรือรูปแบบอื่น) */
+function extractPrDocumentNumbersFromReference(text: string): string[] {
+	const hay = String(text ?? '');
+	const set = new Set<string>();
+	const re = /\bPR-\d{4,6}-\d+\b/gi;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(hay)) !== null) {
+		const v = m[0].trim();
+		if (v) set.add(v);
+	}
+	return [...set];
+}
+
+type PurchaseSqlExecutor = Pick<typeof pool, 'query' | 'execute'>;
+
+/**
+ * เมื่อ PO เป็น Void: คืน PR ที่ Complete → Draft ถ้าไม่มี PO อื่นที่ยังไม่ Void อ้างถึง PR เดียวกัน
+ * ลำดับ: source_pr_id (BizCore) → reference_doc / regex (legacy)
+ */
+async function revertLinkedPrsToDraftWhenPoVoided(
+	executor: PurchaseSqlExecutor,
+	excludedPoId: number,
+	referenceDocRaw: string | null | undefined,
+	sourcePrIdRaw: number | null | undefined
+): Promise<void> {
+	const refHaystack = String(referenceDocRaw ?? '').trim();
+	const sourcePrId =
+		sourcePrIdRaw != null && Number.isFinite(Number(sourcePrIdRaw)) && Number(sourcePrIdRaw) > 0
+			? Number(sourcePrIdRaw)
+			: null;
+
+	const seenPrIds = new Set<number>();
+	const candidates: { id: number; document_number: string; status: string }[] = [];
+
+	function pushCandidate(row: { id: unknown; document_number?: unknown; status?: unknown }) {
+		const prId = Number(row.id);
+		if (!Number.isFinite(prId) || seenPrIds.has(prId)) return;
+		const prNo = String(row.document_number ?? '').trim();
+		if (!prNo) return;
+		seenPrIds.add(prId);
+		candidates.push({
+			id: prId,
+			document_number: prNo,
+			status: String(row.status ?? '')
+		});
+	}
+
+	if (sourcePrId) {
+		const [fromSource] = await executor.query<any[]>(
+			`SELECT id, document_number, status
+			 FROM purchase_documents
+			 WHERE id = ? AND document_type = 'PR'
+			 LIMIT 1`,
+			[sourcePrId]
+		);
+		for (const row of fromSource) pushCandidate(row);
+	}
+
+	if (!refHaystack && candidates.length === 0) return;
+
+	if (refHaystack) {
+		const [prRowsLike] = await executor.query<any[]>(
+			`SELECT id, document_number, status
+			 FROM purchase_documents
+			 WHERE document_type = 'PR'
+			   AND document_number IS NOT NULL
+			   AND TRIM(document_number) <> ''
+			   AND ? LIKE CONCAT('%', document_number, '%')
+			 ORDER BY CHAR_LENGTH(document_number) DESC`,
+			[refHaystack]
+		);
+
+		for (const pr of prRowsLike) pushCandidate(pr);
+
+		for (const prNo of extractPrDocumentNumbersFromReference(refHaystack)) {
+			const [exactRows] = await executor.query<any[]>(
+				`SELECT id, document_number, status
+				 FROM purchase_documents
+				 WHERE document_type = 'PR'
+				   AND TRIM(document_number) = ?
+				 LIMIT 5`,
+				[prNo]
+			);
+			for (const row of exactRows) pushCandidate(row);
+		}
+	}
+
+	for (const pr of candidates) {
+		const prNo = pr.document_number;
+		if (String(pr.status) !== 'Complete') continue;
+
+		const [cntRows] = await executor.query<any[]>(
+			`SELECT COUNT(*) AS c
+			 FROM purchase_documents
+			 WHERE document_type = 'PO'
+			   AND id <> ?
+			   AND COALESCE(LOWER(status), '') <> 'void'
+			   AND (
+				   source_pr_id = ?
+				   OR (reference_doc IS NOT NULL AND reference_doc LIKE ?)
+			   )`,
+			[excludedPoId, pr.id, `%${prNo}%`]
+		);
+		const otherCount = Number(cntRows[0]?.c ?? 0);
+		if (otherCount === 0) {
+			await executor.execute(
+				`UPDATE purchase_documents SET status = 'Draft' WHERE id = ? AND document_type = 'PR'`,
+				[pr.id]
+			);
+		}
+	}
+}
 
 function splitEmailList(raw: string | undefined): string[] {
 	return (raw || '')
@@ -324,9 +437,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				`SELECT id
 				 FROM purchase_documents
 				 WHERE document_type = 'PO'
-				   AND reference_doc LIKE ?
+				   AND (
+					   source_pr_id = ?
+					   OR reference_doc LIKE ?
+				   )
 				 LIMIT 1`,
-				[`%${String(document.document_number || '')}%`]
+				[id, `%${String(document.document_number || '')}%`]
 			);
 			canEdit = poRows.length === 0;
 			// ข้อมูลเก่า: มี PO แล้วแต่ PR ยังไม่ถูกตั้งเป็น Complete → อัปเดตให้ตรงกัน
@@ -371,7 +487,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			company: companyRows.length > 0 ? JSON.parse(JSON.stringify(companyRows[0])) : null,
 			canEdit,
 			canIssuePo: userCanIssuePurchaseOrderFromPr(locals.user),
-			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void', 'Complete']
+			availableStatuses: ['Draft', 'Sent', 'Received', 'Paid', 'Overdue', 'Void', 'Complete'],
+			canRejectPo:
+				String(document.document_type || '').toUpperCase() === 'PO' &&
+				String(document.status || '').toLowerCase() !== 'void' &&
+				userCanRejectPurchaseOrder(locals.user)
 		};
 	} catch (err: unknown) {
 		if (isHttpError(err)) throw err;
@@ -393,6 +513,22 @@ export const actions: Actions = {
 		try {
 			await ensureCanAccessPurchaseDocument(id, locals.user);
 			await pool.execute('UPDATE purchase_documents SET status = ? WHERE id = ?', [status, id]);
+
+			const normStatus = String(status).trim().toLowerCase();
+			if (normStatus === 'void') {
+				const [voidMeta] = await pool.query<any[]>(
+					`SELECT document_type, reference_doc, source_pr_id FROM purchase_documents WHERE id = ? LIMIT 1`,
+					[id]
+				);
+				const vm = voidMeta[0];
+				if (vm && String(vm.document_type || '').toUpperCase() === 'PO') {
+					const srcPr =
+						vm.source_pr_id != null && Number.isFinite(Number(vm.source_pr_id))
+							? Number(vm.source_pr_id)
+							: null;
+					await revertLinkedPrsToDraftWhenPoVoided(pool, id, vm.reference_doc, srcPr);
+				}
+			}
 
 			// Notify purchasing recipients when a PR is issued (status changed to Sent).
 			if (status === 'Sent') {
@@ -499,6 +635,63 @@ export const actions: Actions = {
 			return { success: true };
 		} catch (err: any) {
 			return fail(500, { message: err.message });
+		}
+	},
+
+	/** Void this PO and set linked PR(s) from Complete → Draft when no other non-Void PO references that PR. */
+	rejectPo: async ({ params, locals }) => {
+		const id = parseInt(params.id);
+		if (!id) return fail(400, { message: 'Invalid document' });
+
+		const connection = await pool.getConnection();
+		try {
+			await ensureCanAccessPurchaseDocument(id, locals.user);
+			if (!userCanRejectPurchaseOrder(locals.user)) {
+				return fail(403, {
+					message:
+						'Only users with the Admin_Purchase role can reject a PO (เฉพาะ Admin_Purchase เท่านั้น)'
+				});
+			}
+			await connection.beginTransaction();
+
+			const [poRows] = await connection.query<any[]>(
+				`SELECT id, document_type, status, reference_doc, source_pr_id FROM purchase_documents WHERE id = ?`,
+				[id]
+			);
+			if (!poRows.length) {
+				await connection.rollback();
+				return fail(404, { message: 'Purchase document not found' });
+			}
+			const po = poRows[0];
+			if (String(po.document_type || '').toUpperCase() !== 'PO') {
+				await connection.rollback();
+				return fail(400, { message: 'Reject PO applies to Purchase Order documents only' });
+			}
+			if (String(po.status || '').toLowerCase() === 'void') {
+				await connection.rollback();
+				return fail(400, { message: 'This PO is already void' });
+			}
+
+			const srcPr =
+				po.source_pr_id != null && Number.isFinite(Number(po.source_pr_id))
+					? Number(po.source_pr_id)
+					: null;
+			await revertLinkedPrsToDraftWhenPoVoided(connection, id, po.reference_doc, srcPr);
+
+			await connection.execute(`UPDATE purchase_documents SET status = 'Void' WHERE id = ?`, [id]);
+			await connection.commit();
+			return { success: true };
+		} catch (err: unknown) {
+			try {
+				await connection.rollback();
+			} catch {
+				// ignore rollback errors
+			}
+			if (isHttpError(err)) throw err;
+			const msg = err instanceof Error ? err.message : 'Reject PO failed';
+			return fail(500, { message: msg });
+		} finally {
+			connection.release();
 		}
 	}
 };

@@ -53,6 +53,14 @@ export function userHasRoleName(
 	return user.roleNames?.some((role) => normalizeRoleName(role) === target) ?? false;
 }
 
+/** ปฏิเสธ PO / คืนสถานะ PR — เฉพาะ role Admin_Purchase */
+export function userCanRejectPurchaseOrder(user: {
+	role: string;
+	roleNames?: string[];
+} | null): boolean {
+	return userHasAdminPurchaseRole(user);
+}
+
 /** จัดการผู้ใช้หน้า /users (เทียบเท่า admin สำหรับ Users module เมื่อมีสิทธิ์ manage users) */
 export function canManageUsers(user: {
 	role: string;
