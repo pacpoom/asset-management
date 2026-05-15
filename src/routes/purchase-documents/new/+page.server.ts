@@ -10,6 +10,7 @@ import { userCanIssuePurchaseOrderFromPr } from '$lib/userRole';
 import { normalizePurchaseDocumentDateInput } from '$lib/purchaseDocumentDateFormat';
 import { normalizePurchaseDocumentCurrency } from '$lib/purchaseDocumentCurrency';
 import { pickDefaultDeliveryAddressId, type DeliveryAddressPickRow } from '$lib/purchaseDocumentDeliveryAddress';
+import { getPurchaseDocumentAttachmentUploadError } from '$lib/purchaseDocumentAttachments';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -224,22 +225,34 @@ export const actions: Actions = {
 		}
 
 		// PR ต้องมีไฟล์แนบอย่างน้อย 1 ไฟล์ (อัปโหลดใหม่ หรือสืบทอดจากเอกสารต้นทางที่มีแนบไว้)
+		const useLinkedAttachments = formData.get('linked_attachments_mode') === '1';
+		const linkedAttachmentIds = formData
+			.getAll('linked_attachment_ids')
+			.map((v) => parseInt(String(v), 10))
+			.filter((id) => Number.isInteger(id) && id > 0);
+
 		if (String(document_type).toUpperCase() === 'PR') {
 			const files = formData.getAll('attachments') as File[];
 			const hasUpload = files.some((f) => f instanceof File && f.size > 0);
 			const srcId = parseInt(source_document_id, 10);
-			let sourceAttachmentCount = 0;
-			if (Number.isInteger(srcId) && srcId > 0) {
+			let effectiveLinkedCount = 0;
+			if (useLinkedAttachments) {
+				effectiveLinkedCount = linkedAttachmentIds.length;
+			} else if (Number.isInteger(srcId) && srcId > 0) {
 				const [cntRows] = await pool.execute<any[]>(
 					`SELECT COUNT(*) AS c FROM purchase_document_attachments WHERE document_id = ?`,
 					[srcId]
 				);
-				sourceAttachmentCount = Number(cntRows[0]?.c ?? 0);
+				effectiveLinkedCount = Number(cntRows[0]?.c ?? 0);
 			}
-			if (!hasUpload && sourceAttachmentCount === 0) {
+			if (!hasUpload && effectiveLinkedCount === 0) {
 				return fail(400, { message: 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ (PR บังคับ)' });
 			}
 		}
+
+		const uploadFiles = formData.getAll('attachments') as File[];
+		const uploadFilenameError = getPurchaseDocumentAttachmentUploadError(uploadFiles);
+		if (uploadFilenameError) return fail(400, { message: uploadFilenameError });
 
 		const connection = await pool.getConnection();
 		try {
@@ -339,11 +352,21 @@ export const actions: Actions = {
 			if (source_document_id) {
 				const sourceDocumentIdNum = parseInt(source_document_id, 10);
 				if (Number.isInteger(sourceDocumentIdNum) && sourceDocumentIdNum > 0) {
-					const [sourceAttachments] = await connection.execute<any[]>(
-						`SELECT file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id
+					let sourceQuery = `SELECT id, file_original_name, file_system_name, file_mime_type, file_size_bytes, uploaded_by_user_id
 						 FROM purchase_document_attachments
-						 WHERE document_id = ?`,
-						[sourceDocumentIdNum]
+						 WHERE document_id = ?`;
+					const sourceParams: (number | string)[] = [sourceDocumentIdNum];
+					if (useLinkedAttachments) {
+						if (linkedAttachmentIds.length === 0) {
+							sourceQuery += ' AND 1 = 0';
+						} else {
+							sourceQuery += ` AND id IN (${linkedAttachmentIds.map(() => '?').join(',')})`;
+							sourceParams.push(...linkedAttachmentIds);
+						}
+					}
+					const [sourceAttachments] = await connection.execute<any[]>(
+						sourceQuery,
+						sourceParams
 					);
 					for (const att of sourceAttachments) {
 						await connection.execute(

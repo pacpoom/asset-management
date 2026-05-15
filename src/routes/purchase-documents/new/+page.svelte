@@ -19,6 +19,11 @@
 		type PurchaseDocumentCurrency
 	} from '$lib/purchaseDocumentCurrency';
 	import { deliveryAddressSelectLabel, compareDeliveryAddressesForSort } from '$lib/purchaseDocumentDeliveryAddress';
+	import {
+		isPurchaseDocumentAttachmentFilenameTooLong,
+		purchaseDocumentAttachmentFilenameTooLongMessage,
+		purchaseDocumentAttachmentFilenameTooLongDetail
+	} from '$lib/purchaseDocumentAttachments';
 
 	interface Vendor {
 		id: number | string;
@@ -94,8 +99,63 @@
 		wht_amount?: number;
 	}
 
+	interface PrefillAttachment {
+		id: number | string;
+		file_original_name: string;
+	}
+
 	export let data: PageData;
 	$: ({ vendors, vendorContacts, units, jobOrders, prefillData } = data);
+
+	let linkedAttachments: PrefillAttachment[] = [];
+	let linkedAttachmentSourceId: number | string | null = null;
+
+	$: {
+		const sourceId = prefillData?.document?.id ?? null;
+		if (sourceId !== linkedAttachmentSourceId) {
+			linkedAttachmentSourceId = sourceId;
+			linkedAttachments = prefillData?.attachments?.length
+				? [...prefillData.attachments]
+				: [];
+		}
+	}
+
+	function removeLinkedAttachment(id: number | string) {
+		linkedAttachments = linkedAttachments.filter((a) => String(a.id) !== String(id));
+	}
+
+	let newAttachmentFilenameErrors: string[] = [];
+
+	function onAttachmentsInputChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		newAttachmentFilenameErrors = [];
+		if (!input.files?.length) return;
+		for (const file of Array.from(input.files)) {
+			if (isPurchaseDocumentAttachmentFilenameTooLong(file.name)) {
+				newAttachmentFilenameErrors.push(file.name);
+			}
+		}
+	}
+
+	function validateNewAttachmentFilenames(): boolean {
+		const input = document.getElementById('attachments') as HTMLInputElement | null;
+		if (!input?.files?.length) return true;
+		newAttachmentFilenameErrors = [];
+		for (const file of Array.from(input.files)) {
+			if (isPurchaseDocumentAttachmentFilenameTooLong(file.name)) {
+				newAttachmentFilenameErrors.push(file.name);
+			}
+		}
+		if (newAttachmentFilenameErrors.length > 0) {
+			alert(
+				$locale === 'th'
+					? `${purchaseDocumentAttachmentFilenameTooLongMessage('th')}\n${purchaseDocumentAttachmentFilenameTooLongDetail('th')}`
+					: `${purchaseDocumentAttachmentFilenameTooLongMessage('en')}\n${purchaseDocumentAttachmentFilenameTooLongDetail('en')}`
+			);
+			return false;
+		}
+		return true;
+	}
 	
 	let localProducts = data.products || [];
 	
@@ -603,6 +663,10 @@
 				cancel();
 				return;
 			}
+			if (!validateNewAttachmentFilenames()) {
+				cancel();
+				return;
+			}
 			isSaving = true;
 			return async ({ result }) => {
 				try {
@@ -863,22 +927,69 @@
 					{#if documentType === 'PR'}<span class="text-red-500">*</span>{/if}
 				</label>
 				{#if prefillData?.attachments?.length}
-					<div class="mb-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-						<p class="font-semibold">Auto-linked from source document:</p>
-						<ul class="mt-1 list-disc pl-4">
-							{#each prefillData.attachments as file}
-								<li>{file.file_original_name}</li>
-							{/each}
-						</ul>
-					</div>
+					<input type="hidden" name="linked_attachments_mode" value="1" />
+					{#if linkedAttachments.length}
+						<div class="mb-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+							<p class="font-semibold">Auto-linked from source document:</p>
+							<ul class="mt-2 space-y-2">
+								{#each linkedAttachments as file (file.id)}
+									<li
+										class="flex items-start justify-between gap-2 rounded border border-blue-100 bg-white px-2 py-1.5 text-sm text-gray-800"
+									>
+										<div class="min-w-0 flex-1">
+											<span class="block truncate" title={file.file_original_name}>
+												{file.file_original_name}
+											</span>
+											{#if isPurchaseDocumentAttachmentFilenameTooLong(file.file_original_name)}
+												<p class="mt-0.5 text-xs text-amber-600">
+													{purchaseDocumentAttachmentFilenameTooLongMessage($locale)}
+												</p>
+											{/if}
+										</div>
+										<button
+											type="button"
+											on:click={() => removeLinkedAttachment(file.id)}
+											class="mt-0.5 flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+											title={$t('Delete')}
+											aria-label={$t('Delete')}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												width="16"
+												height="16"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												aria-hidden="true"
+											>
+												<path d="M3 6h18" />
+												<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+											</svg>
+										</button>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+					{#each linkedAttachments as file (file.id)}
+						<input type="hidden" name="linked_attachment_ids" value={file.id} />
+					{/each}
 				{/if}
 				<input
 					type="file"
 					id="attachments"
 					name="attachments"
 					multiple
+					on:change={onAttachmentsInputChange}
 					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2"
 				/>
+				{#if newAttachmentFilenameErrors.length > 0}
+					<p class="mt-1 text-xs text-amber-600">
+						{purchaseDocumentAttachmentFilenameTooLongMessage($locale)} —
+						{purchaseDocumentAttachmentFilenameTooLongDetail($locale)}
+					</p>
+				{/if}
 				{#if documentType === 'PR'}
 					<p class="mt-1 text-xs text-gray-500">
 						{$t('PR documents require at least one attachment.')}

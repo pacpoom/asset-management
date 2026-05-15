@@ -9,6 +9,7 @@ import { throwIfDeletedPurchaseRequisition } from '$lib/server/purchaseDocumentD
 import { normalizePurchaseDocumentDateInput } from '$lib/purchaseDocumentDateFormat';
 import { normalizePurchaseDocumentCurrency } from '$lib/purchaseDocumentCurrency';
 import { pickDefaultDeliveryAddressId, type DeliveryAddressPickRow } from '$lib/purchaseDocumentDeliveryAddress';
+import { getPurchaseDocumentAttachmentUploadError } from '$lib/purchaseDocumentAttachments';
 
 const UPLOAD_DIR = path.resolve('uploads', 'purchase_documents');
 
@@ -273,6 +274,10 @@ export const actions: Actions = {
 			}
 		}
 
+		const uploadFiles = formData.getAll('attachments') as File[];
+		const uploadFilenameError = getPurchaseDocumentAttachmentUploadError(uploadFiles);
+		if (uploadFilenameError) return fail(400, { message: uploadFilenameError });
+
 		const connection = await pool.getConnection();
 		try {
 			await connection.beginTransaction();
@@ -368,6 +373,76 @@ export const actions: Actions = {
 		}
 
 		throw redirect(303, `/purchase-documents/${documentId}`);
+	},
+
+	deleteAttachment: async ({ request, params, locals }) => {
+		const documentId = parseInt(params.id);
+		if (isNaN(documentId)) return fail(400, { message: 'Invalid document ID' });
+
+		const formData = await request.formData();
+		const attachmentId = formData.get('attachment_id');
+		if (!attachmentId) return fail(400, { message: 'Invalid attachment ID' });
+
+		try {
+			await ensureCanAccessPurchaseDocument(documentId, locals.user);
+
+			const [docRows] = await pool.query<any[]>(
+				'SELECT document_type, status, document_number FROM purchase_documents WHERE id = ? LIMIT 1',
+				[documentId]
+			);
+			const currentDoc = docRows[0];
+			if (
+				currentDoc &&
+				String(currentDoc.document_type || '').toUpperCase() === 'PR' &&
+				(String(currentDoc.status || '') === 'Complete' ||
+					(await hasIssuedPurchaseOrderFromPr(
+						documentId,
+						String(currentDoc.document_number || '')
+					)))
+			) {
+				return fail(403, {
+					message:
+						String(currentDoc.status || '') === 'Complete'
+							? 'ไม่สามารถแก้ไข PR ที่ปิดงานแล้ว'
+							: 'ไม่สามารถแก้ไข PR นี้ได้ เนื่องจากมีการออก PO ไปแล้ว'
+				});
+			}
+
+			const [attRows] = await pool.query<any[]>(
+				`SELECT file_system_name FROM purchase_document_attachments WHERE id = ? AND document_id = ? LIMIT 1`,
+				[attachmentId, documentId]
+			);
+			if (attRows.length === 0) {
+				return fail(404, { message: 'ไม่พบไฟล์แนบ' });
+			}
+
+			if (String(currentDoc?.document_type || '').toUpperCase() === 'PR') {
+				const [cntRows] = await pool.query<any[]>(
+					`SELECT COUNT(*) AS c FROM purchase_document_attachments WHERE document_id = ?`,
+					[documentId]
+				);
+				if (Number(cntRows[0]?.c ?? 0) <= 1) {
+					return fail(400, { message: 'PR ต้องมีไฟล์แนบอย่างน้อย 1 ไฟล์' });
+				}
+			}
+
+			const filename = attRows[0].file_system_name;
+			await pool.execute('DELETE FROM purchase_document_attachments WHERE id = ?', [attachmentId]);
+
+			const [refRows] = await pool.query<any[]>(
+				`SELECT COUNT(*) AS c FROM purchase_document_attachments WHERE file_system_name = ?`,
+				[filename]
+			);
+			if (Number(refRows[0]?.c ?? 0) === 0) {
+				await deleteFile(filename);
+			}
+
+			return { success: true };
+		} catch (err: any) {
+			console.error('Delete attachment error:', err);
+			if (err?.status) throw err;
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบไฟล์: ' + err.message });
+		}
 	},
 
     createAddress: async ({ request }) => {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance, applyAction } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import type { PageData, SubmitFunction } from './$types';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
@@ -17,6 +17,11 @@
 		type PurchaseDocumentCurrency
 	} from '$lib/purchaseDocumentCurrency';
 	import { deliveryAddressSelectLabel, compareDeliveryAddressesForSort } from '$lib/purchaseDocumentDeliveryAddress';
+	import {
+		isPurchaseDocumentAttachmentFilenameTooLong,
+		purchaseDocumentAttachmentFilenameTooLongMessage,
+		purchaseDocumentAttachmentFilenameTooLongDetail
+	} from '$lib/purchaseDocumentAttachments';
 
 	interface Vendor {
 		id: number | string;
@@ -100,12 +105,46 @@
 	$: ({
 		document: doc,
 		existingItems: initialItems,
-		existingAttachments = [],
 		vendors,
 		vendorContacts,
 		units,
 		jobOrders
 	} = data);
+
+	$: existingAttachments = data.existingAttachments ?? [];
+
+	let newAttachmentFilenameErrors: string[] = [];
+
+	function onAttachmentsInputChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		newAttachmentFilenameErrors = [];
+		if (!input.files?.length) return;
+		for (const file of Array.from(input.files)) {
+			if (isPurchaseDocumentAttachmentFilenameTooLong(file.name)) {
+				newAttachmentFilenameErrors.push(file.name);
+			}
+		}
+	}
+
+	function validateNewAttachmentFilenames(): boolean {
+		const input = document.getElementById('attachments') as HTMLInputElement | null;
+		if (!input?.files?.length) return true;
+		newAttachmentFilenameErrors = [];
+		for (const file of Array.from(input.files)) {
+			if (isPurchaseDocumentAttachmentFilenameTooLong(file.name)) {
+				newAttachmentFilenameErrors.push(file.name);
+			}
+		}
+		if (newAttachmentFilenameErrors.length > 0) {
+			alert(
+				$locale === 'th'
+					? `${purchaseDocumentAttachmentFilenameTooLongMessage('th')}\n${purchaseDocumentAttachmentFilenameTooLongDetail('th')}`
+					: `${purchaseDocumentAttachmentFilenameTooLongMessage('en')}\n${purchaseDocumentAttachmentFilenameTooLongDetail('en')}`
+			);
+			return false;
+		}
+		return true;
+	}
 	
 	let localProducts = data.products || [];
 
@@ -582,30 +621,47 @@
 		method="POST"
 		action="?/update"
 		enctype="multipart/form-data"
-		use:enhance={({ cancel }) => {
-			const docIso = displayToIso(documentDateStr);
-			if (!docIso) {
-				alert(
-					$locale === 'th'
-						? 'รูปแบบวันที่เอกสารไม่ถูกต้อง ใช้ DD/MMM/YYYY เช่น 13/May/2026'
-						: 'Invalid document date. Use DD/MMM/YYYY e.g. 13/May/2026'
-				);
-				cancel();
-				return;
+		use:enhance={({ cancel, action }) => {
+			const isDeleting = action.search.includes('deleteAttachment');
+			if (!isDeleting) {
+				const docIso = displayToIso(documentDateStr);
+				if (!docIso) {
+					alert(
+						$locale === 'th'
+							? 'รูปแบบวันที่เอกสารไม่ถูกต้อง ใช้ DD/MMM/YYYY เช่น 13/May/2026'
+							: 'Invalid document date. Use DD/MMM/YYYY e.g. 13/May/2026'
+					);
+					cancel();
+					return;
+				}
+				if (dueDateStr.trim() && !displayToIso(dueDateStr)) {
+					alert($locale === 'th' ? 'รูปแบบวันที่ครบกำหนดไม่ถูกต้อง' : 'Invalid due date format.');
+					cancel();
+					return;
+				}
+				if (deliveryDateStr.trim() && !displayToIso(deliveryDateStr)) {
+					alert($locale === 'th' ? 'รูปแบบวันที่ส่งมอบไม่ถูกต้อง' : 'Invalid delivery date format.');
+					cancel();
+					return;
+				}
+				if (!validateNewAttachmentFilenames()) {
+					cancel();
+					return;
+				}
+				isSaving = true;
 			}
-			if (dueDateStr.trim() && !displayToIso(dueDateStr)) {
-				alert($locale === 'th' ? 'รูปแบบวันที่ครบกำหนดไม่ถูกต้อง' : 'Invalid due date format.');
-				cancel();
-				return;
-			}
-			if (deliveryDateStr.trim() && !displayToIso(deliveryDateStr)) {
-				alert($locale === 'th' ? 'รูปแบบวันที่ส่งมอบไม่ถูกต้อง' : 'Invalid delivery date format.');
-				cancel();
-				return;
-			}
-			isSaving = true;
-			return async ({ result }) => {
+			return async ({ result, update }) => {
 				try {
+					if (isDeleting) {
+						if (result.type === 'failure') {
+							const msg = result.data?.message;
+							alert(typeof msg === 'string' ? msg : 'ไม่สามารถลบไฟล์ได้');
+						} else if (result.type === 'success') {
+							await invalidateAll();
+						}
+						await update({ reset: false });
+						return;
+					}
 					if (result.type === 'redirect') {
 						await goto(result.location);
 						return;
@@ -616,7 +672,7 @@
 					}
 					await applyAction(result);
 				} finally {
-					isSaving = false;
+					if (!isDeleting) isSaving = false;
 				}
 			};
 		}}
@@ -868,10 +924,53 @@
 					{$t('Attachments')}
 					{#if documentType === 'PR'}<span class="text-red-500">*</span>{/if}
 				</label>
-				{#if documentType === 'PR' && existingAttachments?.length}
-					<ul class="mb-2 list-disc pl-5 text-sm text-gray-600">
+				{#if existingAttachments?.length}
+					<ul class="mb-2 space-y-2">
 						{#each existingAttachments as att (att.id)}
-							<li>{att.file_original_name}</li>
+							<li
+								class="flex items-start justify-between gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+							>
+								<div class="min-w-0 flex-1">
+									<a
+										href={att.url}
+										target="_blank"
+										rel="noopener noreferrer"
+										class="block truncate text-blue-600 hover:underline"
+										title={att.file_original_name}
+									>
+										{att.file_original_name}
+									</a>
+									{#if isPurchaseDocumentAttachmentFilenameTooLong(att.file_original_name)}
+										<p class="mt-0.5 text-xs text-amber-600">
+											{purchaseDocumentAttachmentFilenameTooLongMessage($locale)}
+										</p>
+									{/if}
+								</div>
+								<button
+									type="submit"
+									formnovalidate
+									formaction="?/deleteAttachment"
+									name="attachment_id"
+									value={att.id}
+									class="mt-0.5 flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+									title={$t('Delete')}
+									aria-label={$t('Delete')}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										aria-hidden="true"
+									>
+										<path d="M3 6h18" />
+										<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+									</svg>
+								</button>
+							</li>
 						{/each}
 					</ul>
 				{/if}
@@ -880,8 +979,15 @@
 					id="attachments"
 					name="attachments"
 					multiple
+					on:change={onAttachmentsInputChange}
 					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2"
 				/>
+				{#if newAttachmentFilenameErrors.length > 0}
+					<p class="mt-1 text-xs text-amber-600">
+						{purchaseDocumentAttachmentFilenameTooLongMessage($locale)} —
+						{purchaseDocumentAttachmentFilenameTooLongDetail($locale)}
+					</p>
+				{/if}
 				{#if documentType === 'PR'}
 					<p class="mt-1 text-xs text-gray-500">
 						{$t('PR documents require at least one attachment.')}
