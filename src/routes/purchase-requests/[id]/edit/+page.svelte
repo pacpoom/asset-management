@@ -126,17 +126,26 @@
 	}
 
 	function onProductChange(index: number, selection: any) {
+		items[index].product_object = selection;
 		if (selection) {
-			items[index].product_object = selection;
 			items[index].product_name = selection.name || selection.label;
-			items[index].expected_price = Number(selection.price) || 0;
+			const curDesc = String(items[index].description ?? '').trim();
+			if (!curDesc) {
+				items[index].description = selection.name || '';
+			}
+			const curPrice = parseFloat(String(items[index].expected_price ?? '0')) || 0;
+			if (curPrice === 0) {
+				items[index].expected_price = Number(selection.price) || 0;
+			}
 			if (selection.unit_name) {
-				items[index].unit = selection.unit_name;
+				const curUnit = String(items[index].unit ?? '').trim();
+				const defaultUnitName = units.length > 0 ? units[0].name : '';
+				if (!curUnit || curUnit === defaultUnitName) {
+					items[index].unit = selection.unit_name;
+				}
 			}
 		} else {
-			items[index].product_object = null;
-			items[index].product_name = '';
-			items[index].expected_price = 0;
+			// เคลียร์เฉพาะ Product/Service — ไม่ล้าง description / ราคา / หน่วย / product_name
 		}
 		calculateTotals();
 	}
