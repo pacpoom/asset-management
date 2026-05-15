@@ -103,7 +103,7 @@ async function revertLinkedPrsToDraftWhenPoVoided(
 			 FROM purchase_documents
 			 WHERE document_type = 'PO'
 			   AND id <> ?
-			   AND COALESCE(LOWER(status), '') <> 'void'
+			   AND LOWER(TRIM(COALESCE(status, ''))) <> 'void'
 			   AND (
 				   source_pr_id = ?
 				   OR (reference_doc IS NOT NULL AND reference_doc LIKE ?)
@@ -437,6 +437,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				`SELECT id
 				 FROM purchase_documents
 				 WHERE document_type = 'PO'
+				   AND LOWER(TRIM(COALESCE(status, ''))) <> 'void'
 				   AND (
 					   source_pr_id = ?
 					   OR reference_doc LIKE ?

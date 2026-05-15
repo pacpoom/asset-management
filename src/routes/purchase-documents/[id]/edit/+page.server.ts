@@ -69,6 +69,7 @@ async function hasIssuedPurchaseOrderFromPr(prId: number, prDocumentNumber: stri
 			`SELECT id
 			 FROM purchase_documents
 			 WHERE document_type = 'PO'
+			   AND LOWER(TRIM(COALESCE(status, ''))) <> 'void'
 			   AND source_pr_id = ?
 			 LIMIT 1`,
 			[prId]
@@ -80,6 +81,7 @@ async function hasIssuedPurchaseOrderFromPr(prId: number, prDocumentNumber: stri
 		`SELECT id
 		 FROM purchase_documents
 		 WHERE document_type = 'PO'
+		   AND LOWER(TRIM(COALESCE(status, ''))) <> 'void'
 		   AND reference_doc LIKE ?
 		 LIMIT 1`,
 		[`%${prDocumentNumber}%`]
