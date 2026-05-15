@@ -83,6 +83,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 					WHEN EXISTS (
 						SELECT 1 FROM purchase_documents po
 						WHERE po.document_type = 'PO'
+						  AND LOWER(TRIM(COALESCE(po.status, ''))) <> 'void'
 						  AND pd.document_number IS NOT NULL AND TRIM(pd.document_number) <> ''
 						  AND (
 							  po.source_pr_id = pd.id
@@ -103,9 +104,23 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         `;
 		const fetchParams = [...params, pageSize, offset];
 		const [rows] = await pool.query(fetchSql, fetchParams);
+		const rawDocs = JSON.parse(JSON.stringify(rows)) as Record<string, unknown>[];
+		/** MySQL อาจส่ง can_edit เป็น string "0"/"1" — ใน Svelte "0" เป็น truthy ทำให้ปุ่ม Edit ผิด */
+		const documents = rawDocs.map((d) => {
+			if (String(d.document_type || '').toUpperCase() !== 'PR') {
+				return { ...d, can_edit: true };
+			}
+			const v = d.can_edit;
+			const editable =
+				v === true ||
+				v === 1 ||
+				(v != null && v !== '' && Number(v) === 1) ||
+				String(v).trim() === '1';
+			return { ...d, can_edit: editable };
+		});
 
 		return {
-			documents: JSON.parse(JSON.stringify(rows)),
+			documents,
 			currentPage: page,
 			totalPages,
 			searchQuery,
