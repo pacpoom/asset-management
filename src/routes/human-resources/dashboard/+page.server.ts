@@ -423,131 +423,24 @@ export const actions: Actions = {
 			endDate = startDate;
 		}
 
-		const ZKLib = (await import('node-zklib')).default;
-
-		const [currentUserRows]: any = await pool.execute(
-			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
-			[locals.user?.id || 0]
-		);
-		const actualDeptId = currentUserRows.length > 0 ? currentUserRows[0].department_id : 0;
-
-		const user = locals.user as LocalUser;
-		const isSuperAdmin =
-			user?.role === 'admin' &&
-			(user?.username === 'admin' ||
-				user?.email?.startsWith('admin') ||
-				user?.id === 1 ||
-				user?.id === 2);
-
-		let ipQuery = "SELECT ip_address FROM fingerprint_scanners WHERE status = 'Active'";
-		let ipParams: any[] = [];
-
-		if (!isSuperAdmin) {
-			ipQuery += ' AND (department_id IS NULL OR department_id = ?)';
-			ipParams.push(actualDeptId);
-		}
-
-		const [scannerRows]: any = await pool.execute(ipQuery, ipParams);
-		const ips = scannerRows.map((row: any) => row.ip_address);
-
-		if (ips.length === 0) {
-			return {
-				success: false,
-				message: 'ไม่พบข้อมูล IP เครื่องสแกนในระบบ หรือคุณไม่มีสิทธิ์เข้าถึงเครื่องสแกนนี้'
-			};
-		}
-
-		let totalImported = 0;
-		let logMessages: string[] = [];
-
 		try {
-			for (const ip of ips) {
-				const zkInstance = new ZKLib(ip, 4370, 120000, 4000);
+			console.log(
+				`[Manual Sync] กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`
+			);
 
-				try {
-					await zkInstance.createSocket();
-					console.log(`Connected to ZKTeco: ${ip}`);
+			const nowLocal = new Date();
+			const bkkTime = new Date(nowLocal.getTime() + 7 * 60 * 60 * 1000);
+			const y_bkk = bkkTime.getUTCFullYear();
+			const m_bkk = String(bkkTime.getUTCMonth() + 1).padStart(2, '0');
+			const d_bkk = String(bkkTime.getUTCDate()).padStart(2, '0');
+			const h_bkk = String(bkkTime.getUTCHours()).padStart(2, '0');
+			const min_bkk = String(bkkTime.getUTCMinutes()).padStart(2, '0');
+			const sec_bkk = String(bkkTime.getUTCSeconds()).padStart(2, '0');
+			const currentThaiTime = `${y_bkk}-${m_bkk}-${d_bkk} ${h_bkk}:${min_bkk}:${sec_bkk}`;
 
-					const nowLocal = new Date();
-					const bkkTime = new Date(nowLocal.getTime() + 7 * 60 * 60 * 1000);
-					const y_bkk = bkkTime.getUTCFullYear();
-					const m_bkk = String(bkkTime.getUTCMonth() + 1).padStart(2, '0');
-					const d_bkk = String(bkkTime.getUTCDate()).padStart(2, '0');
-					const h_bkk = String(bkkTime.getUTCHours()).padStart(2, '0');
-					const min_bkk = String(bkkTime.getUTCMinutes()).padStart(2, '0');
-					const sec_bkk = String(bkkTime.getUTCSeconds()).padStart(2, '0');
-					const currentThaiTime = `${y_bkk}-${m_bkk}-${d_bkk} ${h_bkk}:${min_bkk}:${sec_bkk}`;
-
-					await pool.execute('UPDATE fingerprint_scanners SET last_sync = ? WHERE ip_address = ?', [
-						currentThaiTime,
-						ip
-					]);
-
-					const machineInfo = await zkInstance.getInfo();
-
-					if (!machineInfo || machineInfo.logCounts === 0) {
-						logMessages.push(`${ip}: ไม่มีข้อมูล`);
-						await zkInstance.disconnect();
-						continue;
-					}
-
-					const logs = await zkInstance.getAttendances();
-
-					if (logs.data && logs.data.length > 0) {
-						const filteredLogs = logs.data.filter((log: any) => {
-							const d = new Date(log.recordTime);
-							const logDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-							return logDateStr >= startDate! && logDateStr <= endDate!;
-						});
-
-						if (filteredLogs.length > 0) {
-							const chunkSize = 1000;
-							for (let i = 0; i < filteredLogs.length; i += chunkSize) {
-								const chunk = filteredLogs.slice(i, i + chunkSize);
-
-								const values = chunk.map((log: any) => {
-									const rawId = log.deviceUserId.toString().trim();
-
-									let formattedTime = log.recordTime;
-									if (log.recordTime instanceof Date) {
-										const y = log.recordTime.getFullYear();
-										const m = String(log.recordTime.getMonth() + 1).padStart(2, '0');
-										const d = String(log.recordTime.getDate()).padStart(2, '0');
-										const h = String(log.recordTime.getHours()).padStart(2, '0');
-										const min = String(log.recordTime.getMinutes()).padStart(2, '0');
-										const sec = String(log.recordTime.getSeconds()).padStart(2, '0');
-										formattedTime = `${y}-${m}-${d} ${h}:${min}:${sec}`;
-									} else if (typeof log.recordTime === 'string') {
-										formattedTime = log.recordTime.replace('T', ' ').split('.')[0];
-									}
-
-									return [ip, rawId, formattedTime, currentThaiTime];
-								});
-
-								const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
-
-								await pool.execute(
-									`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime, created_at) VALUES ${placeholders}`,
-									values.flat()
-								);
-							}
-
-							totalImported += filteredLogs.length;
-							logMessages.push(`${ip}: ดึงสำเร็จ (${filteredLogs.length})`);
-						} else {
-							logMessages.push(`${ip}: ไม่มีคนสแกนในช่วงนี้`);
-						}
-					} else {
-						logMessages.push(`${ip}: ไม่มีข้อมูล`);
-					}
-
-					await zkInstance.disconnect();
-				} catch (error) {
-					logMessages.push(`${ip}: เชื่อมต่อไม่ได้`);
-				}
-			}
-
-			console.log(`กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`);
+			await pool.execute("UPDATE fingerprint_scanners SET last_sync = ? WHERE status = 'Active'", [
+				currentThaiTime
+			]);
 
 			const processQuery = `
 				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
@@ -563,16 +456,13 @@ export const actions: Actions = {
 					
 					'Present' as status,
 					
-					/* คำนวณ OT */
 					CASE 
-						/* กะดึก (N) */
 						WHEN sm.ot_start_time IS NOT NULL AND sm.ot_end_time <= sm.start_time THEN
 							IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) < sm.ot_end_time,
 								FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(sm.ot_end_time, GREATEST(TIME(base.scan_in), sm.ot_start_time))) / 60) / 30) * 0.5,
 								0
 							)
 							
-						/* กะเช้า (D) */
 						ELSE
 							(
 								/* OT เช้ามืด */
@@ -583,7 +473,6 @@ export const actions: Actions = {
 							)
 							+
 							(
-								/* OT เย็นหลังเลิกงาน */
 								IF(base.scan_out IS NOT NULL,
 									FLOOR(GREATEST(0, 
 										(
@@ -656,18 +545,12 @@ export const actions: Actions = {
 			await pool.execute(processQuery, [startDate, endDate]);
 			console.log(`ประมวลผลเสร็จสมบูรณ์ใน HR Dashboard!`);
 
-			if (totalImported > 0) {
-				return {
-					success: true,
-					message: `ดึงข้อมูลสำเร็จ ${totalImported} รายการ และรีเซ็ตเวลาใหม่เรียบร้อย!`
-				};
-			} else {
-				return {
-					success: true,
-					message: `ไม่มีข้อมูลใหม่ให้ดึง แต่ระบบได้กวาดล้างและรีเซ็ตเวลาเข้า-ออกใหม่เรียบร้อยแล้ว!`
-				};
-			}
+			return {
+				success: true,
+				message: `ประมวลผลข้อมูลสำเร็จ! จัดเรียงเวลาเข้า-ออกและ OT เรียบร้อย`
+			};
 		} catch (error: any) {
+			console.error('Sync process error:', error);
 			return { success: false, message: error.message };
 		}
 	}

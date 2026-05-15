@@ -45,7 +45,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 				user?.id === 1 ||
 				user?.id === 2);
 
-		let scannerQuery = 'SELECT * FROM fingerprint_scanners';
+		let scannerQuery = `
+			SELECT 
+				id, 
+				device_name, 
+				ip_address, 
+				status, 
+				department_id, 
+				DATE_FORMAT(last_sync, '%Y-%m-%d %H:%i:%s') as last_sync 
+			FROM fingerprint_scanners
+		`;
 		let scannerParams: any[] = [];
 
 		if (!isSuperAdmin) {
@@ -75,12 +84,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
 	save: async ({ request }) => {
 		const data = await request.formData();
-		const id = data.get('id')?.toString();
-		const tab = data.get('tab')?.toString();
-		const name = data.get('name')?.toString();
-		const name_en = data.get('name_en')?.toString();
-		const description = data.get('description')?.toString();
-		const status = data.get('status')?.toString();
+
+		const id = data.get('id')?.toString() || null;
+		const tab = data.get('tab')?.toString() || '';
+		const name = data.get('name')?.toString() || '';
+		const name_en = data.get('name_en')?.toString() || '';
+		const description = data.get('description')?.toString() || '';
+		const status = data.get('status')?.toString() || '';
 
 		let table = '';
 		let col = '';
@@ -116,38 +126,38 @@ export const actions: Actions = {
 				if (tab === 'leave_type') {
 					await pool.execute(
 						`UPDATE leave_types SET leave_name_th = ?, leave_name_en = ?, is_active = ? WHERE id = ?`,
-						[name, name_en, finalStatus, id]
+						[name, name_en, finalStatus, id] as any[]
 					);
 				} else if (tab === 'scanner') {
-					const ip_address = data.get('ip_address')?.toString();
-					const department_id = data.get('department_id')?.toString() || null; // 🌟 รับค่าแผนก
+					const ip_address = data.get('ip_address')?.toString() || '';
+					const department_id = data.get('department_id')?.toString() || null;
 					await pool.execute(
 						`UPDATE fingerprint_scanners SET device_name = ?, ip_address = ?, status = ?, department_id = ? WHERE id = ?`,
-						[name, ip_address, status, department_id, id]
+						[name, ip_address, status, department_id, id] as any[]
 					);
 				} else {
 					await pool.execute(
 						`UPDATE ${table} SET ${col} = ?, description = ?, status = ? WHERE id = ?`,
-						[name, description, finalStatus, id]
+						[name, description, finalStatus, id] as any[]
 					);
 				}
 			} else {
 				if (tab === 'leave_type') {
 					await pool.execute(
 						`INSERT INTO leave_types (leave_name_th, leave_name_en, is_active) VALUES (?, ?, ?)`,
-						[name, name_en, finalStatus]
+						[name, name_en, finalStatus] as any[]
 					);
 				} else if (tab === 'scanner') {
-					const ip_address = data.get('ip_address')?.toString();
-					const department_id = data.get('department_id')?.toString() || null; // 🌟 รับค่าแผนก
+					const ip_address = data.get('ip_address')?.toString() || '';
+					const department_id = data.get('department_id')?.toString() || null;
 					await pool.execute(
 						`INSERT INTO fingerprint_scanners (device_name, ip_address, status, department_id) VALUES (?, ?, ?, ?)`,
-						[name, ip_address, status, department_id]
+						[name, ip_address, status, department_id] as any[]
 					);
 				} else {
 					await pool.execute(
 						`INSERT INTO ${table} (${col}, description, status) VALUES (?, ?, ?)`,
-						[name, description, finalStatus]
+						[name, description, finalStatus] as any[]
 					);
 				}
 			}
@@ -160,8 +170,8 @@ export const actions: Actions = {
 
 	delete: async ({ request }) => {
 		const data = await request.formData();
-		const id = data.get('id')?.toString();
-		const tab = data.get('tab')?.toString();
+		const id = data.get('id')?.toString() || null;
+		const tab = data.get('tab')?.toString() || '';
 
 		let table =
 			tab === 'section'
@@ -179,7 +189,7 @@ export const actions: Actions = {
 									: 'divisions';
 
 		try {
-			await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
+			await pool.execute(`DELETE FROM ${table} WHERE id = ?`, [id] as any[]);
 			return { success: true, message: 'ลบข้อมูลสำเร็จ' };
 		} catch (error) {
 			return fail(400, { success: false, message: 'ไม่สามารถลบข้อมูลได้' });
