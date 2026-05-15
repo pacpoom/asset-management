@@ -84,7 +84,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 						SELECT 1 FROM purchase_documents po
 						WHERE po.document_type = 'PO'
 						  AND pd.document_number IS NOT NULL AND TRIM(pd.document_number) <> ''
-						  AND po.reference_doc LIKE CONCAT('%', pd.document_number, '%')
+						  AND (
+							  po.source_pr_id = pd.id
+							  OR po.reference_doc LIKE CONCAT('%', pd.document_number, '%')
+						  )
 						LIMIT 1
 					) THEN 0
 					ELSE 1

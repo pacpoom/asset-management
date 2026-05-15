@@ -227,6 +227,46 @@
 				{/each}
 			</select>
 		</div>
+
+		{#if data.canRejectPo}
+			<form
+				method="POST"
+				action="?/rejectPo"
+				class="inline"
+				onsubmit={(e) => {
+					const msg =
+						$locale === 'th'
+							? 'ยืนยันปฏิเสธ PO นี้หรือไม่? ระบบจะตั้ง PO เป็น Void และถ้า PR ที่เชื่อมเป็น Complete และไม่มี PO อื่นที่ยังไม่ Void อ้างอิง PR เดียวกัน จะคืน PR เป็น Draft'
+							: 'Reject this PO? It will be set to Void. Any linked PR in Complete status returns to Draft when no other active PO references that PR.';
+					if (!confirm(msg)) {
+						e.preventDefault();
+						return;
+					}
+					isSaving = true;
+				}}
+				use:enhance={() => {
+					return async ({ result, update }) => {
+						isSaving = false;
+						if (result.type === 'failure') {
+							const m =
+								result.data && typeof result.data.message === 'string'
+									? result.data.message
+									: 'Reject failed';
+							alert(m);
+						}
+						await update();
+					};
+				}}
+			>
+				<button
+					type="submit"
+					disabled={isSaving}
+					class="rounded-lg border border-red-600 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:opacity-50"
+				>
+					{$locale === 'th' ? 'ปฏิเสธ PO' : 'Reject PO'}
+				</button>
+			</form>
+		{/if}
 	</div>
 </div>
 

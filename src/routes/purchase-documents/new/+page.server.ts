@@ -176,7 +176,8 @@ export const actions: Actions = {
 		const due_date = normalizePurchaseDocumentDateInput(formData.get('due_date')?.toString());
 		const delivery_date = normalizePurchaseDocumentDateInput(formData.get('delivery_date')?.toString());
 
-		const reference_doc = formData.get('reference_doc')?.toString() || '';
+		let reference_doc = formData.get('reference_doc')?.toString() || '';
+		let source_pr_id_for_insert: number | null = null;
 		const currency = normalizePurchaseDocumentCurrency(formData.get('currency')?.toString());
 		const delivery_receiver_name =
 			formData.get('delivery_receiver_name')?.toString().trim() || null;
@@ -201,12 +202,22 @@ export const actions: Actions = {
 			const srcId = parseInt(source_document_id, 10);
 			if (Number.isInteger(srcId) && srcId > 0) {
 				const [srcRows] = await pool.query<any[]>(
-					'SELECT document_type FROM purchase_documents WHERE id = ?',
+					'SELECT document_type, document_number FROM purchase_documents WHERE id = ?',
 					[srcId]
 				);
-				if (srcRows[0] && String(srcRows[0].document_type || '').toUpperCase() === 'PR') {
+				const src = srcRows[0];
+				if (src && String(src.document_type || '').toUpperCase() === 'PR') {
 					if (!userCanIssuePurchaseOrderFromPr(locals.user)) {
 						return fail(403, { message: 'ไม่มีสิทธิ์ออก PO จาก PR' });
+					}
+					source_pr_id_for_insert = srcId;
+					const prNum = String(src.document_number || '').trim();
+					if (
+						prNum &&
+						!reference_doc.toUpperCase().includes(prNum.toUpperCase())
+					) {
+						const cur = reference_doc.trim();
+						reference_doc = cur ? `${cur} | PR: ${prNum}` : `PR: ${prNum}`;
 					}
 				}
 			}
@@ -243,11 +254,11 @@ export const actions: Actions = {
 
 			const [result] = await connection.execute<any>(
 				`INSERT INTO purchase_documents 
-                (document_type, document_number, currency, document_date, credit_term, due_date, delivery_date, vendor_id, vendor_contact_id, contract_id, delivery_address_id, delivery_receiver_name, delivery_receiver_phone, reference_doc, notes, 
+                (document_type, document_number, currency, document_date, credit_term, due_date, delivery_date, vendor_id, vendor_contact_id, contract_id, delivery_address_id, delivery_receiver_name, delivery_receiver_phone, reference_doc, source_pr_id, notes, 
                  subtotal, discount_amount, total_after_discount, 
                  vat_rate, vat_amount, withholding_tax_rate, withholding_tax_amount, wht_amount, total_amount,
                  status, created_by_user_id, job_id) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?)`,
 				[
 					document_type,
 					document_number,
@@ -263,6 +274,7 @@ export const actions: Actions = {
 					delivery_receiver_name,
 					delivery_receiver_phone,
 					reference_doc,
+					source_pr_id_for_insert,
 					notes,
 					subtotal,
 					discount_amount,
