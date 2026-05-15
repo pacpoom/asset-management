@@ -146,7 +146,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		]);
 
 		let scannerQuery = `
-			SELECT device_name, ip_address, status, last_sync 
+			SELECT device_name, ip_address, status, DATE_FORMAT(last_sync, '%Y-%m-%d %H:%i:%s') as last_sync 
 			FROM fingerprint_scanners 
 			WHERE (status = 'Active' OR status = 1)
 		`;
@@ -418,7 +418,8 @@ export const actions: Actions = {
 
 		if (!startDate || !endDate) {
 			const now = new Date();
-			startDate = now.toISOString().split('T')[0];
+			const bkkNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+			startDate = `${bkkNow.getUTCFullYear()}-${String(bkkNow.getUTCMonth() + 1).padStart(2, '0')}-${String(bkkNow.getUTCDate()).padStart(2, '0')}`;
 			endDate = startDate;
 		}
 
@@ -467,10 +468,20 @@ export const actions: Actions = {
 					await zkInstance.createSocket();
 					console.log(`Connected to ZKTeco: ${ip}`);
 
-					await pool.execute(
-						'UPDATE fingerprint_scanners SET last_sync = NOW() WHERE ip_address = ?',
-						[ip]
-					);
+					const nowLocal = new Date();
+					const bkkTime = new Date(nowLocal.getTime() + 7 * 60 * 60 * 1000);
+					const y_bkk = bkkTime.getUTCFullYear();
+					const m_bkk = String(bkkTime.getUTCMonth() + 1).padStart(2, '0');
+					const d_bkk = String(bkkTime.getUTCDate()).padStart(2, '0');
+					const h_bkk = String(bkkTime.getUTCHours()).padStart(2, '0');
+					const min_bkk = String(bkkTime.getUTCMinutes()).padStart(2, '0');
+					const sec_bkk = String(bkkTime.getUTCSeconds()).padStart(2, '0');
+					const currentThaiTime = `${y_bkk}-${m_bkk}-${d_bkk} ${h_bkk}:${min_bkk}:${sec_bkk}`;
+
+					await pool.execute('UPDATE fingerprint_scanners SET last_sync = ? WHERE ip_address = ?', [
+						currentThaiTime,
+						ip
+					]);
 
 					const machineInfo = await zkInstance.getInfo();
 
@@ -496,13 +507,27 @@ export const actions: Actions = {
 
 								const values = chunk.map((log: any) => {
 									const rawId = log.deviceUserId.toString().trim();
-									return [ip, rawId, log.recordTime];
+
+									let formattedTime = log.recordTime;
+									if (log.recordTime instanceof Date) {
+										const y = log.recordTime.getFullYear();
+										const m = String(log.recordTime.getMonth() + 1).padStart(2, '0');
+										const d = String(log.recordTime.getDate()).padStart(2, '0');
+										const h = String(log.recordTime.getHours()).padStart(2, '0');
+										const min = String(log.recordTime.getMinutes()).padStart(2, '0');
+										const sec = String(log.recordTime.getSeconds()).padStart(2, '0');
+										formattedTime = `${y}-${m}-${d} ${h}:${min}:${sec}`;
+									} else if (typeof log.recordTime === 'string') {
+										formattedTime = log.recordTime.replace('T', ' ').split('.')[0];
+									}
+
+									return [ip, rawId, formattedTime, currentThaiTime];
 								});
 
-								const placeholders = values.map(() => '(?, ?, ?)').join(', ');
+								const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
 
 								await pool.execute(
-									`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime) VALUES ${placeholders}`,
+									`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime, created_at) VALUES ${placeholders}`,
 									values.flat()
 								);
 							}

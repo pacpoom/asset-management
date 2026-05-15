@@ -17,8 +17,8 @@ export const GET: RequestHandler = async () => {
 			jp.position_name AS 'Position',
 			e.project AS 'Project',
 			al.work_date,
-			al.scan_in_time,
-			al.scan_out_time,
+			DATE_FORMAT(al.scan_in_time, '%H:%i:%s') as time_in_str,
+			DATE_FORMAT(al.scan_out_time, '%H:%i:%s') as time_out_str,
 			al.status,
 			al.is_late
 		FROM attendance_logs al
@@ -60,8 +60,8 @@ export const GET: RequestHandler = async () => {
 			position: row.Position || '-',
 			project: row.Project || '-',
 			date: row.work_date ? new Date(row.work_date).toLocaleDateString('en-GB') : '-',
-			time_in: row.scan_in_time ? new Date(row.scan_in_time).toLocaleTimeString('th-TH') : '-',
-			time_out: row.scan_out_time ? new Date(row.scan_out_time).toLocaleTimeString('th-TH') : '-',
+			time_in: row.time_in_str || '-',
+			time_out: row.time_out_str || '-',
 			status: row.status,
 			late: row.is_late ? 'สาย' : 'ปกติ'
 		});

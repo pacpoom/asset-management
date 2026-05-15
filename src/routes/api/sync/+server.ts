@@ -54,10 +54,20 @@ async function startBackgroundSync() {
 
 				const logs = await zkInstance.getAttendances();
 
-				await pool.execute(
-					'UPDATE fingerprint_scanners SET last_sync = NOW() WHERE ip_address = ?',
-					[ip]
-				);
+				const nowLocal = new Date();
+				const bkkTimeSync = new Date(nowLocal.getTime() + 7 * 60 * 60 * 1000);
+				const y_bkk = bkkTimeSync.getUTCFullYear();
+				const m_bkk = String(bkkTimeSync.getUTCMonth() + 1).padStart(2, '0');
+				const d_bkk = String(bkkTimeSync.getUTCDate()).padStart(2, '0');
+				const h_bkk = String(bkkTimeSync.getUTCHours()).padStart(2, '0');
+				const min_bkk = String(bkkTimeSync.getUTCMinutes()).padStart(2, '0');
+				const sec_bkk = String(bkkTimeSync.getUTCSeconds()).padStart(2, '0');
+				const currentThaiTime = `${y_bkk}-${m_bkk}-${d_bkk} ${h_bkk}:${min_bkk}:${sec_bkk}`;
+
+				await pool.execute('UPDATE fingerprint_scanners SET last_sync = ? WHERE ip_address = ?', [
+					currentThaiTime,
+					ip
+				]);
 
 				if (!logs.data || logs.data.length === 0) {
 					console.log(`[AutoSync]  [${ip}] ไม่มีข้อมูลในเครื่อง ข้าม!`);

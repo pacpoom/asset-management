@@ -21,9 +21,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		user.role === 'admin' && (user.username === 'admin' || user.id === 1 || user.id === 2);
 
 	const monthQuery = url.searchParams.get('month');
-	const today = new Date();
-	let targetYear = today.getFullYear();
-	let targetMonth = today.getMonth() + 1;
+	const now = new Date();
+	const bkkNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+	let targetYear = bkkNow.getUTCFullYear();
+	let targetMonth = bkkNow.getUTCMonth() + 1;
 
 	if (monthQuery && /^\d{4}-\d{2}$/.test(monthQuery)) {
 		const [y, m] = monthQuery.split('-').map(Number);
@@ -110,8 +111,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                 emp_id, 
                 DATE_FORMAT(work_date, '%Y-%m-%d') as work_date_str, 
                 shift_type, 
-                scan_in_time, 
-                scan_out_time, 
+                DATE_FORMAT(scan_in_time, '%Y-%m-%d %H:%i:%s') as scan_in_time, 
+                DATE_FORMAT(scan_out_time, '%Y-%m-%d %H:%i:%s') as scan_out_time, 
                 ot_hours 
              FROM attendance_logs 
              WHERE emp_id IN (${placeholders}) AND work_date BETWEEN ? AND ?`,
