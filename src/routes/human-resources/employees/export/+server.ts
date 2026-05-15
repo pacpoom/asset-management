@@ -8,9 +8,12 @@ interface LocalUser {
 	department_id?: number | null;
 }
 
-export const GET: RequestHandler = async ({ locals }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
 	const user = locals.user as LocalUser;
 	if (!user) return new Response('Unauthorized', { status: 401 });
+
+	const statusFilter = url.searchParams.get('status') || 'All';
+	const search = url.searchParams.get('search') || '';
 
 	let query = `
         SELECT 
@@ -37,6 +40,18 @@ export const GET: RequestHandler = async ({ locals }) => {
     `;
 
 	const params: any[] = [];
+
+	if (statusFilter !== 'All') {
+		query += ' AND e.status = ?';
+		params.push(statusFilter);
+	}
+
+	if (search) {
+		query += ' AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ?)';
+		const searchParam = `%${search}%`;
+		params.push(searchParam, searchParam, searchParam);
+	}
+
 	if (user.role !== 'admin' && user.department_id) {
 		query += ' AND e.department_id = ?';
 		params.push(user.department_id);

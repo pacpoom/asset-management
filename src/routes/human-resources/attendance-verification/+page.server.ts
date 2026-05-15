@@ -5,7 +5,6 @@ import ExcelJS from 'exceljs';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const user: any = locals.user || { role: 'staff' };
-	// ดึง department_id จาก user ที่ login
 	const userDeptId = user.department_id;
 
 	let displayDate = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -16,8 +15,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 	try {
 		let whereClause = `e.status != 'Resigned'`;
 		let params: any[] = [];
-
-		// เพิ่มเงื่อนไขกรองตาม department_id
 		if (userDeptId) {
 			whereClause += ` AND e.department_id = ?`;
 			params.push(userDeptId);
@@ -33,7 +30,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			params.push(filterGroup);
 		}
 
-		// ดึง section และ group โดยอ้างอิงจาก department_id ของ user ด้วย
 		let sectionQuery = `SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '-'`;
 		let groupQuery = `SELECT DISTINCT emp_group FROM employees WHERE emp_group IS NOT NULL AND emp_group != '-'`;
 		let secGroupParams: any[] = [];
@@ -106,6 +102,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			`SELECT leave_name_en FROM leave_types WHERE is_active = 1 ORDER BY leave_name_en ASC`
 		);
 
+		const [shifts]: any = await pool.query(
+			`SELECT shift_code, shift_name FROM shift_master WHERE status = 'Active' ORDER BY shift_code ASC`
+		);
+
 		return {
 			displayDate,
 			filterSection,
@@ -115,7 +115,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			summary: processedSummary,
 			employeeList,
 			leaveTypes,
-			user
+			user,
+			shifts
 		};
 	} catch (error) {
 		console.error('Verification Load Error:', error);

@@ -23,12 +23,12 @@ async function startBackgroundSync() {
 		return;
 	}
 
-	const today = new Date();
-	const yesterday = new Date(today);
-	yesterday.setDate(yesterday.getDate() - 1);
+	const now = new Date();
+	const bkkNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+	const bkkYesterday = new Date(bkkNow.getTime() - 24 * 60 * 60 * 1000);
 
-	const endDate = today.toISOString().split('T')[0];
-	const startDate = yesterday.toISOString().split('T')[0];
+	const endDate = `${bkkNow.getUTCFullYear()}-${String(bkkNow.getUTCMonth() + 1).padStart(2, '0')}-${String(bkkNow.getUTCDate()).padStart(2, '0')}`;
+	const startDate = `${bkkYesterday.getUTCFullYear()}-${String(bkkYesterday.getUTCMonth() + 1).padStart(2, '0')}-${String(bkkYesterday.getUTCDate()).padStart(2, '0')}`;
 
 	try {
 		console.log('กำลังเตรียมข้อมูลพนักงาน (Caching)...');
@@ -72,6 +72,16 @@ async function startBackgroundSync() {
 				});
 
 				if (filteredLogs.length > 0) {
+					const now = new Date();
+					const bkkTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+					const y_bkk = bkkTime.getUTCFullYear();
+					const m_bkk = String(bkkTime.getUTCMonth() + 1).padStart(2, '0');
+					const d_bkk = String(bkkTime.getUTCDate()).padStart(2, '0');
+					const h_bkk = String(bkkTime.getUTCHours()).padStart(2, '0');
+					const min_bkk = String(bkkTime.getUTCMinutes()).padStart(2, '0');
+					const sec_bkk = String(bkkTime.getUTCSeconds()).padStart(2, '0');
+					const currentThaiTime = `${y_bkk}-${m_bkk}-${d_bkk} ${h_bkk}:${min_bkk}:${sec_bkk}`;
+
 					const chunkSize = 1000;
 					for (let i = 0; i < filteredLogs.length; i += chunkSize) {
 						const chunk = filteredLogs.slice(i, i + chunkSize);
@@ -80,19 +90,25 @@ async function startBackgroundSync() {
 							const rawId = log.deviceUserId.toString().trim();
 
 							let formattedTime = log.recordTime;
+
 							if (log.recordTime instanceof Date) {
-								const d = log.recordTime;
-								formattedTime = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+								const y = log.recordTime.getFullYear();
+								const m = String(log.recordTime.getMonth() + 1).padStart(2, '0');
+								const d = String(log.recordTime.getDate()).padStart(2, '0');
+								const h = String(log.recordTime.getHours()).padStart(2, '0');
+								const min = String(log.recordTime.getMinutes()).padStart(2, '0');
+								const sec = String(log.recordTime.getSeconds()).padStart(2, '0');
+
+								formattedTime = `${y}-${m}-${d} ${h}:${min}:${sec}`;
 							} else if (typeof log.recordTime === 'string') {
 								formattedTime = log.recordTime.replace('T', ' ').split('.')[0];
 							}
-
-							return [ip, rawId, formattedTime];
+							return [ip, rawId, formattedTime, currentThaiTime];
 						});
 
-						const placeholders = values.map(() => '(?, ?, ?)').join(', ');
+						const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
 						await pool.execute(
-							`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime) VALUES ${placeholders}`,
+							`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime, created_at) VALUES ${placeholders}`,
 							values.flat()
 						);
 					}

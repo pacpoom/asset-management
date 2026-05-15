@@ -151,14 +151,24 @@
 	let divPages = $state<Record<string, number>>({});
 
 	let empSearch: any = $state(null);
+	let scanFilter = $state('All');
+
 	let empSearchOptions = $derived(
 		employeeList.map((e: any) => ({
 			value: e.emp_id,
 			label: `${e.emp_id} : ${e.emp_name}`
 		}))
 	);
+
 	let filteredEmpList = $derived(
-		!empSearch ? employeeList : employeeList.filter((e: any) => e.emp_id === empSearch.value)
+		employeeList.filter((e: any) => {
+			const passSearch = !empSearch || e.emp_id === empSearch.value;
+			const hasScan = e.time_in !== null || e.time_out !== null;
+			const passScanFilter =
+				scanFilter === 'All' ? true : scanFilter === 'Scanned' ? hasScan : !hasScan;
+
+			return passSearch && passScanFilter;
+		})
 	);
 
 	let sumCurrentPage = $state(1);
@@ -529,6 +539,17 @@
 				/>
 			</div>
 
+			<div class="w-56">
+				<select
+					bind:value={scanFilter}
+					class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none"
+				>
+					<option value="All">{$t('-- สถานะการสแกนทั้งหมด --')}</option>
+					<option value="NotScanned">{$t('ยังไม่ได้สแกนนิ้ว')}</option>
+					<option value="Scanned">{$t('สแกนนิ้วแล้ว')}</option>
+				</select>
+			</div>
+
 			<div class="w-64">
 				<Select
 					items={sectionOptions}
@@ -648,19 +669,24 @@
 									aria-label="Shift"
 									name="shift[]"
 									disabled={isLocked}
+									bind:value={emp.shift_type}
 									class="w-full cursor-pointer rounded border py-1.5 text-center text-sm font-bold focus:outline-none
-									{isLocked
+        							{isLocked
 										? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
 										: emp.shift_type === 'D' || emp.shift_type === 'Day'
 											? 'border-yellow-300 bg-yellow-50 text-yellow-700'
 											: 'border-indigo-300 bg-indigo-50 text-indigo-700'}"
 								>
-									<option value="D" selected={emp.shift_type === 'D' || emp.shift_type === 'Day'}
-										>D</option
-									>
-									<option value="N" selected={emp.shift_type === 'N' || emp.shift_type === 'Night'}
-										>N</option
-									>
+									{#if data.shifts && data.shifts.length > 0}
+										{#each data.shifts as shift}
+											<option value={shift.shift_code}>
+												{shift.shift_code}
+											</option>
+										{/each}
+									{:else}
+										<option value="D">D</option>
+										<option value="N">N</option>
+									{/if}
 								</select>
 								{#if isLocked}<input type="hidden" name="shift[]" value={emp.shift_type} />{/if}
 							</td>

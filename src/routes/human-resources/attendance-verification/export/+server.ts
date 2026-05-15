@@ -93,7 +93,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				DATE_FORMAT(al.scan_in_time, '%H:%i') as time_in,
 				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
 				IFNULL(al.status, 'Pending') as status,
-				IFNULL(al.shift_type, 'Day') as shift_type,
+				COALESCE(
+					al.shift_type, 
+					(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = ? LIMIT 1),
+					e.default_shift, 
+					'D'
+				) as shift_type,
 				al.remark,
 				lt.leave_name_th 
 			FROM employees e
@@ -103,7 +108,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			ORDER BY e.emp_group ASC, e.emp_name ASC
 		`;
 
-		const [employeeList]: any = await pool.execute(query, params);
+		const [employeeList]: any = await pool.execute(query, [displayDate, ...params]);
 
 		const workbook = new ExcelJS.Workbook();
 		const worksheet = workbook.addWorksheet('Leader Verification');
@@ -256,7 +261,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				emp.emp_group,
 				emp.emp_id,
 				emp.emp_name,
-				emp.shift_type === 'Day' ? 'กะเช้า' : 'กะดึก',
+				emp.shift_type === 'D' || emp.shift_type === 'Day' ? 'กะเช้า' : 'กะดึก',
 				emp.time_in || '-',
 				emp.time_out || '-',
 				statusMap[emp.status] || emp.status,
