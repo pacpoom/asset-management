@@ -441,7 +441,7 @@
 		<div class="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl">
 			<div class="flex items-center justify-between border-b px-5 py-4">
 				<h3 class="font-bold text-gray-800">{$t('Manage Bank Accounts')}</h3>
-				<button onclick={closeManageModal} class="text-gray-400 hover:text-gray-600 focus:outline-none">
+				<button onclick={closeManageModal} aria-label={$t('Close')} class="text-gray-400 hover:text-gray-600 focus:outline-none">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
 				</button>
 			</div>
@@ -453,24 +453,24 @@
 					</h4>
 					<div class="mb-3 grid grid-cols-2 gap-3">
 						<div>
-							<label class="mb-1 block text-xs font-medium text-gray-500">{$t('Bank Code')} (e.g. KBANK)</label>
-							<input type="text" bind:value={manageBankCode} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Code..." />
+							<label for="manageBankCode" class="mb-1 block text-xs font-medium text-gray-500">{$t('Bank Code')} (e.g. KBANK)</label>
+							<input id="manageBankCode" type="text" bind:value={manageBankCode} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Code..." />
 						</div>
 						<div>
-							<label class="mb-1 block text-xs font-medium text-gray-500">{$t('Bank Name')} <span class="text-red-500">*</span></label>
-							<input type="text" bind:value={manageBankName} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name..." />
+							<label for="manageBankName" class="mb-1 block text-xs font-medium text-gray-500">{$t('Bank Name')} <span class="text-red-500">*</span></label>
+							<input id="manageBankName" type="text" bind:value={manageBankName} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Name..." />
 						</div>
 						<div class="col-span-2">
-							<label class="mb-1 block text-xs font-medium text-gray-500">{$t('Account Name')} <span class="text-red-500">*</span></label>
-							<input type="text" bind:value={manageAccName} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Account Name..." />
+							<label for="manageAccName" class="mb-1 block text-xs font-medium text-gray-500">{$t('Account Name')} <span class="text-red-500">*</span></label>
+							<input id="manageAccName" type="text" bind:value={manageAccName} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Account Name..." />
 						</div>
 						<div>
-							<label class="mb-1 block text-xs font-medium text-gray-500">{$t('Account Number')} <span class="text-red-500">*</span></label>
-							<input type="text" bind:value={manageAccNo} class="w-full rounded-md border-gray-300 p-2 text-sm font-mono focus:border-blue-500 focus:ring-blue-500" placeholder="Account No..." />
+							<label for="manageAccNo" class="mb-1 block text-xs font-medium text-gray-500">{$t('Account Number')} <span class="text-red-500">*</span></label>
+							<input id="manageAccNo" type="text" bind:value={manageAccNo} class="w-full rounded-md border-gray-300 p-2 text-sm font-mono focus:border-blue-500 focus:ring-blue-500" placeholder="Account No..." />
 						</div>
 						<div>
-							<label class="mb-1 block text-xs font-medium text-gray-500">{$t('Branch')}</label>
-							<input type="text" bind:value={manageBranch} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Branch..." />
+							<label for="manageBranch" class="mb-1 block text-xs font-medium text-gray-500">{$t('Branch')}</label>
+							<input id="manageBranch" type="text" bind:value={manageBranch} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Branch..." />
 						</div>
 					</div>
 					<div class="flex gap-2 mt-4">
