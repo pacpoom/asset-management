@@ -134,7 +134,21 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		const [vendors] = await pool.query('SELECT id, COALESCE(company_name, name) AS name FROM vendors ORDER BY COALESCE(company_name, name) ASC');
 		const [vendorContacts] = await pool.query('SELECT id, vendor_id, name, position, email, phone FROM vendor_contacts ORDER BY name ASC');
 		const [vendorContractsData] = await pool.query('SELECT id, vendor_id, title, contract_number FROM vendor_contracts WHERE status = "Active" ORDER BY title ASC');
-		const [products] = await pool.query('SELECT id, name, sku, purchase_cost AS price, unit_id, default_wht_rate FROM products WHERE is_active = 1 AND category_id = 26 ORDER BY name ASC');
+		const [products] = await pool.query(`
+			SELECT
+				p.id,
+				p.name,
+				p.sku,
+				p.purchase_cost,
+				p.unit_id,
+				p.default_wht_rate,
+				p.asset_account_id,
+				coa.account_type AS asset_account_type
+			FROM products p
+			LEFT JOIN chart_of_accounts coa ON p.asset_account_id = coa.id
+			WHERE p.is_active = 1 AND p.category_id = 26
+			ORDER BY p.name ASC
+		`);
 		const [units] = await pool.query('SELECT id, symbol FROM units ORDER BY symbol ASC');
 		const [deliveryAddresses] = await pool.query(
 			'SELECT * FROM delivery_addresses WHERE is_active = 1 ORDER BY name ASC, contact_name ASC, id ASC'

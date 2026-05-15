@@ -26,9 +26,12 @@
 	interface Product {
 		id: number | string;
 		name: string;
-		purchase_cost: number | string;
+		purchase_cost?: number | string;
+		/** legacy load บางครั้งใช้ alias price */
+		price?: number | string;
 		unit_id: number | string | null;
 		default_wht_rate: number | string;
+		asset_account_type?: string | null;
 	}
 
 	interface VendorContact {
@@ -120,9 +123,22 @@
 		vendor: v
 	}));
 
+	function getProductOptionLabel(product: Product) {
+		if (product.asset_account_type) {
+			return `${product.name} | ${product.asset_account_type}`;
+		}
+		return `${product.name} | -`;
+	}
+
+	function getSelectedProductTooltip(item: DocumentItem) {
+		const product = item.product_object?.product;
+		if (!product) return '';
+		return getProductOptionLabel(product);
+	}
+
 	$: productOptions = localProducts.map((p: Product) => ({
 		value: p.id,
-		label: p.name,
+		label: getProductOptionLabel(p),
 		product: p
 	}));
 
@@ -504,7 +520,11 @@
 			const product = selected.product;
 			items[index].product_id = product.id;
 			items[index].description = product.name;
-			items[index].unit_price = parseFloat(product.purchase_cost?.toString() || '0') || 0;
+			const unitFrom =
+				product.purchase_cost != null && product.purchase_cost !== ''
+					? product.purchase_cost
+					: product.price;
+			items[index].unit_price = parseFloat(String(unitFrom ?? '0')) || 0;
 			items[index].unit_id = product.unit_id;
 			items[index].wht_rate = parseFloat(product.default_wht_rate?.toString() || '0') || 0;
 			items[index].vat_type = 1; // Default Inc.
@@ -883,7 +903,7 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs uppercase text-gray-500">
 						<tr>
-							<th class="w-20 px-2 py-2 text-left font-medium">{$t('Product/Service')}</th>
+							<th class="w-80 px-2 py-2 text-left font-medium">{$t('Product/Service')}</th>
 							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
 							<th class="w-25 px-4 py-2 text-right">{$t('Qty')}</th>
 							<th class="w-25 px-4 py-2 text-center">{$t('Unit')}</th>
@@ -898,20 +918,31 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each calculatedItems as item, index}
 							<tr>
-								<td class="w-35 px-3 py-2" style="min-width: 200px; max-width: 200px;">
-									<Select
-										items={productOptions}
-										value={item.product_object}
-										on:change={(e) => onProductChange(index, e.detail)}
-										on:clear={() => onProductChange(index, null)}
-										placeholder={$t('Search...')}
-										floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
-										container={browser ? document.body : null}
-										--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-										--list="border-radius: 6px; font-size: 0.875rem;"
-										--itemIsActive="background: #e0f2fe;"
-										--valueStyles="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-									/>
+								<td class="w-80 px-3 py-2" style="min-width: 320px; max-width: 320px;">
+									<div title={getSelectedProductTooltip(item)}>
+										<Select
+											items={productOptions}
+											value={item.product_object}
+											on:change={(e) => onProductChange(index, e.detail)}
+											on:clear={() => onProductChange(index, null)}
+											placeholder={$t('Search...')}
+											floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+											container={browser ? document.body : null}
+											--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+											--list="border-radius: 6px; font-size: 0.875rem;"
+											--itemIsActive="background: #e0f2fe;"
+											--valueStyles="white-space: nowrap; overflow: visible; text-overflow: clip; font-size: 0.8rem;"
+										/>
+									</div>
+									<div class="mt-1 min-h-[16px] text-[11px] font-medium leading-4 text-blue-700">
+										{#if item.product_object?.product?.asset_account_type}
+											<span title={getSelectedProductTooltip(item)}>
+												Account Type: {item.product_object.product.asset_account_type}
+											</span>
+										{:else}
+											&nbsp;
+										{/if}
+									</div>
 								</td>
 								<td class="w-64 px-2 py-2">
 									<textarea
