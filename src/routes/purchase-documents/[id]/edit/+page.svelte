@@ -519,22 +519,30 @@
 		if (selected && selected.product) {
 			const product = selected.product;
 			items[index].product_id = product.id;
-			items[index].description = product.name;
-			const unitFrom =
-				product.purchase_cost != null && product.purchase_cost !== ''
-					? product.purchase_cost
-					: product.price;
-			items[index].unit_price = parseFloat(String(unitFrom ?? '0')) || 0;
-			items[index].unit_id = product.unit_id;
-			items[index].wht_rate = parseFloat(product.default_wht_rate?.toString() || '0') || 0;
-			items[index].vat_type = 1; // Default Inc.
+			const curDesc = String(items[index].description ?? '').trim();
+			if (!curDesc) {
+				items[index].description = product.name;
+			}
+			const curPrice = parseFloat(String(items[index].unit_price ?? '0')) || 0;
+			if (curPrice === 0) {
+				const unitFrom =
+					product.purchase_cost != null && product.purchase_cost !== ''
+						? product.purchase_cost
+						: product.price;
+				items[index].unit_price = parseFloat(String(unitFrom ?? '0')) || 0;
+			}
+			const curUnitId = items[index].unit_id;
+			if (curUnitId === '' || curUnitId === null || curUnitId === undefined) {
+				items[index].unit_id = product.unit_id;
+			}
+			const curWht = parseFloat(String(items[index].wht_rate ?? '0')) || 0;
+			if (curWht === 0) {
+				items[index].wht_rate =
+					parseFloat(product.default_wht_rate?.toString() || '0') || 0;
+			}
 		} else {
+			// เคลียร์เฉพาะ AccountCode | COA — ไม่ล้าง description / ราคา / หน่วย / WHT / VAT
 			items[index].product_id = null;
-			items[index].description = '';
-			items[index].unit_price = 0;
-			items[index].unit_id = null;
-			items[index].wht_rate = 0;
-			items[index].vat_type = 1;
 		}
 		updateLineTotal(index);
 		items = items;
@@ -903,8 +911,7 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs uppercase text-gray-500">
 						<tr>
-							<th class="w-80 px-2 py-2 text-left font-medium">{$t('Product/Service')}</th>
-							<th class="px-2 py-2 text-left font-bold">{$t('Description')}</th>
+							<th class="min-w-[360px] px-2 py-2 text-left font-medium">Product Description</th>
 							<th class="w-25 px-4 py-2 text-right">{$t('Qty')}</th>
 							<th class="w-25 px-4 py-2 text-center">{$t('Unit')}</th>
 							<th class="w-35 px-3 py-2 text-right">{$t('Unit Price')}</th>
@@ -917,43 +924,24 @@
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each calculatedItems as item, index}
-							<tr>
-								<td class="w-80 px-3 py-2" style="min-width: 320px; max-width: 320px;">
-									<div title={getSelectedProductTooltip(item)}>
-										<Select
-											items={productOptions}
-											value={item.product_object}
-											on:change={(e) => onProductChange(index, e.detail)}
-											on:clear={() => onProductChange(index, null)}
-											placeholder={$t('Search...')}
-											floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
-											container={browser ? document.body : null}
-											--inputStyles="padding: 2px 0; font-size: 0.875rem;"
-											--list="border-radius: 6px; font-size: 0.875rem;"
-											--itemIsActive="background: #e0f2fe;"
-											--valueStyles="white-space: nowrap; overflow: visible; text-overflow: clip; font-size: 0.8rem;"
-										/>
-									</div>
-									<div class="mt-1 min-h-[16px] text-[11px] font-medium leading-4 text-blue-700">
-										{#if item.product_object?.product?.asset_account_type}
-											<span title={getSelectedProductTooltip(item)}>
-												Account Type: {item.product_object.product.asset_account_type}
-											</span>
-										{:else}
-											&nbsp;
-										{/if}
-									</div>
-								</td>
-								<td class="w-64 px-2 py-2">
+							<tr class="border-b-0">
+								<td class="min-w-[360px] border-b-0 px-3 pt-2 pb-1 align-top">
+									<label
+										for="item-desc-{index}"
+										class="mb-1 block text-xs font-medium text-gray-500"
+									>
+										Product Description
+									</label>
 									<textarea
+										id="item-desc-{index}"
 										bind:value={items[index].description}
 										title={items[index].description}
 										rows="2"
-										class="min-h-[38px] w-full resize-y rounded-md border-gray-300 text-sm"
+										class="min-h-[3rem] w-full resize-y rounded-md border-gray-300 text-sm leading-relaxed"
 										required
 									></textarea>
 								</td>
-								<td class="w-5 px-2 py-2">
+								<td class="w-5 border-b-0 px-2 pt-6 pb-1 align-top">
 									<input
 										type="number"
 										bind:value={items[index].quantity}
@@ -963,7 +951,7 @@
 										required
 									/>
 								</td>
-								<td class="w-5 px-2 py-2">
+								<td class="w-5 border-b-0 px-2 pt-6 pb-1 align-top">
 									<select
 										bind:value={items[index].unit_id}
 										class="w-full rounded-md border-gray-300 px-2 py-1.5 text-center text-sm"
@@ -972,7 +960,7 @@
 										{#each units as u}<option value={u.id}>{u.symbol}</option>{/each}
 									</select>
 								</td>
-								<td class="w-5 px-2 py-2">
+								<td class="w-5 border-b-0 px-2 pt-6 pb-1 align-top">
 									<input
 										type="number"
 										step="0.01"
@@ -982,7 +970,7 @@
 										required
 									/>
 								</td>
-								<td class="px-1 py-2 align-middle text-center">
+								<td class="border-b-0 px-1 pt-6 pb-1 align-top text-center">
 									<select
 										bind:value={items[index].vat_type}
 										class="w-full rounded-md border-gray-300 px-1 py-1.5 text-center text-xs font-medium focus:border-blue-500 focus:ring-blue-500 {items[
@@ -998,10 +986,10 @@
 										<option value={3}>Non-VAT</option>
 									</select>
 								</td>
-								<td class="bg-gray-50/50 px-2 py-2 text-right font-medium text-gray-700">
+								<td class="border-b-0 bg-gray-50/50 px-2 pt-6 pb-1 text-right font-medium text-gray-700 align-top">
 									{formatNumber(item.amount || 0)}
 								</td>
-								<td class="px-2 py-2">
+								<td class="border-b-0 px-2 pt-6 pb-1 align-top">
 									<select
 										bind:value={items[index].wht_rate}
 										class="w-full rounded-md border-red-200 bg-red-50 px-1 py-1.5 text-center text-sm font-bold text-red-700"
@@ -1013,7 +1001,7 @@
 										<option value={5}>5%</option>
 									</select>
 								</td>
-								<td class="px-2 py-2 text-right">
+								<td class="border-b-0 px-2 pt-6 pb-1 text-right align-top">
 									<div class="font-bold text-gray-900">{formatNumber(item.line_total)}</div>
 									{#if item.wht_amount && item.wht_amount > 0}
 										<div class="mt-0.5 text-[10px] text-red-500">
@@ -1021,7 +1009,7 @@
 										</div>
 									{/if}
 								</td>
-								<td class="px-2 py-2 text-center">
+								<td class="border-b-0 px-2 pt-6 pb-1 text-center align-top">
 									{#if items.length > 1}
 										<button
 											type="button"
@@ -1030,6 +1018,33 @@
 											class="rounded p-1 text-red-500 hover:bg-red-50"
 											>❌</button
 										>
+									{/if}
+								</td>
+							</tr>
+							<tr class="border-t border-gray-100 bg-gray-50/40">
+								<td class="min-w-[360px] px-3 py-2 align-top" colspan="9">
+									<span class="mb-1 block text-xs font-medium text-gray-500"
+										>AccountCode | COA</span
+									>
+									<div title={getSelectedProductTooltip(item)}>
+										<Select
+											items={productOptions}
+											value={item.product_object}
+											on:change={(e) => onProductChange(index, e.detail)}
+											on:clear={() => onProductChange(index, null)}
+											placeholder={$t('Search...')}
+											floatingConfig={{ placement: 'bottom-start', strategy: 'fixed' }}
+											container={browser ? document.body : null}
+											--inputStyles="padding: 2px 0; font-size: 0.875rem;"
+											--list="border-radius: 6px; font-size: 0.875rem;"
+											--itemIsActive="background: #e0f2fe;"
+											--valueStyles="white-space: nowrap; overflow: visible; text-overflow: clip; font-size: 0.8rem;"
+										/>
+									</div>
+									{#if item.product_object?.product?.asset_account_type}
+										<p class="mt-1 text-[11px] font-medium leading-4 text-blue-700">
+											Account Type: {item.product_object.product.asset_account_type}
+										</p>
 									{/if}
 								</td>
 							</tr>
