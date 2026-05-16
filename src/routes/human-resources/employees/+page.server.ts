@@ -229,6 +229,9 @@ export const actions: Actions = {
 			const posCol = colMap['position'] || 7;
 			const projectCol = colMap['project'] || 8;
 
+			// 🌟 1. เพิ่มการดักจับคอลัมน์ แผนก (Department) จาก Excel
+			const deptCol = colMap['department'] || colMap['แผนก'] || null;
+
 			for (let i = 2; i <= worksheet.rowCount; i++) {
 				const row = worksheet.getRow(i);
 				const emp_id = row.getCell(idCol).value?.toString().trim();
@@ -291,6 +294,9 @@ export const actions: Actions = {
 					const position_name = row.getCell(posCol).value?.toString().trim() || null;
 					const project = row.getCell(projectCol).value?.toString().trim() || null;
 
+					// 🌟 2. ดึงข้อความชื่อแผนกจริง เช่น "In House (IH)" ออกมาจาก Excel
+					const departmentName = deptCol ? row.getCell(deptCol).value?.toString().trim() : null;
+
 					let positionId = null;
 					if (position_name) {
 						const [posRows]: any = await pool.execute(
@@ -307,14 +313,28 @@ export const actions: Actions = {
 						}
 					}
 
+					// 🌟 3. นำชื่อแผนกจริง (departmentName) ไปค้นหาเลข ID ในตาราง departments
+					let departmentId = null;
+					if (departmentName) {
+						const [deptRows]: any = await pool.execute(
+							'SELECT id FROM departments WHERE name = ? LIMIT 1',
+							[departmentName]
+						);
+						if (deptRows.length > 0) {
+							departmentId = deptRows[0].id;
+						}
+					}
+
+					// 🌟 4. ยัดข้อมูลทั้งหมดลงฐานข้อมูล (มีคอลัมน์ department_id และคงค่า division เป็น MH-1 ไว้ตามเดิม)
 					await pool.execute(
 						`INSERT INTO employees 
-						(emp_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, division, section, emp_group, position_id, project) 
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+						(emp_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, division, section, emp_group, position_id, project, department_id) 
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 						ON DUPLICATE KEY UPDATE 
 						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), 
 						subcontractor = VALUES(subcontractor), start_date = VALUES(start_date), phone_number = VALUES(phone_number),
-						division = VALUES(division), section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project)`,
+						division = VALUES(division), section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project), 
+						department_id = VALUES(department_id)`,
 						[
 							emp_id,
 							citizen_id,
@@ -328,7 +348,8 @@ export const actions: Actions = {
 							section,
 							emp_group,
 							positionId,
-							project
+							project,
+							departmentId
 						]
 					);
 					importedCount++;
