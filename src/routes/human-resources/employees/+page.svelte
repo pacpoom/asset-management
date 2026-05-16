@@ -1247,6 +1247,21 @@
 									{/each}
 								</select>
 							</div>
+
+							<div>
+								<label for="status" class="mb-1 block text-sm font-semibold text-gray-700"
+									>{$t('Status')}</label
+								>
+								<select
+									id="status"
+									name="status"
+									bind:value={selectedItem.status}
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								>
+									<option value="Active">{$t('Active')}</option>
+									<option value="Resigned">{$t('Resigned')}</option>
+								</select>
+							</div>
 						</div>
 					</form>
 				</div>

@@ -5,44 +5,35 @@ import { fail } from '@sveltejs/kit';
 import path from 'path';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 
+interface LocalUser {
+	id?: number;
+	role?: string;
+	username?: string;
+	email?: string;
+	department_id?: number | null;
+}
+
 export const load: PageServerLoad = async ({ url, locals }) => {
-	const user = locals.user;
+	const user = locals.user as LocalUser;
 	const search = url.searchParams.get('search') || '';
 	const statusFilter = url.searchParams.get('status') || 'Active';
 
 	try {
+		const [currentUserRows]: any = await pool.execute(
+			'SELECT department_id FROM users WHERE id = ? LIMIT 1',
+			[locals.user?.id || 0]
+		);
+		const actualDeptId = currentUserRows.length > 0 ? currentUserRows[0].department_id : null;
+
 		let query = `
-		SELECT 
-			e.*, 
-			jp.position_name,
-			d.name as actual_dept_name,
-			sm.start_time as shift_start_time,
-			sm.end_time as shift_end_time,
-			(SELECT MAX(r_sub.scan_datetime) FROM raw_attendance_logs r_sub WHERE r_sub.raw_emp_id = e.raw_id) as last_sync_time,
-			(SELECT COUNT(*) FROM attendance_logs al 
-			WHERE al.emp_id = e.emp_id 
-			AND MONTH(al.work_date) = MONTH(CURRENT_DATE()) 
-			AND YEAR(al.work_date) = YEAR(CURRENT_DATE()) 
-			AND al.is_late = 1) as late_count,
-
-			(SELECT COUNT(*) FROM attendance_logs al 
-			WHERE al.emp_id = e.emp_id 
-			AND MONTH(al.work_date) = MONTH(CURRENT_DATE()) 
-			AND YEAR(al.work_date) = YEAR(CURRENT_DATE()) 
-			AND al.status = 'Absent') as absent_count,
-
-			(SELECT IFNULL(SUM(DATEDIFF(IFNULL(lr.end_date, lr.leave_date), lr.leave_date) + 1), 0) 
-			FROM leave_records lr 
-			WHERE lr.emp_id = e.emp_id 
-			AND YEAR(lr.leave_date) = YEAR(CURRENT_DATE()) 
-			AND lr.status = 'Approved') as leave_used
-
-		FROM employees e
-		LEFT JOIN job_positions jp ON e.position_id = jp.id
-		LEFT JOIN departments d ON e.department_id = d.id
-		LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
-		WHERE 1=1
-	`;
+			SELECT 
+				e.*, jp.position_name, d.name as actual_dept_name, sm.start_time as shift_start_time, sm.end_time as shift_end_time
+			FROM employees e
+			LEFT JOIN job_positions jp ON e.position_id = jp.id
+			LEFT JOIN departments d ON e.department_id = d.id
+			LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
+			WHERE 1=1
+		`;
 
 		const params: any[] = [];
 
@@ -52,51 +43,66 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		}
 
 		if (search) {
-			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ?)`;
-			const searchParam = `%${search}%`;
-			params.push(searchParam, searchParam, searchParam);
+			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?)`;
+			const p = `%${search.trim().replace(/[\s+]+/g, '%')}%`;
+			params.push(p, p, p, p);
 		}
 
 		if (user && user.role !== 'admin') {
-			if (user.department_id) {
-				query += ` AND e.department_id = ?`;
-				params.push(user.department_id);
+			if (actualDeptId) {
+				query += ` AND (e.department_id = ? OR e.department_id IS NULL)`;
+				params.push(actualDeptId);
 			} else {
-				query += ` AND 1=0`;
+				query += ` AND e.department_id IS NULL`;
 			}
-		}
-
-		if (search) {
-			query += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.citizen_id LIKE ? OR e.subcontractor LIKE ?)`;
-			const searchPattern = `%${search.trim().replace(/[\s+]+/g, '%')}%`;
-			params.push(searchPattern, searchPattern, searchPattern, searchPattern);
 		}
 
 		query += ` ORDER BY e.emp_id ASC`;
 
 		const [employees]: any = await pool.execute(query, params);
+
 		const [divisions]: any = await pool.execute(
 			"SELECT division_name FROM divisions WHERE status = 'Active' ORDER BY division_name ASC"
 		);
-
 		const [sections]: any = await pool.execute(
 			"SELECT section_name FROM sections WHERE status = 'Active' ORDER BY section_name ASC"
 		);
-
 		const [positions]: any = await pool.execute(
 			"SELECT position_name FROM job_positions WHERE status = 1 OR status = 'Active' ORDER BY position_name ASC"
 		);
-
 		const [shifts]: any = await pool.execute(
 			"SELECT shift_code, shift_name FROM shift_master WHERE status = 'Active' ORDER BY shift_code ASC"
 		);
-
 		const [groups]: any = await pool.execute(
-			"SELECT group_name FROM \`groups\` WHERE status = 'Active' ORDER BY group_name ASC"
+			"SELECT group_name FROM `groups` WHERE status = 'Active' ORDER BY group_name ASC"
 		);
 		const [projects]: any = await pool.execute(
 			"SELECT project_name FROM projects WHERE status = 'Active' ORDER BY project_name ASC"
 		);
+		const [departments]: any = await pool.execute(
+			'SELECT id, name FROM departments ORDER BY name ASC'
+		);
+
+		let statsQuery = `
+			SELECT 
+				COUNT(*) as total,
+				SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END) as active,
+				SUM(CASE WHEN status = 'Resigned' THEN 1 ELSE 0 END) as resigned,
+				SUM(CASE WHEN employee_type = 'Sub Contract' THEN 1 ELSE 0 END) as subContract,
+				SUM(CASE WHEN employee_type = 'Permanent' THEN 1 ELSE 0 END) as permanent
+			FROM employees
+			WHERE 1=1
+		`;
+		const statsParams: any[] = [];
+		if (user && user.role !== 'admin') {
+			if (actualDeptId) {
+				statsQuery += ` AND (department_id = ? OR department_id IS NULL)`;
+				statsParams.push(actualDeptId);
+			} else {
+				statsQuery += ` AND department_id IS NULL`;
+			}
+		}
+		const [statsResult]: any = await pool.execute(statsQuery, statsParams);
 
 		const formattedEmployees = employees.map((emp: any) => {
 			const rawDate = emp.start_date || emp.start_ih;
@@ -107,83 +113,68 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			if (rawDate) {
 				const d = new Date(rawDate);
 				if (!isNaN(d.getTime())) {
-					const year = d.getFullYear();
-					const month = String(d.getMonth() + 1).padStart(2, '0');
-					const day = String(d.getDate()).padStart(2, '0');
-
-					finalDate = `${year}-${month}-${day}`;
-
-					const start = new Date(rawDate);
+					finalDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 					const now = new Date();
-
-					if (now >= start) {
-						const diffTime = now.getTime() - start.getTime();
+					if (now >= d) {
+						const diffTime = now.getTime() - d.getTime();
 						tenure_days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-						let y = now.getFullYear() - start.getFullYear();
-						let m = now.getMonth() - start.getMonth();
-						let d_days = now.getDate() - start.getDate();
-
+						let y = now.getFullYear() - d.getFullYear();
+						let m = now.getMonth() - d.getMonth();
+						let d_days = now.getDate() - d.getDate();
 						if (d_days < 0) {
 							m--;
-							const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-							d_days += prevMonth.getDate();
+							d_days += new Date(now.getFullYear(), now.getMonth(), 0).getDate();
 						}
 						if (m < 0) {
 							y--;
 							m += 12;
 						}
-
 						const parts = [];
 						if (y > 0) parts.push(`${y} ปี`);
 						if (m > 0) parts.push(`${m} เดือน`);
 						if (d_days > 0) parts.push(`${d_days} วัน`);
-
 						years_of_experience = parts.length > 0 ? parts.join(' ') : '0 วัน';
-					} else {
-						years_of_experience = '0 วัน';
-						tenure_days = 0;
 					}
 				} else {
 					finalDate = rawDate;
 				}
 			}
 
-			const formatTime = (timeStr: string) => (timeStr ? timeStr.substring(0, 5) : null);
-			let shift_time_display = '-';
-
-			if (emp.shift_start_time && emp.shift_end_time) {
-				shift_time_display = `${formatTime(emp.shift_start_time)} - ${formatTime(emp.shift_end_time)}`;
-			}
-
+			const formatTime = (t: string) => (t ? t.substring(0, 5) : null);
 			return {
 				...emp,
 				start_date: finalDate,
 				years_of_experience,
 				tenure: years_of_experience,
 				tenure_days,
-				shift_time_display
+				shift_time_display:
+					emp.shift_start_time && emp.shift_end_time
+						? `${formatTime(emp.shift_start_time)} - ${formatTime(emp.shift_end_time)}`
+						: '-'
 			};
 		});
 
-		const [departments]: any = await pool.execute(
-			'SELECT id, name FROM departments ORDER BY name ASC'
-		);
-
 		return {
 			employees: formattedEmployees,
-			divisions: divisions,
-			sections: sections,
-			positions: positions,
-			shifts: shifts,
-			groups: groups,
-			projects: projects,
-			departments: departments,
+			divisions: divisions as any[],
+			sections: sections as any[],
+			positions: positions as any[],
+			shifts: shifts as any[],
+			groups: groups as any[],
+			projects: projects as any[],
+			departments: departments as any[],
 			searchQuery: search,
-			statusFilter: statusFilter
+			statusFilter: statusFilter,
+			globalStats: statsResult[0] || {
+				total: 0,
+				active: 0,
+				resigned: 0,
+				subContract: 0,
+				permanent: 0
+			}
 		};
 	} catch (error) {
-		console.error('Error loading employees:', error);
+		console.error(error);
 		return {
 			employees: [],
 			divisions: [],
@@ -192,7 +183,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			shifts: [],
 			groups: [],
 			projects: [],
-			searchQuery: search
+			departments: [],
+			searchQuery: search,
+			statusFilter: statusFilter,
+			globalStats: { total: 0, active: 0, resigned: 0, subContract: 0, permanent: 0 }
 		};
 	}
 };
