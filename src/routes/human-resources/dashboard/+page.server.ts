@@ -164,9 +164,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		// Employee list for the "link raw_id" dropdown in unmatched modal
 		const [employeeList]: any = await pool.execute(
 			`SELECT emp_id, emp_name, IFNULL(section, '-') as section, IFNULL(raw_id, '') as raw_id
-			 FROM employees
-			 WHERE status != 'Resigned' ${securityWhere}
-			 ORDER BY section, emp_name`,
+			FROM employees e
+			WHERE status != 'Resigned' ${securityWhere}
+			ORDER BY section, emp_name`,
 			securityParams
 		);
 
