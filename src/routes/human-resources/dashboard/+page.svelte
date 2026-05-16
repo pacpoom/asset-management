@@ -97,6 +97,29 @@
 	let linkLoading = $state<Record<string, boolean>>({});
 	let linkErrors = $state<Record<string, string>>({});
 
+	// ค้นหาใน unmatched list (กรองด้วย raw_emp_id)
+	let unmatchedSearch = $state('');
+	let filteredUnmatched = $derived(
+		unmatchedSearch.trim()
+			? localUnmatched.filter((r: any) =>
+					String(r.raw_emp_id).toLowerCase().includes(unmatchedSearch.trim().toLowerCase())
+				)
+			: localUnmatched
+	);
+
+	// ค้นหาพนักงานต่อแถว (กรองด้วย emp_id / ชื่อ / section)
+	let empSearch = $state<Record<string, string>>({});
+	function getFilteredEmps(rawEmpId: string): any[] {
+		const q = (empSearch[rawEmpId] || '').toLowerCase();
+		if (!q) return employeeList as any[];
+		return (employeeList as any[]).filter(
+			(e: any) =>
+				String(e.emp_id).toLowerCase().includes(q) ||
+				(e.emp_name || '').toLowerCase().includes(q) ||
+				(e.section || '').toLowerCase().includes(q)
+		);
+	}
+
 	// สร้าง optgroup จาก employeeList จัดกลุ่มตาม section
 	let employeeList = $derived(data.employeeList || []);
 	let empBySection = $derived<Record<string, any[]>>(
@@ -758,6 +781,28 @@
 				เลือกพนักงานในระบบที่ตรงกับ ZKTeco ID แล้วกด <strong>Link</strong> เพื่อผูก <code class="font-mono">raw_id</code> — ข้อมูลจะถูกนับใน Work Today หลัง Sync ครั้งถัดไป
 			</div>
 
+			<!-- Search bar (กรอง unmatched list) -->
+			<div class="border-b border-gray-100 px-5 py-2.5 flex-shrink-0">
+				<div class="relative">
+					<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-gray-400">search</span>
+					<input
+						type="text"
+						bind:value={unmatchedSearch}
+						placeholder="ค้นหา ZKTeco ID..."
+						class="w-full rounded-md border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-4 text-sm focus:border-blue-400 focus:bg-white focus:outline-none"
+					/>
+					{#if unmatchedSearch}
+						<button
+							onclick={() => (unmatchedSearch = '')}
+							class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+							aria-label="Clear"
+						>
+							<span class="material-symbols-outlined text-[16px]">close</span>
+						</button>
+					{/if}
+				</div>
+			</div>
+
 			<!-- Table -->
 			<div class="flex-1 overflow-y-auto">
 				{#if localUnmatched.length === 0}
@@ -778,7 +823,14 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each localUnmatched as row (row.raw_emp_id)}
+							{#if filteredUnmatched.length === 0 && unmatchedSearch}
+								<tr>
+									<td colspan="6" class="py-8 text-center text-sm text-gray-400">
+										ไม่พบ ZKTeco ID ที่ตรงกับ "<strong>{unmatchedSearch}</strong>"
+									</td>
+								</tr>
+							{/if}
+							{#each filteredUnmatched as row (row.raw_emp_id)}
 								<tr class="border-b border-gray-50 hover:bg-gray-50/80">
 									<!-- ZKTeco ID -->
 									<td class="px-4 py-2.5">
@@ -792,23 +844,30 @@
 									<td class="px-4 py-2.5 text-center font-mono text-xs text-green-700">{row.first_scan}</td>
 									<!-- last scan -->
 									<td class="px-4 py-2.5 text-center font-mono text-xs text-purple-700">{row.last_scan}</td>
-									<!-- Employee selector -->
+									<!-- Employee selector with search -->
 									<td class="px-4 py-2">
-										<select
-											bind:value={linkSelections[row.raw_emp_id]}
-											class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-										>
-											<option value="">— เลือกพนักงาน —</option>
-											{#each Object.entries(empBySection) as [section, emps]}
-												<optgroup label={section}>
-													{#each emps as emp}
-														<option value={emp.emp_id}>
-															[{emp.emp_id}] {emp.emp_name}{emp.raw_id ? ' ✓' : ''}
-														</option>
-													{/each}
-												</optgroup>
-											{/each}
-										</select>
+										<div class="flex flex-col gap-1">
+											<div class="relative">
+												<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[13px] text-gray-400">person_search</span>
+												<input
+													type="text"
+													placeholder="ค้นหาชื่อ / รหัส / แผนก..."
+													bind:value={empSearch[row.raw_emp_id]}
+													class="w-full rounded border border-gray-200 bg-gray-50 py-1 pl-6 pr-2 text-xs focus:border-blue-400 focus:bg-white focus:outline-none"
+												/>
+											</div>
+											<select
+												bind:value={linkSelections[row.raw_emp_id]}
+												class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+											>
+												<option value="">— เลือกพนักงาน ({getFilteredEmps(row.raw_emp_id).length} คน) —</option>
+												{#each getFilteredEmps(row.raw_emp_id) as emp}
+													<option value={emp.emp_id}>
+														[{emp.emp_id}] {emp.emp_name} · {emp.section}{emp.raw_id ? ' ✓' : ''}
+													</option>
+												{/each}
+											</select>
+										</div>
 										{#if linkErrors[row.raw_emp_id]}
 											<p class="mt-1 text-[10px] text-red-600">{linkErrors[row.raw_emp_id]}</p>
 										{/if}
