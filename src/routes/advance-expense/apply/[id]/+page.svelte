@@ -242,7 +242,7 @@
 							<span class="text-sm font-medium text-blue-600">{$t('adv.take_invoice')}</span>
 							<span class="text-xs text-gray-400 mt-1">{$t('adv.tap_camera')}</span>
 						{/if}
-						<input type="file" name="invoice_image" accept="image/*" capture="environment" class="sr-only"
+						<input type="file" name="invoice_image" accept="image/*" class="sr-only"
 							onchange={(e) => onImageChange(e, 'invoice')} />
 					</label>
 				</div>
@@ -261,7 +261,7 @@
 							<span class="text-sm font-medium text-green-600">{$t('adv.take_slip')}</span>
 							<span class="text-xs text-gray-400 mt-1">{$t('adv.tap_camera')}</span>
 						{/if}
-						<input type="file" name="slip_image" accept="image/*" capture="environment" class="sr-only"
+						<input type="file" name="slip_image" accept="image/*" class="sr-only"
 							onchange={(e) => onImageChange(e, 'slip')} />
 					</label>
 				</div>

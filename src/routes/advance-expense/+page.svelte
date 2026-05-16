@@ -13,6 +13,32 @@
 	let statusTarget = $state<{ id: number; number: string; status: string } | null>(null);
 	let isSubmitting = $state(false);
 
+	// ไฟล์แนบสำหรับ Create modal
+	let createFiles = $state<File[]>([]);
+	function onFilePick(e: Event) {
+		const input = e.target as HTMLInputElement;
+		if (!input.files) return;
+		const incoming = Array.from(input.files);
+		createFiles = [...createFiles, ...incoming.filter(f => !createFiles.some(x => x.name === f.name && x.size === f.size))];
+		input.value = '';
+	}
+	function removeCreateFile(i: number) {
+		createFiles = createFiles.filter((_, idx) => idx !== i);
+	}
+	function formatBytes(b: number) {
+		if (b < 1024) return `${b} B`;
+		if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+		return `${(b / 1024 / 1024).toFixed(1)} MB`;
+	}
+	function fileIcon(name: string) {
+		const ext = name.split('.').pop()?.toLowerCase();
+		if (['jpg','jpeg','png','gif','webp'].includes(ext || '')) return 'image';
+		if (ext === 'pdf') return 'picture_as_pdf';
+		if (['xls','xlsx'].includes(ext || '')) return 'table_chart';
+		if (['doc','docx'].includes(ext || '')) return 'description';
+		return 'attach_file';
+	}
+
 	$effect(() => {
 		if (form) {
 			if ((form as any).success) {
@@ -20,6 +46,7 @@
 				showCreateModal = false;
 				showDeleteConfirm = false;
 				showStatusModal = false;
+				createFiles = [];
 			} else if ((form as any).message) {
 				toast.error((form as any).message);
 			}
@@ -223,9 +250,13 @@
 					<span class="material-symbols-outlined text-xl">close</span>
 				</button>
 			</div>
-			<form method="POST" action="?/create"
-				use:enhance={() => { isSubmitting = true; return async ({ update }) => { await update(); }; }}
-				class="space-y-3 p-5">
+			<form method="POST" action="?/create" enctype="multipart/form-data"
+				use:enhance={({ formData }) => {
+					isSubmitting = true;
+					createFiles.forEach(f => formData.append('attachments', f));
+					return async ({ update }) => { await update(); };
+				}}
+				class="space-y-3 p-5 overflow-y-auto max-h-[80vh]">
 				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<label class="mb-1 block text-xs font-medium text-gray-700">
@@ -273,6 +304,33 @@
 					<textarea name="remark" rows="1" placeholder={$t('adv.remark_placeholder')}
 						class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"></textarea>
 				</div>
+				<!-- ไฟล์แนบ -->
+				<div>
+					<label class="mb-1 block text-xs font-medium text-gray-700">{$t('adv.attachments') || 'ไฟล์แนบ'}</label>
+					<label class="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+						<span class="material-symbols-outlined text-[18px]">upload_file</span>
+						{$t('adv.pick_files') || 'เลือกไฟล์แนบ (รูปภาพ, PDF, Excel ฯลฯ)'}
+						<input type="file" name="attachments" multiple accept="image/*,application/pdf,.xlsx,.xls,.doc,.docx"
+							class="sr-only" onchange={onFilePick} />
+					</label>
+					{#if createFiles.length > 0}
+						<ul class="mt-2 space-y-1">
+							{#each createFiles as file, i}
+								<!-- hidden input ส่งไฟล์จริง -->
+								<li class="flex items-center gap-2 rounded-md border border-gray-100 bg-gray-50 px-3 py-1.5">
+									<span class="material-symbols-outlined text-[16px] text-gray-400">{fileIcon(file.name)}</span>
+									<span class="flex-1 truncate text-xs text-gray-700" title={file.name}>{file.name}</span>
+									<span class="text-[10px] text-gray-400 whitespace-nowrap">{formatBytes(file.size)}</span>
+									<button type="button" onclick={() => removeCreateFile(i)}
+										class="ml-1 text-gray-400 hover:text-red-500" aria-label="Remove">
+										<span class="material-symbols-outlined text-[15px]">close</span>
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+
 				<div class="flex justify-end gap-3 pt-1">
 					<button type="button" onclick={() => (showCreateModal = false)}
 						class="rounded-lg border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
