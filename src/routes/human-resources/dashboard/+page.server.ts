@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import pool from '$lib/server/database';
 
@@ -160,6 +161,35 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		const [scanners]: any = await pool.execute(scannerQuery, scannerParams);
 
+		// Employee list for the "link raw_id" dropdown in unmatched modal
+		const [employeeList]: any = await pool.execute(
+			`SELECT emp_id, emp_name, IFNULL(section, '-') as section, IFNULL(raw_id, '') as raw_id
+			 FROM employees
+			 WHERE status != 'Resigned' ${securityWhere}
+			 ORDER BY section, emp_name`,
+			securityParams
+		);
+
+		// Unmatched ZKTeco scans: raw_emp_ids that have no matching employee record
+		const [unmatchedScans]: any = await pool.execute(
+			`SELECT
+				r.raw_emp_id,
+				COUNT(*) as scan_count,
+				DATE_FORMAT(MIN(r.scan_datetime), '%H:%i') as first_scan,
+				DATE_FORMAT(MAX(r.scan_datetime), '%H:%i') as last_scan
+			FROM raw_attendance_logs r
+			WHERE DATE(r.scan_datetime) = ?
+			AND NOT EXISTS (
+				SELECT 1 FROM employees e
+				WHERE e.raw_id = r.raw_emp_id
+				OR e.emp_id = r.raw_emp_id
+				OR e.citizen_id = r.raw_emp_id
+			)
+			GROUP BY r.raw_emp_id
+			ORDER BY r.raw_emp_id`,
+			[displayDate]
+		);
+
 		return {
 			title: 'Workforce Dashboard',
 			departmentSummary: processedSummary,
@@ -172,7 +202,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			sectionFilter,
 			groupFilter,
 			sections: sectionsRows.map((s: any) => s.section),
-			groups: groupsRows.map((g: any) => g.emp_group)
+			groups: groupsRows.map((g: any) => g.emp_group),
+			unmatchedScans: unmatchedScans || [],
+			employeeList: employeeList || []
 		};
 	} catch (err) {
 		console.error('Error loading dashboard data:', err);
@@ -187,7 +219,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			sectionFilter: 'All',
 			groupFilter: 'All',
 			sections: [],
-			groups: []
+			groups: [],
+			unmatchedScans: [],
+			employeeList: []
 		};
 	}
 };
@@ -408,6 +442,36 @@ export const actions: Actions = {
 		} catch (error) {
 			console.error('CSV Import Error:', error);
 			return { success: false, message: 'ไฟล์ CSV ไม่ถูกต้อง หรืออ่านไม่ได้' };
+		}
+	},
+
+	linkEmployee: async ({ request }) => {
+		const fd = await request.formData();
+		const raw_emp_id = fd.get('raw_emp_id')?.toString()?.trim();
+		const emp_id = fd.get('emp_id')?.toString()?.trim();
+
+		if (!raw_emp_id || !emp_id) {
+			return fail(400, { success: false, message: 'ข้อมูลไม่ครบ' });
+		}
+
+		try {
+			// ตรวจสอบว่า raw_id นี้ถูกใช้โดยพนักงานคนอื่นหรือยัง
+			const [conflict]: any = await pool.execute(
+				'SELECT emp_id, emp_name FROM employees WHERE raw_id = ? AND emp_id != ? LIMIT 1',
+				[raw_emp_id, emp_id]
+			);
+			if (conflict.length > 0) {
+				return fail(409, {
+					success: false,
+					message: `raw_id ${raw_emp_id} ถูกใช้งานโดย ${conflict[0].emp_name} (${conflict[0].emp_id}) อยู่แล้ว`
+				});
+			}
+
+			await pool.execute('UPDATE employees SET raw_id = ? WHERE emp_id = ?', [raw_emp_id, emp_id]);
+			return { success: true, raw_emp_id, emp_id };
+		} catch (err) {
+			console.error('linkEmployee error:', err);
+			return fail(500, { success: false, message: 'เกิดข้อผิดพลาดในการบันทึก' });
 		}
 	},
 

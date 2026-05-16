@@ -83,6 +83,53 @@
 	let showSyncModal = $state(false);
 	let syncStartDate = $state(data.displayDate || new Date().toISOString().split('T')[0]);
 	let syncEndDate = $state(data.displayDate || new Date().toISOString().split('T')[0]);
+
+	let showUnmatchedModal = $state(false);
+	let unmatchedScans = $derived(data.unmatchedScans || []);
+
+	// local copy ของ unmatched list — ลบออกทีละ row เมื่อ link สำเร็จโดยไม่ต้อง reload
+	let localUnmatched = $state<any[]>([]);
+	$effect(() => {
+		if (showUnmatchedModal) localUnmatched = [...unmatchedScans];
+	});
+
+	let linkSelections = $state<Record<string, string>>({});
+	let linkLoading = $state<Record<string, boolean>>({});
+	let linkErrors = $state<Record<string, string>>({});
+
+	// สร้าง optgroup จาก employeeList จัดกลุ่มตาม section
+	let employeeList = $derived(data.employeeList || []);
+	let empBySection = $derived<Record<string, any[]>>(
+		employeeList.reduce((acc: Record<string, any[]>, emp: any) => {
+			const s = emp.section || '-';
+			if (!acc[s]) acc[s] = [];
+			acc[s].push(emp);
+			return acc;
+		}, {} as Record<string, any[]>)
+	);
+
+	async function doLink(rawEmpId: string) {
+		const empId = linkSelections[rawEmpId];
+		if (!empId) return;
+		linkLoading[rawEmpId] = true;
+		linkErrors[rawEmpId] = '';
+		try {
+			const fd = new FormData();
+			fd.set('raw_emp_id', rawEmpId);
+			fd.set('emp_id', empId);
+			const res = await fetch('?/linkEmployee', { method: 'POST', body: fd });
+			const result = await res.json();
+			if (result.type === 'success') {
+				localUnmatched = localUnmatched.filter((r: any) => r.raw_emp_id !== rawEmpId);
+			} else {
+				linkErrors[rawEmpId] = result.data?.message || 'เกิดข้อผิดพลาด';
+			}
+		} catch {
+			linkErrors[rawEmpId] = 'Network error';
+		} finally {
+			linkLoading[rawEmpId] = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -276,7 +323,19 @@
 	<div
 		class="rounded-lg border border-l-4 border-gray-100 border-l-green-500 bg-white p-6 shadow-sm"
 	>
-		<p class="text-sm font-medium text-gray-500">{$t('Work Today')}</p>
+		<div class="flex items-start justify-between">
+			<p class="text-sm font-medium text-gray-500">{$t('Work Today')}</p>
+			{#if unmatchedScans.length > 0}
+				<button
+					onclick={() => (showUnmatchedModal = true)}
+					class="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-400/30 hover:bg-amber-200 transition-colors"
+					title="ZKTeco scans ที่ไม่พบในระบบ"
+				>
+					<span class="material-symbols-outlined text-[14px]">warning</span>
+					{unmatchedScans.length} {$t('unmatched')}
+				</button>
+			{/if}
+		</div>
 		<p class="mt-2 text-3xl font-bold text-green-600">{stats.present}</p>
 	</div>
 	<div
@@ -657,6 +716,137 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+{#if showUnmatchedModal}
+	<div
+		transition:fade={{ duration: 150 }}
+		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			transition:slide={{ duration: 200 }}
+			class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl"
+		>
+			<!-- Header -->
+			<div class="flex items-center justify-between border-b border-amber-100 bg-amber-50 px-6 py-4 flex-shrink-0">
+				<div class="flex items-center gap-3">
+					<span class="material-symbols-outlined text-[24px] text-amber-600">link_off</span>
+					<div>
+						<h2 class="text-base font-bold text-gray-900">ZKTeco Unmatched Scans</h2>
+						<p class="text-xs text-gray-500">
+							{new Date(data.displayDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+							— เหลือ <strong class="text-amber-700">{localUnmatched.length}</strong> รายการที่ยังไม่ match
+						</p>
+					</div>
+				</div>
+				<button
+					onclick={() => (showUnmatchedModal = false)}
+					class="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+					aria-label="Close"
+				>
+					<span class="material-symbols-outlined text-[20px]">close</span>
+				</button>
+			</div>
+
+			<!-- Info banner -->
+			<div class="border-b border-amber-100 bg-amber-50/50 px-6 py-2.5 text-xs text-amber-800 flex-shrink-0">
+				<span class="material-symbols-outlined mr-1 align-middle text-[14px]">info</span>
+				เลือกพนักงานในระบบที่ตรงกับ ZKTeco ID แล้วกด <strong>Link</strong> เพื่อผูก <code class="font-mono">raw_id</code> — ข้อมูลจะถูกนับใน Work Today หลัง Sync ครั้งถัดไป
+			</div>
+
+			<!-- Table -->
+			<div class="flex-1 overflow-y-auto">
+				{#if localUnmatched.length === 0}
+					<div class="flex flex-col items-center justify-center py-16 text-sm text-gray-500 gap-2">
+						<span class="material-symbols-outlined text-[40px] text-green-400">check_circle</span>
+						<p class="font-medium text-green-600">ทุก ID ถูก match เรียบร้อยแล้ว</p>
+					</div>
+				{:else}
+					<table class="w-full text-left text-sm">
+						<thead class="sticky top-0 border-b border-gray-100 bg-white text-xs font-semibold uppercase text-gray-500">
+							<tr>
+								<th class="px-4 py-3 whitespace-nowrap">ZKTeco ID</th>
+								<th class="px-4 py-3 text-center whitespace-nowrap">สแกน</th>
+								<th class="px-4 py-3 text-center whitespace-nowrap">เข้า</th>
+								<th class="px-4 py-3 text-center whitespace-nowrap">ออก</th>
+								<th class="px-4 py-3 whitespace-nowrap">เชื่อมกับพนักงาน</th>
+								<th class="px-4 py-3 whitespace-nowrap"></th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each localUnmatched as row (row.raw_emp_id)}
+								<tr class="border-b border-gray-50 hover:bg-gray-50/80">
+									<!-- ZKTeco ID -->
+									<td class="px-4 py-2.5">
+										<span class="font-mono font-semibold text-gray-800">{row.raw_emp_id}</span>
+									</td>
+									<!-- scan count -->
+									<td class="px-4 py-2.5 text-center">
+										<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{row.scan_count}</span>
+									</td>
+									<!-- first scan -->
+									<td class="px-4 py-2.5 text-center font-mono text-xs text-green-700">{row.first_scan}</td>
+									<!-- last scan -->
+									<td class="px-4 py-2.5 text-center font-mono text-xs text-purple-700">{row.last_scan}</td>
+									<!-- Employee selector -->
+									<td class="px-4 py-2">
+										<select
+											bind:value={linkSelections[row.raw_emp_id]}
+											class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+										>
+											<option value="">— เลือกพนักงาน —</option>
+											{#each Object.entries(empBySection) as [section, emps]}
+												<optgroup label={section}>
+													{#each emps as emp}
+														<option value={emp.emp_id}>
+															[{emp.emp_id}] {emp.emp_name}{emp.raw_id ? ' ✓' : ''}
+														</option>
+													{/each}
+												</optgroup>
+											{/each}
+										</select>
+										{#if linkErrors[row.raw_emp_id]}
+											<p class="mt-1 text-[10px] text-red-600">{linkErrors[row.raw_emp_id]}</p>
+										{/if}
+									</td>
+									<!-- Link button -->
+									<td class="px-4 py-2 whitespace-nowrap">
+										<button
+											onclick={() => doLink(row.raw_emp_id)}
+											disabled={!linkSelections[row.raw_emp_id] || linkLoading[row.raw_emp_id]}
+											class="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+										>
+											{#if linkLoading[row.raw_emp_id]}
+												<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+											{:else}
+												<span class="material-symbols-outlined text-[14px]">link</span>
+											{/if}
+											Link
+										</button>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
+			</div>
+
+			<!-- Footer -->
+			<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-6 py-3 flex-shrink-0">
+				<p class="text-xs text-gray-500">
+					พนักงานที่มี <strong>✓</strong> หลังชื่อ = มี raw_id แล้ว (จะถูกเขียนทับ)
+				</p>
+				<button
+					onclick={() => (showUnmatchedModal = false)}
+					class="rounded-md bg-gray-800 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+				>
+					{$t('Close')}
+				</button>
+			</div>
 		</div>
 	</div>
 {/if}
