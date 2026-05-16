@@ -116,7 +116,11 @@ function excludeRetiredMenuBranches(menus: Menu[]): Menu[] {
  * ADDED: Also loads company logo path and name/system_name.
  */
 export const load: LayoutServerLoad = async ({ url, locals }) => {
-	if (!locals.user && url.pathname !== '/login') {
+	// Allow public QR-form pages without authentication
+	const PUBLIC_PATHS = ['/login', '/advance-expense/apply/'];
+	const isPublic = PUBLIC_PATHS.some((p) => url.pathname === p || url.pathname.startsWith(p));
+
+	if (!locals.user && !isPublic) {
 		const next = `${url.pathname}${url.search}`;
 		const dest = safeInternalRedirect(next);
 		// Omit ?redirect=/ — default post-login target is already `/` (login/+page.server.ts).

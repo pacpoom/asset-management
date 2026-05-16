@@ -10,7 +10,13 @@
       "Bash(find /c /d -name \"mysql.exe\")",
       "Bash(mv \"D:/asset-management/migrations/run_migration.js\" \"D:/asset-management/migrations/run_migration.cjs\")",
       "Bash(node run_migration.cjs)",
-      "Bash(node run_vessel_master.cjs)"
+      "Bash(node run_vessel_master.cjs)",
+      "Bash(Get-ChildItem -Path \"D:\\\\asset-management\\\\src\\\\lib\" -Recurse -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(xargs grep -l \"CREATE TABLE.*asset\")",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\asset-management\\\\migrations\" | ForEach-Object { $_.Name })",
+      "Bash(npm run *)",
+      "Bash(git pull *)"
     ]
   }
 }

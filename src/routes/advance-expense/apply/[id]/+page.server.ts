@@ -1,0 +1,137 @@
+import { fail, error } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import pool from '$lib/server/database';
+import type { RowDataPacket } from 'mysql2';
+import fs from 'fs/promises';
+import path from 'path';
+
+export const config = { bodySize: 20 * 1024 * 1024 };
+
+interface AdvanceApp extends RowDataPacket {
+	id: number;
+	document_number: string;
+	document_date: string;
+	application_title: string;
+	reason: string;
+	amount: number;
+	remark: string | null;
+	status: string;
+	bank_name: string | null;
+	creator_name: string | null;
+}
+
+interface JobOrder extends RowDataPacket {
+	id: number;
+	job_number: string;
+	customer_name: string | null;
+}
+
+interface TxSummary extends RowDataPacket {
+	total_spent: number;
+	total_refund: number;
+}
+
+const UPLOAD_DIR = path.resolve('uploads', 'advance_expense');
+
+async function saveImageFile(file: File): Promise<string | null> {
+	if (!file || file.size === 0) return null;
+	await fs.mkdir(UPLOAD_DIR, { recursive: true });
+	const ext = file.name.split('.').pop() || 'jpg';
+	const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+	const filepath = path.join(UPLOAD_DIR, filename);
+	await fs.writeFile(filepath, Buffer.from(await file.arrayBuffer()));
+	return `/uploads/advance_expense/${filename}`;
+}
+
+// Public page — no auth check
+export const load: PageServerLoad = async ({ params }) => {
+	const id = parseInt(params.id);
+	if (!id) throw error(400, 'Invalid ID');
+
+	try {
+		const [appRows] = await pool.execute<AdvanceApp[]>(
+			`SELECT aa.*, b.bank_name AS bank_name, u.full_name AS creator_name
+			 FROM advance_applications aa
+			 LEFT JOIN banks b ON aa.bank_id = b.id
+			 LEFT JOIN users u ON aa.created_by = u.id
+			 WHERE aa.id = ?`,
+			[id]
+		);
+		if (!appRows.length) throw error(404, 'ไม่พบเอกสาร');
+		const application = JSON.parse(JSON.stringify(appRows[0]));
+
+		const [txSummary] = await pool.execute<TxSummary[]>(
+			`SELECT
+				COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) AS total_spent,
+				COALESCE(SUM(CASE WHEN type='refund' THEN amount ELSE 0 END),0) AS total_refund
+			 FROM advance_transactions WHERE advance_application_id = ?`,
+			[id]
+		);
+		const totalSpent = Number(txSummary[0]?.total_spent || 0);
+		const totalRefund = Number(txSummary[0]?.total_refund || 0);
+		const currentBalance = Number(application.amount) - totalSpent + totalRefund;
+
+		let jobOrders: JobOrder[] = [];
+		try {
+			const [joRows] = await pool.execute<JobOrder[]>(
+				`SELECT jo.id, jo.job_number, c.name AS customer_name
+				 FROM job_orders jo
+				 LEFT JOIN customers c ON jo.customer_id = c.id
+				 WHERE jo.job_status != 'Cancelled'
+				 ORDER BY jo.job_number DESC LIMIT 500`
+			);
+			jobOrders = JSON.parse(JSON.stringify(joRows));
+		} catch {
+			jobOrders = [];
+		}
+
+		return {
+			application,
+			totalSpent,
+			totalRefund,
+			currentBalance,
+			jobOrders
+		};
+	} catch (err: any) {
+		if (err.status) throw err;
+		throw error(500, err.message);
+	}
+};
+
+export const actions: Actions = {
+	submit: async ({ request, params }) => {
+		const appId = parseInt(params.id);
+		const data = await request.formData();
+
+		const job_order_id = data.get('job_order_id')?.toString() || null;
+		const transaction_date = data.get('transaction_date')?.toString();
+		const description = data.get('description')?.toString()?.trim() || null;
+		const amount = parseFloat(data.get('amount')?.toString() || '0');
+		const type = data.get('type')?.toString() || 'expense';
+		const remark = data.get('remark')?.toString()?.trim() || null;
+		const invoiceFile = data.get('invoice_image') as File;
+		const slipFile = data.get('slip_image') as File;
+
+		if (!transaction_date || isNaN(amount) || amount <= 0) {
+			return fail(400, {
+				success: false,
+				message: 'กรุณากรอกวันที่และจำนวนเงินให้ถูกต้อง'
+			});
+		}
+
+		try {
+			const invoicePath = await saveImageFile(invoiceFile);
+			const slipPath = await saveImageFile(slipFile);
+
+			await pool.execute(
+				`INSERT INTO advance_transactions (advance_application_id, job_order_id, transaction_date, description, amount, type, invoice_image, slip_image, remark, created_by)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+				[appId, job_order_id ? parseInt(job_order_id) : null, transaction_date, description, amount, type, invoicePath, slipPath, remark]
+			);
+
+			return { success: true, message: 'บันทึกรายการสำเร็จ! ขอบคุณครับ/ค่ะ' };
+		} catch (err: any) {
+			return fail(500, { success: false, message: err.message });
+		}
+	}
+};
