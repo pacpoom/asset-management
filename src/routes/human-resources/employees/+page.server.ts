@@ -216,6 +216,7 @@ export const actions: Actions = {
 			const idCol = colMap['idno.'] || colMap['idno'] || 1;
 			const citizenCol = colMap['id'] || 2;
 			const nameCol = colMap['name'] || 3;
+			const rawIdCol = colMap['rawid'] || colMap['รหัสเครื่องสแกน'] || null;
 			const typeCol = colMap['employeetype'] || colMap['type'] || null;
 			const shiftCol = colMap['defaultshift'] || colMap['shift'] || null;
 
@@ -229,7 +230,6 @@ export const actions: Actions = {
 			const posCol = colMap['position'] || 7;
 			const projectCol = colMap['project'] || 8;
 
-			// 🌟 1. เพิ่มการดักจับคอลัมน์ แผนก (Department) จาก Excel
 			const deptCol = colMap['department'] || colMap['แผนก'] || null;
 
 			for (let i = 2; i <= worksheet.rowCount; i++) {
@@ -238,6 +238,7 @@ export const actions: Actions = {
 
 				if (emp_id) {
 					const citizen_id = row.getCell(citizenCol).value?.toString().trim() || null;
+					const raw_id = rawIdCol ? row.getCell(rawIdCol).value?.toString().trim() : null;
 					let emp_name = row.getCell(nameCol).value?.toString().trim() || null;
 					if (emp_name) {
 						emp_name = emp_name.replace(/\+/g, ' ');
@@ -294,7 +295,6 @@ export const actions: Actions = {
 					const position_name = row.getCell(posCol).value?.toString().trim() || null;
 					const project = row.getCell(projectCol).value?.toString().trim() || null;
 
-					// 🌟 2. ดึงข้อความชื่อแผนกจริง เช่น "In House (IH)" ออกมาจาก Excel
 					const departmentName = deptCol ? row.getCell(deptCol).value?.toString().trim() : null;
 
 					let positionId = null;
@@ -313,7 +313,6 @@ export const actions: Actions = {
 						}
 					}
 
-					// 🌟 3. นำชื่อแผนกจริง (departmentName) ไปค้นหาเลข ID ในตาราง departments
 					let departmentId = null;
 					if (departmentName) {
 						const [deptRows]: any = await pool.execute(
@@ -325,18 +324,19 @@ export const actions: Actions = {
 						}
 					}
 
-					// 🌟 4. ยัดข้อมูลทั้งหมดลงฐานข้อมูล (มีคอลัมน์ department_id และคงค่า division เป็น MH-1 ไว้ตามเดิม)
 					await pool.execute(
 						`INSERT INTO employees 
-						(emp_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, division, section, emp_group, position_id, project, department_id) 
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+						(emp_id, raw_id, citizen_id, emp_name, employee_type, default_shift, subcontractor, start_date, phone_number, division, section, emp_group, position_id, project, department_id) 
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 						ON DUPLICATE KEY UPDATE 
+						raw_id = VALUES(raw_id),
 						citizen_id = VALUES(citizen_id), emp_name = VALUES(emp_name), employee_type = VALUES(employee_type), default_shift = VALUES(default_shift), 
 						subcontractor = VALUES(subcontractor), start_date = VALUES(start_date), phone_number = VALUES(phone_number),
 						division = VALUES(division), section = VALUES(section), emp_group = VALUES(emp_group), position_id = VALUES(position_id), project = VALUES(project), 
 						department_id = VALUES(department_id)`,
 						[
 							emp_id,
+							raw_id,
 							citizen_id,
 							emp_name,
 							employee_type,

@@ -419,8 +419,11 @@ export const actions: Actions = {
 		if (!startDate || !endDate) {
 			const now = new Date();
 			const bkkNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-			startDate = `${bkkNow.getUTCFullYear()}-${String(bkkNow.getUTCMonth() + 1).padStart(2, '0')}-${String(bkkNow.getUTCDate()).padStart(2, '0')}`;
-			endDate = startDate;
+
+			endDate = `${bkkNow.getUTCFullYear()}-${String(bkkNow.getUTCMonth() + 1).padStart(2, '0')}-${String(bkkNow.getUTCDate()).padStart(2, '0')}`;
+
+			const past3Days = new Date(bkkNow.getTime() - 3 * 24 * 60 * 60 * 1000);
+			startDate = `${past3Days.getUTCFullYear()}-${String(past3Days.getUTCMonth() + 1).padStart(2, '0')}-${String(past3Days.getUTCDate()).padStart(2, '0')}`;
 		}
 
 		try {
@@ -526,7 +529,7 @@ export const actions: Actions = {
 							) as actual_shift
 							
 						FROM raw_attendance_logs r
-						JOIN employees e ON e.raw_id = r.raw_emp_id
+						JOIN employees e ON (e.raw_id = r.raw_emp_id OR e.emp_id = r.raw_emp_id OR e.citizen_id = r.raw_emp_id)
 						WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
 					) as r_base
 					GROUP BY r_base.emp_id, r_base.emp_name, logical_work_date, actual_shift
