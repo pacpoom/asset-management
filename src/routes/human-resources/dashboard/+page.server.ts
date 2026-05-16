@@ -315,7 +315,7 @@ export const actions: Actions = {
 				const scanInDateTime = `${work_date} ${timeInRaw}:00`;
 
 				const [empRows]: any = await pool.execute(
-					'SELECT emp_id, emp_name FROM employees WHERE citizen_id = ? OR emp_id = ? LIMIT 1',
+					'SELECT emp_id, emp_name FROM employees WHERE raw_id = ? OR citizen_id = ? LIMIT 1',
 					[raw_id, raw_id]
 				);
 
@@ -447,40 +447,54 @@ export const actions: Actions = {
 
 			const processQuery = `
 				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
-				SELECT 
-					base.emp_id, 
-					base.emp_name, 
-					base.logical_work_date, 
-					base.actual_shift as shift_type, 
-					base.scan_in, 
-					base.scan_out, 
-					
+				SELECT
+					base.emp_id,
+					base.emp_name,
+					base.logical_work_date,
+					base.actual_shift as shift_type,
+					base.scan_in,
+					base.scan_out,
+
+					/* is_late: สาย ถ้า scan_in เกิน start_time + 10 นาที */
 					IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) > ADDTIME(IFNULL(sm.start_time, '07:30:00'), '00:10:00'), 1, 0) as is_late,
-					
+
 					'Present' as status,
-					
-					CASE 
-						WHEN sm.ot_start_time IS NOT NULL AND sm.ot_end_time <= sm.start_time THEN
+
+					CASE
+						/* Pre-shift OT: กะที่ OT อยู่ก่อนเริ่มงาน (Night/B shift)
+						   เงื่อนไข: ot_end_time <= start_time และ ot_end_time ไม่ใช่ 00:00:00 (midnight)
+						   Day Shift มี ot_end=00:00:00 ซึ่งหมายถึง "ไม่มี end" จึงต้องแยกออก */
+						WHEN sm.ot_start_time IS NOT NULL
+						     AND sm.ot_end_time IS NOT NULL
+						     AND TIME(sm.ot_end_time) != '00:00:00'
+						     AND sm.ot_end_time <= sm.start_time THEN
 							IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) < sm.ot_end_time,
 								FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(sm.ot_end_time, GREATEST(TIME(base.scan_in), sm.ot_start_time))) / 60) / 30) * 0.5,
 								0
 							)
-							
+
 						ELSE
+							/* Post-shift OT: กะที่ OT อยู่หลังเลิกงาน (Day/O shift) */
 							(
-								/* OT เช้ามืด */
-								IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) >= '04:00:00' AND TIME(base.scan_in) < '07:30:00',
-									FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF('07:30:00', GREATEST(TIME(base.scan_in), '05:30:00'))) / 60) / 30) * 0.5,
+								/* OT เช้ามืด: เข้างานก่อน start_time */
+								IF(base.scan_in IS NOT NULL
+								   AND TIME(base.scan_in) >= '04:00:00'
+								   AND TIME(base.scan_in) < IFNULL(sm.start_time, '07:30:00'),
+									FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(
+										IFNULL(sm.start_time, '07:30:00'),
+										GREATEST(TIME(base.scan_in), '05:30:00')
+									)) / 60) / 30) * 0.5,
 									0
 								)
 							)
 							+
 							(
+								/* OT หลังเลิกงาน: scan_out หลัง ot_start_time */
 								IF(base.scan_out IS NOT NULL,
-									FLOOR(GREATEST(0, 
+									FLOOR(GREATEST(0,
 										(
-											TIME_TO_SEC(TIME(base.scan_out)) 
-											+ IF(TIME(base.scan_out) < sm.start_time, 86400, 0) /* เผื่อทำโอทีทะลุเที่ยงคืน */
+											TIME_TO_SEC(TIME(base.scan_out))
+											+ IF(TIME(base.scan_out) < IFNULL(sm.start_time, '07:30:00'), 86400, 0)
 											- TIME_TO_SEC(IFNULL(sm.ot_start_time, '17:10:00'))
 										) / 60
 									) / 30) * 0.5,
@@ -488,55 +502,72 @@ export const actions: Actions = {
 								)
 							)
 					END as ot_hours
-					
+
 				FROM (
-					SELECT 
+					SELECT
 						r_base.emp_id,
 						r_base.emp_name,
 						r_base.actual_shift,
-						
+
+						/* logical_work_date: Night Shift ลบ 12 ชม. เพื่อให้การสแกน 06:00 ของวันถัดไปตกอยู่ในวันทำงานที่ถูกต้อง */
 						DATE(DATE_SUB(r_base.scan_datetime, INTERVAL IF(r_base.actual_shift = 'N', 12, 0) HOUR)) as logical_work_date,
-						
+
+						/* scan_in = การสแกนแรกสุดในช่วงเวลาที่เหมาะสมของกะนั้น */
 						MIN(
-							CASE 
-								WHEN r_base.actual_shift = 'N' THEN 
+							CASE
+								WHEN r_base.actual_shift = 'N' THEN
+									/* Night Shift เข้างาน: scan ตั้งแต่ 13:00 ขึ้นไป (รวม OT ก่อนกะ 17:10) */
 									IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
-								ELSE 
+								ELSE
+									/* Day/B/O Shift เข้างาน: scan ช่วงเช้า 01:00-12:59 */
 									IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
 							END
 						) as scan_in,
-						
+
+						/* scan_out = การสแกนสุดท้ายในช่วงเวลาออกงาน */
 						MAX(
-							CASE 
-								WHEN r_base.actual_shift = 'N' THEN 
+							CASE
+								WHEN r_base.actual_shift = 'N' THEN
+									/* Night Shift ออกงาน: scan ช่วงเช้า 01:00-12:59 ของวันถัดไป */
 									IF(TIME(r_base.scan_datetime) BETWEEN '01:00:00' AND '12:59:59', r_base.scan_datetime, NULL)
-								ELSE 
+								ELSE
+									/* Day/B/O Shift ออกงาน: scan ตั้งแต่ 13:00 ขึ้นไป */
 									IF(TIME(r_base.scan_datetime) >= '13:00:00', r_base.scan_datetime, NULL)
 							END
 						) as scan_out
-						
+
 					FROM (
-						SELECT 
+						SELECT
 							e.emp_id, e.emp_name, r.scan_datetime,
 
+							/* กำหนด actual_shift ของแต่ละ scan:
+							   - scan 00:00-12:00: ตรวจว่าวานนี้เป็น Night Shift ไหม (อาจเป็น scan_out ของกะดึก)
+							   - scan 12:01-23:59: ใช้ shift ของวันนี้ */
 							IF(TIME(r.scan_datetime) BETWEEN '00:00:00' AND '12:00:00',
 								IF(
-									(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(DATE_SUB(r.scan_datetime, INTERVAL 1 DAY)) LIMIT 1) = 'N',
+									COALESCE(
+										(SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(DATE_SUB(r.scan_datetime, INTERVAL 1 DAY)) LIMIT 1),
+										e.default_shift, 'D'
+									) = 'N',
 									'N',
 									COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
 								),
 								COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
 							) as actual_shift
-							
+
 						FROM raw_attendance_logs r
+						/* จับคู่พนักงานจาก raw_id, emp_id, หรือ citizen_id */
 						JOIN employees e ON (e.raw_id = r.raw_emp_id OR e.emp_id = r.raw_emp_id OR e.citizen_id = r.raw_emp_id)
+						/* ดึงข้อมูล +1 วัน เพื่อรับ scan_out ของ Night Shift */
 						WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
 					) as r_base
 					GROUP BY r_base.emp_id, r_base.emp_name, logical_work_date, actual_shift
 				) as base
 				LEFT JOIN shift_master sm ON base.actual_shift = sm.shift_code
-				
-				ON DUPLICATE KEY UPDATE 
+				/* กรองให้บันทึกเฉพาะ logical_work_date ในช่วงที่เลือก (กัน Day Shift วันถัดไปรั่ว) */
+				WHERE base.logical_work_date BETWEEN ? AND ?
+
+				ON DUPLICATE KEY UPDATE
 					shift_type = VALUES(shift_type),
 					scan_in_time = VALUES(scan_in_time),
 					scan_out_time = VALUES(scan_out_time),
@@ -545,7 +576,7 @@ export const actions: Actions = {
 					status = 'Present';
 			`;
 
-			await pool.execute(processQuery, [startDate, endDate]);
+			await pool.execute(processQuery, [startDate, endDate, startDate, endDate]);
 			console.log(`ประมวลผลเสร็จสมบูรณ์ใน HR Dashboard!`);
 
 			return {
