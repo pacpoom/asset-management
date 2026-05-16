@@ -229,6 +229,7 @@
 		<a
 			href="/human-resources/employees/export?status={currentStatus}&search={data.searchQuery ||
 				''}"
+			data-sveltekit-reload
 			class="flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
 		>
 			<span class="material-symbols-outlined mr-2 text-[20px]">download</span>

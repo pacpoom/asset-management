@@ -88,7 +88,7 @@ export async function POST({ request }) {
 							COALESCE((SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = DATE(r.scan_datetime) LIMIT 1), e.default_shift, 'D')
 						) as actual_shift
 					FROM raw_attendance_logs r
-					JOIN employees e ON e.raw_id = r.raw_emp_id
+					JOIN employees e ON (e.raw_id = r.raw_emp_id OR e.emp_id = r.raw_emp_id OR e.citizen_id = r.raw_emp_id)
 					WHERE DATE(r.scan_datetime) BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
 				) as r_base
 				GROUP BY r_base.emp_id, r_base.emp_name, logical_work_date, actual_shift
