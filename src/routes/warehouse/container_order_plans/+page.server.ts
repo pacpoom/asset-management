@@ -81,6 +81,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         LIMIT ? OFFSET ?
     `;
 
+    let locations: any[] = [];
+    try {
+        const [locRows] = await cymspool.query(
+            'SELECT id, location_code FROM yard_locations WHERE is_active = 1 ORDER BY location_code ASC'
+        );
+        locations = locRows as any[];
+    } catch (error) {
+        console.error('Error fetching yard_locations:', error);
+    }
+
     try {
         const [countResult]: any = await cymspool.query(countQuery, params);
         const total = countResult[0]?.total || 0;
@@ -99,11 +109,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 plan_no,
                 create_date_start,
                 create_date_end
-            }
+            },
+            locations
         };
     } catch (error) {
         console.error('Error fetching container_order_plans:', error);
-        
+
         return {
             data: [],
             total: 0,
@@ -115,7 +126,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 plan_no,
                 create_date_start: defaultStartDate,
                 create_date_end: defaultEndDate
-            }
+            },
+            locations
         };
     }
 };
@@ -533,6 +545,77 @@ export const actions: Actions = {
             await connection.rollback();
             console.error('Import error:', error);
             return fail(500, { message: error.message || 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล' });
+        } finally {
+            connection.release();
+        }
+    },
+
+    // Action สำหรับนำตู้ที่คืนลานกลับเข้า Stock
+    restoreToStock: async ({ request, locals }) => {
+        checkPermission(locals, 'edit container plans');
+
+        const data = await request.formData();
+        const plan_id = data.get('plan_id')?.toString();
+        const yard_location_id = data.get('yard_location_id')?.toString();
+
+        if (!plan_id || !yard_location_id) {
+            return fail(400, { message: 'กรุณาเลือก Yard Location' });
+        }
+
+        const connection = await cymspool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // ดึงข้อมูล plan พร้อมตรวจสอบสถานะต้องเป็น Returned (4)
+            const [plans]: any = await connection.query(
+                `SELECT container_id, checkin_date FROM container_order_plans WHERE id = ? AND status = 4 LIMIT 1`,
+                [plan_id]
+            );
+            if (plans.length === 0) {
+                await connection.rollback();
+                return fail(400, { message: 'ไม่พบ Order Plan หรือสถานะไม่ใช่ Returned' });
+            }
+            const { container_id, checkin_date } = plans[0];
+
+            // ตรวจสอบว่าไม่มี stock ซ้ำ
+            const [existingStock]: any = await connection.query(
+                `SELECT id FROM container_stocks WHERE container_order_plan_id = ? LIMIT 1`,
+                [plan_id]
+            );
+            if (existingStock.length > 0) {
+                await connection.rollback();
+                return fail(400, { message: 'ตู้นี้มีอยู่ใน Stock แล้ว' });
+            }
+
+            // นำกลับเข้า container_stocks โดยใช้ checkin_date เดิม
+            await connection.query(
+                `INSERT INTO container_stocks
+                (container_order_plan_id, container_id, yard_location_id, status, checkin_date, exchange_flg, remarks, created_at, updated_at)
+                VALUES (?, ?, ?, 1, ?, 0, NULL, NOW(), NOW())`,
+                [plan_id, container_id, yard_location_id, checkin_date]
+            );
+
+            // บันทึก Transaction History
+            const user_id = (locals as any).user?.id || 1;
+            await connection.query(
+                `INSERT INTO container_transactions
+                (container_order_plan_id, user_id, yard_location_id, activity_type, transaction_date, remarks, created_at, updated_at)
+                VALUES (?, ?, ?, 'Restore', NOW(), NULL, NOW(), NOW())`,
+                [plan_id, user_id, yard_location_id]
+            );
+
+            // อัปเดตสถานะกลับเป็น Received (2)
+            await connection.query(
+                `UPDATE container_order_plans SET status = 2, updated_at = NOW() WHERE id = ?`,
+                [plan_id]
+            );
+
+            await connection.commit();
+            return { success: true };
+        } catch (error: any) {
+            await connection.rollback();
+            console.error('Restore to stock error:', error);
+            return fail(500, { message: 'เกิดข้อผิดพลาดในการนำตู้กลับเข้า Stock' });
         } finally {
             connection.release();
         }

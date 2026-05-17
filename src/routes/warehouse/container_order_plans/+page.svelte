@@ -31,6 +31,16 @@
 	// เก็บข้อมูลของ Plan ที่กำลังจะแก้ไข
 	let editData: any = {};
 
+	// ตัวแปรสำหรับ Restore to Stock Modal
+	let showRestoreModal = false;
+	let restoreData: any = {};
+	let isRestoring = false;
+
+	function openRestoreModal(item: any) {
+		restoreData = { ...item };
+		showRestoreModal = true;
+	}
+
 	// ฟังก์ชันเปิด Modal และโหลดข้อมูล
 	async function openPackingListModal(cNo: string) {
 		if (!cNo || cNo === '-') return;
@@ -511,6 +521,31 @@
 											/>
 										</svg>
 									</button>
+
+									<!-- ปุ่ม Restore to Stock (เฉพาะ status = 4 Returned) -->
+									{#if item.status === 4}
+										<button
+											type="button"
+											on:click={() => openRestoreModal(item)}
+											class="rounded-md bg-emerald-50 p-1.5 text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-800"
+											title={$t('Restore to Stock')}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="2"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+												/>
+											</svg>
+										</button>
+									{/if}
 
 									<!-- ปุ่มลบ -->
 									{#if item.status === 1}
@@ -1360,6 +1395,154 @@
 										<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 									</svg>
 									{$t('Update')}
+								{/if}
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- ==================== Modal Restore to Stock ==================== -->
+	{#if showRestoreModal}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity duration-300"
+		>
+			<div
+				class="animate-fade-in-up w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl"
+			>
+				<div
+					class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-6 py-4"
+				>
+					<h2 class="flex items-center gap-2 text-lg font-bold text-gray-800">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-6 w-6 text-emerald-600"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+							/>
+						</svg>
+						{$t('Restore to Stock')}
+					</h2>
+					<button
+						on:click={() => (showRestoreModal = false)}
+						aria-label={$t('Close')}
+						class="rounded-lg p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-6 w-6"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						</svg>
+					</button>
+				</div>
+
+				<div class="bg-white p-6">
+					<!-- ข้อมูลตู้ที่จะ Restore -->
+					<div class="mb-5 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm">
+						<div class="mb-1 flex gap-2">
+							<span class="font-semibold text-gray-600">{$t('Plan No')}:</span>
+							<span class="text-gray-800">{restoreData.plan_no || '-'}</span>
+						</div>
+						<div class="mb-1 flex gap-2">
+							<span class="font-semibold text-gray-600">{$t('Container No')}:</span>
+							<span class="text-gray-800">{restoreData.container_no || '-'}</span>
+						</div>
+						<div class="flex gap-2">
+							<span class="font-semibold text-gray-600">{$t('Check-in Date')}:</span>
+							<span class="text-gray-800"
+								>{restoreData.checkin_date
+									? new Date(restoreData.checkin_date).toLocaleDateString('en-CA')
+									: '-'}</span
+							>
+						</div>
+					</div>
+
+					<form
+						method="POST"
+						action="?/restoreToStock"
+						use:enhance={() => {
+							isRestoring = true;
+							return async ({ result, update }) => {
+								isRestoring = false;
+								if (result.type === 'success') {
+									showRestoreModal = false;
+									alert('นำตู้กลับเข้า Stock เรียบร้อยแล้ว');
+									update();
+								} else if (result.type === 'failure') {
+									const message = (result.data as any)?.message;
+									alert(message || 'เกิดข้อผิดพลาดในการนำตู้กลับเข้า Stock');
+								}
+							};
+						}}
+					>
+						<input type="hidden" name="plan_id" value={restoreData.id} />
+
+						<div class="mb-5">
+							<label
+								for="restore_yard_location"
+								class="mb-1 block text-sm font-medium text-gray-700"
+							>
+								{$t('Yard Location')} <span class="text-red-500">*</span>
+							</label>
+							<select
+								id="restore_yard_location"
+								name="yard_location_id"
+								required
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500"
+							>
+								<option value="">{$t('-- Select Yard Location --')}</option>
+								{#each data.locations as loc}
+									<option value={loc.id}>{loc.location_code}</option>
+								{/each}
+							</select>
+						</div>
+
+						<div class="flex justify-end gap-3 border-t border-gray-100 pt-4">
+							<button
+								type="button"
+								on:click={() => (showRestoreModal = false)}
+								class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
+							>
+								{$t('Cancel')}
+							</button>
+							<button
+								type="submit"
+								disabled={isRestoring}
+								class="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:bg-emerald-400"
+							>
+								{#if isRestoring}
+									<div class="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+									{$t('Processing...')}
+								{:else}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+									</svg>
+									{$t('Restore to Stock')}
 								{/if}
 							</button>
 						</div>
