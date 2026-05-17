@@ -203,14 +203,14 @@
 				use:enhance={() => {
 					isImporting = true;
 					return async ({ result, update }) => {
-						isEditing = false;
+						isImporting = false;
 						if (result.type === 'success') {
-							showEditModal = false;
-							alert('แก้ไขข้อมูลเรียบร้อยแล้ว');
+							const message = (result.data as any)?.message;
+							alert(message || 'นำเข้าข้อมูลเรียบร้อยแล้ว');
 							update();
 						} else if (result.type === 'failure') {
 							const message = (result.data as any)?.message;
-							alert(message || 'เกิดข้อผิดพลาดในการแก้ไขข้อมูล');
+							alert(message || 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล');
 						}
 					};
 				}}

@@ -417,7 +417,7 @@ export const actions: Actions = {
                 // ข้ามแถวที่ไม่มีข้อมูลจำเป็น
                 if (!container_no || !house_bl) continue;
 
-                // เช็กว่า container_no นี้มีแผนที่ยังไม่ Returned (status != 4) อยู่แล้วหรือไม่
+                // เช็กว่า container_no นี้มีแผนที่ยังไม่ Returned (status != 4) อยู่แล้วหรือไม่ → ถ้ามีให้ข้ามแถวนั้น
                 const [duplicateContainerNo]: any = await connection.query(
                     `SELECT cop.id
                      FROM container_order_plans cop
@@ -427,8 +427,8 @@ export const actions: Actions = {
                     [container_no]
                 );
                 if (duplicateContainerNo.length > 0) {
-                    await connection.rollback();
-                    return fail(400, { message: `Container No ${container_no} มีแผนค้างอยู่ในระบบแล้ว` });
+                    skipCount++;
+                    continue;
                 }
 
                 // 1. หาหรือสร้าง Container
@@ -486,16 +486,26 @@ export const actions: Actions = {
                 }
                 const plan_no = `${prefix}${sequence.toString().padStart(4, '0')}`;
 
-                // Parse Dates
+                // Parse Dates — ใช้ local timezone เพื่อป้องกัน off-by-one เมื่อ server อยู่ใน UTC+7
                 const parseImportDate = (val: any): string | null => {
                     if (!val) return null;
-                    if (val instanceof Date) return val.toISOString().split('T')[0];
+                    if (val instanceof Date) {
+                        const y = val.getFullYear();
+                        const m = (val.getMonth() + 1).toString().padStart(2, '0');
+                        const d = val.getDate().toString().padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    }
                     const strVal = val.toString().trim();
                     if (strVal.length === 8 && /^\d{8}$/.test(strVal)) {
                         return `${strVal.substring(0, 4)}-${strVal.substring(4, 6)}-${strVal.substring(6, 8)}`;
                     }
                     const parsed = new Date(strVal);
-                    if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+                    if (!isNaN(parsed.getTime())) {
+                        const y = parsed.getFullYear();
+                        const m = (parsed.getMonth() + 1).toString().padStart(2, '0');
+                        const d = parsed.getDate().toString().padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    }
                     return null;
                 };
 
