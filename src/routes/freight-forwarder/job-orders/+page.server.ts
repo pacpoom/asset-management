@@ -29,7 +29,7 @@ export const load = async ({ url, locals }) => {
 
 	// ตรวจสอบสิทธิ์: admin เห็นทุก job, user ทั่วไปเห็นเฉพาะของตัวเอง
 	const currentUser = locals.user;
-	const isAdmin = currentUser?.role === 'admin';
+	const isAdmin = currentUser?.role === 'admin_freight';
 
 	// บังคับกรองด้วยวันที่เสมอ
 	let whereClause = 'WHERE j.job_date >= ? AND j.job_date <= ?';
