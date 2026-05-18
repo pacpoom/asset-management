@@ -381,6 +381,9 @@ export const actions: Actions = {
 		const subcontractor = data.get('subcontractor')?.toString() || null;
 		let start_date = data.get('start_date')?.toString() || null;
 
+		const date_of_birth = data.get('date_of_birth')?.toString() || null;
+		const education = data.get('education')?.toString() || null;
+
 		const phone_number = data.get('phone_number')?.toString() || null;
 		const division = data.get('dis')?.toString() || null;
 		const section = data.get('section')?.toString() || null;
@@ -407,6 +410,24 @@ export const actions: Actions = {
 				profile_image_path = `/uploads/profiles/${fileName}`;
 			} catch (err) {
 				console.error('File Upload Error:', err);
+			}
+		}
+
+		const docFile = data.get('document_file') as File;
+		const existing_doc_path = data.get('existing_document_path')?.toString() || '';
+		let document_path = existing_doc_path;
+
+		if (docFile && docFile.size > 0) {
+			try {
+				const uploadDir = path.join(process.cwd(), 'static', 'uploads', 'documents');
+				if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+
+				const fileName = `${emp_id}-doc-${Date.now()}-${docFile.name}`;
+				const filePath = path.join(uploadDir, fileName);
+				writeFileSync(filePath, Buffer.from(await docFile.arrayBuffer()));
+				document_path = `/uploads/documents/${fileName}`;
+			} catch (err) {
+				console.error('Document Upload Error:', err);
 			}
 		}
 
@@ -438,8 +459,8 @@ export const actions: Actions = {
 
 				await pool.execute(
 					`INSERT INTO employees 
-					(emp_id, raw_id, citizen_id, emp_name, department_id, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status) 
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(emp_id, raw_id, citizen_id, emp_name, department_id, employee_type, default_shift, subcontractor, start_date, phone_number, profile_image_path, division, section, emp_group, position_id, project, status, date_of_birth, education, document_path) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[
 						emp_id,
 						raw_id,
@@ -457,7 +478,10 @@ export const actions: Actions = {
 						emp_group,
 						positionId,
 						project,
-						status
+						status,
+						date_of_birth,
+						education,
+						document_path
 					]
 				);
 				return { success: true, message: 'เพิ่มข้อมูลพนักงานสำเร็จ!' };
@@ -465,7 +489,8 @@ export const actions: Actions = {
 				await pool.execute(
 					`UPDATE employees SET 
 					raw_id = ?, citizen_id = ?, emp_name = ?, department_id = ?, employee_type = ?, default_shift = ?, subcontractor = ?, start_date = ?, phone_number = ?, profile_image_path = ?, 
-					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?
+					division = ?, section = ?, emp_group = ?, position_id = ?, project = ?, status = ?,
+					date_of_birth = ?, education = ?, document_path = ?
 					WHERE emp_id = ?`,
 					[
 						raw_id,
@@ -484,6 +509,9 @@ export const actions: Actions = {
 						positionId,
 						project,
 						status,
+						date_of_birth,
+						education,
+						document_path,
 						emp_id
 					]
 				);

@@ -146,12 +146,16 @@
 				raw_id: '',
 				emp_name: '',
 				citizen_id: '',
-				employee_type: 'Sub Contract'
+				employee_type: 'Sub Contract',
+				date_of_birth: '',
+				education: '',
+				document_path: ''
 			};
 		} else {
 			selectedItem = { ...item };
 			selectedDept = deptOptions.find((opt: any) => opt.value === item.department_id) || null;
 			selectedItem.start_date = parseDateToInput(item.start_date);
+			selectedItem.date_of_birth = parseDateToInput(item.date_of_birth);
 			selectedItem.default_shift = item.default_shift || '';
 
 			if (mode === 'view') {
@@ -928,6 +932,7 @@
 								<span class="material-symbols-outlined text-[18px]">manage_accounts</span> Personal &
 								System
 							</h4>
+
 							<div class="space-y-4">
 								<div class="flex items-center justify-between border-b border-gray-100 pb-3">
 									<span class="text-sm text-gray-500">National ID</span>
@@ -947,11 +952,36 @@
 										>{selectedItem.raw_id || '-'}</span
 									>
 								</div>
-								<div class="flex items-center justify-between pb-1">
+								<div class="flex items-center justify-between border-b border-gray-100 pb-3">
 									<span class="text-sm text-gray-500">Group / Project</span>
 									<span class="text-right text-sm font-medium text-gray-900"
 										>{selectedItem.emp_group || '-'} / {selectedItem.project || '-'}</span
 									>
+								</div>
+
+								<div class="flex items-center justify-between border-b border-gray-100 pb-3">
+									<span class="text-sm text-gray-500">Date of Birth</span>
+									<span class="font-mono text-sm text-gray-900"
+										>{selectedItem.date_of_birth || '-'}</span
+									>
+								</div>
+								<div class="flex items-center justify-between border-b border-gray-100 pb-3">
+									<span class="text-sm text-gray-500">Education</span>
+									<span class="text-sm font-medium text-gray-900"
+										>{selectedItem.education || '-'}</span
+									>
+								</div>
+								<div class="flex items-center justify-between pb-1">
+									<span class="text-sm text-gray-500">Documents</span>
+									{#if selectedItem.document_path}
+										<a
+											href={selectedItem.document_path}
+											target="_blank"
+											class="text-sm font-bold text-blue-600 hover:underline">ดูเอกสาร</a
+										>
+									{:else}
+										<span class="text-sm font-medium text-gray-900">-</span>
+									{/if}
 								</div>
 							</div>
 						</div>
@@ -983,6 +1013,7 @@
 						}}
 					>
 						<input type="hidden" name="mode" value={modalMode} />
+						<input type="hidden" name="status" value={selectedItem.status || 'Active'} />
 
 						<div class="mb-4">
 							<label for="profile_image" class="mb-1 block text-sm font-semibold text-gray-700">
@@ -1250,18 +1281,68 @@
 							</div>
 
 							<div>
-								<label for="status" class="mb-1 block text-sm font-semibold text-gray-700"
-									>{$t('Status')}</label
+								<label for="date_of_birth" class="mb-1 block text-sm font-semibold text-gray-700"
+									>{$t('Date of Birth')}</label
 								>
-								<select
-									id="status"
-									name="status"
-									bind:value={selectedItem.status}
+
+								<input
+									id="date_of_birth"
+									type="date"
+									name="date_of_birth"
+									bind:value={selectedItem.date_of_birth}
 									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
+
+							<div>
+								<label for="education" class="mb-1 block text-sm font-semibold text-gray-700"
+									>{$t('Education')}</label
 								>
-									<option value="Active">{$t('Active')}</option>
-									<option value="Resigned">{$t('Resigned')}</option>
-								</select>
+
+								<input
+									id="education"
+									type="text"
+									name="education"
+									bind:value={selectedItem.education}
+									placeholder={$t('เช่น ปริญญาตรี, ปวส., ม.6')}
+									class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								/>
+							</div>
+
+							<div class="mt-2 border-t border-gray-100 pt-4 md:col-span-2 lg:col-span-3">
+								<label for="document_file" class="mb-1 block text-sm font-semibold text-gray-700">
+									{$t('สำเนาทะเบียนบ้านและบัตรประชาชน')}
+								</label>
+
+								<div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+									<input
+										id="document_file"
+										type="file"
+										name="document_file"
+										accept=".pdf, image/*"
+										class="w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold hover:file:bg-gray-200"
+									/>
+
+									<input
+										type="hidden"
+										name="existing_document_path"
+										value={selectedItem.document_path || ''}
+									/>
+
+									{#if selectedItem.document_path && modalMode === 'edit'}
+										<a
+											href={selectedItem.document_path}
+											target="_blank"
+											class="text-sm font-semibold text-blue-600 hover:underline"
+										>
+											<span class="material-symbols-outlined align-middle text-[18px]"
+												>description</span
+											>
+
+											ดูเอกสารปัจจุบัน
+										</a>
+									{/if}
+								</div>
 							</div>
 						</div>
 					</form>

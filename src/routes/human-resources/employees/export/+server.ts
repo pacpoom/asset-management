@@ -32,7 +32,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             e.emp_group,
             jp.position_name,
             e.project,
-            e.status 
+            e.status,
+			e.project,
+            e.status,
+            e.date_of_birth, 
+            e.education, 
+            e.document_path
         FROM employees e
         LEFT JOIN job_positions jp ON e.position_id = jp.id
         LEFT JOIN departments d ON e.department_id = d.id 
@@ -81,7 +86,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		{ header: 'Group', key: 'emp_group', width: 20 },
 		{ header: 'Position', key: 'position_name', width: 20 },
 		{ header: 'Project', key: 'project', width: 20 },
-		{ header: 'Status', key: 'status', width: 15 }
+		{ header: 'Status', key: 'status', width: 15 },
+		{ header: 'Date of Birth', key: 'date_of_birth', width: 15 },
+		{ header: 'Education', key: 'education', width: 20 },
+		{ header: 'Document', key: 'document_path', width: 15 }
 	];
 
 	worksheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -111,7 +119,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			emp_group: row.emp_group || '-',
 			position_name: row.position_name || '-',
 			project: row.project || '-',
-			status: row.status || '-'
+			status: row.status || '-',
+			date_of_birth: row.date_of_birth
+				? new Date(row.date_of_birth).toLocaleDateString('en-GB')
+				: '-',
+			education: row.education || '-',
+			document_path: row.document_path ? 'มีเอกสารแนบ' : '-'
 		});
 	});
 
