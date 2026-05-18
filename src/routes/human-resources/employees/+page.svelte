@@ -496,7 +496,6 @@
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Section')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Group')}</th>
 					<th class="px-4 py-3 whitespace-nowrap">{$t('Project')}</th>
-					<th class="px-4 py-3 whitespace-nowrap">{$t('Sync')}</th>
 					<th
 						class="group cursor-pointer px-4 py-3 whitespace-nowrap transition-colors select-none hover:bg-gray-100"
 						onclick={() => toggleSort('status')}
@@ -519,7 +518,7 @@
 			<tbody>
 				{#if paginatedEmployees.length === 0}
 					<tr
-						><td colspan="19" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
+						><td colspan="18" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลพนักงาน</td
 						></tr
 					>
 				{/if}
@@ -600,23 +599,6 @@
 						<td class="px-4 py-3 whitespace-nowrap">{emp.section || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.emp_group || '-'}</td>
 						<td class="px-4 py-3 whitespace-nowrap">{emp.project || '-'}</td>
-						<td class="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-500">
-							{#if emp.last_sync_time}
-								{@const d = new Date(emp.last_sync_time)}
-								{String(d.getDate()).padStart(2, '0')}/{String(d.getMonth() + 1).padStart(
-									2,
-									'0'
-								)}/{d.getFullYear()}
-								<span class="font-bold text-blue-600"
-									>{d.getHours().toString().padStart(2, '0')}:{d
-										.getMinutes()
-										.toString()
-										.padStart(2, '0')}</span
-								>
-							{:else}
-								<span class="text-gray-300">ยังไม่เคยซิงค์</span>
-							{/if}
-						</td>
 						<td class="px-4 py-3 whitespace-nowrap">
 							<span
 								class="rounded-full px-2.5 py-1 text-xs font-semibold {emp.status === 'Active'
