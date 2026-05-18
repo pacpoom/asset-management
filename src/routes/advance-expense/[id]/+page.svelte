@@ -13,6 +13,9 @@
 	let txType = $state<'expense' | 'refund'>('expense');
 	let selectedJobId = $state('');
 	let selectedCustomer = $state('');
+	let jobSearch = $state('');
+	let showJobDropdown = $state(false);
+	let jobInputRef = $state<HTMLInputElement | null>(null);
 	let invoicePreview = $state<string | null>(null);
 	let slipPreview = $state<string | null>(null);
 	let deleteTxTarget = $state<number | null>(null);
@@ -27,6 +30,8 @@
 				slipPreview = null;
 				selectedJobId = '';
 				selectedCustomer = '';
+				jobSearch = '';
+				showJobDropdown = false;
 			} else if ((form as any).message) {
 				toast.error((form as any).message);
 			}
@@ -34,11 +39,26 @@
 		}
 	});
 
-	function onJobChange(e: Event) {
-		const val = (e.target as HTMLSelectElement).value;
-		selectedJobId = val;
-		const job = data.jobOrders.find((j: any) => String(j.id) === val);
-		selectedCustomer = job?.customer_name || '';
+	const filteredJobs = $derived(
+		jobSearch.trim() === ''
+			? data.jobOrders
+			: data.jobOrders.filter((j: any) =>
+					`${j.job_number} ${j.customer_name ?? ''}`.toLowerCase().includes(jobSearch.toLowerCase())
+			  )
+	);
+
+	function selectJob(job: any) {
+		selectedJobId = String(job.id);
+		selectedCustomer = job.customer_name || '';
+		jobSearch = `${job.job_number}${job.customer_name ? ` (${job.customer_name})` : ''}`;
+		showJobDropdown = false;
+	}
+
+	function clearJob() {
+		selectedJobId = '';
+		selectedCustomer = '';
+		jobSearch = '';
+		showJobDropdown = false;
 	}
 
 	function onImageChange(e: Event, which: 'invoice' | 'slip') {
@@ -307,16 +327,65 @@
 					</div>
 				</div>
 
-				<!-- Job Order -->
-				<div>
+				<!-- Job Order — Searchable Combobox -->
+				<div class="relative">
 					<label class="mb-1 block text-xs font-medium text-gray-700">{$t('adv.job_order_label')}</label>
-					<select name="job_order_id" onchange={onJobChange}
-						class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none">
-						<option value="">{$t('adv.no_job_order')}</option>
-						{#each data.jobOrders as job}
-							<option value={job.id}>{job.job_number} {job.customer_name ? `(${job.customer_name})` : ''}</option>
-						{/each}
-					</select>
+
+					<!-- hidden input สำหรับ form submit -->
+					<input type="hidden" name="job_order_id" value={selectedJobId} />
+
+					<div class="relative flex items-center">
+						<input
+							bind:this={jobInputRef}
+							type="text"
+							autocomplete="off"
+							placeholder={$t('adv.no_job_order')}
+							bind:value={jobSearch}
+							onfocus={() => (showJobDropdown = true)}
+							onblur={() => setTimeout(() => (showJobDropdown = false), 150)}
+							oninput={() => { showJobDropdown = true; if (jobSearch === '') clearJob(); }}
+							class="w-full rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						/>
+						<!-- clear button -->
+						{#if selectedJobId || jobSearch}
+							<button
+								type="button"
+								onclick={clearJob}
+								class="absolute right-2 text-gray-400 hover:text-gray-600"
+								tabindex="-1"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+								</svg>
+							</button>
+						{/if}
+					</div>
+
+					<!-- dropdown list -->
+					{#if showJobDropdown}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+							onmousedown={(e) => e.preventDefault()}
+						>
+							{#if filteredJobs.length === 0}
+								<div class="px-3 py-2 text-sm text-gray-400">ไม่พบรายการ</div>
+							{:else}
+								{#each filteredJobs as job}
+									<button
+										type="button"
+										onclick={() => selectJob(job)}
+										class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 {String(job.id) === selectedJobId ? 'bg-blue-100 font-semibold text-blue-700' : 'text-gray-800'}"
+									>
+										<span class="font-medium">{job.job_number}</span>
+										{#if job.customer_name}
+											<span class="ml-1 text-gray-500">({job.customer_name})</span>
+										{/if}
+									</button>
+								{/each}
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Customer (auto-fill) -->

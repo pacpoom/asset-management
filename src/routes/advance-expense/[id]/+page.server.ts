@@ -105,14 +105,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.reduce((s: number, t: any) => s + Number(t.amount), 0);
 		const currentBalance = Number(application.amount) - totalSpent + totalRefund;
 
-		// Job orders for dropdown
+		// Job orders for dropdown — ไม่แสดง Completed และ Cancelled
 		let jobOrders: JobOrder[] = [];
 		try {
 			const [joRows] = await pool.execute<JobOrder[]>(
 				`SELECT jo.id, jo.job_number, c.name AS customer_name
 				 FROM job_orders jo
 				 LEFT JOIN customers c ON jo.customer_id = c.id
-				 WHERE jo.job_status != 'Cancelled'
+				 WHERE jo.job_status NOT IN ('Completed', 'Cancelled')
 				 ORDER BY jo.job_number DESC LIMIT 500`
 			);
 			jobOrders = JSON.parse(JSON.stringify(joRows));
