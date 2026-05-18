@@ -129,6 +129,11 @@
 				<p class="mt-1 text-lg text-gray-700">{app?.application_title}</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
+				<a href="/advance-expense"
+					class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
+					<span class="material-symbols-outlined text-base">arrow_back</span>
+					{$t('adv.back_to_list')}
+				</a>
 				<a href={printUrl} target="_blank"
 					class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
 					<span class="material-symbols-outlined text-base">print</span>
