@@ -36,11 +36,15 @@ export async function POST({ request }) {
 		for (let i = 0; i < data.length; i += chunkSize) {
 			const chunk = data.slice(i, i + chunkSize);
 			const values = chunk.map((log: any) => {
-				const rawId = log.deviceUserId.toString().trim();
-				let formattedTime = log.recordTime;
-				if (typeof formattedTime === 'string') {
-					formattedTime = formattedTime.replace('T', ' ').split('.')[0];
-				}
+				const rawId = String(log.deviceUserId).trim();
+				// ตัด timezone suffix (Z, +07:00) และ milliseconds ออก ใช้ตัวเลขตรงๆ
+				// เพราะ external agent ควรส่งเวลา BKK local — ไม่แปลง UTC
+				const formattedTime = String(log.recordTime)
+					.replace('T', ' ')
+					.split('.')[0]
+					.split('Z')[0]
+					.split('+')[0]
+					.trim();
 				return [ip, rawId, formattedTime, currentThaiTime];
 			});
 

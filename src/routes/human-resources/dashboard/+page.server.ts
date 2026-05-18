@@ -491,10 +491,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			console.log(
-				`[Manual Sync] กำลังประมวลผลข้อมูลและคำนวณเวลาช่วง ${startDate} ถึง ${endDate}...`
-			);
-
+			// ── คำนวณเวลา BKK ปัจจุบัน (server รัน UTC) ──────────────────────────
 			const nowLocal = new Date();
 			const bkkTime = new Date(nowLocal.getTime() + 7 * 60 * 60 * 1000);
 			const y_bkk = bkkTime.getUTCFullYear();
@@ -505,9 +502,89 @@ export const actions: Actions = {
 			const sec_bkk = String(bkkTime.getUTCSeconds()).padStart(2, '0');
 			const currentThaiTime = `${y_bkk}-${m_bkk}-${d_bkk} ${h_bkk}:${min_bkk}:${sec_bkk}`;
 
-			await pool.execute("UPDATE fingerprint_scanners SET last_sync = ? WHERE status = 'Active'", [
-				currentThaiTime
-			]);
+			// ── Step 1: ดึง raw logs จากเครื่องสแกนนิ้วทุกเครื่อง ─────────────────
+			const [scannerRows]: any = await pool.execute(
+				"SELECT ip_address FROM fingerprint_scanners WHERE status = 'Active'"
+			);
+			const scanners = scannerRows as { ip_address: string }[];
+
+			let totalRawInserted = 0;
+			const deviceErrors: string[] = [];
+
+			if (scanners.length > 0) {
+				const ZKLib = (await import('node-zklib')).default;
+
+				for (const scanner of scanners) {
+					const ip = scanner.ip_address;
+					const zkInstance = new ZKLib(ip, 4370, 120000, 4000);
+
+					try {
+						await zkInstance.createSocket();
+						console.log(`[ManualSync] เชื่อมต่อ [${ip}] สำเร็จ กำลังดึง log ทั้งหมด...`);
+
+						const logs = await zkInstance.getAttendances();
+
+						// อัปเดต last_sync รายเครื่อง
+						await pool.execute(
+							'UPDATE fingerprint_scanners SET last_sync = ? WHERE ip_address = ?',
+							[currentThaiTime, ip]
+						);
+
+						if (!logs?.data || logs.data.length === 0) {
+							console.log(`[ManualSync] [${ip}] ไม่มีข้อมูลในเครื่อง`);
+							await zkInstance.disconnect();
+							continue;
+						}
+
+						// Insert ALL logs — ไม่กรองช่วงวันที่เพื่อให้ raw_attendance_logs สมบูรณ์
+						const chunkSize = 1000;
+						for (let i = 0; i < logs.data.length; i += chunkSize) {
+							const chunk = logs.data.slice(i, i + chunkSize);
+							const values = chunk.map((log: any) => {
+								const rawId = String(log.deviceUserId).trim();
+
+								let formattedTime: string;
+								if (log.recordTime instanceof Date) {
+									// node-zklib สร้าง Date ด้วย new Date(y,m,d,h,min,sec) จากเวลา BKK ของเครื่อง
+									// ใช้ local methods (getFullYear/getHours) เพื่อดึงค่า BKK ที่ถูกต้องออกมา
+									// (บน server UTC: getHours() คืนค่าเดิมที่ส่งเข้า constructor = เวลา BKK)
+									const y = log.recordTime.getFullYear();
+									const m = String(log.recordTime.getMonth() + 1).padStart(2, '0');
+									const d = String(log.recordTime.getDate()).padStart(2, '0');
+									const h = String(log.recordTime.getHours()).padStart(2, '0');
+									const min = String(log.recordTime.getMinutes()).padStart(2, '0');
+									const sec = String(log.recordTime.getSeconds()).padStart(2, '0');
+									formattedTime = `${y}-${m}-${d} ${h}:${min}:${sec}`;
+								} else {
+									// string fallback: ตัด timezone suffix ออก ใช้ตัวเลขตรงๆ
+									formattedTime = String(log.recordTime).replace('T', ' ').split('.')[0].split('Z')[0];
+								}
+
+								return [ip, rawId, formattedTime, currentThaiTime];
+							});
+
+							const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
+							await pool.execute(
+								`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime, created_at) VALUES ${placeholders}`,
+								values.flat()
+							);
+						}
+
+						totalRawInserted += logs.data.length;
+						console.log(`[ManualSync] [${ip}] insert raw ${logs.data.length} รายการ เรียบร้อย`);
+						await zkInstance.disconnect();
+					} catch (deviceErr: any) {
+						const msg = `[${ip}] ${deviceErr.message ?? deviceErr}`;
+						console.error(`[ManualSync] เชื่อมต่อเครื่องไม่ได้: ${msg}`);
+						deviceErrors.push(msg);
+						// ไม่ throw — ไปเครื่องถัดไปต่อ
+					}
+				}
+			}
+
+			console.log(
+				`[ManualSync] ดึง raw log รวม ${totalRawInserted} รายการ เริ่มประมวลผลช่วง ${startDate} → ${endDate}...`
+			);
 
 			const processQuery = `
 				INSERT INTO attendance_logs (emp_id, emp_name, work_date, shift_type, scan_in_time, scan_out_time, is_late, status, ot_hours)
@@ -641,11 +718,14 @@ export const actions: Actions = {
 			`;
 
 			await pool.execute(processQuery, [startDate, endDate, startDate, endDate]);
-			console.log(`ประมวลผลเสร็จสมบูรณ์ใน HR Dashboard!`);
+			console.log(`[ManualSync] ประมวลผลเสร็จสมบูรณ์`);
+
+			const deviceSummary =
+				deviceErrors.length > 0 ? ` (เชื่อมต่อไม่ได้: ${deviceErrors.join(', ')})` : '';
 
 			return {
 				success: true,
-				message: `ประมวลผลข้อมูลสำเร็จ! จัดเรียงเวลาเข้า-ออกและ OT เรียบร้อย`
+				message: `ดึง raw log ${totalRawInserted} รายการ ประมวลผลช่วง ${startDate} - ${endDate} เรียบร้อย${deviceSummary}`
 			};
 		} catch (error: any) {
 			console.error('Sync process error:', error);

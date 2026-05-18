@@ -75,56 +75,41 @@ async function startBackgroundSync() {
 					continue;
 				}
 
-				const filteredLogs = logs.data.filter((log: any) => {
-					const d = new Date(log.recordTime);
-					const logDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-					return logDateStr >= startDate && logDateStr <= endDate;
-				});
+				// Insert ALL logs — ไม่กรองช่วงวันที่ เพื่อให้ raw_attendance_logs สมบูรณ์
+				const chunkSize = 1000;
+				for (let i = 0; i < logs.data.length; i += chunkSize) {
+					const chunk = logs.data.slice(i, i + chunkSize);
 
-				if (filteredLogs.length > 0) {
-					const now = new Date();
-					const bkkTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-					const y_bkk = bkkTime.getUTCFullYear();
-					const m_bkk = String(bkkTime.getUTCMonth() + 1).padStart(2, '0');
-					const d_bkk = String(bkkTime.getUTCDate()).padStart(2, '0');
-					const h_bkk = String(bkkTime.getUTCHours()).padStart(2, '0');
-					const min_bkk = String(bkkTime.getUTCMinutes()).padStart(2, '0');
-					const sec_bkk = String(bkkTime.getUTCSeconds()).padStart(2, '0');
-					const currentThaiTime = `${y_bkk}-${m_bkk}-${d_bkk} ${h_bkk}:${min_bkk}:${sec_bkk}`;
+					const values = chunk.map((log: any) => {
+						const rawId = String(log.deviceUserId).trim();
 
-					const chunkSize = 1000;
-					for (let i = 0; i < filteredLogs.length; i += chunkSize) {
-						const chunk = filteredLogs.slice(i, i + chunkSize);
+						let formattedTime: string;
+						if (log.recordTime instanceof Date) {
+							// node-zklib สร้าง Date ด้วย new Date(y,m,d,h,min,sec) จากเวลา BKK ของเครื่อง
+							// ใช้ local methods เพื่อดึงค่า BKK ที่ถูกต้อง (บน server UTC ค่าเหล่านี้ = เวลา BKK)
+							const y = log.recordTime.getFullYear();
+							const m = String(log.recordTime.getMonth() + 1).padStart(2, '0');
+							const d = String(log.recordTime.getDate()).padStart(2, '0');
+							const h = String(log.recordTime.getHours()).padStart(2, '0');
+							const min = String(log.recordTime.getMinutes()).padStart(2, '0');
+							const sec = String(log.recordTime.getSeconds()).padStart(2, '0');
+							formattedTime = `${y}-${m}-${d} ${h}:${min}:${sec}`;
+						} else {
+							// string fallback: ตัด timezone suffix ออก ใช้ตัวเลขตรงๆ
+							formattedTime = String(log.recordTime).replace('T', ' ').split('.')[0].split('Z')[0];
+						}
 
-						const values = chunk.map((log: any) => {
-							const rawId = log.deviceUserId.toString().trim();
+						return [ip, rawId, formattedTime, currentThaiTime];
+					});
 
-							let formattedTime = log.recordTime;
-
-							if (log.recordTime instanceof Date) {
-								const y = log.recordTime.getFullYear();
-								const m = String(log.recordTime.getMonth() + 1).padStart(2, '0');
-								const d = String(log.recordTime.getDate()).padStart(2, '0');
-								const h = String(log.recordTime.getHours()).padStart(2, '0');
-								const min = String(log.recordTime.getMinutes()).padStart(2, '0');
-								const sec = String(log.recordTime.getSeconds()).padStart(2, '0');
-
-								formattedTime = `${y}-${m}-${d} ${h}:${min}:${sec}`;
-							} else if (typeof log.recordTime === 'string') {
-								formattedTime = log.recordTime.replace('T', ' ').split('.')[0];
-							}
-							return [ip, rawId, formattedTime, currentThaiTime];
-						});
-
-						const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
-						await pool.execute(
-							`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime, created_at) VALUES ${placeholders}`,
-							values.flat()
-						);
-					}
-					totalImported += filteredLogs.length;
-					console.log(`[AutoSync] ดึงข้อมูลดิบจาก [${ip}] สำเร็จ ${filteredLogs.length} รายการ.`);
+					const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
+					await pool.execute(
+						`INSERT IGNORE INTO raw_attendance_logs (device_ip, raw_emp_id, scan_datetime, created_at) VALUES ${placeholders}`,
+						values.flat()
+					);
 				}
+				totalImported += logs.data.length;
+				console.log(`[AutoSync] insert raw จาก [${ip}] ${logs.data.length} รายการ เรียบร้อย`);
 
 				await zkInstance.disconnect();
 			} catch (error) {
