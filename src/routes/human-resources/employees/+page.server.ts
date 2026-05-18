@@ -141,9 +141,17 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			}
 
 			const formatTime = (t: string) => (t ? t.substring(0, 5) : null);
+			let formattedDOB = null;
+			if (emp.date_of_birth) {
+				const dob = new Date(emp.date_of_birth);
+				if (!isNaN(dob.getTime())) {
+					formattedDOB = `${dob.getFullYear()}-${String(dob.getMonth() + 1).padStart(2, '0')}-${String(dob.getDate()).padStart(2, '0')}`;
+				}
+			}
 			return {
 				...emp,
 				start_date: finalDate,
+				date_of_birth: formattedDOB,
 				years_of_experience,
 				tenure: years_of_experience,
 				tenure_days,
