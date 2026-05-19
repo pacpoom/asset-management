@@ -84,10 +84,21 @@ export const load = async ({ params }) => {
 		);
 
 		// 7. ดึงข้อมูล Container ของ Job นี้
-		const [containers] = await pool.query<RowDataPacket[]>(
-			'SELECT id, container_size, container_number, seal_number, remarks, status, checkout_date FROM job_containers WHERE job_order_id = ? ORDER BY container_size ASC, id ASC',
-			[id]
-		);
+		// ลอง query ด้วย status/checkout_date ก่อน — fallback ถ้ายังไม่ได้รัน migration
+		let containers: RowDataPacket[];
+		try {
+			const [rows] = await pool.query<RowDataPacket[]>(
+				'SELECT id, container_size, container_number, seal_number, remarks, status, checkout_date FROM job_containers WHERE job_order_id = ? ORDER BY container_size ASC, id ASC',
+				[id]
+			);
+			containers = rows;
+		} catch {
+			const [rows] = await pool.query<RowDataPacket[]>(
+				'SELECT id, container_size, container_number, seal_number, remarks FROM job_containers WHERE job_order_id = ? ORDER BY container_size ASC, id ASC',
+				[id]
+			);
+			containers = rows.map(r => ({ ...r, status: 'pending', checkout_date: null }));
+		}
 
 		return {
 			job: JSON.parse(JSON.stringify(job)),
