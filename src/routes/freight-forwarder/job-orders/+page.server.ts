@@ -84,10 +84,21 @@ export const load = async ({ url, locals }) => {
 	
 	const [rows] = await pool.query(sql, queryParams);
 
-	// Alert: ดึงรายการ Job ที่มีตู้ยังไม่ checkout และ expire_date ใกล้ถึง (ภายใน 7 วัน หรือเกินแล้ว)
+	// Alert: ดึงรายการ Job ที่มีตู้ยังไม่ checkout และ ETA ใกล้ถึง/เลยแล้ว
+	// admin_freight เห็นทั้งหมด, user ทั่วไปเห็นเฉพาะ job ของตัวเอง
 	// ใช้ try/catch เผื่อกรณียังไม่ได้รัน migration เพิ่มคอลัมน์ status
 	let alertRows: unknown[] = [];
 	try {
+		const alertParams: (string | number)[] = [];
+		let alertWhere = `WHERE j.eta IS NOT NULL
+			  AND DATEDIFF(CURDATE(), j.eta) >= -3
+			  AND j.job_status NOT IN ('Cancelled', 'Completed')`;
+
+		if (!isAdmin && currentUser?.id) {
+			alertWhere += ' AND j.created_by = ?';
+			alertParams.push(currentUser.id);
+		}
+
 		const alertSql = `
 			SELECT j.id, j.job_number, j.eta, j.expire_date,
 			       COALESCE(c.company_name, c.name) as customer_name,
@@ -96,13 +107,11 @@ export const load = async ({ url, locals }) => {
 			FROM job_orders j
 			JOIN job_containers jc ON jc.job_order_id = j.id AND jc.status = 'pending'
 			LEFT JOIN customers c ON j.customer_id = c.id
-			WHERE j.eta IS NOT NULL
-			  AND DATEDIFF(CURDATE(), j.eta) >= -3
-			  AND j.job_status NOT IN ('Cancelled', 'Completed')
+			${alertWhere}
 			GROUP BY j.id, j.job_number, j.eta, j.expire_date, c.company_name, c.name
 			ORDER BY days_since_eta DESC
 		`;
-		const [_alertRows] = await pool.query(alertSql);
+		const [_alertRows] = await pool.query(alertSql, alertParams);
 		alertRows = _alertRows as unknown[];
 	} catch {
 		// คอลัมน์ status ยังไม่มีในตาราง — รอ migration ก่อน
