@@ -403,6 +403,36 @@ export const actions = {
 		}
 	},
 
+	// Checkout ตู้หลายตู้พร้อมกัน
+	checkoutContainersBulk: async ({ request }) => {
+		const formData = await request.formData();
+		const container_ids_str = formData.get('container_ids')?.toString();
+		const checkout_date = formData.get('checkout_date')?.toString().trim() || null;
+
+		if (!container_ids_str) return fail(400, { message: 'ไม่พบรายการตู้' });
+		if (!checkout_date) return fail(400, { message: 'กรุณาระบุวันที่นำตู้ออก' });
+
+		let ids: number[];
+		try {
+			ids = JSON.parse(container_ids_str);
+			if (!Array.isArray(ids) || ids.length === 0) throw new Error();
+		} catch {
+			return fail(400, { message: 'รูปแบบรายการตู้ไม่ถูกต้อง' });
+		}
+
+		try {
+			const placeholders = ids.map(() => '?').join(', ');
+			await pool.execute(
+				`UPDATE job_containers SET status = 'checked_out', checkout_date = ?, updated_at = NOW() WHERE id IN (${placeholders})`,
+				[checkout_date, ...ids]
+			);
+			return { success: true, action: 'checkoutContainersBulk', count: ids.length };
+		} catch (err: unknown) {
+			console.error('Bulk checkout error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการบันทึกวันออกตู้' });
+		}
+	},
+
 	// บันทึกวันที่นำตู้ออกจากท่าเรือ (Checkout)
 	checkoutContainer: async ({ request }) => {
 		const formData = await request.formData();

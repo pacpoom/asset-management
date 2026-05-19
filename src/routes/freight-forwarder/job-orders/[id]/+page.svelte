@@ -324,10 +324,45 @@
 	let containerEditData = $state({ id: 0, container_number: '', seal_number: '', remarks: '' });
 	let newContainerSize = $state<'20' | '40'>('20');
 
-	// Checkout state
+	// Checkout state (single + bulk)
 	let isCheckoutModalOpen = $state(false);
 	let isSavingCheckout = $state(false);
 	let checkoutData = $state({ id: 0, checkout_date: '' });
+
+	// Bulk checkout state
+	let selectedContainerIds = $state<Set<number>>(new Set());
+	let isBulkCheckoutOpen = $state(false);
+	let isSavingBulkCheckout = $state(false);
+	let bulkCheckoutDate = $state('');
+
+	let pendingContainers = $derived(containers.filter(c => c.status === 'pending'));
+	let allPendingSelected = $derived(
+		pendingContainers.length > 0 && pendingContainers.every(c => selectedContainerIds.has(c.id))
+	);
+
+	function toggleSelectAll() {
+		if (allPendingSelected) {
+			selectedContainerIds = new Set();
+		} else {
+			selectedContainerIds = new Set(pendingContainers.map(c => c.id));
+		}
+	}
+
+	function toggleSelectContainer(id: number) {
+		const next = new Set(selectedContainerIds);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selectedContainerIds = next;
+	}
+
+	function openBulkCheckout() {
+		const today = new Date();
+		const y = today.getFullYear();
+		const m = String(today.getMonth() + 1).padStart(2, '0');
+		const d = String(today.getDate()).padStart(2, '0');
+		bulkCheckoutDate = `${y}-${m}-${d}`;
+		isBulkCheckoutOpen = true;
+	}
 
 	function openCheckoutModal(c: Container) {
 		const today = new Date();
@@ -1932,6 +1967,14 @@
 					<table class="min-w-full divide-y divide-gray-200 text-sm">
 						<thead class="sticky top-0 bg-gray-50 text-xs font-bold text-gray-500 uppercase">
 							<tr>
+								<th class="px-3 py-3 text-center w-10">
+									{#if pendingContainers.length > 0}
+										<input type="checkbox" checked={allPendingSelected}
+											onchange={toggleSelectAll}
+											class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+											title="เลือกทั้งหมด" />
+									{/if}
+								</th>
 								<th class="px-4 py-3 text-left">#</th>
 								<th class="px-4 py-3 text-left">{$t('Size')}</th>
 								<th class="px-4 py-3 text-left">{$t('Container No.')}</th>
@@ -1943,7 +1986,15 @@
 						</thead>
 						<tbody class="divide-y divide-gray-200 bg-white">
 							{#each containers as container, i (container.id)}
-								<tr class="hover:bg-gray-50 {container.status === 'checked_out' ? 'bg-green-50/40' : ''}">
+								<tr class="hover:bg-gray-50 {container.status === 'checked_out' ? 'bg-green-50/40' : ''} {selectedContainerIds.has(container.id) ? '!bg-green-50' : ''}">
+									<td class="px-3 py-3 text-center">
+										{#if container.status === 'pending'}
+											<input type="checkbox"
+												checked={selectedContainerIds.has(container.id)}
+												onchange={() => toggleSelectContainer(container.id)}
+												class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer" />
+										{/if}
+									</td>
 									<td class="px-4 py-3 text-gray-400">{i + 1}</td>
 									<td class="px-4 py-3">
 										<span class="rounded px-2 py-0.5 text-xs font-bold {container.container_size === '40' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
@@ -1979,7 +2030,7 @@
 										<div class="flex items-center justify-center gap-2">
 											{#if container.status === 'pending'}
 												<button type="button" onclick={() => openCheckoutModal(container)}
-													class="text-gray-400 hover:text-green-600" title="บันทึกวันออกตู้">
+													class="text-gray-400 hover:text-green-600" title="บันทึกวันออกตู้ (เดี่ยว)">
 													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
 												</button>
 											{:else}
@@ -2014,10 +2065,26 @@
 				{/if}
 			</div>
 
-			<!-- Footer -->
-			<div class="flex justify-end border-t bg-gray-50 px-6 py-3">
-				<button type="button" onclick={() => (isContainerModalOpen = false)}
-					class="rounded-lg bg-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">{$t('Close Modal')}</button>
+			<!-- Footer: Bulk Checkout Bar + Close -->
+			<div class="flex-shrink-0 border-t bg-gray-50 px-5 py-3">
+				{#if selectedContainerIds.size > 0}
+					<div class="mb-2 flex items-center gap-3 rounded-lg bg-green-50 border border-green-200 px-4 py-2">
+						<span class="text-sm font-semibold text-green-800">
+							เลือกแล้ว {selectedContainerIds.size} ตู้
+						</span>
+						<button type="button" onclick={openBulkCheckout}
+							class="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-green-700">
+							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+							Checkout {selectedContainerIds.size} ตู้พร้อมกัน
+						</button>
+						<button type="button" onclick={() => (selectedContainerIds = new Set())}
+							class="ml-auto text-xs text-gray-500 hover:text-gray-700 underline">ยกเลิกการเลือก</button>
+					</div>
+				{/if}
+				<div class="flex justify-end">
+					<button type="button" onclick={() => { isContainerModalOpen = false; selectedContainerIds = new Set(); }}
+						class="rounded-lg bg-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">{$t('Close Modal')}</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -2197,6 +2264,80 @@
 					<button type="submit" disabled={isSavingCheckout}
 						class="rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">
 						{isSavingCheckout ? 'กำลังบันทึก...' : 'ยืนยัน Checkout'}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ============================= -->
+<!-- BULK CHECKOUT MODAL          -->
+<!-- ============================= -->
+{#if isBulkCheckoutOpen}
+	<div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-2xl">
+			<div class="flex items-center justify-between border-b px-5 py-4">
+				<div class="flex items-center gap-2">
+					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+						<svg class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+					</div>
+					<h3 class="font-bold text-gray-800">Checkout {selectedContainerIds.size} ตู้พร้อมกัน</h3>
+				</div>
+				<button onclick={() => (isBulkCheckoutOpen = false)} class="text-gray-400 hover:text-gray-600">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+				</button>
+			</div>
+			<form method="POST" action="?/checkoutContainersBulk" use:enhance={() => {
+				isSavingBulkCheckout = true;
+				return async ({ update }) => {
+					await update();
+					isSavingBulkCheckout = false;
+					isBulkCheckoutOpen = false;
+					selectedContainerIds = new Set();
+				};
+			}}>
+				<input type="hidden" name="container_ids" value={JSON.stringify([...selectedContainerIds])} />
+				<div class="space-y-4 p-5">
+					<div class="rounded-lg bg-green-50 p-3 text-sm text-green-800">
+						จะบันทึกวันออกตู้ให้ <strong>{selectedContainerIds.size}</strong> ตู้ที่เลือกทั้งหมดพร้อมกัน
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-bold uppercase text-gray-500">วันที่ออกตู้ <span class="text-red-500">*</span></label>
+						<input type="date" name="checkout_date" bind:value={bulkCheckoutDate}
+							required
+							class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-green-500 focus:ring-green-500" />
+					</div>
+					{#if job.eta || job.expire_date}
+						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600 space-y-1">
+							{#if job.eta}
+								{@const d = calcDaysSinceEta()}
+								<div>
+									<span class="font-semibold">ETA:</span> {formatDate(job.eta)}
+									{#if d !== null}
+										<span class="ml-2 font-bold {d > 0 ? 'text-red-600' : d === 0 ? 'text-orange-600' : 'text-green-600'}">
+											{d > 0 ? `(เลยมาแล้ว ${d} วัน)` : d === 0 ? '(วันนี้!)' : `(อีก ${Math.abs(d)} วัน)`}
+										</span>
+									{/if}
+								</div>
+							{/if}
+							{#if job.expire_date}
+								<div><span class="font-semibold">Free Time หมด:</span> {formatDate(job.expire_date)}</div>
+							{/if}
+						</div>
+					{/if}
+				</div>
+				<div class="flex justify-end gap-3 border-t bg-gray-50 px-5 py-3">
+					<button type="button" onclick={() => (isBulkCheckoutOpen = false)}
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
+					<button type="submit" disabled={isSavingBulkCheckout || !bulkCheckoutDate}
+						class="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">
+						{#if isSavingBulkCheckout}
+							<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+							กำลังบันทึก...
+						{:else}
+							ยืนยัน Checkout {selectedContainerIds.size} ตู้
+						{/if}
 					</button>
 				</div>
 			</form>
