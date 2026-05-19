@@ -1502,17 +1502,22 @@
 							>
 								{$t('Yard Location')} <span class="text-red-500">*</span>
 							</label>
-							<select
+							<input
 								id="restore_yard_location"
-								name="yard_location_id"
+								name="yard_location_name"
+								type="text"
+								list="restore_yard_location_list"
 								required
-								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500"
-							>
-								<option value="">{$t('-- Select Yard Location --')}</option>
+								autocomplete="off"
+								placeholder="พิมพ์หรือเลือก Yard Location..."
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+							/>
+							<datalist id="restore_yard_location_list">
 								{#each data.locations as loc}
-									<option value={loc.id}>{loc.location_code}</option>
+									<option value={loc.location_code} />
 								{/each}
-							</select>
+							</datalist>
+							<p class="mt-1 text-xs text-gray-400">เลือกจากรายการหรือพิมพ์ชื่อ Location ใหม่ได้เลย</p>
 						</div>
 
 						<div class="flex justify-end gap-3 border-t border-gray-100 pt-4">

@@ -566,15 +566,31 @@ export const actions: Actions = {
 
         const data = await request.formData();
         const plan_id = data.get('plan_id')?.toString();
-        const yard_location_id = data.get('yard_location_id')?.toString();
+        const yard_location_name = data.get('yard_location_name')?.toString().trim();
 
-        if (!plan_id || !yard_location_id) {
-            return fail(400, { message: 'กรุณาเลือก Yard Location' });
+        if (!plan_id || !yard_location_name) {
+            return fail(400, { message: 'กรุณาระบุ Yard Location' });
         }
 
         const connection = await cymspool.getConnection();
         try {
             await connection.beginTransaction();
+
+            // Lookup yard_location โดยชื่อ — ถ้าไม่มีให้สร้างใหม่อัตโนมัติ
+            const [existingLocs]: any = await connection.query(
+                `SELECT id FROM yard_locations WHERE location_code = ? LIMIT 1`,
+                [yard_location_name]
+            );
+            let yard_location_id: number;
+            if (existingLocs.length > 0) {
+                yard_location_id = existingLocs[0].id;
+            } else {
+                const [insertResult]: any = await connection.query(
+                    `INSERT INTO yard_locations (location_code, is_active, created_at, updated_at) VALUES (?, 1, NOW(), NOW())`,
+                    [yard_location_name]
+                );
+                yard_location_id = insertResult.insertId;
+            }
 
             // ดึงข้อมูล plan พร้อมตรวจสอบสถานะต้องเป็น Returned (4)
             const [plans]: any = await connection.query(
