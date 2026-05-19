@@ -156,6 +156,13 @@ export const actions: Actions = {
 				const status = statuses[i];
 				const shift = shifts[i];
 				const remark = remarks[i];
+				if (status === 'Pending') {
+					await connection.execute(
+						'DELETE FROM attendance_logs WHERE emp_id = ? AND work_date = ?',
+						[empId, workDate]
+					);
+					continue;
+				}
 				const timeInVal = timesIn[i]?.toString();
 				const timeOutVal = timesOut[i]?.toString();
 
