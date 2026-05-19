@@ -92,48 +92,54 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 		let logQuery = `
 			SELECT 
-				al.emp_id, 
-				IFNULL(e.emp_name, al.emp_name) as name, 
+				e.emp_id, 
+				e.emp_name as name, 
 				DATE_FORMAT(al.scan_in_time, '%H:%i') as time,
 				DATE_FORMAT(al.scan_out_time, '%H:%i') as time_out,
-				al.status,
+				CASE 
+					WHEN al.status IS NULL AND (e.default_shift = 'N' OR e.default_shift = 'Night') THEN 'Pending'
+					ELSE IFNULL(al.status, 'Absent') 
+				END as status,
 				IFNULL(e.division, '-') as dis,
 				IFNULL(e.section, '-') as section,
 				IFNULL(e.emp_group, '-') as emp_group,
 				IFNULL(jp.position_name, '-') as position,
-				al.is_late
-			FROM attendance_logs al
-			INNER JOIN employees e ON al.emp_id = e.emp_id
+				IFNULL(al.is_late, 0) as is_late
+			FROM employees e
+			LEFT JOIN attendance_logs al ON e.emp_id = al.emp_id AND al.work_date = ?
 			LEFT JOIN job_positions jp ON e.position_id = jp.id
-			WHERE al.work_date = ? ${securityWhere} ${empWhere}
+			WHERE e.status != 'Resigned' ${securityWhere} ${empWhere}
 		`;
 		const logParams: any[] = [displayDate, ...securityParams, ...filterParams];
 
 		if (search) {
-			logQuery += ` AND (al.emp_id LIKE ? OR e.emp_name LIKE ? OR e.section LIKE ?)`;
+			logQuery += ` AND (e.emp_id LIKE ? OR e.emp_name LIKE ? OR e.section LIKE ?)`;
 			const searchPattern = `%${search.trim().replace(/[\s+]+/g, '%')}%`;
 			logParams.push(searchPattern, searchPattern, searchPattern);
 		}
 		if (statusFilter !== 'All') {
-			logQuery += ` AND al.status = ?`;
-			logParams.push(statusFilter);
+			if (statusFilter === 'Late') {
+				logQuery += ` AND (al.status = 'Late' OR al.is_late = 1)`;
+			} else if (statusFilter === 'Absent') {
+				logQuery += ` AND (al.status = 'Absent' OR (al.status IS NULL AND e.default_shift != 'N' AND e.default_shift != 'Night'))`;
+			} else {
+				logQuery += ` AND al.status = ?`;
+				logParams.push(statusFilter);
+			}
 		}
-		logQuery += ` ORDER BY al.scan_in_time DESC`;
+		logQuery += ` ORDER BY al.scan_in_time DESC, e.emp_id ASC`;
 
 		const [recentLogs]: any = await pool.execute(logQuery, logParams);
 
 		const statsQuery = `
 			SELECT 
-				(SELECT COUNT(emp_id) FROM employees e WHERE status != 'Resigned' ${securityWhere} ${empWhere}) as total_plan, 
-				
-				COUNT(DISTINCT al.emp_id) as total_scanned, 
+				COUNT(e.emp_id) as total_plan,
+				SUM(CASE WHEN al.emp_id IS NOT NULL THEN 1 ELSE 0 END) as total_scanned,
 				SUM(CASE WHEN al.is_late = 1 THEN 1 ELSE 0 END) as late,
-				
-				(SELECT COUNT(emp_id) FROM employees e WHERE status != 'Resigned' ${securityWhere} ${empWhere}) - COUNT(DISTINCT al.emp_id) as absent
-
-			FROM attendance_logs al
-			INNER JOIN employees e ON al.emp_id = e.emp_id 
-			WHERE al.work_date = ? ${securityWhere} ${empWhere}
+				SUM(CASE WHEN (al.status = 'Absent' OR al.status IS NULL) AND e.default_shift != 'N' AND e.default_shift != 'Night' THEN 1 ELSE 0 END) as absent
+			FROM employees e
+			LEFT JOIN attendance_logs al ON e.emp_id = al.emp_id AND al.work_date = ?
+			WHERE e.status != 'Resigned' ${securityWhere} ${empWhere}
 		`;
 
 		const [statsRow]: any = await pool.execute(statsQuery, [
@@ -557,7 +563,10 @@ export const actions: Actions = {
 									formattedTime = `${y}-${m}-${d} ${h}:${min}:${sec}`;
 								} else {
 									// string fallback: ตัด timezone suffix ออก ใช้ตัวเลขตรงๆ
-									formattedTime = String(log.recordTime).replace('T', ' ').split('.')[0].split('Z')[0];
+									formattedTime = String(log.recordTime)
+										.replace('T', ' ')
+										.split('.')[0]
+										.split('Z')[0];
 								}
 
 								return [ip, rawId, formattedTime, currentThaiTime];

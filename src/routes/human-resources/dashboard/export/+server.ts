@@ -8,26 +8,29 @@ export const GET: RequestHandler = async () => {
 	const [rows]: any = await pool.execute(
 		`
 		SELECT 
-			al.emp_id AS 'ID_No',
+			e.emp_id AS 'ID_No',
 			e.citizen_id AS 'ID',
-			IFNULL(e.emp_name, al.emp_name) AS 'Name',
-			e.division AS 'Dis',
-			e.section AS 'Section',
-			e.emp_group AS 'Group',
-			jp.position_name AS 'Position',
-			e.project AS 'Project',
-			al.work_date,
+			e.emp_name AS 'Name',
+			IFNULL(e.division, '-') AS 'Dis',
+			IFNULL(e.section, '-') AS 'Section',
+			IFNULL(e.emp_group, '-') AS 'Group',
+			IFNULL(jp.position_name, '-') AS 'Position',
+			IFNULL(e.project, '-') AS 'Project',
+			? AS 'work_date',
 			DATE_FORMAT(al.scan_in_time, '%H:%i:%s') as time_in_str,
 			DATE_FORMAT(al.scan_out_time, '%H:%i:%s') as time_out_str,
-			al.status,
-			al.is_late
-		FROM attendance_logs al
-		LEFT JOIN employees e ON al.emp_id = e.emp_id
+			CASE 
+				WHEN al.status IS NULL AND (e.default_shift = 'N' OR e.default_shift = 'Night') THEN 'Night shift'
+				ELSE IFNULL(al.status, 'Absent') 
+			END AS 'status',
+			IFNULL(al.is_late, 0) AS 'is_late'
+		FROM employees e
+		LEFT JOIN attendance_logs al ON e.emp_id = al.emp_id AND al.work_date = ?
 		LEFT JOIN job_positions jp ON e.position_id = jp.id
-		WHERE al.work_date = ?
-		ORDER BY al.scan_in_time ASC
+		WHERE e.status != 'Resigned'
+		ORDER BY al.scan_in_time ASC, e.emp_id ASC
 	`,
-		[today]
+		[today, today]
 	);
 
 	const workbook = new ExcelJS.Workbook();

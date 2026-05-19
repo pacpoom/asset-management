@@ -123,12 +123,15 @@
 	// สร้าง optgroup จาก employeeList จัดกลุ่มตาม section
 	let employeeList = $derived(data.employeeList || []);
 	let empBySection = $derived<Record<string, any[]>>(
-		employeeList.reduce((acc: Record<string, any[]>, emp: any) => {
-			const s = emp.section || '-';
-			if (!acc[s]) acc[s] = [];
-			acc[s].push(emp);
-			return acc;
-		}, {} as Record<string, any[]>)
+		employeeList.reduce(
+			(acc: Record<string, any[]>, emp: any) => {
+				const s = emp.section || '-';
+				if (!acc[s]) acc[s] = [];
+				acc[s].push(emp);
+				return acc;
+			},
+			{} as Record<string, any[]>
+		)
 	);
 
 	async function doLink(rawEmpId: string) {
@@ -351,11 +354,12 @@
 			{#if unmatchedScans.length > 0}
 				<button
 					onclick={() => (showUnmatchedModal = true)}
-					class="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-400/30 hover:bg-amber-200 transition-colors"
+					class="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-400/30 transition-colors hover:bg-amber-200"
 					title="ZKTeco scans ที่ไม่พบในระบบ"
 				>
 					<span class="material-symbols-outlined text-[14px]">warning</span>
-					{unmatchedScans.length} {$t('unmatched')}
+					{unmatchedScans.length}
+					{$t('unmatched')}
 				</button>
 			{/if}
 		</div>
@@ -493,17 +497,22 @@
 							>
 							<td class="px-4 py-3">
 								<span
-									class="rounded-full px-2.5 py-1 text-xs font-semibold {log.status === 'Present'
-										? 'bg-green-100 text-green-700'
-										: log.status === 'Late'
-											? 'bg-orange-100 text-orange-700'
-											: 'bg-red-100 text-red-700'}"
+									class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap {log.status ===
+										'Late' || log.is_late == 1
+										? 'bg-orange-100 text-orange-700'
+										: log.status === 'Present'
+											? 'bg-green-100 text-green-700'
+											: log.status === 'Pending'
+												? 'bg-blue-100 text-blue-700'
+												: 'bg-red-100 text-red-700'}"
 								>
-									{log.status === 'Present'
-										? $t('ปกติ')
-										: log.status === 'Late'
-											? $t('สาย')
-											: $t('ขาด')}
+									{log.status === 'Late' || log.is_late == 1
+										? $t('สาย')
+										: log.status === 'Present'
+											? $t('ปกติ')
+											: log.status === 'Pending'
+												? $t('Night shift')
+												: $t('ขาด')}
 								</span>
 							</td>
 						</tr>
@@ -755,14 +764,21 @@
 			class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl"
 		>
 			<!-- Header -->
-			<div class="flex items-center justify-between border-b border-amber-100 bg-amber-50 px-6 py-4 flex-shrink-0">
+			<div
+				class="flex flex-shrink-0 items-center justify-between border-b border-amber-100 bg-amber-50 px-6 py-4"
+			>
 				<div class="flex items-center gap-3">
 					<span class="material-symbols-outlined text-[24px] text-amber-600">link_off</span>
 					<div>
 						<h2 class="text-base font-bold text-gray-900">ZKTeco Unmatched Scans</h2>
 						<p class="text-xs text-gray-500">
-							{new Date(data.displayDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-							— เหลือ <strong class="text-amber-700">{localUnmatched.length}</strong> รายการที่ยังไม่ match
+							{new Date(data.displayDate).toLocaleDateString('th-TH', {
+								day: 'numeric',
+								month: 'short',
+								year: 'numeric'
+							})}
+							— เหลือ <strong class="text-amber-700">{localUnmatched.length}</strong> รายการที่ยังไม่
+							match
 						</p>
 					</div>
 				</div>
@@ -776,25 +792,31 @@
 			</div>
 
 			<!-- Info banner -->
-			<div class="border-b border-amber-100 bg-amber-50/50 px-6 py-2.5 text-xs text-amber-800 flex-shrink-0">
+			<div
+				class="flex-shrink-0 border-b border-amber-100 bg-amber-50/50 px-6 py-2.5 text-xs text-amber-800"
+			>
 				<span class="material-symbols-outlined mr-1 align-middle text-[14px]">info</span>
-				เลือกพนักงานในระบบที่ตรงกับ ZKTeco ID แล้วกด <strong>Link</strong> เพื่อผูก <code class="font-mono">raw_id</code> — ข้อมูลจะถูกนับใน Work Today หลัง Sync ครั้งถัดไป
+				เลือกพนักงานในระบบที่ตรงกับ ZKTeco ID แล้วกด <strong>Link</strong> เพื่อผูก
+				<code class="font-mono">raw_id</code> — ข้อมูลจะถูกนับใน Work Today หลัง Sync ครั้งถัดไป
 			</div>
 
 			<!-- Search bar (กรอง unmatched list) -->
-			<div class="border-b border-gray-100 px-5 py-2.5 flex-shrink-0">
+			<div class="flex-shrink-0 border-b border-gray-100 px-5 py-2.5">
 				<div class="relative">
-					<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-gray-400">search</span>
+					<span
+						class="material-symbols-outlined absolute top-1/2 left-2.5 -translate-y-1/2 text-[16px] text-gray-400"
+						>search</span
+					>
 					<input
 						type="text"
 						bind:value={unmatchedSearch}
 						placeholder="ค้นหา ZKTeco ID..."
-						class="w-full rounded-md border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-4 text-sm focus:border-blue-400 focus:bg-white focus:outline-none"
+						class="w-full rounded-md border border-gray-200 bg-gray-50 py-1.5 pr-4 pl-8 text-sm focus:border-blue-400 focus:bg-white focus:outline-none"
 					/>
 					{#if unmatchedSearch}
 						<button
 							onclick={() => (unmatchedSearch = '')}
-							class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+							class="absolute top-1/2 right-2.5 -translate-y-1/2 text-gray-400 hover:text-gray-600"
 							aria-label="Clear"
 						>
 							<span class="material-symbols-outlined text-[16px]">close</span>
@@ -806,13 +828,15 @@
 			<!-- Table -->
 			<div class="flex-1 overflow-y-auto">
 				{#if localUnmatched.length === 0}
-					<div class="flex flex-col items-center justify-center py-16 text-sm text-gray-500 gap-2">
+					<div class="flex flex-col items-center justify-center gap-2 py-16 text-sm text-gray-500">
 						<span class="material-symbols-outlined text-[40px] text-green-400">check_circle</span>
 						<p class="font-medium text-green-600">ทุก ID ถูก match เรียบร้อยแล้ว</p>
 					</div>
 				{:else}
 					<table class="w-full text-left text-sm">
-						<thead class="sticky top-0 border-b border-gray-100 bg-white text-xs font-semibold uppercase text-gray-500">
+						<thead
+							class="sticky top-0 border-b border-gray-100 bg-white text-xs font-semibold text-gray-500 uppercase"
+						>
 							<tr>
 								<th class="px-4 py-3 whitespace-nowrap">ZKTeco ID</th>
 								<th class="px-4 py-3 text-center whitespace-nowrap">สแกน</th>
@@ -838,29 +862,41 @@
 									</td>
 									<!-- scan count -->
 									<td class="px-4 py-2.5 text-center">
-										<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{row.scan_count}</span>
+										<span
+											class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700"
+											>{row.scan_count}</span
+										>
 									</td>
 									<!-- first scan -->
-									<td class="px-4 py-2.5 text-center font-mono text-xs text-green-700">{row.first_scan}</td>
+									<td class="px-4 py-2.5 text-center font-mono text-xs text-green-700"
+										>{row.first_scan}</td
+									>
 									<!-- last scan -->
-									<td class="px-4 py-2.5 text-center font-mono text-xs text-purple-700">{row.last_scan}</td>
+									<td class="px-4 py-2.5 text-center font-mono text-xs text-purple-700"
+										>{row.last_scan}</td
+									>
 									<!-- Employee selector with search -->
 									<td class="px-4 py-2">
 										<div class="flex flex-col gap-1">
 											<div class="relative">
-												<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[13px] text-gray-400">person_search</span>
+												<span
+													class="material-symbols-outlined absolute top-1/2 left-2 -translate-y-1/2 text-[13px] text-gray-400"
+													>person_search</span
+												>
 												<input
 													type="text"
 													placeholder="ค้นหาชื่อ / รหัส / แผนก..."
 													bind:value={empSearch[row.raw_emp_id]}
-													class="w-full rounded border border-gray-200 bg-gray-50 py-1 pl-6 pr-2 text-xs focus:border-blue-400 focus:bg-white focus:outline-none"
+													class="w-full rounded border border-gray-200 bg-gray-50 py-1 pr-2 pl-6 text-xs focus:border-blue-400 focus:bg-white focus:outline-none"
 												/>
 											</div>
 											<select
 												bind:value={linkSelections[row.raw_emp_id]}
 												class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
 											>
-												<option value="">— เลือกพนักงาน ({getFilteredEmps(row.raw_emp_id).length} คน) —</option>
+												<option value=""
+													>— เลือกพนักงาน ({getFilteredEmps(row.raw_emp_id).length} คน) —</option
+												>
 												{#each getFilteredEmps(row.raw_emp_id) as emp}
 													<option value={emp.emp_id}>
 														[{emp.emp_id}] {emp.emp_name} · {emp.section}{emp.raw_id ? ' ✓' : ''}
@@ -880,7 +916,9 @@
 											class="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
 										>
 											{#if linkLoading[row.raw_emp_id]}
-												<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+												<span
+													class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"
+												></span>
 											{:else}
 												<span class="material-symbols-outlined text-[14px]">link</span>
 											{/if}
@@ -895,7 +933,9 @@
 			</div>
 
 			<!-- Footer -->
-			<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-6 py-3 flex-shrink-0">
+			<div
+				class="flex flex-shrink-0 items-center justify-between border-t border-gray-100 bg-gray-50 px-6 py-3"
+			>
 				<p class="text-xs text-gray-500">
 					พนักงานที่มี <strong>✓</strong> หลังชื่อ = มี raw_id แล้ว (จะถูกเขียนทับ)
 				</p>
