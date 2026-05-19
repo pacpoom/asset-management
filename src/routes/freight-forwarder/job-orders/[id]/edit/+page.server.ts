@@ -151,18 +151,22 @@ export const actions = {
 				formData.get('flight_no') || null, // อัปเดต Flight No.
 				formData.get('port_of_loading') || null,
 				formData.get('port_of_discharge') || null,
+				formData.get('demurrage_days') ? parseInt(formData.get('demurrage_days') as string) || null : null,
+				formData.get('storage_days') ? parseInt(formData.get('storage_days') as string) || null : null,
+				formData.get('detention_days') ? parseInt(formData.get('detention_days') as string) || null : null,
 				new_job_number,
 				id
 			];
 
 			const sql = `
                 UPDATE job_orders SET
-                    customer_id = ?, contract_id = ?, vendor_id = ?, vendor_contract_id = ?, 
+                    customer_id = ?, contract_id = ?, vendor_id = ?, vendor_contract_id = ?,
                     job_type = ?, service_type = ?, location = ?, bl_number = ?, mbl = ?, invoice_no = ?, ccl = ?,
-                    liner_name = ?, job_status = ?, job_date = ?, etd = ?, eta = ?, expire_date = ?, 
-                    quantity = ?, unit_id = ?, weight = ?, kgs_volume = ?, remarks = ?, 
-                    amount = ?, currency = ?, 
+                    liner_name = ?, job_status = ?, job_date = ?, etd = ?, eta = ?, expire_date = ?,
+                    quantity = ?, unit_id = ?, weight = ?, kgs_volume = ?, remarks = ?,
+                    amount = ?, currency = ?,
 					booking_no = ?, vessel = ?, feeder = ?, flight_no = ?, port_of_loading = ?, port_of_discharge = ?,
+					demurrage_days = ?, storage_days = ?, detention_days = ?,
 					job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;

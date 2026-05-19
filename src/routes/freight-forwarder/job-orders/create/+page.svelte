@@ -140,6 +140,18 @@
 	}));
 	let selectedVessel: SelectOption | null = null;
 
+	// Free Days — auto-fill จาก Vessel ที่เลือก
+	let jobDemurrageDays: number | string = '';
+	let jobStorageDays: number | string = '';
+	let jobDetentionDays: number | string = '';
+
+	$: if (selectedVessel) {
+		const v = selectedVessel as SelectOption & { demurrage_days?: number; storage_days?: number; detention_days?: number };
+		if (v.demurrage_days != null) jobDemurrageDays = v.demurrage_days;
+		if (v.storage_days != null) jobStorageDays = v.storage_days;
+		if (v.detention_days != null) jobDetentionDays = v.detention_days;
+	}
+
 	$: activeCurrencies = (
 		data?.currencies && data.currencies.length > 0
 			? data.currencies
@@ -696,6 +708,33 @@
 								<button type="button" onclick={() => openManageModal('port')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Ports')}>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
 								</button>
+							</div>
+						</div>
+
+						<!-- Free Days: Demurrage / Storage / Detention -->
+						<div class="col-span-1 md:col-span-3">
+							<div class="grid grid-cols-3 gap-4 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
+								<div>
+									<label for="demurrage_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าภาระท่า <span class="normal-case font-normal text-gray-400">(Demurrage)</span></label>
+									<div class="flex items-center gap-1">
+										<input id="demurrage_days" type="number" name="demurrage_days" min="0" max="999" bind:value={jobDemurrageDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
+										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									</div>
+								</div>
+								<div>
+									<label for="storage_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าฝากตู้ <span class="normal-case font-normal text-gray-400">(Storage)</span></label>
+									<div class="flex items-center gap-1">
+										<input id="storage_days" type="number" name="storage_days" min="0" max="999" bind:value={jobStorageDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
+										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									</div>
+								</div>
+								<div>
+									<label for="detention_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าเช่าตู้ <span class="normal-case font-normal text-gray-400">(Detention)</span></label>
+									<div class="flex items-center gap-1">
+										<input id="detention_days" type="number" name="detention_days" min="0" max="999" bind:value={jobDetentionDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
+										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									</div>
+								</div>
 							</div>
 						</div>
 

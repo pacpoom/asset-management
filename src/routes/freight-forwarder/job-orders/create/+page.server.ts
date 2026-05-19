@@ -152,6 +152,9 @@ export const actions = {
 			flight_no: formData.get('flight_no') || null, // รับค่า Flight No.
 			port_of_loading: formData.get('port_of_loading') || null,
 			port_of_discharge: formData.get('port_of_discharge') || null,
+			demurrage_days: formData.get('demurrage_days') ? parseInt(formData.get('demurrage_days') as string) || null : null,
+			storage_days: formData.get('storage_days') ? parseInt(formData.get('storage_days') as string) || null : null,
+			detention_days: formData.get('detention_days') ? parseInt(formData.get('detention_days') as string) || null : null,
 			created_by: locals.user?.id || 1
 		};
 
@@ -163,17 +166,18 @@ export const actions = {
 
 			const job_number = await generateJobNumber(job_type, job_date, connection);
 
-			// เพิ่ม flight_no ในคำสั่ง SQL INSERT
+			// เพิ่ม flight_no และ demurrage/storage/detention_days ในคำสั่ง SQL INSERT
 			const sql = `
                 INSERT INTO job_orders (
-                    customer_id, contract_id, vendor_id, vendor_contract_id, 
+                    customer_id, contract_id, vendor_id, vendor_contract_id,
                     job_type, service_type, location, bl_number, mbl, invoice_no, ccl,
-                    liner_name, job_status, job_date, etd, eta, expire_date, 
-                    quantity, unit_id, weight, kgs_volume, remarks, 
-                    amount, currency, job_number, 
+                    liner_name, job_status, job_date, etd, eta, expire_date,
+                    quantity, unit_id, weight, kgs_volume, remarks,
+                    amount, currency, job_number,
 					booking_no, vessel, feeder, flight_no, port_of_loading, port_of_discharge,
+					demurrage_days, storage_days, detention_days,
 					created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
@@ -208,6 +212,9 @@ export const actions = {
 				data.flight_no, // แมปค่า flight_no
 				data.port_of_loading,
 				data.port_of_discharge,
+				data.demurrage_days,
+				data.storage_days,
+				data.detention_days,
 				data.created_by
 			];
 
