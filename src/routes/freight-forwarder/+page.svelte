@@ -10,7 +10,9 @@
 	$: jobTypeStats = data.jobTypeStats || [];
 	$: recentJobs = data.recentJobs || [];
 	$: alerts = data.alerts || [];
+	$: containerAlerts = data.containerAlerts || [];
 	$: filters = data.filters || { month: '' };
+	$: totalAlerts = alerts.length + containerAlerts.length;
 
 	let selectedMonth = '';
 	$: {
@@ -358,62 +360,93 @@
 
 		<!-- Alerts Panel -->
 		<div class="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-			<div
-				class="flex items-center justify-between border-b border-gray-100 bg-red-50/50 px-6 py-4"
-			>
+			<div class="flex items-center justify-between border-b border-gray-100 bg-red-50/50 px-6 py-4">
 				<div class="flex items-center gap-2">
 					<span class="relative flex h-3 w-3">
-						{#if alerts.length > 0}
-							<span
-								class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"
-							></span>
+						{#if totalAlerts > 0}
+							<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
 						{/if}
 						<span class="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
 					</span>
 					<h2 class="text-base font-bold text-gray-800">{$t('Alerts')}</h2>
 				</div>
-				{#if alerts.length > 0}
-					<span class="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-600"
-						>{alerts.length}</span
-					>
+				{#if totalAlerts > 0}
+					<span class="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-600">{totalAlerts}</span>
 				{/if}
 			</div>
 
 			<div class="flex-1 overflow-y-auto p-4" style="max-height: 520px;">
 				<div class="space-y-3">
-					{#each alerts as alert}
-						<div
-							class="flex items-start gap-3 rounded-lg border border-red-100 bg-white p-3 shadow-sm transition-all hover:bg-red-50"
-						>
-							<div class="mt-0.5 flex-shrink-0 rounded-full bg-red-100 p-1.5 text-red-600">
-								<span class="material-symbols-outlined" style="font-size:16px">warning</span>
-							</div>
-							<div class="min-w-0 flex-1">
-								<div class="flex items-center justify-between gap-2">
-									<a
-										href="/freight-forwarder/job-orders/{alert.id}"
-										class="truncate text-sm font-bold text-gray-900 hover:text-blue-600 hover:underline"
-									>
-										{formatJobNumber(alert.job_type, alert.job_date, alert.id)}
-									</a>
-									<span class="flex-shrink-0 text-[10px] font-bold text-red-600">
-										{getDaysLeft(alert.expire_date)}d
-									</span>
-								</div>
-								<p class="mt-0.5 text-xs text-gray-500">
-									{$t('Expires')}
-									{formatDate(alert.expire_date)}
-								</p>
-							</div>
-						</div>
-					{/each}
 
-					{#if alerts.length === 0}
+					<!-- ── Container Checkout Alerts ── -->
+					{#if containerAlerts.length > 0}
+						<div class="mb-1 flex items-center gap-2">
+							<svg class="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+							<span class="text-[10px] font-bold uppercase tracking-wider text-amber-600">ตู้รอ Checkout ({containerAlerts.length})</span>
+						</div>
+						{#each containerAlerts as ca}
+							{@const daysSince = Number(ca.days_since_eta)}
+							{@const isOverdue = daysSince > 0}
+							{@const isToday = daysSince === 0}
+							<div class="flex items-start gap-3 rounded-lg border {isOverdue ? 'border-red-200 bg-red-50/60 hover:bg-red-50' : isToday ? 'border-orange-200 bg-orange-50/60 hover:bg-orange-50' : 'border-amber-200 bg-amber-50/60 hover:bg-amber-50'} p-3 shadow-sm transition-all">
+								<div class="mt-0.5 flex-shrink-0 rounded-full p-1.5 {isOverdue ? 'bg-red-100 text-red-600' : isToday ? 'bg-orange-100 text-orange-600' : 'bg-amber-100 text-amber-600'}">
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+								</div>
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center justify-between gap-2">
+										<a href="/freight-forwarder/job-orders/{ca.id}"
+											class="truncate text-sm font-bold text-gray-900 hover:text-blue-600 hover:underline">
+											{ca.job_number || formatJobNumber(ca.job_type, ca.job_date, ca.id)}
+										</a>
+										<span class="flex-shrink-0 text-[10px] font-bold {isOverdue ? 'text-red-600' : isToday ? 'text-orange-600' : 'text-amber-600'}">
+											{isOverdue ? `+${daysSince}d` : isToday ? 'TODAY' : `-${Math.abs(daysSince)}d`}
+										</span>
+									</div>
+									<p class="mt-0.5 text-xs text-gray-500 truncate">
+										{ca.customer_name || '-'} · ตู้รอออก <strong class="text-amber-600">{ca.pending_count}</strong>
+									</p>
+									<p class="text-[10px] text-gray-400">ETA: {formatDate(ca.eta)}{ca.expire_date ? ` · Free Time หมด: ${formatDate(ca.expire_date)}` : ''}</p>
+								</div>
+							</div>
+						{/each}
+					{/if}
+
+					<!-- ── Expire Date Alerts ── -->
+					{#if alerts.length > 0}
+						{#if containerAlerts.length > 0}
+							<div class="my-2 border-t border-gray-100"></div>
+						{/if}
+						<div class="mb-1 flex items-center gap-2">
+							<span class="material-symbols-outlined text-red-500" style="font-size:14px">schedule</span>
+							<span class="text-[10px] font-bold uppercase tracking-wider text-red-500">หมดอายุ ({alerts.length})</span>
+						</div>
+						{#each alerts as alert}
+							<div class="flex items-start gap-3 rounded-lg border border-red-100 bg-white p-3 shadow-sm transition-all hover:bg-red-50">
+								<div class="mt-0.5 flex-shrink-0 rounded-full bg-red-100 p-1.5 text-red-600">
+									<span class="material-symbols-outlined" style="font-size:16px">warning</span>
+								</div>
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center justify-between gap-2">
+										<a href="/freight-forwarder/job-orders/{alert.id}"
+											class="truncate text-sm font-bold text-gray-900 hover:text-blue-600 hover:underline">
+											{formatJobNumber(alert.job_type, alert.job_date, alert.id)}
+										</a>
+										<span class="flex-shrink-0 text-[10px] font-bold text-red-600">
+											{getDaysLeft(alert.expire_date)}d
+										</span>
+									</div>
+									<p class="mt-0.5 text-xs text-gray-500">
+										{$t('Expires')} {formatDate(alert.expire_date)}
+									</p>
+								</div>
+							</div>
+						{/each}
+					{/if}
+
+					{#if totalAlerts === 0}
 						<div class="flex flex-col items-center justify-center py-10 text-center">
 							<div class="mb-3 rounded-full bg-green-50 p-3 text-green-500">
-								<span class="material-symbols-outlined" style="font-size:32px"
-									>notifications_active</span
-								>
+								<span class="material-symbols-outlined" style="font-size:32px">notifications_active</span>
 							</div>
 							<h3 class="text-sm font-bold text-gray-900">{$t('Excellent!')}</h3>
 							<p class="mt-1 text-xs text-gray-500">{$t('No urgent alerts right now.')}</p>

@@ -1,6 +1,6 @@
 import pool from '$lib/server/database';
 
-export const load = async ({ url }) => {
+export const load = async ({ url, locals }) => {
 	// 1. จัดการ Default เป็นเดือนปัจจุบัน (YYYY-MM)
 	const now = new Date();
 	const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -90,14 +90,48 @@ export const load = async ({ url }) => {
 
 		// Alerts ดึงจากปัจจุบันไปอีก 30 วัน
 		const [alerts]: any = await pool.query(`
-			SELECT id, job_type, job_date, expire_date, job_status 
-			FROM job_orders 
-			WHERE expire_date IS NOT NULL 
+			SELECT id, job_type, job_date, expire_date, job_status
+			FROM job_orders
+			WHERE expire_date IS NOT NULL
 			  AND expire_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)
 			  AND job_status NOT IN ('Completed', 'Cancelled')
 			ORDER BY expire_date ASC
 			LIMIT 10
 		`);
+
+		// Container Alerts: ตู้ที่ยังไม่ checkout และ ETA ใกล้ถึง/เลยแล้ว
+		// admin_freight เห็นทั้งหมด, user ทั่วไปเห็นเฉพาะของตัวเอง
+		const currentUser = locals.user;
+		const isAdmin = currentUser?.role === 'admin_freight';
+		let containerAlerts: any[] = [];
+		try {
+			const alertParams: (string | number)[] = [];
+			let alertWhere = `WHERE j.eta IS NOT NULL
+				AND DATEDIFF(CURDATE(), j.eta) >= -3
+				AND j.job_status NOT IN ('Cancelled', 'Completed')`;
+
+			if (!isAdmin && currentUser?.id) {
+				alertWhere += ' AND j.created_by = ?';
+				alertParams.push(currentUser.id);
+			}
+
+			const [containerAlertRows]: any = await pool.query(`
+				SELECT j.id, j.job_number, j.job_type, j.job_date, j.eta, j.expire_date,
+				       COALESCE(c.company_name, c.name) as customer_name,
+				       COUNT(jc.id) as pending_count,
+				       DATEDIFF(CURDATE(), j.eta) as days_since_eta
+				FROM job_orders j
+				JOIN job_containers jc ON jc.job_order_id = j.id AND jc.status = 'pending'
+				LEFT JOIN customers c ON j.customer_id = c.id
+				${alertWhere}
+				GROUP BY j.id, j.job_number, j.job_type, j.job_date, j.eta, j.expire_date, c.company_name, c.name
+				ORDER BY days_since_eta DESC
+				LIMIT 15
+			`, alertParams);
+			containerAlerts = containerAlertRows;
+		} catch {
+			// คอลัมน์ status ยังไม่มีในตาราง — รอ migration ก่อน
+		}
 
 		return {
 			stats: statsRow[0] || {
@@ -112,6 +146,7 @@ export const load = async ({ url }) => {
 			jobTypeStats: JSON.parse(JSON.stringify(jobTypeStats)),
 			recentJobs: JSON.parse(JSON.stringify(recentJobs)),
 			alerts: JSON.parse(JSON.stringify(alerts)),
+			containerAlerts: JSON.parse(JSON.stringify(containerAlerts)),
 			filters: { month: selectedMonth }
 		};
 	} catch (error) {
@@ -129,6 +164,7 @@ export const load = async ({ url }) => {
 			jobTypeStats: [],
 			recentJobs: [],
 			alerts: [],
+			containerAlerts: [],
 			filters: { month: selectedMonth }
 		};
 	}
