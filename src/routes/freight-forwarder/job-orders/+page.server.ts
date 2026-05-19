@@ -83,9 +83,34 @@ export const load = async ({ url, locals }) => {
 	`;
 	
 	const [rows] = await pool.query(sql, queryParams);
-	
-	return { 
+
+	// Alert: ดึงรายการ Job ที่มีตู้ยังไม่ checkout และ expire_date ใกล้ถึง (ภายใน 7 วัน หรือเกินแล้ว)
+	// ใช้ try/catch เผื่อกรณียังไม่ได้รัน migration เพิ่มคอลัมน์ status
+	let alertRows: unknown[] = [];
+	try {
+		const alertSql = `
+			SELECT j.id, j.job_number, j.eta, j.expire_date,
+			       COALESCE(c.company_name, c.name) as customer_name,
+			       COUNT(jc.id) as pending_count,
+			       DATEDIFF(j.expire_date, CURDATE()) as days_left
+			FROM job_orders j
+			JOIN job_containers jc ON jc.job_order_id = j.id AND jc.status = 'pending'
+			LEFT JOIN customers c ON j.customer_id = c.id
+			WHERE j.expire_date IS NOT NULL
+			  AND DATEDIFF(j.expire_date, CURDATE()) <= 7
+			  AND j.job_status NOT IN ('Cancelled', 'Completed')
+			GROUP BY j.id, j.job_number, j.eta, j.expire_date, c.company_name, c.name
+			ORDER BY j.expire_date ASC
+		`;
+		const [_alertRows] = await pool.query(alertSql);
+		alertRows = _alertRows as unknown[];
+	} catch {
+		// คอลัมน์ status ยังไม่มีในตาราง — รอ migration ก่อน
+	}
+
+	return {
 		job_orders: JSON.parse(JSON.stringify(rows)),
+		containerAlerts: JSON.parse(JSON.stringify(alertRows)),
 		pagination: {
 			total: totalJobs,
 			page,
