@@ -382,6 +382,21 @@
 		eta.setHours(0, 0, 0, 0);
 		return Math.round((now.getTime() - eta.getTime()) / (1000 * 60 * 60 * 24));
 	}
+
+	// คำนวณจำนวนวันที่ผ่านไปนับจาก deadline = ETA + X วัน
+	// บวก = เลยกำหนดแล้ว, ลบ = ยังไม่ถึง, null = ไม่มีข้อมูล
+	function calcDaysOverdue(deadlineDays: number | null | undefined): number | null {
+		if (!job.eta || deadlineDays == null) return null;
+		const now = new Date();
+		now.setHours(0, 0, 0, 0);
+		const deadline = new Date(job.eta);
+		deadline.setHours(0, 0, 0, 0);
+		deadline.setDate(deadline.getDate() + Number(deadlineDays));
+		return Math.round((now.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+	}
+
+	$: isEn = $locale === 'en';
+
 	let pendingContainerCount = $derived(containers.filter(c => c.status === 'pending').length);
 	let checkedOutCount = $derived(containers.filter(c => c.status === 'checked_out').length);
 
@@ -537,9 +552,20 @@
 <!-- =============================== -->
 {#if containers.length > 0 && pendingContainerCount > 0 && job.eta}
 	{@const daysSince = calcDaysSinceEta()}
-	{@const isOverdue = daysSince !== null && daysSince > 0}
-	{@const isToday = daysSince !== null && daysSince === 0}
-	{@const isUpcoming = daysSince !== null && daysSince >= -3 && daysSince < 0}
+	{@const hasDays = job.demurrage_days != null || job.storage_days != null || job.detention_days != null}
+	{@const dOD = calcDaysOverdue(job.demurrage_days)}
+	{@const dOS = calcDaysOverdue(job.storage_days)}
+	{@const dODet = calcDaysOverdue(job.detention_days)}
+	{@const worst = hasDays
+		? Math.max(
+				job.demurrage_days != null && dOD != null ? dOD : -999,
+				job.storage_days != null && dOS != null ? dOS : -999,
+				job.detention_days != null && dODet != null ? dODet : -999
+			)
+		: (daysSince ?? -999)}
+	{@const isOverdue = worst > 0}
+	{@const isToday = worst === 0}
+	{@const isUpcoming = worst < 0 && worst >= -3}
 	{#if isOverdue || isToday || isUpcoming}
 		<div class="mb-6 rounded-xl border-l-4 p-4 shadow-sm {isOverdue ? 'border-red-500 bg-red-50' : isToday ? 'border-orange-500 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}">
 			<div class="flex items-start gap-3">
@@ -555,25 +581,62 @@
 					{/if}
 				</div>
 				<div class="flex-1">
+					<!-- Main headline -->
 					<p class="font-bold {isOverdue ? 'text-red-800' : isToday ? 'text-orange-800' : 'text-yellow-800'}">
 						{#if isOverdue}
-							⚠️ เลย ETA มาแล้ว {daysSince} วัน — ตู้ยังไม่ออกจากท่า!
+							⚠️ {isEn ? `Overdue ${worst} day(s) — containers not yet checked out!` : `เลยกำหนดมาแล้ว ${worst} วัน — ตู้ยังไม่ออกจากท่า!`}
 						{:else if isToday}
-							🚨 เรือถึงท่าวันนี้! (ETA: {formatDate(job.eta)})
+							🚨 {isEn ? `Due today! (ETA: ${formatDate(job.eta)})` : `ครบกำหนดวันนี้! (ETA: ${formatDate(job.eta)})`}
 						{:else}
-							⏰ ETA อีก {Math.abs(daysSince!)} วัน ({formatDate(job.eta)}) — เตรียม Checkout ตู้
+							⏰ {isEn ? `${Math.abs(worst)} day(s) remaining (ETA: ${formatDate(job.eta)}) — prepare for checkout` : `อีก ${Math.abs(worst)} วัน (ETA: ${formatDate(job.eta)}) — เตรียม Checkout ตู้`}
 						{/if}
 					</p>
+					<!-- Sub-text: container count -->
 					<p class="mt-1 text-sm {isOverdue ? 'text-red-700' : isToday ? 'text-orange-700' : 'text-yellow-700'}">
-						มีตู้ <strong>{pendingContainerCount}</strong> ตู้ที่ยังไม่ได้ Checkout จากท่าเรือ
-						{#if checkedOutCount > 0}— ออกแล้ว <strong>{checkedOutCount}</strong> ตู้{/if}
-						{#if job.expire_date}— Free Time หมด: <strong>{formatDate(job.expire_date)}</strong>{/if}
-						— กดปุ่ม <strong>"รายการตู้"</strong> เพื่อบันทึกวันออกตู้
+						{isEn
+							? `${pendingContainerCount} container(s) pending checkout`
+							: `มีตู้ ${pendingContainerCount} ตู้ที่ยังไม่ได้ Checkout จากท่าเรือ`}
+						{#if checkedOutCount > 0}
+							— {isEn ? `${checkedOutCount} checked out` : `ออกแล้ว ${checkedOutCount} ตู้`}
+						{/if}
+						— {isEn ? 'click "Container List" to record checkout date' : 'กดปุ่ม "รายการตู้" เพื่อบันทึกวันออกตู้'}
 					</p>
+					<!-- Per-type deadline chips -->
+					{#if hasDays}
+						<div class="mt-2 flex flex-wrap gap-2">
+							{#if job.demurrage_days != null && dOD != null}
+								<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+									{dOD > 0 ? 'bg-red-100 text-red-700' : dOD === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+									{isEn ? `Demurrage: ${job.demurrage_days}d` : `ค่าภาระท่า: ${job.demurrage_days} วัน`}
+									{#if dOD > 0}— {isEn ? `Overdue ${dOD}d!` : `เกิน ${dOD} วัน!`}
+									{:else if dOD === 0}— {isEn ? 'Due today!' : 'ครบวันนี้!'}
+									{:else}— {isEn ? `${Math.abs(dOD)}d left` : `เหลือ ${Math.abs(dOD)} วัน`}{/if}
+								</span>
+							{/if}
+							{#if job.storage_days != null && dOS != null}
+								<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+									{dOS > 0 ? 'bg-red-100 text-red-700' : dOS === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+									{isEn ? `Storage: ${job.storage_days}d` : `ค่าฝากตู้: ${job.storage_days} วัน`}
+									{#if dOS > 0}— {isEn ? `Overdue ${dOS}d!` : `เกิน ${dOS} วัน!`}
+									{:else if dOS === 0}— {isEn ? 'Due today!' : 'ครบวันนี้!'}
+									{:else}— {isEn ? `${Math.abs(dOS)}d left` : `เหลือ ${Math.abs(dOS)} วัน`}{/if}
+								</span>
+							{/if}
+							{#if job.detention_days != null && dODet != null}
+								<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+									{dODet > 0 ? 'bg-red-100 text-red-700' : dODet === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+									{isEn ? `Detention: ${job.detention_days}d` : `ค่าเช่าตู้: ${job.detention_days} วัน`}
+									{#if dODet > 0}— {isEn ? `Overdue ${dODet}d!` : `เกิน ${dODet} วัน!`}
+									{:else if dODet === 0}— {isEn ? 'Due today!' : 'ครบวันนี้!'}
+									{:else}— {isEn ? `${Math.abs(dODet)}d left` : `เหลือ ${Math.abs(dODet)} วัน`}{/if}
+								</span>
+							{/if}
+						</div>
+					{/if}
 				</div>
 				<button type="button" onclick={() => (isContainerModalOpen = true)}
 					class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors {isOverdue ? 'bg-red-600 text-white hover:bg-red-700' : isToday ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-yellow-500 text-white hover:bg-yellow-600'}">
-					รายการตู้ →
+					{isEn ? 'Container List →' : 'รายการตู้ →'}
 				</button>
 			</div>
 		</div>
@@ -2239,21 +2302,50 @@
 							required
 							class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-green-500 focus:ring-green-500" />
 					</div>
-					{#if job.eta || job.expire_date}
-						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600 space-y-1">
-							{#if job.eta}
-								{@const d = calcDaysSinceEta()}
-								<div>
-									<span class="font-semibold">ETA:</span> {formatDate(job.eta)}
-									{#if d !== null}
-										<span class="ml-2 font-bold {d > 0 ? 'text-red-600' : d === 0 ? 'text-orange-600' : 'text-green-600'}">
-											{d > 0 ? `(เลยมาแล้ว ${d} วัน)` : d === 0 ? '(วันนี้!)' : `(อีก ${Math.abs(d)} วัน)`}
-										</span>
+					{#if job.eta}
+						{@const d = calcDaysSinceEta()}
+						{@const hasDays2 = job.demurrage_days != null || job.storage_days != null || job.detention_days != null}
+						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600 space-y-1.5">
+							<div>
+								<span class="font-semibold">ETA:</span> {formatDate(job.eta)}
+								{#if d !== null}
+									<span class="ml-2 font-bold {d > 0 ? 'text-red-600' : d === 0 ? 'text-orange-600' : 'text-green-600'}">
+										{#if d > 0}{isEn ? `(Overdue ${d}d)` : `(เลยมาแล้ว ${d} วัน)`}
+										{:else if d === 0}{isEn ? '(Today!)' : '(วันนี้!)'}
+										{:else}{isEn ? `(${Math.abs(d)}d remaining)` : `(อีก ${Math.abs(d)} วัน)`}{/if}
+									</span>
+								{/if}
+							</div>
+							{#if hasDays2}
+								<div class="flex flex-wrap gap-1 pt-0.5">
+									{#if job.demurrage_days != null}
+										{@const d2 = calcDaysOverdue(job.demurrage_days)}
+										{#if d2 != null}
+											<span class="rounded px-1.5 py-0.5 font-semibold {d2 > 0 ? 'bg-red-100 text-red-700' : d2 === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'}">
+												{isEn ? `Demurrage ${job.demurrage_days}d` : `ภาระท่า ${job.demurrage_days} วัน`}
+												{d2 > 0 ? ` (+${d2})` : d2 === 0 ? ' ✗' : ` (-${Math.abs(d2)})`}
+											</span>
+										{/if}
+									{/if}
+									{#if job.storage_days != null}
+										{@const d2 = calcDaysOverdue(job.storage_days)}
+										{#if d2 != null}
+											<span class="rounded px-1.5 py-0.5 font-semibold {d2 > 0 ? 'bg-red-100 text-red-700' : d2 === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'}">
+												{isEn ? `Storage ${job.storage_days}d` : `ฝากตู้ ${job.storage_days} วัน`}
+												{d2 > 0 ? ` (+${d2})` : d2 === 0 ? ' ✗' : ` (-${Math.abs(d2)})`}
+											</span>
+										{/if}
+									{/if}
+									{#if job.detention_days != null}
+										{@const d2 = calcDaysOverdue(job.detention_days)}
+										{#if d2 != null}
+											<span class="rounded px-1.5 py-0.5 font-semibold {d2 > 0 ? 'bg-red-100 text-red-700' : d2 === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'}">
+												{isEn ? `Detention ${job.detention_days}d` : `เช่าตู้ ${job.detention_days} วัน`}
+												{d2 > 0 ? ` (+${d2})` : d2 === 0 ? ' ✗' : ` (-${Math.abs(d2)})`}
+											</span>
+										{/if}
 									{/if}
 								</div>
-							{/if}
-							{#if job.expire_date}
-								<div><span class="font-semibold">Free Time หมด:</span> {formatDate(job.expire_date)}</div>
 							{/if}
 						</div>
 					{/if}
@@ -2263,7 +2355,9 @@
 						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
 					<button type="submit" disabled={isSavingCheckout}
 						class="rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">
-						{isSavingCheckout ? 'กำลังบันทึก...' : 'ยืนยัน Checkout'}
+						{isSavingCheckout
+							? (isEn ? 'Saving...' : 'กำลังบันทึก...')
+							: (isEn ? 'Confirm Checkout' : 'ยืนยัน Checkout')}
 					</button>
 				</div>
 			</form>
@@ -2308,21 +2402,50 @@
 							required
 							class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-green-500 focus:ring-green-500" />
 					</div>
-					{#if job.eta || job.expire_date}
-						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600 space-y-1">
-							{#if job.eta}
-								{@const d = calcDaysSinceEta()}
-								<div>
-									<span class="font-semibold">ETA:</span> {formatDate(job.eta)}
-									{#if d !== null}
-										<span class="ml-2 font-bold {d > 0 ? 'text-red-600' : d === 0 ? 'text-orange-600' : 'text-green-600'}">
-											{d > 0 ? `(เลยมาแล้ว ${d} วัน)` : d === 0 ? '(วันนี้!)' : `(อีก ${Math.abs(d)} วัน)`}
-										</span>
+					{#if job.eta}
+						{@const d = calcDaysSinceEta()}
+						{@const hasDays3 = job.demurrage_days != null || job.storage_days != null || job.detention_days != null}
+						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600 space-y-1.5">
+							<div>
+								<span class="font-semibold">ETA:</span> {formatDate(job.eta)}
+								{#if d !== null}
+									<span class="ml-2 font-bold {d > 0 ? 'text-red-600' : d === 0 ? 'text-orange-600' : 'text-green-600'}">
+										{#if d > 0}{isEn ? `(Overdue ${d}d)` : `(เลยมาแล้ว ${d} วัน)`}
+										{:else if d === 0}{isEn ? '(Today!)' : '(วันนี้!)'}
+										{:else}{isEn ? `(${Math.abs(d)}d remaining)` : `(อีก ${Math.abs(d)} วัน)`}{/if}
+									</span>
+								{/if}
+							</div>
+							{#if hasDays3}
+								<div class="flex flex-wrap gap-1 pt-0.5">
+									{#if job.demurrage_days != null}
+										{@const d2 = calcDaysOverdue(job.demurrage_days)}
+										{#if d2 != null}
+											<span class="rounded px-1.5 py-0.5 font-semibold {d2 > 0 ? 'bg-red-100 text-red-700' : d2 === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'}">
+												{isEn ? `Demurrage ${job.demurrage_days}d` : `ภาระท่า ${job.demurrage_days} วัน`}
+												{d2 > 0 ? ` (+${d2})` : d2 === 0 ? ' ✗' : ` (-${Math.abs(d2)})`}
+											</span>
+										{/if}
+									{/if}
+									{#if job.storage_days != null}
+										{@const d2 = calcDaysOverdue(job.storage_days)}
+										{#if d2 != null}
+											<span class="rounded px-1.5 py-0.5 font-semibold {d2 > 0 ? 'bg-red-100 text-red-700' : d2 === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'}">
+												{isEn ? `Storage ${job.storage_days}d` : `ฝากตู้ ${job.storage_days} วัน`}
+												{d2 > 0 ? ` (+${d2})` : d2 === 0 ? ' ✗' : ` (-${Math.abs(d2)})`}
+											</span>
+										{/if}
+									{/if}
+									{#if job.detention_days != null}
+										{@const d2 = calcDaysOverdue(job.detention_days)}
+										{#if d2 != null}
+											<span class="rounded px-1.5 py-0.5 font-semibold {d2 > 0 ? 'bg-red-100 text-red-700' : d2 === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'}">
+												{isEn ? `Detention ${job.detention_days}d` : `เช่าตู้ ${job.detention_days} วัน`}
+												{d2 > 0 ? ` (+${d2})` : d2 === 0 ? ' ✗' : ` (-${Math.abs(d2)})`}
+											</span>
+										{/if}
 									{/if}
 								</div>
-							{/if}
-							{#if job.expire_date}
-								<div><span class="font-semibold">Free Time หมด:</span> {formatDate(job.expire_date)}</div>
 							{/if}
 						</div>
 					{/if}
