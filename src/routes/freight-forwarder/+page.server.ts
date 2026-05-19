@@ -1,6 +1,6 @@
 import pool from '$lib/server/database';
 
-export const load = async ({ url, locals }) => {
+export const load = async ({ url }) => {
 	// 1. จัดการ Default เป็นเดือนปัจจุบัน (YYYY-MM)
 	const now = new Date();
 	const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -99,22 +99,9 @@ export const load = async ({ url, locals }) => {
 			LIMIT 10
 		`);
 
-		// Container Alerts: ตู้ที่ยังไม่ checkout และ ETA ใกล้ถึง/เลยแล้ว
-		// admin_freight เห็นทั้งหมด, user ทั่วไปเห็นเฉพาะของตัวเอง
-		const currentUser = locals.user;
-		const isAdmin = currentUser?.role === 'admin_freight';
+		// Container Alerts: ตู้ที่ยังไม่ checkout และ ETA ใกล้ถึง/เลยแล้ว (แสดงทุก user)
 		let containerAlerts: any[] = [];
 		try {
-			const alertParams: (string | number)[] = [];
-			let alertWhere = `WHERE j.eta IS NOT NULL
-				AND DATEDIFF(CURDATE(), j.eta) >= -3
-				AND j.job_status NOT IN ('Cancelled', 'Completed')`;
-
-			if (!isAdmin && currentUser?.id) {
-				alertWhere += ' AND j.created_by = ?';
-				alertParams.push(currentUser.id);
-			}
-
 			const [containerAlertRows]: any = await pool.query(`
 				SELECT j.id, j.job_number, j.job_type, j.job_date, j.eta, j.expire_date,
 				       COALESCE(c.company_name, c.name) as customer_name,
@@ -123,11 +110,13 @@ export const load = async ({ url, locals }) => {
 				FROM job_orders j
 				JOIN job_containers jc ON jc.job_order_id = j.id AND jc.status = 'pending'
 				LEFT JOIN customers c ON j.customer_id = c.id
-				${alertWhere}
+				WHERE j.eta IS NOT NULL
+				  AND DATEDIFF(CURDATE(), j.eta) >= -3
+				  AND j.job_status NOT IN ('Cancelled', 'Completed')
 				GROUP BY j.id, j.job_number, j.job_type, j.job_date, j.eta, j.expire_date, c.company_name, c.name
 				ORDER BY days_since_eta DESC
 				LIMIT 15
-			`, alertParams);
+			`);
 			containerAlerts = containerAlertRows;
 		} catch {
 			// คอลัมน์ status ยังไม่มีในตาราง — รอ migration ก่อน
