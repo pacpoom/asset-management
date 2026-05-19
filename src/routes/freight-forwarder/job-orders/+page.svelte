@@ -257,17 +257,18 @@
 			</div>
 			<div class="divide-y divide-gray-100">
 				{#each containerAlerts as alert}
-					{@const days = Number(alert.days_left)}
-					{@const isExpired = days < 0}
-					{@const isCritical = days >= 0 && days <= 2}
+					{@const daysSince = Number(alert.days_since_eta)}
+					{@const isOverdue = daysSince > 0}
+					{@const isCritical = daysSince === 0}
+					{@const isWarning = daysSince < 0}
 					<div class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
 						<div class="flex-shrink-0">
-							{#if isExpired}
-								<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">เกิน {Math.abs(days)} วัน</span>
+							{#if isOverdue}
+								<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">เกิน ETA {daysSince} วัน</span>
 							{:else if isCritical}
-								<span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">เหลือ {days} วัน</span>
+								<span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">ETA วันนี้!</span>
 							{:else}
-								<span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-bold text-yellow-700">เหลือ {days} วัน</span>
+								<span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-bold text-yellow-700">ETA อีก {Math.abs(daysSince)} วัน</span>
 							{/if}
 						</div>
 						<div class="min-w-0 flex-1">
@@ -277,11 +278,14 @@
 							<span class="ml-2 text-sm text-gray-500">{alert.customer_name || '-'}</span>
 							<span class="ml-2 text-xs text-gray-400">
 								ตู้รอออก: <strong class="text-amber-600">{alert.pending_count}</strong> ตู้
-								| Free Time หมด: {new Date(alert.expire_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
+								| ETA: {new Date(alert.eta).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
+								{#if alert.expire_date}
+									| Free Time หมด: {new Date(alert.expire_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
+								{/if}
 							</span>
 						</div>
 						<a href="/freight-forwarder/job-orders/{alert.id}"
-							class="flex-shrink-0 rounded-lg {isExpired ? 'bg-red-600' : isCritical ? 'bg-orange-500' : 'bg-yellow-500'} px-3 py-1 text-xs font-semibold text-white hover:opacity-80">
+							class="flex-shrink-0 rounded-lg {isOverdue ? 'bg-red-600' : isCritical ? 'bg-orange-500' : 'bg-yellow-500'} px-3 py-1 text-xs font-semibold text-white hover:opacity-80">
 							Checkout →
 						</a>
 					</div>

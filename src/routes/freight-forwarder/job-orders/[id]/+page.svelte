@@ -338,14 +338,14 @@
 		isCheckoutModalOpen = true;
 	}
 
-	// คำนวณสถานะ deadline ตาม expire_date
-	function calcDaysUntilExpire(): number | null {
-		if (!job.expire_date) return null;
+	// คำนวณจำนวนวันที่ผ่านไปนับจาก ETA (บวก = เลย ETA แล้ว, ลบ = ยังไม่ถึง ETA)
+	function calcDaysSinceEta(): number | null {
+		if (!job.eta) return null;
 		const now = new Date();
 		now.setHours(0, 0, 0, 0);
-		const exp = new Date(job.expire_date);
-		exp.setHours(0, 0, 0, 0);
-		return Math.round((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+		const eta = new Date(job.eta);
+		eta.setHours(0, 0, 0, 0);
+		return Math.round((now.getTime() - eta.getTime()) / (1000 * 60 * 60 * 24));
 	}
 	let pendingContainerCount = $derived(containers.filter(c => c.status === 'pending').length);
 	let checkedOutCount = $derived(containers.filter(c => c.status === 'checked_out').length);
@@ -500,43 +500,44 @@
 <!-- =============================== -->
 <!-- CONTAINER CHECKOUT ALERT BANNER -->
 <!-- =============================== -->
-{#if containers.length > 0 && pendingContainerCount > 0 && job.expire_date}
-	{@const days = calcDaysUntilExpire()}
-	{@const isExpired = days !== null && days < 0}
-	{@const isCritical = days !== null && days >= 0 && days <= 2}
-	{@const isWarning = days !== null && days >= 3 && days <= 7}
-	{#if isExpired || isCritical || isWarning}
-		<div class="mb-6 rounded-xl border-l-4 p-4 shadow-sm {isExpired ? 'border-red-500 bg-red-50' : isCritical ? 'border-orange-500 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}">
+{#if containers.length > 0 && pendingContainerCount > 0 && job.eta}
+	{@const daysSince = calcDaysSinceEta()}
+	{@const isOverdue = daysSince !== null && daysSince > 0}
+	{@const isToday = daysSince !== null && daysSince === 0}
+	{@const isUpcoming = daysSince !== null && daysSince >= -3 && daysSince < 0}
+	{#if isOverdue || isToday || isUpcoming}
+		<div class="mb-6 rounded-xl border-l-4 p-4 shadow-sm {isOverdue ? 'border-red-500 bg-red-50' : isToday ? 'border-orange-500 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}">
 			<div class="flex items-start gap-3">
 				<div class="mt-0.5 flex-shrink-0">
-					{#if isExpired}
+					{#if isOverdue}
 						<svg class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
 						</svg>
 					{:else}
-						<svg class="h-5 w-5 {isCritical ? 'text-orange-500' : 'text-yellow-500'}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<svg class="h-5 w-5 {isToday ? 'text-orange-500' : 'text-yellow-500'}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
 						</svg>
 					{/if}
 				</div>
 				<div class="flex-1">
-					<p class="font-bold {isExpired ? 'text-red-800' : isCritical ? 'text-orange-800' : 'text-yellow-800'}">
-						{#if isExpired}
-							⚠️ เกินกำหนด Free Time แล้ว {Math.abs(days!)} วัน — ตู้ยังไม่ออกจากท่า!
-						{:else if isCritical}
-							🚨 ใกล้หมด Free Time! เหลืออีก {days} วัน (ครบ {formatDate(job.expire_date)})
+					<p class="font-bold {isOverdue ? 'text-red-800' : isToday ? 'text-orange-800' : 'text-yellow-800'}">
+						{#if isOverdue}
+							⚠️ เลย ETA มาแล้ว {daysSince} วัน — ตู้ยังไม่ออกจากท่า!
+						{:else if isToday}
+							🚨 เรือถึงท่าวันนี้! (ETA: {formatDate(job.eta)})
 						{:else}
-							⏰ Free Time เหลือ {days} วัน (ครบ {formatDate(job.expire_date)})
+							⏰ ETA อีก {Math.abs(daysSince!)} วัน ({formatDate(job.eta)}) — เตรียม Checkout ตู้
 						{/if}
 					</p>
-					<p class="mt-1 text-sm {isExpired ? 'text-red-700' : isCritical ? 'text-orange-700' : 'text-yellow-700'}">
+					<p class="mt-1 text-sm {isOverdue ? 'text-red-700' : isToday ? 'text-orange-700' : 'text-yellow-700'}">
 						มีตู้ <strong>{pendingContainerCount}</strong> ตู้ที่ยังไม่ได้ Checkout จากท่าเรือ
 						{#if checkedOutCount > 0}— ออกแล้ว <strong>{checkedOutCount}</strong> ตู้{/if}
+						{#if job.expire_date}— Free Time หมด: <strong>{formatDate(job.expire_date)}</strong>{/if}
 						— กดปุ่ม <strong>"รายการตู้"</strong> เพื่อบันทึกวันออกตู้
 					</p>
 				</div>
 				<button type="button" onclick={() => (isContainerModalOpen = true)}
-					class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors {isExpired ? 'bg-red-600 text-white hover:bg-red-700' : isCritical ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-yellow-500 text-white hover:bg-yellow-600'}">
+					class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors {isOverdue ? 'bg-red-600 text-white hover:bg-red-700' : isToday ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-yellow-500 text-white hover:bg-yellow-600'}">
 					รายการตู้ →
 				</button>
 			</div>
@@ -2171,14 +2172,21 @@
 							required
 							class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-green-500 focus:ring-green-500" />
 					</div>
-					{#if job.expire_date}
-						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
-							<span class="font-semibold">Free Time หมด:</span> {formatDate(job.expire_date)}
-							{#if calcDaysUntilExpire() !== null}
-								{@const d = calcDaysUntilExpire()!}
-								<span class="ml-2 font-bold {d < 0 ? 'text-red-600' : d <= 2 ? 'text-orange-600' : d <= 7 ? 'text-yellow-600' : 'text-green-600'}">
-									{d < 0 ? `(เกิน ${Math.abs(d)} วัน!)` : d === 0 ? '(วันนี้!)' : `(เหลือ ${d} วัน)`}
-								</span>
+					{#if job.eta || job.expire_date}
+						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600 space-y-1">
+							{#if job.eta}
+								{@const d = calcDaysSinceEta()}
+								<div>
+									<span class="font-semibold">ETA:</span> {formatDate(job.eta)}
+									{#if d !== null}
+										<span class="ml-2 font-bold {d > 0 ? 'text-red-600' : d === 0 ? 'text-orange-600' : 'text-green-600'}">
+											{d > 0 ? `(เลยมาแล้ว ${d} วัน)` : d === 0 ? '(วันนี้!)' : `(อีก ${Math.abs(d)} วัน)`}
+										</span>
+									{/if}
+								</div>
+							{/if}
+							{#if job.expire_date}
+								<div><span class="font-semibold">Free Time หมด:</span> {formatDate(job.expire_date)}</div>
 							{/if}
 						</div>
 					{/if}

@@ -92,15 +92,15 @@ export const load = async ({ url, locals }) => {
 			SELECT j.id, j.job_number, j.eta, j.expire_date,
 			       COALESCE(c.company_name, c.name) as customer_name,
 			       COUNT(jc.id) as pending_count,
-			       DATEDIFF(j.expire_date, CURDATE()) as days_left
+			       DATEDIFF(CURDATE(), j.eta) as days_since_eta
 			FROM job_orders j
 			JOIN job_containers jc ON jc.job_order_id = j.id AND jc.status = 'pending'
 			LEFT JOIN customers c ON j.customer_id = c.id
-			WHERE j.expire_date IS NOT NULL
-			  AND DATEDIFF(j.expire_date, CURDATE()) <= 7
+			WHERE j.eta IS NOT NULL
+			  AND DATEDIFF(CURDATE(), j.eta) >= -3
 			  AND j.job_status NOT IN ('Cancelled', 'Completed')
 			GROUP BY j.id, j.job_number, j.eta, j.expire_date, c.company_name, c.name
-			ORDER BY j.expire_date ASC
+			ORDER BY days_since_eta DESC
 		`;
 		const [_alertRows] = await pool.query(alertSql);
 		alertRows = _alertRows as unknown[];
