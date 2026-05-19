@@ -104,16 +104,26 @@ export const load = async ({ url }) => {
 		try {
 			const [containerAlertRows]: any = await pool.query(`
 				SELECT j.id, j.job_number, j.job_type, j.job_date, j.eta, j.expire_date,
+				       j.demurrage_days, j.storage_days, j.detention_days,
 				       COALESCE(c.company_name, c.name) as customer_name,
 				       COUNT(jc.id) as pending_count,
-				       DATEDIFF(CURDATE(), j.eta) as days_since_eta
+				       DATEDIFF(CURDATE(), j.eta) as days_since_eta,
+				       IF(j.demurrage_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.demurrage_days DAY)), NULL) as days_overdue_demurrage,
+				       IF(j.storage_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.storage_days DAY)), NULL) as days_overdue_storage,
+				       IF(j.detention_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.detention_days DAY)), NULL) as days_overdue_detention
 				FROM job_orders j
 				JOIN job_containers jc ON jc.job_order_id = j.id AND jc.status = 'pending'
 				LEFT JOIN customers c ON j.customer_id = c.id
 				WHERE j.eta IS NOT NULL
-				  AND DATEDIFF(CURDATE(), j.eta) >= -3
+				  AND (
+				    (j.demurrage_days IS NULL AND j.storage_days IS NULL AND j.detention_days IS NULL
+				     AND DATEDIFF(CURDATE(), j.eta) >= -3)
+				    OR (j.demurrage_days IS NOT NULL AND DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.demurrage_days DAY)) >= -3)
+				    OR (j.storage_days IS NOT NULL AND DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.storage_days DAY)) >= -3)
+				    OR (j.detention_days IS NOT NULL AND DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.detention_days DAY)) >= -3)
+				  )
 				  AND j.job_status NOT IN ('Cancelled', 'Completed')
-				GROUP BY j.id, j.job_number, j.job_type, j.job_date, j.eta, j.expire_date, c.company_name, c.name
+				GROUP BY j.id, j.job_number, j.job_type, j.job_date, j.eta, j.expire_date, j.demurrage_days, j.storage_days, j.detention_days, c.company_name, c.name
 				ORDER BY days_since_eta DESC
 				LIMIT 15
 			`);

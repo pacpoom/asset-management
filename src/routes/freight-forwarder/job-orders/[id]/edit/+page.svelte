@@ -216,6 +216,11 @@
 	let feeder = job.feeder || '';
 	let flightNo = job.flight_no || ''; // รับค่าตัวแปร Flight No.
 
+	// Free Days — โหลดค่าเดิมจาก job หรือ auto-fill จาก Vessel ที่เลือก
+	let jobDemurrageDays: number | string = job.demurrage_days ?? '';
+	let jobStorageDays: number | string = job.storage_days ?? '';
+	let jobDetentionDays: number | string = job.detention_days ?? '';
+
 	let qty = job.quantity || '';
 	let unitId = job.unit_id || '';
 	let wgt = job.weight || '';
@@ -1078,6 +1083,33 @@
 										/></svg
 									>
 								</button>
+							</div>
+						</div>
+
+						<!-- Free Days: Demurrage / Storage / Detention -->
+						<div class="col-span-1 md:col-span-3">
+							<div class="grid grid-cols-3 gap-4 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
+								<div>
+									<label for="demurrage_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าภาระท่า <span class="normal-case font-normal text-gray-400">(Demurrage)</span></label>
+									<div class="flex items-center gap-1">
+										<input id="demurrage_days" type="number" name="demurrage_days" min="0" max="999" bind:value={jobDemurrageDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
+										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									</div>
+								</div>
+								<div>
+									<label for="storage_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าฝากตู้ <span class="normal-case font-normal text-gray-400">(Storage)</span></label>
+									<div class="flex items-center gap-1">
+										<input id="storage_days" type="number" name="storage_days" min="0" max="999" bind:value={jobStorageDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
+										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									</div>
+								</div>
+								<div>
+									<label for="detention_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าเช่าตู้ <span class="normal-case font-normal text-gray-400">(Detention)</span></label>
+									<div class="flex items-center gap-1">
+										<input id="detention_days" type="number" name="detention_days" min="0" max="999" bind:value={jobDetentionDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
+										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									</div>
+								</div>
 							</div>
 						</div>
 

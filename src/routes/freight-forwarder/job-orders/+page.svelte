@@ -257,32 +257,72 @@
 			</div>
 			<div class="divide-y divide-gray-100">
 				{#each containerAlerts as alert}
+					{@const hasDays = alert.demurrage_days != null || alert.storage_days != null || alert.detention_days != null}
+					{@const daysOD = Number(alert.days_overdue_demurrage)}
+					{@const daysOS = Number(alert.days_overdue_storage)}
+					{@const daysODet = Number(alert.days_overdue_detention)}
 					{@const daysSince = Number(alert.days_since_eta)}
-					{@const isOverdue = daysSince > 0}
-					{@const isCritical = daysSince === 0}
-					{@const isWarning = daysSince < 0}
-					<div class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
-						<div class="flex-shrink-0">
+					<!-- หาค่าวิกฤตสูงสุดจากทั้ง 3 ประเภท (ถ้ามีการตั้งค่าไว้) -->
+					{@const worstOverdue = hasDays
+						? Math.max(
+								alert.days_overdue_demurrage != null ? daysOD : -999,
+								alert.days_overdue_storage != null ? daysOS : -999,
+								alert.days_overdue_detention != null ? daysODet : -999
+							)
+						: daysSince}
+					{@const isOverdue = worstOverdue > 0}
+					{@const isCritical = worstOverdue === 0}
+					<div class="flex items-start gap-4 px-4 py-3 hover:bg-gray-50">
+						<div class="flex-shrink-0 pt-0.5">
 							{#if isOverdue}
-								<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">เกิน ETA {daysSince} วัน</span>
+								<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">เกิน {worstOverdue} วัน</span>
 							{:else if isCritical}
-								<span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">ETA วันนี้!</span>
+								<span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">ครบกำหนดวันนี้!</span>
 							{:else}
-								<span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-bold text-yellow-700">ETA อีก {Math.abs(daysSince)} วัน</span>
+								<span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-bold text-yellow-700">อีก {Math.abs(worstOverdue)} วัน</span>
 							{/if}
 						</div>
 						<div class="min-w-0 flex-1">
-							<a href="/freight-forwarder/job-orders/{alert.id}" class="font-bold text-blue-600 hover:underline">
-								{alert.job_number || `JOB-${alert.id}`}
-							</a>
-							<span class="ml-2 text-sm text-gray-500">{alert.customer_name || '-'}</span>
-							<span class="ml-2 text-xs text-gray-400">
-								ตู้รอออก: <strong class="text-amber-600">{alert.pending_count}</strong> ตู้
-								| ETA: {new Date(alert.eta).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
-								{#if alert.expire_date}
-									| Free Time หมด: {new Date(alert.expire_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
-								{/if}
-							</span>
+							<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+								<a href="/freight-forwarder/job-orders/{alert.id}" class="font-bold text-blue-600 hover:underline">
+									{alert.job_number || `JOB-${alert.id}`}
+								</a>
+								<span class="text-sm text-gray-500">{alert.customer_name || '-'}</span>
+								<span class="text-xs text-gray-400">
+									ตู้รอออก: <strong class="text-amber-600">{alert.pending_count}</strong> ตู้
+									| ETA: {new Date(alert.eta).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
+								</span>
+							</div>
+							<!-- แสดงสถานะแต่ละประเภทค่าใช้จ่าย -->
+							{#if hasDays}
+								<div class="mt-1 flex flex-wrap gap-2">
+									{#if alert.demurrage_days != null}
+										{@const d = daysOD}
+										<span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+											ค่าภาระท่า (Demurrage): {alert.demurrage_days} วัน
+											{#if d > 0}— เกิน {d} วัน!{:else if d === 0}— ครบวันนี้!{:else}— เหลือ {Math.abs(d)} วัน{/if}
+										</span>
+									{/if}
+									{#if alert.storage_days != null}
+										{@const d = daysOS}
+										<span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+											ค่าฝากตู้ (Storage): {alert.storage_days} วัน
+											{#if d > 0}— เกิน {d} วัน!{:else if d === 0}— ครบวันนี้!{:else}— เหลือ {Math.abs(d)} วัน{/if}
+										</span>
+									{/if}
+									{#if alert.detention_days != null}
+										{@const d = daysODet}
+										<span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+											ค่าเช่าตู้ (Detention): {alert.detention_days} วัน
+											{#if d > 0}— เกิน {d} วัน!{:else if d === 0}— ครบวันนี้!{:else}— เหลือ {Math.abs(d)} วัน{/if}
+										</span>
+									{/if}
+								</div>
+							{:else}
+								<span class="text-xs text-gray-400">
+									{#if daysSince > 0}เกิน ETA {daysSince} วัน{:else if daysSince === 0}ETA วันนี้{:else}ETA อีก {Math.abs(daysSince)} วัน{/if}
+								</span>
+							{/if}
 						</div>
 						<a href="/freight-forwarder/job-orders/{alert.id}"
 							class="flex-shrink-0 rounded-lg {isOverdue ? 'bg-red-600' : isCritical ? 'bg-orange-500' : 'bg-yellow-500'} px-3 py-1 text-xs font-semibold text-white hover:opacity-80">

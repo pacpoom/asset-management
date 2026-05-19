@@ -385,9 +385,20 @@
 							<span class="text-[10px] font-bold uppercase tracking-wider text-amber-600">ตู้รอ Checkout ({containerAlerts.length})</span>
 						</div>
 						{#each containerAlerts as ca}
+							{@const hasDays = ca.demurrage_days != null || ca.storage_days != null || ca.detention_days != null}
+							{@const daysOD = Number(ca.days_overdue_demurrage)}
+							{@const daysOS = Number(ca.days_overdue_storage)}
+							{@const daysODet = Number(ca.days_overdue_detention)}
 							{@const daysSince = Number(ca.days_since_eta)}
-							{@const isOverdue = daysSince > 0}
-							{@const isToday = daysSince === 0}
+							{@const worstOverdue = hasDays
+								? Math.max(
+										ca.days_overdue_demurrage != null ? daysOD : -999,
+										ca.days_overdue_storage != null ? daysOS : -999,
+										ca.days_overdue_detention != null ? daysODet : -999
+									)
+								: daysSince}
+							{@const isOverdue = worstOverdue > 0}
+							{@const isToday = worstOverdue === 0}
 							<div class="flex items-start gap-3 rounded-lg border {isOverdue ? 'border-red-200 bg-red-50/60 hover:bg-red-50' : isToday ? 'border-orange-200 bg-orange-50/60 hover:bg-orange-50' : 'border-amber-200 bg-amber-50/60 hover:bg-amber-50'} p-3 shadow-sm transition-all">
 								<div class="mt-0.5 flex-shrink-0 rounded-full p-1.5 {isOverdue ? 'bg-red-100 text-red-600' : isToday ? 'bg-orange-100 text-orange-600' : 'bg-amber-100 text-amber-600'}">
 									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
@@ -399,13 +410,35 @@
 											{ca.job_number || formatJobNumber(ca.job_type, ca.job_date, ca.id)}
 										</a>
 										<span class="flex-shrink-0 text-[10px] font-bold {isOverdue ? 'text-red-600' : isToday ? 'text-orange-600' : 'text-amber-600'}">
-											{isOverdue ? `+${daysSince}d` : isToday ? 'TODAY' : `-${Math.abs(daysSince)}d`}
+											{isOverdue ? `+${worstOverdue}d` : isToday ? 'TODAY' : `-${Math.abs(worstOverdue)}d`}
 										</span>
 									</div>
 									<p class="mt-0.5 text-xs text-gray-500 truncate">
 										{ca.customer_name || '-'} · ตู้รอออก <strong class="text-amber-600">{ca.pending_count}</strong>
 									</p>
-									<p class="text-[10px] text-gray-400">ETA: {formatDate(ca.eta)}{ca.expire_date ? ` · Free Time หมด: ${formatDate(ca.expire_date)}` : ''}</p>
+									<p class="text-[10px] text-gray-400">ETA: {formatDate(ca.eta)}</p>
+									{#if hasDays}
+										<div class="mt-1 flex flex-wrap gap-1">
+											{#if ca.demurrage_days != null}
+												{@const d = daysOD}
+												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+													ภาระท่า {ca.demurrage_days}วัน{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+												</span>
+											{/if}
+											{#if ca.storage_days != null}
+												{@const d = daysOS}
+												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+													ฝากตู้ {ca.storage_days}วัน{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+												</span>
+											{/if}
+											{#if ca.detention_days != null}
+												{@const d = daysODet}
+												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+													เช่าตู้ {ca.detention_days}วัน{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+												</span>
+											{/if}
+										</div>
+									{/if}
 								</div>
 							</div>
 						{/each}
