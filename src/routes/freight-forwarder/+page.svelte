@@ -13,6 +13,7 @@
 	$: containerAlerts = data.containerAlerts || [];
 	$: filters = data.filters || { month: '' };
 	$: totalAlerts = alerts.length + containerAlerts.length;
+	$: isEn = $locale === 'en';
 
 	let selectedMonth = '';
 	$: {
@@ -382,7 +383,9 @@
 					{#if containerAlerts.length > 0}
 						<div class="mb-1 flex items-center gap-2">
 							<svg class="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-							<span class="text-[10px] font-bold uppercase tracking-wider text-amber-600">ตู้รอ Checkout ({containerAlerts.length})</span>
+							<span class="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+								{isEn ? `Pending Checkout (${containerAlerts.length})` : `ตู้รอ Checkout (${containerAlerts.length})`}
+							</span>
 						</div>
 						{#each containerAlerts as ca}
 							{@const hasDays = ca.demurrage_days != null || ca.storage_days != null || ca.detention_days != null}
@@ -410,11 +413,18 @@
 											{ca.job_number || formatJobNumber(ca.job_type, ca.job_date, ca.id)}
 										</a>
 										<span class="flex-shrink-0 text-[10px] font-bold {isOverdue ? 'text-red-600' : isToday ? 'text-orange-600' : 'text-amber-600'}">
-											{isOverdue ? `+${worstOverdue}d` : isToday ? 'TODAY' : `-${Math.abs(worstOverdue)}d`}
+											{isOverdue
+												? (isEn ? `Overdue +${worstOverdue}d` : `เกิน +${worstOverdue}วัน`)
+												: isToday
+													? (isEn ? 'DUE TODAY' : 'ครบวันนี้')
+													: (isEn ? `${Math.abs(worstOverdue)}d left` : `-${Math.abs(worstOverdue)}วัน`)}
 										</span>
 									</div>
 									<p class="mt-0.5 text-xs text-gray-500 truncate">
-										{ca.customer_name || '-'} · ตู้รอออก <strong class="text-amber-600">{ca.pending_count}</strong>
+										{ca.customer_name || '-'} ·
+										{isEn ? 'Pending' : 'ตู้รอออก'}
+										<strong class="text-amber-600">{ca.pending_count}</strong>
+										{isEn ? 'unit(s)' : 'ตู้'}
 									</p>
 									<p class="text-[10px] text-gray-400">ETA: {formatDate(ca.eta)}</p>
 									{#if hasDays}
@@ -422,19 +432,19 @@
 											{#if ca.demurrage_days != null}
 												{@const d = daysOD}
 												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-													ภาระท่า {ca.demurrage_days}วัน{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+													{isEn ? 'Demurrage' : 'ภาระท่า'} {ca.demurrage_days}{isEn ? 'd' : 'วัน'}{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
 												</span>
 											{/if}
 											{#if ca.storage_days != null}
 												{@const d = daysOS}
 												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-													ฝากตู้ {ca.storage_days}วัน{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+													{isEn ? 'Storage' : 'ฝากตู้'} {ca.storage_days}{isEn ? 'd' : 'วัน'}{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
 												</span>
 											{/if}
 											{#if ca.detention_days != null}
 												{@const d = daysODet}
 												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-													เช่าตู้ {ca.detention_days}วัน{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+													{isEn ? 'Detention' : 'เช่าตู้'} {ca.detention_days}{isEn ? 'd' : 'วัน'}{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
 												</span>
 											{/if}
 										</div>
@@ -451,7 +461,9 @@
 						{/if}
 						<div class="mb-1 flex items-center gap-2">
 							<span class="material-symbols-outlined text-red-500" style="font-size:14px">schedule</span>
-							<span class="text-[10px] font-bold uppercase tracking-wider text-red-500">หมดอายุ ({alerts.length})</span>
+							<span class="text-[10px] font-bold uppercase tracking-wider text-red-500">
+								{isEn ? `Expiring (${alerts.length})` : `หมดอายุ (${alerts.length})`}
+							</span>
 						</div>
 						{#each alerts as alert}
 							<div class="flex items-start gap-3 rounded-lg border border-red-100 bg-white p-3 shadow-sm transition-all hover:bg-red-50">
