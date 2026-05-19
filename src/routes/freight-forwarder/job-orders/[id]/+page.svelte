@@ -312,6 +312,8 @@
 		container_number: string | null;
 		seal_number: string | null;
 		remarks: string | null;
+		status: 'pending' | 'checked_out';
+		checkout_date: string | null;
 	}
 	let containers = $derived((data.containers || []) as Container[]);
 	let isContainerModalOpen = $state(false);
@@ -321,6 +323,32 @@
 	let containerDeleteId = $state<number | null>(null);
 	let containerEditData = $state({ id: 0, container_number: '', seal_number: '', remarks: '' });
 	let newContainerSize = $state<'20' | '40'>('20');
+
+	// Checkout state
+	let isCheckoutModalOpen = $state(false);
+	let isSavingCheckout = $state(false);
+	let checkoutData = $state({ id: 0, checkout_date: '' });
+
+	function openCheckoutModal(c: Container) {
+		const today = new Date();
+		const y = today.getFullYear();
+		const m = String(today.getMonth() + 1).padStart(2, '0');
+		const d = String(today.getDate()).padStart(2, '0');
+		checkoutData = { id: c.id, checkout_date: `${y}-${m}-${d}` };
+		isCheckoutModalOpen = true;
+	}
+
+	// คำนวณสถานะ deadline ตาม expire_date
+	function calcDaysUntilExpire(): number | null {
+		if (!job.expire_date) return null;
+		const now = new Date();
+		now.setHours(0, 0, 0, 0);
+		const exp = new Date(job.expire_date);
+		exp.setHours(0, 0, 0, 0);
+		return Math.round((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+	}
+	let pendingContainerCount = $derived(containers.filter(c => c.status === 'pending').length);
+	let checkedOutCount = $derived(containers.filter(c => c.status === 'checked_out').length);
 
 	// Import state
 	interface ImportRow { container_size: string; container_number: string; seal_number: string; remarks: string; }
@@ -468,6 +496,53 @@
 		</div>
 	</div>
 </div>
+
+<!-- =============================== -->
+<!-- CONTAINER CHECKOUT ALERT BANNER -->
+<!-- =============================== -->
+{#if containers.length > 0 && pendingContainerCount > 0 && job.expire_date}
+	{@const days = calcDaysUntilExpire()}
+	{@const isExpired = days !== null && days < 0}
+	{@const isCritical = days !== null && days >= 0 && days <= 2}
+	{@const isWarning = days !== null && days >= 3 && days <= 7}
+	{#if isExpired || isCritical || isWarning}
+		<div class="mb-6 rounded-xl border-l-4 p-4 shadow-sm {isExpired ? 'border-red-500 bg-red-50' : isCritical ? 'border-orange-500 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}">
+			<div class="flex items-start gap-3">
+				<div class="mt-0.5 flex-shrink-0">
+					{#if isExpired}
+						<svg class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+						</svg>
+					{:else}
+						<svg class="h-5 w-5 {isCritical ? 'text-orange-500' : 'text-yellow-500'}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+						</svg>
+					{/if}
+				</div>
+				<div class="flex-1">
+					<p class="font-bold {isExpired ? 'text-red-800' : isCritical ? 'text-orange-800' : 'text-yellow-800'}">
+						{#if isExpired}
+							⚠️ เกินกำหนด Free Time แล้ว {Math.abs(days!)} วัน — ตู้ยังไม่ออกจากท่า!
+						{:else if isCritical}
+							🚨 ใกล้หมด Free Time! เหลืออีก {days} วัน (ครบ {formatDate(job.expire_date)})
+						{:else}
+							⏰ Free Time เหลือ {days} วัน (ครบ {formatDate(job.expire_date)})
+						{/if}
+					</p>
+					<p class="mt-1 text-sm {isExpired ? 'text-red-700' : isCritical ? 'text-orange-700' : 'text-yellow-700'}">
+						มีตู้ <strong>{pendingContainerCount}</strong> ตู้ที่ยังไม่ได้ Checkout จากท่าเรือ
+						{#if checkedOutCount > 0}— ออกแล้ว <strong>{checkedOutCount}</strong> ตู้{/if}
+						— กดปุ่ม <strong>"รายการตู้"</strong> เพื่อบันทึกวันออกตู้
+					</p>
+				</div>
+				<button type="button" onclick={() => (isContainerModalOpen = true)}
+					class="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors {isExpired ? 'bg-red-600 text-white hover:bg-red-700' : isCritical ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-yellow-500 text-white hover:bg-yellow-600'}">
+					รายการตู้ →
+				</button>
+			</div>
+		</div>
+	{/if}
+{/if}
 
 <!-- ======================= -->
 <!-- FINANCIAL SUMMARY CARDS -->
@@ -1835,7 +1910,7 @@
 			{#if containers.length > 0}
 				{@const cnt20 = containers.filter(c => c.container_size === '20').length}
 				{@const cnt40 = containers.filter(c => c.container_size === '40').length}
-				<div class="flex gap-3 border-b bg-white px-6 py-3">
+				<div class="flex flex-wrap gap-2 border-b bg-white px-6 py-3">
 					{#if cnt20 > 0}
 						<span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">{cnt20} x 20'</span>
 					{/if}
@@ -1843,6 +1918,10 @@
 						<span class="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">{cnt40} x 40'</span>
 					{/if}
 					<span class="text-xs text-gray-400 self-center">รวม {containers.length} ตู้</span>
+					<span class="ml-auto rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">✓ ออกแล้ว {checkedOutCount}</span>
+					{#if pendingContainerCount > 0}
+						<span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">⏳ รอออก {pendingContainerCount}</span>
+					{/if}
 				</div>
 			{/if}
 
@@ -1857,12 +1936,13 @@
 								<th class="px-4 py-3 text-left">{$t('Container No.')}</th>
 								<th class="px-4 py-3 text-left">{$t('Seal No.')}</th>
 								<th class="px-4 py-3 text-left">{$t('Remarks')}</th>
+								<th class="px-4 py-3 text-center">สถานะ / วันออกตู้</th>
 								<th class="px-4 py-3 text-center">{$t('Action')}</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-200 bg-white">
 							{#each containers as container, i (container.id)}
-								<tr class="hover:bg-gray-50">
+								<tr class="hover:bg-gray-50 {container.status === 'checked_out' ? 'bg-green-50/40' : ''}">
 									<td class="px-4 py-3 text-gray-400">{i + 1}</td>
 									<td class="px-4 py-3">
 										<span class="rounded px-2 py-0.5 text-xs font-bold {container.container_size === '40' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
@@ -1877,7 +1957,41 @@
 									</td>
 									<td class="px-4 py-3 text-gray-600">{container.remarks || ''}</td>
 									<td class="px-4 py-3 text-center">
+										{#if container.status === 'checked_out'}
+											<div class="flex flex-col items-center gap-0.5">
+												<span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+													<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+													ออกแล้ว
+												</span>
+												{#if container.checkout_date}
+													<span class="text-xs text-gray-500">{formatDate(container.checkout_date)}</span>
+												{/if}
+											</div>
+										{:else}
+											<span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+												<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+												รอออกตู้
+											</span>
+										{/if}
+									</td>
+									<td class="px-4 py-3 text-center">
 										<div class="flex items-center justify-center gap-2">
+											{#if container.status === 'pending'}
+												<button type="button" onclick={() => openCheckoutModal(container)}
+													class="text-gray-400 hover:text-green-600" title="บันทึกวันออกตู้">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+												</button>
+											{:else}
+												<form method="POST" action="?/undoCheckoutContainer" use:enhance={() => {
+													isSavingContainer = true;
+													return async ({ update }) => { await update(); isSavingContainer = false; };
+												}}>
+													<input type="hidden" name="container_id" value={container.id} />
+													<button type="submit" class="text-gray-400 hover:text-amber-600" title="ยกเลิก Checkout">
+														<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+													</button>
+												</form>
+											{/if}
 											<button type="button" onclick={() => openContainerEdit(container)} class="text-gray-400 hover:text-blue-600" title={$t('Edit')}>
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
 											</button>
@@ -2023,6 +2137,61 @@
 					</form>
 				</div>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- ======================== -->
+<!-- CONTAINER CHECKOUT MODAL -->
+<!-- ======================== -->
+{#if isCheckoutModalOpen}
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-2xl">
+			<div class="flex items-center justify-between border-b px-5 py-4">
+				<div class="flex items-center gap-2">
+					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+						<svg class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+					</div>
+					<h3 class="font-bold text-gray-800">บันทึกวันออกตู้จากท่าเรือ</h3>
+				</div>
+				<button onclick={() => (isCheckoutModalOpen = false)} class="text-gray-400 hover:text-gray-600">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+				</button>
+			</div>
+			<form method="POST" action="?/checkoutContainer" use:enhance={() => {
+				isSavingCheckout = true;
+				return async ({ update }) => { await update(); isSavingCheckout = false; isCheckoutModalOpen = false; };
+			}}>
+				<input type="hidden" name="container_id" value={checkoutData.id} />
+				<div class="space-y-4 p-5">
+					<p class="text-sm text-gray-500">ระบุวันที่ตู้ออกจากท่าเรือ (Checkout Date) เพื่อบันทึกและป้องกัน Extra Charge</p>
+					<div>
+						<label class="mb-1 block text-xs font-bold uppercase text-gray-500">วันที่ออกตู้ <span class="text-red-500">*</span></label>
+						<input type="date" name="checkout_date" bind:value={checkoutData.checkout_date}
+							required
+							class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-green-500 focus:ring-green-500" />
+					</div>
+					{#if job.expire_date}
+						<div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+							<span class="font-semibold">Free Time หมด:</span> {formatDate(job.expire_date)}
+							{#if calcDaysUntilExpire() !== null}
+								{@const d = calcDaysUntilExpire()!}
+								<span class="ml-2 font-bold {d < 0 ? 'text-red-600' : d <= 2 ? 'text-orange-600' : d <= 7 ? 'text-yellow-600' : 'text-green-600'}">
+									{d < 0 ? `(เกิน ${Math.abs(d)} วัน!)` : d === 0 ? '(วันนี้!)' : `(เหลือ ${d} วัน)`}
+								</span>
+							{/if}
+						</div>
+					{/if}
+				</div>
+				<div class="flex justify-end gap-3 border-t bg-gray-50 px-5 py-3">
+					<button type="button" onclick={() => (isCheckoutModalOpen = false)}
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
+					<button type="submit" disabled={isSavingCheckout}
+						class="rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">
+						{isSavingCheckout ? 'กำลังบันทึก...' : 'ยืนยัน Checkout'}
+					</button>
+				</div>
+			</form>
 		</div>
 	</div>
 {/if}

@@ -85,7 +85,7 @@ export const load = async ({ params }) => {
 
 		// 7. ดึงข้อมูล Container ของ Job นี้
 		const [containers] = await pool.query<RowDataPacket[]>(
-			'SELECT id, container_size, container_number, seal_number, remarks FROM job_containers WHERE job_order_id = ? ORDER BY container_size ASC, id ASC',
+			'SELECT id, container_size, container_number, seal_number, remarks, status, checkout_date FROM job_containers WHERE job_order_id = ? ORDER BY container_size ASC, id ASC',
 			[id]
 		);
 
@@ -389,6 +389,46 @@ export const actions = {
 		} catch (err: unknown) {
 			console.error('Delete container error:', err);
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบตู้' });
+		}
+	},
+
+	// บันทึกวันที่นำตู้ออกจากท่าเรือ (Checkout)
+	checkoutContainer: async ({ request }) => {
+		const formData = await request.formData();
+		const container_id = formData.get('container_id');
+		const checkout_date = formData.get('checkout_date')?.toString().trim() || null;
+
+		if (!container_id) return fail(400, { message: 'ไม่พบรหัสตู้' });
+		if (!checkout_date) return fail(400, { message: 'กรุณาระบุวันที่นำตู้ออก' });
+
+		try {
+			await pool.execute(
+				"UPDATE job_containers SET status = 'checked_out', checkout_date = ?, updated_at = NOW() WHERE id = ?",
+				[checkout_date, container_id]
+			);
+			return { success: true, action: 'checkoutContainer' };
+		} catch (err: unknown) {
+			console.error('Checkout container error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการบันทึกวันออกตู้' });
+		}
+	},
+
+	// ยกเลิก Checkout (คืนสถานะเป็น pending)
+	undoCheckoutContainer: async ({ request }) => {
+		const formData = await request.formData();
+		const container_id = formData.get('container_id');
+
+		if (!container_id) return fail(400, { message: 'ไม่พบรหัสตู้' });
+
+		try {
+			await pool.execute(
+				"UPDATE job_containers SET status = 'pending', checkout_date = NULL, updated_at = NOW() WHERE id = ?",
+				[container_id]
+			);
+			return { success: true, action: 'undoCheckoutContainer' };
+		} catch (err: unknown) {
+			console.error('Undo checkout error:', err);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการยกเลิก checkout' });
 		}
 	},
 

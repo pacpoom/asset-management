@@ -10,6 +10,7 @@
 	export let data;
 
 	$: jobs = data.job_orders || [];
+	$: containerAlerts = data.containerAlerts || [];
 	// รับค่า Date filter มาจาก Server
 	$: pagination = data.pagination || {
 		total: 0,
@@ -242,6 +243,52 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- ============================================ -->
+	<!-- CONTAINER CHECKOUT ALERT SECTION             -->
+	<!-- ============================================ -->
+	{#if containerAlerts.length > 0}
+		<div class="mb-5 overflow-hidden rounded-xl border border-red-200 bg-white shadow-sm">
+			<div class="flex items-center gap-2 border-b border-red-100 bg-red-50 px-4 py-3">
+				<svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+				</svg>
+				<span class="font-bold text-red-700">แจ้งเตือน: ตู้ที่ยังไม่ Checkout และใกล้หมด Free Time ({containerAlerts.length} รายการ)</span>
+			</div>
+			<div class="divide-y divide-gray-100">
+				{#each containerAlerts as alert}
+					{@const days = Number(alert.days_left)}
+					{@const isExpired = days < 0}
+					{@const isCritical = days >= 0 && days <= 2}
+					<div class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
+						<div class="flex-shrink-0">
+							{#if isExpired}
+								<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">เกิน {Math.abs(days)} วัน</span>
+							{:else if isCritical}
+								<span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">เหลือ {days} วัน</span>
+							{:else}
+								<span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-bold text-yellow-700">เหลือ {days} วัน</span>
+							{/if}
+						</div>
+						<div class="min-w-0 flex-1">
+							<a href="/freight-forwarder/job-orders/{alert.id}" class="font-bold text-blue-600 hover:underline">
+								{alert.job_number || `JOB-${alert.id}`}
+							</a>
+							<span class="ml-2 text-sm text-gray-500">{alert.customer_name || '-'}</span>
+							<span class="ml-2 text-xs text-gray-400">
+								ตู้รอออก: <strong class="text-amber-600">{alert.pending_count}</strong> ตู้
+								| Free Time หมด: {new Date(alert.expire_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
+							</span>
+						</div>
+						<a href="/freight-forwarder/job-orders/{alert.id}"
+							class="flex-shrink-0 rounded-lg {isExpired ? 'bg-red-600' : isCritical ? 'bg-orange-500' : 'bg-yellow-500'} px-3 py-1 text-xs font-semibold text-white hover:opacity-80">
+							Checkout →
+						</a>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
 
 	<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 		<div class="overflow-x-auto">
