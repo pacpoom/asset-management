@@ -175,25 +175,15 @@ export const actions: Actions = {
 
 				await connection.execute(
 					`INSERT INTO attendance_logs 
-						(emp_id, work_date, status, shift_type, remark, verifier_id, scan_in_time, scan_out_time) 
-					 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+						(emp_id, work_date, status, shift_type, remark, scan_in_time, scan_out_time) 
+					 VALUES (?, ?, ?, ?, ?, ?, ?)
 					 ON DUPLICATE KEY UPDATE 
 						status = VALUES(status), 
 						shift_type = VALUES(shift_type), 
-						remark = VALUES(remark), 
-						verifier_id = VALUES(verifier_id),
+						remark = VALUES(remark),
 						scan_in_time = VALUES(scan_in_time),
 						scan_out_time = VALUES(scan_out_time)`,
-					[
-						empId,
-						workDate,
-						status,
-						shift,
-						remark,
-						locals.user?.id || null,
-						finalTimeIn,
-						finalTimeOut
-					]
+					[empId, workDate, status, shift, remark, finalTimeIn, finalTimeOut]
 				);
 			}
 

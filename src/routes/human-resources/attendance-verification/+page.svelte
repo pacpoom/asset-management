@@ -11,6 +11,7 @@
 	let employeeList = $state(data.employeeList || []);
 	let isSubmitting = $state(false);
 	let showErrorModal = $state(false);
+	let editingEmpId = $state<string | null>(null);
 
 	let statusOptions = $derived([
 		{ value: 'Present', label: `${$t('Present')}` },
@@ -622,6 +623,7 @@
 						<th class="w-32 px-4 py-3 text-center whitespace-nowrap">{$t('Time Out')}</th>
 						<th class="w-56 px-4 py-3 text-center whitespace-nowrap">{$t('Status')}</th>
 						<th class="w-64 px-4 py-3 whitespace-nowrap">{$t('Notes/Types of Leave')}</th>
+						<th class="w-64 px-4 py-3 whitespace-nowrap">{$t('Actions')}</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-100">
@@ -645,7 +647,7 @@
 							class="transition-colors hover:bg-gray-50 {isVisible ? '' : 'hidden'} {isLocked
 								? 'bg-gray-50/50'
 								: ''}
-							{needsCheck
+			{needsCheck
 								? 'border-l-4 border-l-red-500 bg-red-50/50'
 								: hasScan && !isLocked
 									? 'border-l-4 border-l-green-400 bg-green-50/20'
@@ -668,10 +670,10 @@
 								<select
 									aria-label="Shift"
 									name="shift[]"
-									disabled={isLocked}
+									disabled={isLocked && editingEmpId !== emp.emp_id}
 									bind:value={emp.shift_type}
 									class="w-full cursor-pointer rounded border py-1.5 text-center text-sm font-bold focus:outline-none
-        							{isLocked
+					{isLocked && editingEmpId !== emp.emp_id
 										? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
 										: emp.shift_type === 'D' || emp.shift_type === 'Day'
 											? 'border-yellow-300 bg-yellow-50 text-yellow-700'
@@ -688,7 +690,11 @@
 										<option value="N">N</option>
 									{/if}
 								</select>
-								{#if isLocked}<input type="hidden" name="shift[]" value={emp.shift_type} />{/if}
+								{#if isLocked && editingEmpId !== emp.emp_id}<input
+										type="hidden"
+										name="shift[]"
+										value={emp.shift_type}
+									/>{/if}
 							</td>
 
 							<td class="px-2 py-2">
@@ -696,9 +702,9 @@
 									type="time"
 									name="time_in[]"
 									bind:value={emp.time_in}
-									readonly={hasScan}
+									readonly={hasScan && editingEmpId !== emp.emp_id}
 									class="w-full rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-sm focus:border-blue-500 focus:outline-none
-        {hasScan
+					{hasScan && editingEmpId !== emp.emp_id
 										? 'cursor-not-allowed bg-gray-100 text-gray-400'
 										: 'bg-white font-bold text-green-600'}"
 								/>
@@ -709,9 +715,9 @@
 									type="time"
 									name="time_out[]"
 									bind:value={emp.time_out}
-									readonly={hasScan}
+									readonly={hasScan && editingEmpId !== emp.emp_id}
 									class="w-full rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-sm focus:border-blue-500 focus:outline-none
-        {hasScan
+					{hasScan && editingEmpId !== emp.emp_id
 										? 'cursor-not-allowed bg-gray-100 text-gray-400'
 										: 'bg-white font-bold text-purple-600'}"
 								/>
@@ -728,7 +734,7 @@
 										}
 									}}
 									class="w-full cursor-pointer rounded border py-1.5 text-center text-sm font-medium focus:border-blue-500 focus:outline-none
-        							{needsCheck
+					{needsCheck
 										? 'animate-pulse border-red-400 bg-red-100 text-red-700 ring-1 ring-red-400'
 										: isNightPending
 											? 'border-gray-300 bg-gray-100 text-gray-500'
@@ -782,12 +788,60 @@
 									/>
 								{/if}
 							</td>
+
+							<td class="px-4 py-2 text-center">
+								<div class="flex items-center justify-center">
+									{#if editingEmpId === emp.emp_id}
+										<button
+											type="button"
+											onclick={() => (editingEmpId = null)}
+											class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-green-600"
+											title={$t('Done')}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												width="18"
+												height="18"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											>
+												<path d="M20 6 9 17l-5-5" />
+											</svg>
+										</button>
+									{:else}
+										<button
+											type="button"
+											onclick={() => (editingEmpId = emp.emp_id)}
+											class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-yellow-600"
+											title={$t('Edit')}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												width="16"
+												height="16"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											>
+												<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+											</svg>
+										</button>
+									{/if}
+								</div>
+							</td>
 						</tr>
 					{/each}
 
 					{#if filteredEmpList.length === 0}
 						<tr>
-							<td colspan="8" class="bg-gray-50 px-4 py-8 text-center text-gray-500">
+							<td colspan="9" class="bg-gray-50 px-4 py-8 text-center text-gray-500">
 								{$t('ไม่พบข้อมูลพนักงานที่ค้นหา')}
 							</td>
 						</tr>
