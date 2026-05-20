@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Recurse -Path \"D:\\\\asset-management\\\\src\" -Include \"*container*order*\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName)",
+      "Bash(find \"D:\\\\asset-management\" -type f \\\\\\( -name \"*.sql\" -o -name \"*.schema.ts\" -o -name \"*.types.ts\" \\\\\\) 2>/dev/null | grep -i container)",
+      "Bash(xargs grep -l \"container_order_plans\")",
+      "Bash(xargs grep -l \"container_order_plans\\\\|ContainerOrderPlan\")",
+      "Bash(gh repo *)",
+      "Bash(Get-ChildItem -Recurse src\\\\lib -Name)",
+      "Bash(gh pr *)",
+      "Bash(mysql --version)",
+      "Bash(mysql -u root -e \"SHOW DATABASES;\")",
+      "Bash(node -e ' *)",
+      "Bash(npx tsc *)",
+      "Bash(node migrations/refactor_vessel_free_days.cjs)"
+    ]
+  }
+}

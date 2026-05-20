@@ -16,7 +16,18 @@
       "Bash(xargs grep -l \"CREATE TABLE.*asset\")",
       "PowerShell(Get-ChildItem -Path \"D:\\\\asset-management\\\\migrations\" | ForEach-Object { $_.Name })",
       "Bash(npm run *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(git stash *)",
+      "Read(//usr/local/bin/**)",
+      "Read(//usr/bin/**)",
+      "Bash(git remote *)",
+      "Bash(findstr /i \"error warning\")",
+      "Bash(Select-String \"dashboard\")",
+      "PowerShell(cd D:\\\\asset-management; $out = npx svelte-check --tsconfig ./tsconfig.json 2>&1 | Out-String; $lines = $out -split \"`n\"; $dashLines = @\\(\\); $capture = $false; foreach \\($line in $lines\\) { if \\($line -match \"dashboard\"\\) { $capture = $true }; if \\($capture\\) { $dashLines += $line; if \\($dashLines.Count -gt 30\\) { break } } }; $dashLines -join \"`n\")",
+      "PowerShell(cd D:\\\\asset-management; npx svelte-check --tsconfig ./tsconfig.json > \"$env:TEMP\\\\sc_out.txt\" 2>&1; Get-Content \"$env:TEMP\\\\sc_out.txt\" | Select-String \"dashboard\" | Select-Object -First 20)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
