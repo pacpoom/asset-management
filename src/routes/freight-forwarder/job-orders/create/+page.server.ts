@@ -293,21 +293,28 @@ export const actions = {
 		const id = formData.get('id')?.toString();
 		const vessel_name = formData.get('vessel_name')?.toString()?.trim();
 		const liner_id = formData.get('liner_id')?.toString()?.trim() || null;
-		const storage_days = parseInt(formData.get('storage_days')?.toString() || '3') || 3;
-		const demurrage_days = parseInt(formData.get('demurrage_days')?.toString() || '3') || 3;
-		const detention_days = parseInt(formData.get('detention_days')?.toString() || '32') || 32;
+		
+		// ปรับให้รองรับการกรอกค่าเป็น 0 วัน
+		const sd = parseInt(formData.get('storage_days')?.toString() || '');
+		const storage_days = isNaN(sd) ? 3 : sd;
+		
+		const dm = parseInt(formData.get('demurrage_days')?.toString() || '');
+		const demurrage_days = isNaN(dm) ? 3 : dm;
+		
+		const dt = parseInt(formData.get('detention_days')?.toString() || '');
+		const detention_days = isNaN(dt) ? 32 : dt;
 
 		try {
 			if (action_type === 'add' && vessel_name) {
 				await pool.execute(
 					`INSERT INTO vessel_master (vessel_name, liner_id, storage_days, demurrage_days, detention_days, status, created_at, updated_at)
 					 VALUES (?, ?, ?, ?, ?, 'Active', NOW(), NOW())`,
-					[vessel_name, liner_id || null, storage_days, demurrage_days, detention_days]
+					[vessel_name, liner_id, storage_days, demurrage_days, detention_days]
 				);
 			} else if (action_type === 'edit' && id && vessel_name) {
 				await pool.execute(
 					'UPDATE vessel_master SET vessel_name = ?, liner_id = ?, storage_days = ?, demurrage_days = ?, detention_days = ?, updated_at = NOW() WHERE id = ?',
-					[vessel_name, liner_id || null, storage_days, demurrage_days, detention_days, id]
+					[vessel_name, liner_id, storage_days, demurrage_days, detention_days, id]
 				);
 			} else if (action_type === 'delete' && id) {
 				await pool.execute('DELETE FROM vessel_master WHERE id = ?', [id]);

@@ -73,6 +73,7 @@
 		label: c.company_name ? `${c.company_name} (${c.name})` : c.name,
 		address: c.address
 	}));
+	
 	$: allContracts = data.contracts || [];
 	$: filteredContracts = selectedCustomer
 		? allContracts
@@ -86,7 +87,6 @@
 	}));
 
 	let selectedLiner: SelectOption | null = null;
-
 	let jobAmount: number | string = '';
 
 	let isSaving = false;
@@ -119,6 +119,18 @@
 	];
 
 	let selectedJobType: JobTypeOption = jobTypeOptions[0];
+
+	// ==========================================
+	// โลจิกเปิด/ปิดช่องเรือ ตาม Job Type
+	// ==========================================
+	$: currentJobValue = selectedJobType ? selectedJobType.value : 'SI';
+	$: isSeaFreight = currentJobValue === 'SI' || currentJobValue === 'SE';
+	$: isVesselDisabled = !isSeaFreight;
+
+	$: if (!isSeaFreight) {
+		selectedVessel = null; // เคลียร์ค่าเรืออัตโนมัติเมื่อเป็นงานแอร์
+	}
+
 	$: padding = data?.paddingLength ?? 4;
 	$: nextSeqNum = data?.nextSequence ?? 1;
 
@@ -180,20 +192,20 @@
 	let manageVesselDemurrageDays: number = 3;
 	let manageVesselDetentionDays: number = 32;
 
-	// ── Direct fetch helper for master-data actions ──────────────────────
-	// Uses SvelteKit's deserialize to handle action results without full-page
-	// invalidation side-effects of use:enhance + update().
-	async function submitMasterAction(
-		action: 'managePort' | 'manageVessel',
-		fd: FormData
-	): Promise<boolean> {
+	async function submitMasterAction(action: 'managePort' | 'manageVessel', fd: FormData): Promise<boolean> {
 		isSavingMaster = true;
 		try {
-			const response = await fetch(`?/${action}`, { method: 'POST', body: fd });
+			const response = await fetch(`?/${action}`, { 
+				method: 'POST', 
+				body: fd,
+				headers: {
+					'x-sveltekit-action': 'true' // บังคับให้ SvelteKit คืนค่าเป็น JSON เสมอ
+				}
+			});
 			const result = deserialize(await response.text());
 			if (result.type === 'success') {
-				// Refresh only the current page's load data (vessels / ports)
-				await invalidateAll();
+				// เมื่อสำเร็จ จะทำการโหลด data.vessels และ data.ports จากฐานข้อมูลใหม่ทันที
+				await invalidateAll(); 
 				return true;
 			}
 			console.error('Master action failed:', result);
@@ -434,8 +446,8 @@
 				class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="h-5 w-5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                </svg>
+					<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+				</svg>
 			</a>
 			<div>
 				<div class="flex items-center gap-2">
@@ -586,6 +598,7 @@
 								<div class="flex items-start gap-2">
 									<div class="min-w-0 flex-grow">
 										<Select items={jobTypeOptions} bind:value={selectedJobType} placeholder={$t('Select...')} container={browser ? document.body : null} class="svelte-select-custom" clearable={false} />
+										<!-- ซ่อน Input Job Type ไว้ตรงนี้ -->
 										<input type="hidden" name="job_type" value={selectedJobType?.value || ''} required />
 									</div>
 									<button type="button" onclick={() => openManageModal('jobCode')} class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none" title={$t('Manage Job Code options')}>
@@ -626,7 +639,6 @@
 					<h2 class="mb-4 border-b pb-2 text-sm font-bold tracking-wider text-gray-600 uppercase">
 						{$t('Shipment Information')}
 					</h2>
-					<!-- เพิ่ม flight_no เข้าไปใน grid นี้ -->
 					<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
 						
 						<div>
@@ -669,11 +681,26 @@
 							<input type="hidden" name="liner_name" value={selectedLiner?.value || ''} />
 						</div>
 
+						<!-- ช่องเลืออกเรือ (Vessel) -->
 						<div>
-							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Vessel')}</div>
+							<div class="mb-1 flex items-center justify-between">
+								<span class="block text-xs font-bold text-gray-500 uppercase">{$t('Vessel')}</span>
+								{#if isVesselDisabled}
+									<span class="rounded bg-orange-50 px-2 py-0.5 text-[10px] text-orange-500">เฉพาะงาน Sea</span>
+								{/if}
+							</div>
 							<div class="flex items-start gap-2">
 								<div class="min-w-0 flex-grow">
-									<Select items={vesselOptions} bind:value={selectedVessel} placeholder={$t('Search or select vessel...')} container={browser ? document.body : null} class="svelte-select-custom" />
+									<Select 
+										items={vesselOptions} 
+										bind:value={selectedVessel} 
+										disabled={isVesselDisabled}
+										placeholder={isVesselDisabled ? "ไม่ต้องระบุสำหรับงาน Air" : $t('Search or select vessel...')} 
+										container={browser ? document.body : null} 
+										class="svelte-select-custom {isVesselDisabled ? '!bg-gray-100 opacity-60 cursor-not-allowed' : ''}" 
+									/>
+									<!-- ผูก input ไว้ให้ Server -->
+									<input type="hidden" name="vessel_master_id" value={selectedVessel?.id || ''} />
 									<input type="hidden" name="vessel" value={selectedVessel?.value || ''} />
 								</div>
 								<button type="button" onclick={() => openManageModal('vessel')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Vessels')}>
@@ -681,11 +708,11 @@
 								</button>
 							</div>
 						</div>
+
 						<div>
 							<label for="feeder" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Feeder')}</label>
 							<input id="feeder" type="text" name="feeder" placeholder={$t('Feeder Name')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
 						</div>
-						<!-- เพิ่มช่อง Flight No. ตรงนี้ให้ติดกับ Vessel/Feeder -->
 						<div>
 							<label for="flight_no" class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Flight No.')}</label>
 							<input id="flight_no" type="text" name="flight_no" placeholder={$t('Flight Number')} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500" />
@@ -720,7 +747,6 @@
 						<!-- Free Days: read-only from Vessel Master -->
 						{#if vesselFreeDays}
 						<div class="col-span-1 md:col-span-3">
-							<input type="hidden" name="vessel_master_id" value={selectedVessel?.id ?? ''} />
 							<div class="rounded-lg border border-amber-100 bg-amber-50/40 p-3">
 								<p class="mb-2 text-xs font-bold text-amber-700 uppercase tracking-wide">Free Days (จาก Vessel Master)</p>
 								<div class="grid grid-cols-3 gap-4 text-center">
@@ -742,8 +768,6 @@
 								</div>
 							</div>
 						</div>
-						{:else}
-						<input type="hidden" name="vessel_master_id" value="" />
 						{/if}
 
 						<div class="col-span-1 md:col-span-3">
