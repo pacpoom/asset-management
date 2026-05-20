@@ -54,7 +54,11 @@
 		address?: string | null;
 		amount?: number;
 		id?: number;
+		vessel_name?: string;
 		liner_id?: string | number;
+		storage_days?: number;
+		demurrage_days?: number;
+		detention_days?: number;
 	}
 
 	interface Vessel {
@@ -140,17 +144,29 @@
 	let selectedPol: SelectOption | null = null;
 	let selectedPod: SelectOption | null = null;
 
-	// Vessel Master Dropdown
-	$: vesselOptions = (data.vessels || []).map((v: Vessel) => ({
-		value: v.vessel_name,
-		label: v.liner_code ? `[${v.liner_code}] ${v.vessel_name}` : v.vessel_name,
-		id: v.id,
-		liner_id: v.liner_id ? String(v.liner_id) : '',
-		storage_days: v.storage_days ?? 3,
-		demurrage_days: v.demurrage_days ?? 3,
-		detention_days: v.detention_days ?? 32
-	}));
+	// Vessel Master Dropdown — ใช้ id เป็น value เพื่อไม่ให้ svelte-select ค้างเมื่อชื่อเรือซ้ำ
+	const EMPTY_VESSELS: Vessel[] = [];
+
+	function buildVesselOptions(vessels: Vessel[]): SelectOption[] {
+		return vessels.map((v) => ({
+			id: v.id,
+			value: v.id,
+			vessel_name: v.vessel_name,
+			label: v.liner_code ? `[${v.liner_code}] ${v.vessel_name}` : v.vessel_name,
+			liner_id: v.liner_id ? String(v.liner_id) : '',
+			storage_days: v.storage_days ?? 3,
+			demurrage_days: v.demurrage_days ?? 3,
+			detention_days: v.detention_days ?? 32
+		}));
+	}
+
+	$: vesselOptions = buildVesselOptions(data.vessels ?? EMPTY_VESSELS);
 	let selectedVessel: SelectOption | null = null;
+
+	$: if (selectedVessel?.id != null && vesselOptions.length > 0) {
+		const matched = vesselOptions.find((o) => o.id === selectedVessel?.id);
+		if (matched && matched !== selectedVessel) selectedVessel = matched;
+	}
 
 	// Free Days — read-only, sourced from vessel_master via selectedVessel
 	$: vesselFreeDays = selectedVessel
@@ -325,7 +341,7 @@
 		}
 
 		if (manageModalType === 'vessel') {
-			manageLabel = String(vesselOptions[index].value); // vessel_name
+			manageLabel = String(vesselOptions[index].vessel_name ?? vesselOptions[index].label);
 			manageVesselId = String(vesselOptions[index].id);
 			manageVesselLinerId = String(vesselOptions[index].liner_id || '');
 			manageVesselStorageDays = Number(vesselOptions[index].storage_days) || 3;
@@ -691,17 +707,18 @@
 							</div>
 							<div class="flex items-start gap-2">
 								<div class="min-w-0 flex-grow">
-									<Select 
-										items={vesselOptions} 
-										bind:value={selectedVessel} 
+									<Select
+										items={vesselOptions}
+										itemId="id"
+										bind:value={selectedVessel}
 										disabled={isVesselDisabled}
-										placeholder={isVesselDisabled ? "ไม่ต้องระบุสำหรับงาน Air" : $t('Search or select vessel...')} 
-										container={browser ? document.body : null} 
-										class="svelte-select-custom {isVesselDisabled ? '!bg-gray-100 opacity-60 cursor-not-allowed' : ''}" 
+										placeholder={isVesselDisabled ? 'ไม่ต้องระบุสำหรับงาน Air' : $t('Search or select vessel...')}
+										container={browser ? document.body : null}
+										class="svelte-select-custom {isVesselDisabled ? '!bg-gray-100 opacity-60 cursor-not-allowed' : ''}"
 									/>
 									<!-- ผูก input ไว้ให้ Server -->
-									<input type="hidden" name="vessel_master_id" value={selectedVessel?.id || ''} />
-									<input type="hidden" name="vessel" value={selectedVessel?.value || ''} />
+									<input type="hidden" name="vessel_master_id" value={selectedVessel?.id ?? ''} />
+									<input type="hidden" name="vessel" value={selectedVessel?.vessel_name ?? ''} />
 								</div>
 								<button type="button" onclick={() => openManageModal('vessel')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Vessels')}>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -952,7 +969,7 @@
 				<h4 class="mb-2 text-sm font-semibold text-gray-700">{$t('Current Options')}</h4>
 				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
 					<ul class="divide-y divide-gray-100">
-						{#each (manageModalType === 'jobCode' ? jobTypeOptions : manageModalType === 'serviceType' ? serviceTypeOptions : manageModalType === 'vessel' ? vesselOptions : portOptions) as option, index (option.value)}
+						{#each (manageModalType === 'jobCode' ? jobTypeOptions : manageModalType === 'serviceType' ? serviceTypeOptions : manageModalType === 'vessel' ? vesselOptions : portOptions) as option, index (manageModalType === 'vessel' || manageModalType === 'port' ? option.id : option.value)}
 							<li class="flex items-center justify-between p-3 hover:bg-gray-50">
 								<div>
 									<span class="text-sm font-semibold text-gray-800">{option.label}</span>
@@ -1018,5 +1035,8 @@
 	}
 	:global(div.svelte-select input) {
 		font-size: 0.875rem !important;
+	}
+	:global(.svelte-select-list) {
+		z-index: 9999 !important;
 	}
 </style>
