@@ -981,6 +981,10 @@
 										class="svelte-select-custom"
 									/>
 									<input type="hidden" name="vessel" value={selectedVessel?.vessel_name ?? ''} />
+									<input type="hidden" name="vessel_master_id" value={selectedVessel?.id ?? ''} />
+									<input type="hidden" name="storage_days" value={selectedVessel?.storage_days ?? ''} />
+									<input type="hidden" name="demurrage_days" value={selectedVessel?.demurrage_days ?? ''} />
+									<input type="hidden" name="detention_days" value={selectedVessel?.detention_days ?? ''} />
 								</div>
 								<button type="button" onclick={() => openManageModal('vessel')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Vessels')}>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -1099,7 +1103,6 @@
 						<!-- Free Days: read-only from vessel_master -->
 						<div class="col-span-1 md:col-span-3">
 							{#if vesselFreeDays}
-								<input type="hidden" name="vessel_master_id" value={selectedVessel?.id ?? ''} />
 								<div class="rounded-lg border border-amber-100 bg-amber-50/40 p-3">
 									<p class="mb-2 text-xs font-bold text-amber-700 uppercase tracking-wide">Free Days (จาก Vessel Master)</p>
 									<div class="grid grid-cols-3 gap-4 text-center">
@@ -1120,8 +1123,6 @@
 										</div>
 									</div>
 								</div>
-							{:else}
-								<input type="hidden" name="vessel_master_id" value="" />
 							{/if}
 						</div>
 

@@ -3,8 +3,8 @@
  *
  * - Add vessel_master_id (FK) to job_orders
  * - Populate it by matching job_orders.vessel = vessel_master.vessel_name
- * - Drop storage_days, demurrage_days, detention_days from job_orders
- *   (free days are now always looked up from vessel_master)
+ * - (legacy) ถ้ามีคอลัมน์ free days บน job_orders แล้ว drop — ปัจจุบันใช้ job_orders เก็บ snapshot
+ *   ดู migrations/move_free_days_to_job_orders.cjs สำหรับย้ายจาก job_containers
  */
 const mysql = require('../node_modules/mysql2/promise');
 

@@ -82,10 +82,9 @@
 	let revenueToUse = $derived(totalRevenue > 0 ? totalRevenue : Number(job.amount || 0));
 	let netProfit = $derived(revenueToUse - totalExpense);
 
-	/** Free Days จาก vessel_master (โชว์ต่อท้ายชื่อเรือ) */
+	/** Free Days snapshot บน job_orders (โชว์ต่อท้ายชื่อเรือ) */
 	let vesselFreeDays = $derived(
-		job.vessel_master_id &&
-			(job.storage_days != null || job.demurrage_days != null || job.detention_days != null)
+		job.storage_days != null || job.demurrage_days != null || job.detention_days != null
 			? {
 					storage: job.storage_days ?? '—',
 					demurrage: job.demurrage_days ?? '—',

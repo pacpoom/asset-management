@@ -7,6 +7,7 @@ import {
 	allocateMonthlySequence,
 	type MonthlySeqConnection
 } from '$lib/server/monthlyDocumentSequence';
+import { resolveJobFreeDaysForSave } from '$lib/server/jobOrderFreeDays';
 import type { Actions } from './$types';
 
 const UPLOAD_DIR = path.resolve('uploads', 'job_orders');
@@ -162,6 +163,8 @@ export const actions: Actions = {
 			created_by: locals.user?.id || 1
 		};
 
+		const freeDays = await resolveJobFreeDaysForSave(formData, data.vessel_master_id);
+
 		const connection = await pool.getConnection();
 		let newJobId = null;
 
@@ -178,9 +181,9 @@ export const actions: Actions = {
                     quantity, unit_id, weight, kgs_volume, remarks,
                     amount, currency, job_number,
 					booking_no, vessel, feeder, flight_no, port_of_loading, port_of_discharge,
-					vessel_master_id,
+					vessel_master_id, storage_days, demurrage_days, detention_days,
 					created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
@@ -216,6 +219,9 @@ export const actions: Actions = {
 				data.port_of_loading,
 				data.port_of_discharge,
 				data.vessel_master_id,
+				freeDays.storage_days,
+				freeDays.demurrage_days,
+				freeDays.detention_days,
 				data.created_by
 			];
 

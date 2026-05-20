@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import pool from '$lib/server/database';
+import { resolveJobFreeDaysForSave } from '$lib/server/jobOrderFreeDays';
 import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
@@ -30,10 +31,7 @@ async function saveFile(file: File) {
 export const load = async ({ params }) => {
 	const id = params.id;
 	const [jobs] = await pool.query(
-		`SELECT j.*, vm.demurrage_days, vm.storage_days, vm.detention_days
-		 FROM job_orders j
-		 LEFT JOIN vessel_master vm ON j.vessel_master_id = vm.id
-		 WHERE j.id = ?`,
+		`SELECT j.* FROM job_orders j WHERE j.id = ?`,
 		[id]
 	);
 	const job = (jobs as Record<string, unknown>[])[0];
@@ -132,6 +130,11 @@ export const actions = {
 			const mm = String(d.getMonth() + 1).padStart(2, '0');
 			const new_job_number = `${job_type}${yy}${mm}${runningNum}`;
 
+			const vessel_master_id = formData.get('vessel_master_id')
+				? parseInt(formData.get('vessel_master_id') as string) || null
+				: null;
+			const freeDays = await resolveJobFreeDaysForSave(formData, vessel_master_id);
+
 			const data = [
 				formData.get('customer_id') || null,
 				formData.get('contract_id') || null,
@@ -163,7 +166,10 @@ export const actions = {
 				formData.get('flight_no') || null,
 				formData.get('port_of_loading') || null,
 				formData.get('port_of_discharge') || null,
-				formData.get('vessel_master_id') ? parseInt(formData.get('vessel_master_id') as string) || null : null,
+				vessel_master_id,
+				freeDays.storage_days,
+				freeDays.demurrage_days,
+				freeDays.detention_days,
 				new_job_number,
 				id
 			];
@@ -176,7 +182,7 @@ export const actions = {
                     quantity = ?, unit_id = ?, weight = ?, kgs_volume = ?, remarks = ?,
                     amount = ?, currency = ?,
 					booking_no = ?, vessel = ?, feeder = ?, flight_no = ?, port_of_loading = ?, port_of_discharge = ?,
-					vessel_master_id = ?,
+					vessel_master_id = ?, storage_days = ?, demurrage_days = ?, detention_days = ?,
 					job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;
