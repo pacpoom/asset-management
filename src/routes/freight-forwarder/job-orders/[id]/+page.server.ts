@@ -11,7 +11,8 @@ export const load = async ({ params }) => {
 		// 1. ดึงข้อมูล Job Order
 		const [jobs] = await pool.query<RowDataPacket[]>(
 			`
-			SELECT j.*, 
+			SELECT j.*,
+			       vm.demurrage_days, vm.storage_days, vm.detention_days,
 			       c.name as customer_name, c.company_name, c.address as customer_address, c.tax_id as customer_tax_id,
 			       con.contract_number,
                    v.name as vendor_name, v.company_name as vendor_company_name, v.address as vendor_address, v.tax_id as vendor_tax_id,
@@ -19,6 +20,7 @@ export const load = async ({ params }) => {
 			       u.full_name as created_by_name,
                    un.name as unit_name, un.symbol as unit_symbol
 			FROM job_orders j
+			LEFT JOIN vessel_master vm ON j.vessel_master_id = vm.id
 			LEFT JOIN customers c ON j.customer_id = c.id
 			LEFT JOIN contracts con ON j.contract_id = con.id
             LEFT JOIN vendors v ON j.vendor_id = v.id

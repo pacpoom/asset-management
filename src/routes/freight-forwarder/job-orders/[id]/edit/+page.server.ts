@@ -29,7 +29,13 @@ async function saveFile(file: File) {
 
 export const load = async ({ params }) => {
 	const id = params.id;
-	const [jobs] = await pool.query('SELECT * FROM job_orders WHERE id = ?', [id]);
+	const [jobs] = await pool.query(
+		`SELECT j.*, vm.demurrage_days, vm.storage_days, vm.detention_days
+		 FROM job_orders j
+		 LEFT JOIN vessel_master vm ON j.vessel_master_id = vm.id
+		 WHERE j.id = ?`,
+		[id]
+	);
 	const job = (jobs as Record<string, unknown>[])[0];
 
 	if (!job) throw redirect(302, '/freight-forwarder/job-orders');
@@ -148,12 +154,10 @@ export const actions = {
 				formData.get('booking_no') || null,
 				formData.get('vessel') || null,
 				formData.get('feeder') || null,
-				formData.get('flight_no') || null, // อัปเดต Flight No.
+				formData.get('flight_no') || null,
 				formData.get('port_of_loading') || null,
 				formData.get('port_of_discharge') || null,
-				formData.get('demurrage_days') ? parseInt(formData.get('demurrage_days') as string) || null : null,
-				formData.get('storage_days') ? parseInt(formData.get('storage_days') as string) || null : null,
-				formData.get('detention_days') ? parseInt(formData.get('detention_days') as string) || null : null,
+				formData.get('vessel_master_id') ? parseInt(formData.get('vessel_master_id') as string) || null : null,
 				new_job_number,
 				id
 			];
@@ -166,7 +170,7 @@ export const actions = {
                     quantity = ?, unit_id = ?, weight = ?, kgs_volume = ?, remarks = ?,
                     amount = ?, currency = ?,
 					booking_no = ?, vessel = ?, feeder = ?, flight_no = ?, port_of_loading = ?, port_of_discharge = ?,
-					demurrage_days = ?, storage_days = ?, detention_days = ?,
+					vessel_master_id = ?,
 					job_number = ?, updated_at = NOW()
                 WHERE id = ?
             `;

@@ -1,7 +1,7 @@
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
-	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { enhance, deserialize } from '$app/forms';
+	import { goto, invalidateAll } from '$app/navigation';
 	import Select from 'svelte-select';
 	import { browser } from '$app/environment';
 	import { t } from '$lib/i18n';
@@ -140,17 +140,10 @@
 	}));
 	let selectedVessel: SelectOption | null = null;
 
-	// Free Days — auto-fill จาก Vessel ที่เลือก
-	let jobDemurrageDays: number | string = '';
-	let jobStorageDays: number | string = '';
-	let jobDetentionDays: number | string = '';
-
-	$: if (selectedVessel) {
-		const v = selectedVessel as SelectOption & { demurrage_days?: number; storage_days?: number; detention_days?: number };
-		if (v.demurrage_days != null) jobDemurrageDays = v.demurrage_days;
-		if (v.storage_days != null) jobStorageDays = v.storage_days;
-		if (v.detention_days != null) jobDetentionDays = v.detention_days;
-	}
+	// Free Days — read-only, sourced from vessel_master via selectedVessel
+	$: vesselFreeDays = selectedVessel
+		? (selectedVessel as SelectOption & { demurrage_days?: number; storage_days?: number; detention_days?: number })
+		: null;
 
 	$: activeCurrencies = (
 		data?.currencies && data.currencies.length > 0
@@ -178,17 +171,40 @@
 	let manageLabel = '';
 	let editingIndex: number | null = null;
 	let managePortId: number | null = null;
-	let portActionType = 'add';
-	let portForm: HTMLFormElement;
+	let isSavingMaster = false;
 
 	// Vessel manage state
-	let vesselActionType = 'add';
-	let vesselForm: HTMLFormElement;
 	let manageVesselId: string | null = null;
 	let manageVesselLinerId: string = '';
 	let manageVesselStorageDays: number = 3;
 	let manageVesselDemurrageDays: number = 3;
 	let manageVesselDetentionDays: number = 32;
+
+	// ── Direct fetch helper for master-data actions ──────────────────────
+	// Uses SvelteKit's deserialize to handle action results without full-page
+	// invalidation side-effects of use:enhance + update().
+	async function submitMasterAction(
+		action: 'managePort' | 'manageVessel',
+		fd: FormData
+	): Promise<boolean> {
+		isSavingMaster = true;
+		try {
+			const response = await fetch(`?/${action}`, { method: 'POST', body: fd });
+			const result = deserialize(await response.text());
+			if (result.type === 'success') {
+				// Refresh only the current page's load data (vessels / ports)
+				await invalidateAll();
+				return true;
+			}
+			console.error('Master action failed:', result);
+			return false;
+		} catch (e) {
+			console.error('submitMasterAction error:', e);
+			return false;
+		} finally {
+			isSavingMaster = false;
+		}
+	}
 
 	let toastMessage = '';
 	let toastType: 'success' | 'error' = 'success';
@@ -226,21 +242,43 @@
 		manageVesselDetentionDays = 32;
 	}
 
-	function saveManageOption() {
+	async function saveManageOption() {
 		if (!manageLabel) {
 			showToast($t('Please specify a Label to continue'), 'error');
 			return;
 		}
 
 		if (manageModalType === 'port') {
-			portActionType = editingIndex !== null ? 'edit' : 'add';
-			setTimeout(() => portForm.requestSubmit(), 0);
+			const fd = new FormData();
+			fd.set('action_type', editingIndex !== null ? 'edit' : 'add');
+			fd.set('id', String(managePortId ?? ''));
+			fd.set('port_name', manageLabel);
+			const ok = await submitMasterAction('managePort', fd);
+			if (ok) {
+				showToast(editingIndex !== null ? $t('Data updated successfully') : $t('Added to system successfully'), 'success');
+				resetManageForm();
+			} else {
+				showToast($t('Error saving data'), 'error');
+			}
 			return;
 		}
 
 		if (manageModalType === 'vessel') {
-			vesselActionType = editingIndex !== null ? 'edit' : 'add';
-			setTimeout(() => vesselForm.requestSubmit(), 0);
+			const fd = new FormData();
+			fd.set('action_type', editingIndex !== null ? 'edit' : 'add');
+			fd.set('id', manageVesselId ?? '');
+			fd.set('vessel_name', manageLabel);
+			fd.set('liner_id', manageVesselLinerId);
+			fd.set('storage_days', String(manageVesselStorageDays));
+			fd.set('demurrage_days', String(manageVesselDemurrageDays));
+			fd.set('detention_days', String(manageVesselDetentionDays));
+			const ok = await submitMasterAction('manageVessel', fd);
+			if (ok) {
+				showToast(editingIndex !== null ? $t('Data updated successfully') : $t('Added to system successfully'), 'success');
+				resetManageForm();
+			} else {
+				showToast($t('Error saving data'), 'error');
+			}
 			return;
 		}
 
@@ -299,22 +337,38 @@
 		deleteTargetIndex = null;
 	}
 
-	function executeDeleteOption() {
+	async function executeDeleteOption() {
 		if (deleteTargetIndex === null) return;
 
 		if (manageModalType === 'port') {
-			portActionType = 'delete';
-			managePortId = portOptions[deleteTargetIndex].id;
-			setTimeout(() => portForm.requestSubmit(), 0);
+			const portId = portOptions[deleteTargetIndex].id;
 			showDeleteConfirm = false;
+			const fd = new FormData();
+			fd.set('action_type', 'delete');
+			fd.set('id', String(portId));
+			const ok = await submitMasterAction('managePort', fd);
+			if (ok) {
+				showToast($t('Option deleted successfully'), 'success');
+			} else {
+				showToast($t('Error saving data'), 'error');
+			}
+			deleteTargetIndex = null;
 			return;
 		}
 
 		if (manageModalType === 'vessel') {
-			vesselActionType = 'delete';
-			manageVesselId = String(vesselOptions[deleteTargetIndex].id);
-			setTimeout(() => vesselForm.requestSubmit(), 0);
+			const vesselId = String(vesselOptions[deleteTargetIndex].id);
 			showDeleteConfirm = false;
+			const fd = new FormData();
+			fd.set('action_type', 'delete');
+			fd.set('id', vesselId);
+			const ok = await submitMasterAction('manageVessel', fd);
+			if (ok) {
+				showToast($t('Option deleted successfully'), 'success');
+			} else {
+				showToast($t('Error saving data'), 'error');
+			}
+			deleteTargetIndex = null;
 			return;
 		}
 
@@ -400,54 +454,6 @@
 
 	<div class="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
 		<div class="h-1.5 w-full bg-blue-600"></div>
-
-		<!-- Form ซ่อนสำหรับจัดการ Master Data ของ Port ไปยัง Server Action -->
-		<form method="POST" action="?/managePort" bind:this={portForm} class="hidden" use:enhance={() => {
-			return async ({ update, result }) => {
-				await update();
-				if (result.type === 'success') {
-					if (portActionType === 'delete') {
-						showToast($t('Option deleted successfully'), 'success');
-						deleteTargetIndex = null;
-					} else {
-						showToast(editingIndex !== null ? $t('Data updated successfully') : $t('Added to system successfully'), 'success');
-						resetManageForm();
-					}
-				} else {
-					showToast($t('Error saving data'), 'error');
-				}
-			};
-		}}>
-			<input type="hidden" name="action_type" bind:value={portActionType} />
-			<input type="hidden" name="id" bind:value={managePortId} />
-			<input type="hidden" name="port_name" bind:value={manageLabel} />
-		</form>
-
-		<!-- Hidden Vessel Manage Form -->
-		<form method="POST" action="?/manageVessel" bind:this={vesselForm} class="hidden" use:enhance={() => {
-			return async ({ update, result }) => {
-				await update();
-				if (result.type === 'success') {
-					if (vesselActionType === 'delete') {
-						showToast($t('Option deleted successfully'), 'success');
-						deleteTargetIndex = null;
-					} else {
-						showToast(editingIndex !== null ? $t('Data updated successfully') : $t('Added to system successfully'), 'success');
-						resetManageForm();
-					}
-				} else {
-					showToast($t('Error saving data'), 'error');
-				}
-			};
-		}}>
-			<input type="hidden" name="action_type" bind:value={vesselActionType} />
-			<input type="hidden" name="id" bind:value={manageVesselId} />
-			<input type="hidden" name="vessel_name" bind:value={manageLabel} />
-			<input type="hidden" name="liner_id" bind:value={manageVesselLinerId} />
-			<input type="hidden" name="storage_days" bind:value={manageVesselStorageDays} />
-			<input type="hidden" name="demurrage_days" bind:value={manageVesselDemurrageDays} />
-			<input type="hidden" name="detention_days" bind:value={manageVesselDetentionDays} />
-		</form>
 
 		<form
 			method="POST"
@@ -711,32 +717,34 @@
 							</div>
 						</div>
 
-						<!-- Free Days: Demurrage / Storage / Detention -->
+						<!-- Free Days: read-only from Vessel Master -->
+						{#if vesselFreeDays}
 						<div class="col-span-1 md:col-span-3">
-							<div class="grid grid-cols-3 gap-4 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
-								<div>
-									<label for="demurrage_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าภาระท่า <span class="normal-case font-normal text-gray-400">(Demurrage)</span></label>
-									<div class="flex items-center gap-1">
-										<input id="demurrage_days" type="number" name="demurrage_days" min="0" max="999" bind:value={jobDemurrageDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
-										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+							<input type="hidden" name="vessel_master_id" value={selectedVessel?.id ?? ''} />
+							<div class="rounded-lg border border-amber-100 bg-amber-50/40 p-3">
+								<p class="mb-2 text-xs font-bold text-amber-700 uppercase tracking-wide">Free Days (จาก Vessel Master)</p>
+								<div class="grid grid-cols-3 gap-4 text-center">
+									<div>
+										<p class="text-xs text-gray-500 uppercase">Demurrage</p>
+										<p class="text-2xl font-bold text-amber-700">{vesselFreeDays.demurrage_days ?? '—'}</p>
+										<p class="text-xs text-gray-400">วัน</p>
 									</div>
-								</div>
-								<div>
-									<label for="storage_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าฝากตู้ <span class="normal-case font-normal text-gray-400">(Storage)</span></label>
-									<div class="flex items-center gap-1">
-										<input id="storage_days" type="number" name="storage_days" min="0" max="999" bind:value={jobStorageDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
-										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									<div>
+										<p class="text-xs text-gray-500 uppercase">Storage</p>
+										<p class="text-2xl font-bold text-amber-700">{vesselFreeDays.storage_days ?? '—'}</p>
+										<p class="text-xs text-gray-400">วัน</p>
 									</div>
-								</div>
-								<div>
-									<label for="detention_days" class="mb-1 block text-xs font-bold text-gray-500 uppercase">ค่าเช่าตู้ <span class="normal-case font-normal text-gray-400">(Detention)</span></label>
-									<div class="flex items-center gap-1">
-										<input id="detention_days" type="number" name="detention_days" min="0" max="999" bind:value={jobDetentionDays} placeholder="—" class="w-full rounded-md border-gray-300 p-2 text-center text-sm font-bold focus:border-amber-400 focus:ring-amber-400" />
-										<span class="shrink-0 text-xs text-gray-400">วัน</span>
+									<div>
+										<p class="text-xs text-gray-500 uppercase">Detention</p>
+										<p class="text-2xl font-bold text-amber-700">{vesselFreeDays.detention_days ?? '—'}</p>
+										<p class="text-xs text-gray-400">วัน</p>
 									</div>
 								</div>
 							</div>
 						</div>
+						{:else}
+						<input type="hidden" name="vessel_master_id" value="" />
+						{/if}
 
 						<div class="col-span-1 md:col-span-3">
 							<div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
@@ -875,8 +883,8 @@
 						</div>
 						{#if manageModalType === 'vessel'}
 						<div>
-							<label class="mb-1 block text-xs font-medium text-gray-500">สายเรือ (Liner)</label>
-							<select bind:value={manageVesselLinerId} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+							<label for="modal-vessel-liner" class="mb-1 block text-xs font-medium text-gray-500">สายเรือ (Liner)</label>
+							<select id="modal-vessel-liner" bind:value={manageVesselLinerId} class="w-full rounded-md border-gray-300 p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
 								<option value="">— ไม่ระบุ —</option>
 								{#each (data.liners || []) as liner}
 									<option value={String(liner.id)}>{liner.code ? `[${liner.code}] ` : ''}{liner.name}</option>
@@ -887,27 +895,32 @@
 							<p class="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Free Days</p>
 							<div class="grid grid-cols-3 gap-2">
 								<div>
-									<label class="mb-1 block text-xs font-medium text-gray-500">Storage (วัน)</label>
-									<input type="number" bind:value={manageVesselStorageDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
+									<label for="modal-vessel-storage" class="mb-1 block text-xs font-medium text-gray-500">Storage (วัน)</label>
+									<input id="modal-vessel-storage" type="number" bind:value={manageVesselStorageDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
 								</div>
 								<div>
-									<label class="mb-1 block text-xs font-medium text-gray-500">Demurrage (วัน)</label>
-									<input type="number" bind:value={manageVesselDemurrageDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
+									<label for="modal-vessel-demurrage" class="mb-1 block text-xs font-medium text-gray-500">Demurrage (วัน)</label>
+									<input id="modal-vessel-demurrage" type="number" bind:value={manageVesselDemurrageDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
 								</div>
 								<div>
-									<label class="mb-1 block text-xs font-medium text-gray-500">Detention (วัน)</label>
-									<input type="number" bind:value={manageVesselDetentionDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
+									<label for="modal-vessel-detention" class="mb-1 block text-xs font-medium text-gray-500">Detention (วัน)</label>
+									<input id="modal-vessel-detention" type="number" bind:value={manageVesselDetentionDays} min="0" max="999" class="w-full rounded-md border-gray-300 p-2 text-sm text-center focus:border-blue-500 focus:ring-blue-500" />
 								</div>
 							</div>
 						</div>
 						{/if}
 					</div>
 					<div class="flex gap-2">
-						<button onclick={saveManageOption} class="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
-							{editingIndex !== null ? $t('Save Changes') : $t('Add to System')}
+						<button onclick={saveManageOption} disabled={isSavingMaster} class="flex flex-1 items-center justify-center gap-2 rounded-md bg-blue-600 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60">
+							{#if isSavingMaster}
+								<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+								{$t('Saving...')}
+							{:else}
+								{editingIndex !== null ? $t('Save Changes') : $t('Add to System')}
+							{/if}
 						</button>
 						{#if editingIndex !== null}
-							<button onclick={resetManageForm} class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">{$t('Cancel')}</button>
+							<button onclick={resetManageForm} disabled={isSavingMaster} class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60">{$t('Cancel')}</button>
 						{/if}
 					</div>
 				</div>
@@ -960,8 +973,13 @@
 				<span class="font-semibold text-red-600">{$t('This action cannot be undone')}</span>
 			</p>
 			<div class="flex justify-center gap-3">
-				<button onclick={cancelDeleteOption} class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">{$t('Cancel')}</button>
-				<button onclick={executeDeleteOption} class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500">{$t('Delete')}</button>
+				<button onclick={cancelDeleteOption} disabled={isSavingMaster} class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{$t('Cancel')}</button>
+				<button onclick={executeDeleteOption} disabled={isSavingMaster} class="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-60">
+					{#if isSavingMaster}
+						<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+					{/if}
+					{$t('Delete')}
+				</button>
 			</div>
 		</div>
 	</div>

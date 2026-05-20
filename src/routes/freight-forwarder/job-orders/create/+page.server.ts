@@ -149,12 +149,10 @@ export const actions = {
 			booking_no: formData.get('booking_no') || null,
 			vessel: formData.get('vessel') || null,
 			feeder: formData.get('feeder') || null,
-			flight_no: formData.get('flight_no') || null, // รับค่า Flight No.
+			flight_no: formData.get('flight_no') || null,
 			port_of_loading: formData.get('port_of_loading') || null,
 			port_of_discharge: formData.get('port_of_discharge') || null,
-			demurrage_days: formData.get('demurrage_days') ? parseInt(formData.get('demurrage_days') as string) || null : null,
-			storage_days: formData.get('storage_days') ? parseInt(formData.get('storage_days') as string) || null : null,
-			detention_days: formData.get('detention_days') ? parseInt(formData.get('detention_days') as string) || null : null,
+			vessel_master_id: formData.get('vessel_master_id') ? parseInt(formData.get('vessel_master_id') as string) || null : null,
 			created_by: locals.user?.id || 1
 		};
 
@@ -166,7 +164,6 @@ export const actions = {
 
 			const job_number = await generateJobNumber(job_type, job_date, connection);
 
-			// เพิ่ม flight_no และ demurrage/storage/detention_days ในคำสั่ง SQL INSERT
 			const sql = `
                 INSERT INTO job_orders (
                     customer_id, contract_id, vendor_id, vendor_contract_id,
@@ -175,9 +172,9 @@ export const actions = {
                     quantity, unit_id, weight, kgs_volume, remarks,
                     amount, currency, job_number,
 					booking_no, vessel, feeder, flight_no, port_of_loading, port_of_discharge,
-					demurrage_days, storage_days, detention_days,
+					vessel_master_id,
 					created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             `;
 
 			const insertValues = [
@@ -209,12 +206,10 @@ export const actions = {
 				data.booking_no,
 				data.vessel,
 				data.feeder,
-				data.flight_no, // แมปค่า flight_no
+				data.flight_no,
 				data.port_of_loading,
 				data.port_of_discharge,
-				data.demurrage_days,
-				data.storage_days,
-				data.detention_days,
+				data.vessel_master_id,
 				data.created_by
 			];
 
@@ -305,7 +300,8 @@ export const actions = {
 		try {
 			if (action_type === 'add' && vessel_name) {
 				await pool.execute(
-					'INSERT INTO vessel_master (vessel_name, liner_id, storage_days, demurrage_days, detention_days) VALUES (?, ?, ?, ?, ?)',
+					`INSERT INTO vessel_master (vessel_name, liner_id, storage_days, demurrage_days, detention_days, status, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, 'Active', NOW(), NOW())`,
 					[vessel_name, liner_id || null, storage_days, demurrage_days, detention_days]
 				);
 			} else if (action_type === 'edit' && id && vessel_name) {

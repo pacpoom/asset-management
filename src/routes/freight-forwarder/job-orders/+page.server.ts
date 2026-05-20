@@ -29,7 +29,7 @@ export const load = async ({ url, locals }) => {
 
 	// ตรวจสอบสิทธิ์: admin เห็นทุก job, user ทั่วไปเห็นเฉพาะของตัวเอง
 	const currentUser = locals.user;
-	const isAdmin = currentUser?.role === 'admin_freight';
+	const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'admin_freight';
 
 	// บังคับกรองด้วยวันที่เสมอ
 	let whereClause = 'WHERE j.job_date >= ? AND j.job_date <= ?';
@@ -85,18 +85,19 @@ export const load = async ({ url, locals }) => {
 	const [rows] = await pool.query(sql, queryParams);
 
 	// Alert: ดึงรายการ Job ที่มีตู้ยังไม่ checkout และ ETA ใกล้ถึง/เลยแล้ว
-	// admin_freight เห็นทั้งหมด, user ทั่วไปเห็นเฉพาะ job ของตัวเอง
+	// role='admin' เห็นทั้งหมด, user ทั่วไปเห็นเฉพาะ job ของตัวเอง
 	// ใช้ try/catch เผื่อกรณียังไม่ได้รัน migration เพิ่มคอลัมน์ status
 	let alertRows: unknown[] = [];
 	try {
 		const alertParams: (string | number)[] = [];
 		let alertWhere = `WHERE j.eta IS NOT NULL
 			  AND (
-			    (j.demurrage_days IS NULL AND j.storage_days IS NULL AND j.detention_days IS NULL
-			     AND DATEDIFF(CURDATE(), j.eta) >= -3)
-			    OR (j.demurrage_days IS NOT NULL AND DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.demurrage_days DAY)) >= -3)
-			    OR (j.storage_days IS NOT NULL AND DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.storage_days DAY)) >= -3)
-			    OR (j.detention_days IS NOT NULL AND DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.detention_days DAY)) >= -3)
+			    (j.vessel_master_id IS NULL AND DATEDIFF(CURDATE(), j.eta) >= -3)
+			    OR (j.vessel_master_id IS NOT NULL AND (
+			      DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL vm.demurrage_days DAY)) >= -3
+			      OR DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL vm.storage_days DAY)) >= -3
+			      OR DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL vm.detention_days DAY)) >= -3
+			    ))
 			  )
 			  AND j.job_status NOT IN ('Cancelled', 'Completed')`;
 
@@ -107,18 +108,19 @@ export const load = async ({ url, locals }) => {
 
 		const alertSql = `
 			SELECT j.id, j.job_number, j.eta, j.expire_date,
-			       j.demurrage_days, j.storage_days, j.detention_days,
+			       vm.demurrage_days, vm.storage_days, vm.detention_days,
 			       COALESCE(c.company_name, c.name) as customer_name,
 			       COUNT(jc.id) as pending_count,
 			       DATEDIFF(CURDATE(), j.eta) as days_since_eta,
-			       IF(j.demurrage_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.demurrage_days DAY)), NULL) as days_overdue_demurrage,
-			       IF(j.storage_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.storage_days DAY)), NULL) as days_overdue_storage,
-			       IF(j.detention_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL j.detention_days DAY)), NULL) as days_overdue_detention
+			       IF(vm.demurrage_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL vm.demurrage_days DAY)), NULL) as days_overdue_demurrage,
+			       IF(vm.storage_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL vm.storage_days DAY)), NULL) as days_overdue_storage,
+			       IF(vm.detention_days IS NOT NULL, DATEDIFF(CURDATE(), DATE_ADD(j.eta, INTERVAL vm.detention_days DAY)), NULL) as days_overdue_detention
 			FROM job_orders j
 			JOIN job_containers jc ON jc.job_order_id = j.id AND jc.status = 'pending'
 			LEFT JOIN customers c ON j.customer_id = c.id
+			LEFT JOIN vessel_master vm ON j.vessel_master_id = vm.id
 			${alertWhere}
-			GROUP BY j.id, j.job_number, j.eta, j.expire_date, j.demurrage_days, j.storage_days, j.detention_days, c.company_name, c.name
+			GROUP BY j.id, j.job_number, j.eta, j.expire_date, vm.demurrage_days, vm.storage_days, vm.detention_days, c.company_name, c.name
 			ORDER BY days_since_eta DESC
 		`;
 		const [_alertRows] = await pool.query(alertSql, alertParams);

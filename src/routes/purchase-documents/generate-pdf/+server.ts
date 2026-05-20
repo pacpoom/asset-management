@@ -534,8 +534,8 @@ function getInvoiceHtml(
 		return total;
 	}
 
-	const MAX_LINES_PER_PAGE = 22;  
-	const MAX_LINES_LAST_PAGE = 12; 
+	const MAX_LINES_PER_PAGE = 16;  
+	const MAX_LINES_LAST_PAGE = 7; 
 
 	interface PageInfo {
 		items: ItemData[];
