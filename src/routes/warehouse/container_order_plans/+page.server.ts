@@ -626,7 +626,7 @@ export const actions: Actions = {
             await connection.query(
                 `INSERT INTO container_transactions
                 (container_order_plan_id, user_id, yard_location_id, activity_type, transaction_date, remarks, created_at, updated_at)
-                VALUES (?, ?, ?, 'Restore', NOW(), NULL, NOW(), NOW())`,
+                VALUES (?, 1, ?, 'Restore', NOW(), NULL, NOW(), NOW())`,
                 [plan_id, user_id, yard_location_id]
             );
 
