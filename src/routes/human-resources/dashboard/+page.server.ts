@@ -143,10 +143,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		`;
 
 		const [statsRow]: any = await pool.execute(statsQuery, [
-			...securityParams,
-			...filterParams,
-			...securityParams,
-			...filterParams,
 			displayDate,
 			...securityParams,
 			...filterParams
