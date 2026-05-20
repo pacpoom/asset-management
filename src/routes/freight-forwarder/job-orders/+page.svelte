@@ -297,9 +297,7 @@
 					<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
 				</svg>
 				<span class="font-bold text-red-700">
-						{isEn
-							? `Alert: Containers pending checkout near free time expiry (${containerAlerts.length} items)`
-							: `แจ้งเตือน: ตู้ที่ยังไม่ Checkout และใกล้หมด Free Time (${containerAlerts.length} รายการ)`}
+						{$t('Container Alert Header')} ({containerAlerts.length} {$t('items')})
 					</span>
 			</div>
 			<div class="divide-y divide-gray-100">
@@ -322,11 +320,11 @@
 						<div class="flex-shrink-0 pt-0.5">
 							{#if isOverdue}
 								<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">
-									{isEn ? `Overdue ${worstOverdue}d` : `เกิน ${worstOverdue} วัน`}
+									{$t('ff.overdue_label')} {worstOverdue}{$t('ff.day')}
 								</span>
 							{:else if isCritical}
 								<span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">
-									{isEn ? 'Due today!' : 'ครบกำหนดวันนี้!'}
+									{$t('Due today!')}
 								</span>
 							{:else}
 								<span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-bold text-yellow-700">
@@ -341,9 +339,9 @@
 								</a>
 								<span class="text-sm text-gray-500">{alert.customer_name || '-'}</span>
 								<span class="text-xs text-gray-400">
-									{isEn ? 'Pending:' : 'ตู้รอออก:'}
+									{$t('Container Pending Label')}
 									<strong class="text-amber-600">{alert.pending_count}</strong>
-									{isEn ? 'unit(s)' : 'ตู้'}
+									{$t('Container Unit')}
 									| ETA: {new Date(alert.eta).toLocaleDateString(isEn ? 'en-US' : 'th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
 								</span>
 							</div>
@@ -353,27 +351,27 @@
 									{#if alert.demurrage_days != null}
 										{@const d = daysOD}
 										<span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-											{isEn ? `Demurrage: ${alert.demurrage_days}d` : `ค่าภาระท่า (Demurrage): ${alert.demurrage_days} วัน`}
-											{#if d > 0}— {isEn ? `Overdue ${d}d!` : `เกิน ${d} วัน!`}
-											{:else if d === 0}— {isEn ? 'Due today!' : 'ครบวันนี้!'}
+											{$t('ff.demurrage_label')}: {alert.demurrage_days}{$t('ff.day')}
+											{#if d > 0}— {$t('ff.overdue_label')} {d}{$t('ff.day')}!
+											{:else if d === 0}— {$t('Due today!')}
 											{:else}— {isEn ? `${Math.abs(d)}d left` : `เหลือ ${Math.abs(d)} วัน`}{/if}
 										</span>
 									{/if}
 									{#if alert.storage_days != null}
 										{@const d = daysOS}
 										<span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-											{isEn ? `Storage: ${alert.storage_days}d` : `ค่าฝากตู้ (Storage): ${alert.storage_days} วัน`}
-											{#if d > 0}— {isEn ? `Overdue ${d}d!` : `เกิน ${d} วัน!`}
-											{:else if d === 0}— {isEn ? 'Due today!' : 'ครบวันนี้!'}
+											{$t('ff.storage_label')}: {alert.storage_days}{$t('ff.day')}
+											{#if d > 0}— {$t('ff.overdue_label')} {d}{$t('ff.day')}!
+											{:else if d === 0}— {$t('Due today!')}
 											{:else}— {isEn ? `${Math.abs(d)}d left` : `เหลือ ${Math.abs(d)} วัน`}{/if}
 										</span>
 									{/if}
 									{#if alert.detention_days != null}
 										{@const d = daysODet}
 										<span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-											{isEn ? `Detention: ${alert.detention_days}d` : `ค่าเช่าตู้ (Detention): ${alert.detention_days} วัน`}
-											{#if d > 0}— {isEn ? `Overdue ${d}d!` : `เกิน ${d} วัน!`}
-											{:else if d === 0}— {isEn ? 'Due today!' : 'ครบวันนี้!'}
+											{$t('ff.detention_label')}: {alert.detention_days}{$t('ff.day')}
+											{#if d > 0}— {$t('ff.overdue_label')} {d}{$t('ff.day')}!
+											{:else if d === 0}— {$t('Due today!')}
 											{:else}— {isEn ? `${Math.abs(d)}d left` : `เหลือ ${Math.abs(d)} วัน`}{/if}
 										</span>
 									{/if}
@@ -383,7 +381,7 @@
 									{#if daysSince > 0}
 										{isEn ? `ETA overdue ${daysSince}d` : `เกิน ETA ${daysSince} วัน`}
 									{:else if daysSince === 0}
-										{isEn ? 'ETA today' : 'ETA วันนี้'}
+										{$t('ETA today')}
 									{:else}
 										{isEn ? `ETA in ${Math.abs(daysSince)}d` : `ETA อีก ${Math.abs(daysSince)} วัน`}
 									{/if}
