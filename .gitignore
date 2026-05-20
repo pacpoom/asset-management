@@ -1,5 +1,8 @@
 node_modules
 
+# Claude / Cursor agent worktrees (local copies, not part of this repo)
+.claude/
+
 # Output
 .output
 .vercel
