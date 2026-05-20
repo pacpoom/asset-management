@@ -1,4 +1,4 @@
-<!-- eslint-disable svelte/no-navigation-without-resolve -->
+﻿<!-- eslint-disable svelte/no-navigation-without-resolve -->
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { enhance } from '$app/forms';
@@ -140,6 +140,48 @@
 		jobToDeleteId = null;
 		jobToDeleteName = '';
 		isDeleting = false;
+	}
+
+	// ── Multi-select / Bulk status change ──────────────────────────────
+	let selectedIds = new Set<number>();
+	let showBulkStatusModal = false;
+	let bulkNewStatus = '';
+	let isBulkUpdating = false;
+
+	$: allSelected = jobs.length > 0 && jobs.every((j: { id: number }) => selectedIds.has(j.id));
+	$: someSelected = selectedIds.size > 0 && !allSelected;
+
+	// clear selection เมื่อข้อมูลในหน้าเปลี่ยน (pagination / search)
+	$: {
+		void jobs;
+		selectedIds = new Set();
+	}
+
+	function toggleSelectAll() {
+		if (allSelected) {
+			selectedIds = new Set();
+		} else {
+			selectedIds = new Set(jobs.map((j: { id: number }) => j.id));
+		}
+	}
+
+	function toggleSelect(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selectedIds = next;
+	}
+
+	function clearBulkSelection() {
+		selectedIds = new Set();
+		showBulkStatusModal = false;
+		bulkNewStatus = '';
+	}
+
+	// Svelte action: set indeterminate property on checkbox
+	function setIndeterminate(node: HTMLInputElement, value: boolean) {
+		node.indeterminate = value;
+		return { update(v: boolean) { node.indeterminate = v; } };
 	}
 </script>
 
@@ -363,6 +405,16 @@
 			<table class="min-w-full divide-y divide-gray-200 text-sm">
 				<thead class="bg-gray-50 text-gray-700">
 					<tr>
+						<th class="w-10 px-3 py-3 text-center">
+							<input
+								type="checkbox"
+								checked={allSelected}
+								use:setIndeterminate={someSelected}
+								onchange={toggleSelectAll}
+								class="h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+								title="เลือกทั้งหมด"
+							/>
+						</th>
 						<th class="px-6 py-3 text-left text-xs font-semibold tracking-wider uppercase"
 							>{$t('Job No. / Date')}</th
 						>
@@ -391,7 +443,15 @@
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
 					{#each jobs as job (job.id)}
-						<tr class="hover:bg-gray-50">
+						<tr class="hover:bg-gray-50 {selectedIds.has(job.id) ? 'bg-blue-50' : ''}">
+							<td class="px-3 py-4 text-center align-top">
+								<input
+									type="checkbox"
+									checked={selectedIds.has(job.id)}
+									onchange={() => toggleSelect(job.id)}
+									class="h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+								/>
+							</td>
 							<td class="px-6 py-4 align-top">
 								<a
 									href="/freight-forwarder/job-orders/{job.id}"
@@ -610,7 +670,7 @@
 					{/each}
 					{#if jobs.length === 0}
 						<tr>
-							<td colspan="7" class="py-12 text-center text-gray-500">
+							<td colspan="8" class="py-12 text-center text-gray-500">
 								<div class="flex flex-col items-center justify-center">
 									<svg
 										class="mb-3 h-10 w-10 text-gray-300"
@@ -693,6 +753,60 @@
 		{/if}
 	</div>
 </div>
+
+<!-- =============================== -->
+<!-- BULK ACTION FLOATING BAR        -->
+<!-- =============================== -->
+{#if selectedIds.size > 0}
+	<div class="fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
+		<div class="flex items-center gap-3 rounded-2xl border border-blue-200 bg-white px-5 py-3 shadow-2xl ring-1 ring-blue-100">
+			<!-- Count badge -->
+			<span class="flex items-center gap-1.5 text-sm font-semibold text-blue-800">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+					<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+					<path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+				</svg>
+				เลือกแล้ว {selectedIds.size} รายการ
+			</span>
+
+			<div class="h-5 w-px bg-gray-200"></div>
+
+			<!-- Status picker -->
+			<select
+				bind:value={bulkNewStatus}
+				class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+			>
+				<option value="">-- เลือก Status ใหม่ --</option>
+				<option value="Pending">Pending</option>
+				<option value="In Progress">In Progress</option>
+				<option value="Completed">Completed</option>
+				<option value="Cancelled">Cancelled</option>
+			</select>
+
+			<!-- Apply button -->
+			<button
+				type="button"
+				onclick={() => { if (bulkNewStatus) showBulkStatusModal = true; }}
+				disabled={!bulkNewStatus}
+				class="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+			>
+				เปลี่ยน Status
+			</button>
+
+			<!-- Clear -->
+			<button
+				type="button"
+				onclick={clearBulkSelection}
+				class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100"
+				title="ยกเลิกการเลือก"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+					<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+				</svg>
+			</button>
+		</div>
+	</div>
+{/if}
 
 {#if showDeleteModal}
 	<div
@@ -785,6 +899,85 @@
 							{$t('Deleting...')}
 						{:else}
 							{$t('Confirm Delete')}
+						{/if}
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- =============================== -->
+<!-- BULK STATUS CONFIRM MODAL       -->
+<!-- =============================== -->
+{#if showBulkStatusModal}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+		<div class="animate-in fade-in zoom-in-95 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl duration-200">
+			<div class="p-6">
+				<div class="flex items-start gap-4">
+					<div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+						<svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+						</svg>
+					</div>
+					<div class="mt-1">
+						<h3 class="text-lg font-bold leading-6 text-gray-900">ยืนยันการเปลี่ยน Status</h3>
+						<p class="mt-2 text-sm text-gray-600">
+							ต้องการเปลี่ยน Status ของ
+							<strong class="text-gray-900">{selectedIds.size} รายการ</strong>
+							เป็น
+						</p>
+						<p class="mt-1">
+							<span class="inline-flex items-center rounded-full px-3 py-0.5 text-sm font-semibold {getStatusClass(bulkNewStatus)}">
+								{bulkNewStatus}
+							</span>
+						</p>
+						<p class="mt-2 text-xs text-gray-400">การดำเนินการนี้จะอัปเดต {selectedIds.size} Job Orders พร้อมกัน</p>
+					</div>
+				</div>
+			</div>
+
+			<div class="flex justify-end gap-3 bg-gray-50 px-6 py-4">
+				<button
+					type="button"
+					class="inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+					onclick={() => (showBulkStatusModal = false)}
+					disabled={isBulkUpdating}
+				>
+					ยกเลิก
+				</button>
+
+				<form
+					method="POST"
+					action="?/bulkUpdateStatus"
+					use:enhance={() => {
+						isBulkUpdating = true;
+						return async ({ update }) => {
+							await update();
+							clearBulkSelection();
+							isBulkUpdating = false;
+						};
+					}}
+					class="m-0"
+				>
+					{#each [...selectedIds] as id}
+						<input type="hidden" name="ids[]" value={id} />
+					{/each}
+					<input type="hidden" name="status" value={bulkNewStatus} />
+
+					<button
+						type="submit"
+						disabled={isBulkUpdating}
+						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
+					>
+						{#if isBulkUpdating}
+							<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							กำลังอัปเดต...
+						{:else}
+							ยืนยัน เปลี่ยน {selectedIds.size} รายการ
 						{/if}
 					</button>
 				</form>

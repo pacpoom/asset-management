@@ -157,5 +157,32 @@ export const actions = {
 			console.error(error);
 			return fail(500, { message: 'เกิดข้อผิดพลาดในการลบข้อมูล' });
 		}
+	},
+
+	bulkUpdateStatus: async ({ request }) => {
+		const formData = await request.formData();
+		const ids = formData.getAll('ids[]');
+		const status = formData.get('status') as string;
+
+		if (!ids.length) {
+			return fail(400, { message: 'ไม่พบรายการที่ต้องการอัปเดต' });
+		}
+
+		const validStatuses = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
+		if (!status || !validStatuses.includes(status)) {
+			return fail(400, { message: 'Status ไม่ถูกต้อง' });
+		}
+
+		try {
+			const placeholders = ids.map(() => '?').join(', ');
+			await pool.query(
+				`UPDATE job_orders SET job_status = ? WHERE id IN (${placeholders})`,
+				[status, ...ids]
+			);
+			return { success: true, updatedCount: ids.length };
+		} catch (error) {
+			console.error(error);
+			return fail(500, { message: 'เกิดข้อผิดพลาดในการอัปเดตสถานะ' });
+		}
 	}
 };
