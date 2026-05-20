@@ -82,6 +82,18 @@
 	let revenueToUse = $derived(totalRevenue > 0 ? totalRevenue : Number(job.amount || 0));
 	let netProfit = $derived(revenueToUse - totalExpense);
 
+	/** Free Days จาก vessel_master (โชว์ต่อท้ายชื่อเรือ) */
+	let vesselFreeDays = $derived(
+		job.vessel_master_id &&
+			(job.storage_days != null || job.demurrage_days != null || job.detention_days != null)
+			? {
+					storage: job.storage_days ?? '—',
+					demurrage: job.demurrage_days ?? '—',
+					detention: job.detention_days ?? '—'
+				}
+			: null
+	);
+
 	// กรอง options เพื่อใช้งานร่วมกับ svelte-select
 	let categoryOptions = $derived(
 		expenseCategories.map((c: Category) => ({
@@ -806,6 +818,11 @@
 				<div class="border-b border-gray-100 pb-2">
 					<div class="mb-0.5 text-[11px] font-bold text-gray-400 uppercase">{$t('Vessel')}</div>
 					<div class="text-sm font-medium break-words text-gray-900">{job.vessel || '-'}</div>
+					{#if vesselFreeDays}
+						<p class="mt-0.5 text-xs leading-snug text-gray-500">
+							Storage {vesselFreeDays.storage} · Demurrage {vesselFreeDays.demurrage} · Detention {vesselFreeDays.detention} วัน
+						</p>
+					{/if}
 				</div>
 				<div class="border-b border-gray-100 pb-2">
 					<div class="mb-0.5 text-[11px] font-bold text-gray-400 uppercase">{$t('Feeder')}</div>
