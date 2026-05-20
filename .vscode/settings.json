@@ -1,0 +1,5 @@
+{
+	"git.ignoredRepositories": [
+		"${workspaceFolder}/.claude/worktrees/recursing-mendeleev-78b993"
+	]
+}
