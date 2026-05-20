@@ -3,7 +3,11 @@ import pool from '$lib/server/database';
 import fs from 'fs/promises';
 import path from 'path';
 import mime from 'mime-types';
-import { allocateMonthlySequence } from '$lib/server/monthlyDocumentSequence';
+import {
+	allocateMonthlySequence,
+	type MonthlySeqConnection
+} from '$lib/server/monthlyDocumentSequence';
+import type { Actions } from './$types';
 
 const UPLOAD_DIR = path.resolve('uploads', 'job_orders');
 
@@ -28,11 +32,7 @@ async function saveFile(file: File) {
 	}
 }
 
-interface DbConnection {
-	execute(sql: string, values?: unknown[]): Promise<[unknown[], unknown]>;
-}
-
-async function generateJobNumber(jobType: string, dateStr: string, connection: DbConnection) {
+async function generateJobNumber(jobType: string, dateStr: string, connection: MonthlySeqConnection) {
 	const meta = await allocateMonthlySequence(connection, 'JOB', dateStr, () => 'JOB-');
 	const yy = String(meta.year).slice(-2);
 	const runningNumber = String(meta.seq).padStart(meta.padding, '0');
@@ -120,7 +120,7 @@ export const load = async () => {
 	};
 };
 
-export const actions = {
+export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		const formData = await request.formData();
 
