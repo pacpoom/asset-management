@@ -17,6 +17,7 @@
       "PowerShell(Get-ChildItem -Path \"D:\\\\asset-management\\\\migrations\" | ForEach-Object { $_.Name })",
       "Bash(npm run *)",
       "Bash(git pull *)",
+<<<<<<< HEAD
       "Bash(git stash *)",
       "Read(//usr/local/bin/**)",
       "Read(//usr/bin/**)",
@@ -28,6 +29,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)"
+=======
+      "Bash(cd \"D:\\\\Dev_Project\\\\Biz_PRD\\\\asset-management\" && npm run dev 2>&1)",
+      "Bash(xargs -I {} find {} -type f -name \"+*\")"
+>>>>>>> 4d61af609a22eedbd5782837c345fd8fa34ee816
     ]
   }
 }

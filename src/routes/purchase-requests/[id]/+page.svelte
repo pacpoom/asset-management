@@ -273,6 +273,7 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
+					<th class="w-10 px-4 py-3 text-center font-medium text-gray-500">No.</th>
 					<th class="px-4 py-3 text-left font-medium text-gray-500">{$t('Product/Description')}</th>
 					<th class="w-[100px] px-4 py-3 text-right font-medium text-gray-500">{$t('Qty')}</th>
 					<th class="w-[100px] px-4 py-3 text-center font-medium text-gray-500">{$t('Unit')}</th>
@@ -283,8 +284,9 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
-				{#each items as item}
+				{#each items as item, i}
 					<tr>
+						<td class="px-4 py-3 text-center text-sm font-semibold text-gray-500">{i + 1}</td>
 						<td class="px-4 py-3 font-medium text-gray-700">{item.product_name}</td>
 						<td class="px-4 py-3 text-right text-gray-700">{item.quantity}</td>
 						<td class="px-4 py-3 text-center text-gray-600">{item.unit || '-'}</td>
@@ -298,7 +300,7 @@
 			</tbody>
 			<tfoot class="bg-gray-50">
 				<tr>
-					<td colspan="4" class="px-4 py-3 text-right font-bold text-gray-700"
+					<td colspan="5" class="px-4 py-3 text-right font-bold text-gray-700"
 						>{$t('Total Estimate')}</td
 					>
 					<td class="px-4 py-3 text-right text-lg font-bold text-blue-700"
