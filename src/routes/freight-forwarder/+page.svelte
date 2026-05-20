@@ -389,16 +389,12 @@
 						</div>
 						{#each containerAlerts as ca}
 							{@const hasDays = ca.demurrage_days != null || ca.storage_days != null || ca.detention_days != null}
-							{@const daysOD = Number(ca.days_overdue_demurrage)}
-							{@const daysOS = Number(ca.days_overdue_storage)}
-							{@const daysODet = Number(ca.days_overdue_detention)}
+							{@const daysOD = ca.days_overdue_demurrage != null ? Number(ca.days_overdue_demurrage) : null}
+							{@const daysOS = ca.days_overdue_storage != null ? Number(ca.days_overdue_storage) : null}
+							{@const daysODet = ca.days_overdue_detention != null ? Number(ca.days_overdue_detention) : null}
 							{@const daysSince = Number(ca.days_since_eta)}
 							{@const worstOverdue = hasDays
-								? Math.max(
-										ca.days_overdue_demurrage != null ? daysOD : -999,
-										ca.days_overdue_storage != null ? daysOS : -999,
-										ca.days_overdue_detention != null ? daysODet : -999
-									)
+								? Math.max(daysOD ?? -999, daysOS ?? -999, daysODet ?? -999)
 								: daysSince}
 							{@const isOverdue = worstOverdue > 0}
 							{@const isToday = worstOverdue === 0}
@@ -429,22 +425,19 @@
 									<p class="text-[10px] text-gray-400">ETA: {formatDate(ca.eta)}</p>
 									{#if hasDays}
 										<div class="mt-1 flex flex-wrap gap-1">
-											{#if ca.demurrage_days != null}
-												{@const d = daysOD}
-												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-													{$t('ff.demurrage_short')} {ca.demurrage_days}{$t('ff.day_compact')}{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+											{#if ca.demurrage_days != null && daysOD != null}
+												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {daysOD > 0 ? 'bg-red-100 text-red-700' : daysOD === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+													{$t('ff.demurrage_short')} {ca.demurrage_days}{$t('ff.day_compact')}{daysOD > 0 ? ` (+${daysOD})` : daysOD === 0 ? ' ✗' : ` (-${Math.abs(daysOD)})`}
 												</span>
 											{/if}
-											{#if ca.storage_days != null}
-												{@const d = daysOS}
-												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-													{$t('ff.storage_short')} {ca.storage_days}{$t('ff.day_compact')}{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+											{#if ca.storage_days != null && daysOS != null}
+												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {daysOS > 0 ? 'bg-red-100 text-red-700' : daysOS === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+													{$t('ff.storage_short')} {ca.storage_days}{$t('ff.day_compact')}{daysOS > 0 ? ` (+${daysOS})` : daysOS === 0 ? ' ✗' : ` (-${Math.abs(daysOS)})`}
 												</span>
 											{/if}
-											{#if ca.detention_days != null}
-												{@const d = daysODet}
-												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {d > 0 ? 'bg-red-100 text-red-700' : d === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
-													{$t('ff.detention_short')} {ca.detention_days}{$t('ff.day_compact')}{d > 0 ? ` (+${d})` : d === 0 ? ' ✗' : ` (-${Math.abs(d)})`}
+											{#if ca.detention_days != null && daysODet != null}
+												<span class="rounded px-1 py-0.5 text-[10px] font-semibold {daysODet > 0 ? 'bg-red-100 text-red-700' : daysODet === 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}">
+													{$t('ff.detention_short')} {ca.detention_days}{$t('ff.day_compact')}{daysODet > 0 ? ` (+${daysODet})` : daysODet === 0 ? ' ✗' : ` (-${Math.abs(daysODet)})`}
 												</span>
 											{/if}
 										</div>

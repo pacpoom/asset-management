@@ -428,12 +428,11 @@ export const GET = async ({ url, locals }: RequestEvent) => {
 		const summaryRow = wsAlert.getRow(summaryRowNum);
 		const overdueCount = alertRows.filter((a) => {
 			const hasDays = a.demurrage_days != null || a.storage_days != null || a.detention_days != null;
+			const od = a.days_overdue_demurrage != null ? Number(a.days_overdue_demurrage) : null;
+			const os = a.days_overdue_storage != null ? Number(a.days_overdue_storage) : null;
+			const odet = a.days_overdue_detention != null ? Number(a.days_overdue_detention) : null;
 			const worst = hasDays
-				? Math.max(
-					a.days_overdue_demurrage != null ? Number(a.days_overdue_demurrage) : -999,
-					a.days_overdue_storage != null ? Number(a.days_overdue_storage) : -999,
-					a.days_overdue_detention != null ? Number(a.days_overdue_detention) : -999
-				  )
+				? Math.max(od ?? -999, os ?? -999, odet ?? -999)
 				: Number(a.days_since_eta);
 			return worst > 0;
 		}).length;

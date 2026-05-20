@@ -305,28 +305,34 @@ export const actions: Actions = {
 		const id = formData.get('id')?.toString();
 		const vessel_name = formData.get('vessel_name')?.toString()?.trim();
 		const liner_id = formData.get('liner_id')?.toString()?.trim() || null;
-		
-		// ปรับให้รองรับการกรอกค่าเป็น 0 วัน
-		const sd = parseInt(formData.get('storage_days')?.toString() || '');
-		const storage_days = isNaN(sd) ? 3 : sd;
-		
-		const dm = parseInt(formData.get('demurrage_days')?.toString() || '');
-		const demurrage_days = isNaN(dm) ? 3 : dm;
-		
-		const dt = parseInt(formData.get('detention_days')?.toString() || '');
-		const detention_days = isNaN(dt) ? 32 : dt;
 
 		try {
 			if (action_type === 'add' && vessel_name) {
+				// ตรวจสอบชื่อซ้ำ (case-insensitive)
+				const [dup] = await pool.execute(
+					'SELECT id FROM vessel_master WHERE LOWER(vessel_name) = LOWER(?) LIMIT 1',
+					[vessel_name]
+				);
+				if ((dup as unknown[]).length > 0) {
+					return fail(400, { message: 'มีชื่อเรือนี้อยู่แล้วในระบบ' });
+				}
 				await pool.execute(
-					`INSERT INTO vessel_master (vessel_name, liner_id, storage_days, demurrage_days, detention_days, status, created_at, updated_at)
-					 VALUES (?, ?, ?, ?, ?, 'Active', NOW(), NOW())`,
-					[vessel_name, liner_id, storage_days, demurrage_days, detention_days]
+					`INSERT INTO vessel_master (vessel_name, liner_id, status, created_at, updated_at)
+					 VALUES (?, ?, 'Active', NOW(), NOW())`,
+					[vessel_name, liner_id]
 				);
 			} else if (action_type === 'edit' && id && vessel_name) {
+				// ตรวจสอบชื่อซ้ำ (ยกเว้นตัวเอง)
+				const [dup] = await pool.execute(
+					'SELECT id FROM vessel_master WHERE LOWER(vessel_name) = LOWER(?) AND id != ? LIMIT 1',
+					[vessel_name, id]
+				);
+				if ((dup as unknown[]).length > 0) {
+					return fail(400, { message: 'มีชื่อเรือนี้อยู่แล้วในระบบ' });
+				}
 				await pool.execute(
-					'UPDATE vessel_master SET vessel_name = ?, liner_id = ?, storage_days = ?, demurrage_days = ?, detention_days = ?, updated_at = NOW() WHERE id = ?',
-					[vessel_name, liner_id, storage_days, demurrage_days, detention_days, id]
+					'UPDATE vessel_master SET vessel_name = ?, liner_id = ?, updated_at = NOW() WHERE id = ?',
+					[vessel_name, liner_id, id]
 				);
 			} else if (action_type === 'delete' && id) {
 				await pool.execute('DELETE FROM vessel_master WHERE id = ?', [id]);
