@@ -56,7 +56,11 @@
 		address?: string | null;
 		amount?: number;
 		id?: number;
+		vessel_name?: string;
 		liner_id?: string | number;
+		storage_days?: number;
+		demurrage_days?: number;
+		detention_days?: number;
 	}
 
 	interface Vessel {
@@ -180,36 +184,45 @@
 		? { value: job.port_of_discharge, label: job.port_of_discharge }
 		: null;
 
-	// Vessel Master Dropdown
-	$: vesselOptions = (data.vessels || []).map((v: Vessel) => ({
-		value: v.vessel_name,
-		label: v.liner_code ? `[${v.liner_code}] ${v.vessel_name}` : v.vessel_name,
-		id: v.id,
-		liner_id: v.liner_id ? String(v.liner_id) : '',
-		storage_days: v.storage_days ?? 3,
-		demurrage_days: v.demurrage_days ?? 3,
-		detention_days: v.detention_days ?? 32
-	}));
-	let selectedVessel: SelectOption | null = null;
-	$: {
-		if (data.vessels && job.vessel_master_id) {
-			const matched = (data.vessels as Vessel[]).find((v) => v.id == job.vessel_master_id);
-			if (matched && !selectedVessel) {
-				selectedVessel = {
-					value: matched.vessel_name,
-					label: matched.liner_code ? `[${matched.liner_code}] ${matched.vessel_name}` : matched.vessel_name,
-					id: matched.id,
-					liner_id: matched.liner_id ? String(matched.liner_id) : '',
-					storage_days: matched.storage_days ?? 3,
-					demurrage_days: matched.demurrage_days ?? 3,
-					detention_days: matched.detention_days ?? 32
-				} as SelectOption;
-			}
-		} else if (!job.vessel_master_id && job.vessel && !selectedVessel) {
-			selectedVessel = { value: job.vessel, label: job.vessel };
-		}
+	// Vessel Master Dropdown — ใช้ id เป็น value เพื่อไม่ให้ svelte-select ค้างเมื่อชื่อเรือซ้ำ
+	const EMPTY_VESSELS: Vessel[] = [];
+
+	function buildVesselOptions(vessels: Vessel[]): SelectOption[] {
+		return vessels.map((v) => ({
+			id: v.id,
+			value: v.id,
+			vessel_name: v.vessel_name,
+			label: v.liner_code ? `[${v.liner_code}] ${v.vessel_name}` : v.vessel_name,
+			liner_id: v.liner_id ? String(v.liner_id) : '',
+			storage_days: v.storage_days ?? 3,
+			demurrage_days: v.demurrage_days ?? 3,
+			detention_days: v.detention_days ?? 32
+		}));
 	}
-	$: vesselFreeDays = selectedVessel ? (selectedVessel as SelectOption & { demurrage_days?: number; storage_days?: number; detention_days?: number }) : null;
+
+	function initialSelectedVessel(): SelectOption | null {
+		const vessels = (data.vessels ?? EMPTY_VESSELS) as Vessel[];
+		if (job.vessel_master_id) {
+			const matched = vessels.find((v) => v.id == job.vessel_master_id);
+			if (matched) return buildVesselOptions([matched])[0];
+		}
+		if (job.vessel) {
+			return { value: job.vessel, label: job.vessel, vessel_name: job.vessel };
+		}
+		return null;
+	}
+
+	$: vesselOptions = buildVesselOptions((data.vessels ?? EMPTY_VESSELS) as Vessel[]);
+	let selectedVessel: SelectOption | null = initialSelectedVessel();
+
+	$: if (selectedVessel?.id != null && vesselOptions.length > 0) {
+		const matched = vesselOptions.find((o) => o.id === selectedVessel?.id);
+		if (matched && matched !== selectedVessel) selectedVessel = matched;
+	}
+
+	$: vesselFreeDays = selectedVessel
+		? (selectedVessel as SelectOption & { demurrage_days?: number; storage_days?: number; detention_days?: number })
+		: null;
 
 	// --- ตัวแปรฟอร์มทั่วไป ---
 	let isSaving = false;
@@ -389,7 +402,7 @@
 		}
 
 		if (manageModalType === 'vessel') {
-			manageLabel = String(vesselOptions[index].value);
+			manageLabel = String(vesselOptions[index].vessel_name ?? vesselOptions[index].label);
 			manageVesselId = String(vesselOptions[index].id);
 			manageVesselLinerId = String(vesselOptions[index].liner_id || '');
 			manageVesselStorageDays = Number(vesselOptions[index].storage_days) || 3;
@@ -959,8 +972,15 @@
 							<div class="mb-1 block text-xs font-bold text-gray-500 uppercase">{$t('Vessel')}</div>
 							<div class="flex items-start gap-2">
 								<div class="min-w-0 flex-grow">
-									<Select items={vesselOptions} bind:value={selectedVessel} placeholder={$t('Search or select vessel...')} container={browser ? document.body : null} class="svelte-select-custom" />
-									<input type="hidden" name="vessel" value={selectedVessel?.value || ''} />
+									<Select
+										items={vesselOptions}
+										itemId="id"
+										bind:value={selectedVessel}
+										placeholder={$t('Search or select vessel...')}
+										container={browser ? document.body : null}
+										class="svelte-select-custom"
+									/>
+									<input type="hidden" name="vessel" value={selectedVessel?.vessel_name ?? ''} />
 								</div>
 								<button type="button" onclick={() => openManageModal('vessel')} class="flex h-[38px] w-10 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-500" title={$t('Manage Vessels')}>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -1433,7 +1453,7 @@
 				<h4 class="mb-2 text-sm font-semibold text-gray-700">{$t('Current Options')}</h4>
 				<div class="max-h-60 overflow-y-auto rounded-lg border border-gray-200">
 					<ul class="divide-y divide-gray-100">
-						{#each (manageModalType === 'jobCode' ? jobTypeOptions : manageModalType === 'serviceType' ? serviceTypeOptions : manageModalType === 'vessel' ? vesselOptions : portOptions) as option, index (option.value)}
+						{#each (manageModalType === 'jobCode' ? jobTypeOptions : manageModalType === 'serviceType' ? serviceTypeOptions : manageModalType === 'vessel' ? vesselOptions : portOptions) as option, index (manageModalType === 'vessel' || manageModalType === 'port' ? option.id : option.value)}
 							<li class="flex items-center justify-between p-3 hover:bg-gray-50">
 								<div>
 									<span class="text-sm font-semibold text-gray-800">{option.label}</span>
@@ -1565,5 +1585,8 @@
 	}
 	:global(div.svelte-select input) {
 		font-size: 0.875rem !important;
+	}
+	:global(.svelte-select-list) {
+		z-index: 9999 !important;
 	}
 </style>

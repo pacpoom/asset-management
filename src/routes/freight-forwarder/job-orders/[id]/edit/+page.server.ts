@@ -72,14 +72,20 @@ export const load = async ({ params }) => {
 		'SELECT id, port_name FROM ports WHERE is_active = 1 ORDER BY port_name ASC'
 	);
 
-	const [vessels] = await pool.query(
-		`SELECT vm.id, vm.vessel_name, vm.liner_id, vm.storage_days, vm.demurrage_days, vm.detention_days,
-		        l.code AS liner_code, l.name AS liner_name
-		 FROM vessel_master vm
-		 LEFT JOIN liners l ON vm.liner_id = l.id
-		 WHERE vm.status = 'Active'
-		 ORDER BY vm.vessel_name ASC`
-	);
+	let vessels: unknown[] = [];
+	try {
+		const [rows] = await pool.query(
+			`SELECT vm.id, vm.vessel_name, vm.liner_id, vm.storage_days, vm.demurrage_days, vm.detention_days,
+			        l.code AS liner_code, l.name AS liner_name
+			 FROM vessel_master vm
+			 LEFT JOIN liners l ON vm.liner_id = l.id
+			 WHERE vm.status = 'Active'
+			 ORDER BY vm.vessel_name ASC`
+		);
+		vessels = rows as unknown[];
+	} catch (err) {
+		console.error('Load vessel_master for job order edit:', err);
+	}
 
 	const [attachmentRows] = await pool.query(
 		'SELECT * FROM job_order_attachments WHERE job_order_id = ? ORDER BY created_at DESC',
