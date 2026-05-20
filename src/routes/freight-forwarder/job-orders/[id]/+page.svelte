@@ -395,7 +395,7 @@
 		return Math.round((now.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
 	}
 
-	$: isEn = $locale === 'en';
+	let isEn = $derived($locale === 'en');
 
 	let pendingContainerCount = $derived(containers.filter(c => c.status === 'pending').length);
 	let checkedOutCount = $derived(containers.filter(c => c.status === 'checked_out').length);
