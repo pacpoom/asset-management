@@ -281,6 +281,7 @@
 			<table class="min-w-full divide-y divide-gray-200">
 				<thead class="bg-gray-50">
 					<tr>
+						<th class="w-10 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">No.</th>
 						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
 							>{$t('Product/Service')}</th
 						>
@@ -308,6 +309,7 @@
 				<tbody class="divide-y divide-gray-200 bg-white">
 					{#each items as item, index}
 						<tr>
+							<td class="px-3 py-2 text-center align-top text-sm font-semibold text-gray-500">{index + 1}</td>
 							<td class="px-3 py-2" style="min-width: 250px;">
 								<Select
 									items={productOptions}

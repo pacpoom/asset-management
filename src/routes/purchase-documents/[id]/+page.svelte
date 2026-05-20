@@ -436,6 +436,7 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
+					<th class="w-10 px-4 py-4 text-center font-semibold text-gray-600">No.</th>
 					<th class="px-4 py-4 text-left font-semibold text-gray-600">{$t('Product/Description')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Qty')}</th>
 					<th class="w-24 px-4 py-4 text-center font-semibold text-gray-600">{$t('Unit')}</th>
@@ -446,8 +447,9 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
-				{#each items as item}
+				{#each items as item, i}
 					<tr class="transition-colors hover:bg-gray-50">
+						<td class="px-4 py-4 text-center text-sm font-semibold text-gray-500">{i + 1}</td>
 						<td class="px-4 py-4 text-gray-700">
 							<div class="font-medium text-gray-900 whitespace-pre-wrap leading-relaxed">{item.description}</div>
 						</td>

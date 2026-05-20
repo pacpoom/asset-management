@@ -276,6 +276,7 @@
 		<table class="min-w-full divide-y divide-gray-200 text-sm">
 			<thead class="bg-gray-50">
 				<tr>
+					<th class="w-10 px-3 py-2 text-center font-medium text-gray-500">No.</th>
 					<th class="px-3 py-2 text-left font-medium text-gray-500">{$t('Product/Description')}</th>
 					<th class="w-[70px] px-3 py-2 text-right font-medium text-gray-500">{$t('Qty')}</th>
 					<th class="w-[100px] px-3 py-2 text-center font-medium text-gray-500">{$t('Unit')}</th>
@@ -285,8 +286,9 @@
 				</tr>
 			</thead>
 			<tbody class="divide-y divide-gray-200 bg-white">
-				{#each items as item}
+				{#each items as item, i}
 					<tr>
+						<td class="px-3 py-2 text-center text-sm font-semibold text-gray-500">{i + 1}</td>
 						<td class="px-3 py-2 text-gray-700">
 							<div class="font-medium">{item.product_name}</div>
 							{#if item.description}
