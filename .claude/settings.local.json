@@ -16,7 +16,9 @@
       "Bash(xargs grep -l \"CREATE TABLE.*asset\")",
       "PowerShell(Get-ChildItem -Path \"D:\\\\asset-management\\\\migrations\" | ForEach-Object { $_.Name })",
       "Bash(npm run *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(cd \"D:\\\\Dev_Project\\\\Biz_PRD\\\\asset-management\" && npm run dev 2>&1)",
+      "Bash(xargs -I {} find {} -type f -name \"+*\")"
     ]
   }
 }

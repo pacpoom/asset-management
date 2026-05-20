@@ -1017,6 +1017,7 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50 text-xs uppercase text-gray-500">
 						<tr>
+							<th class="w-8 px-2 py-2 text-center font-medium">No.</th>
 							<th class="min-w-[360px] px-2 py-2 text-left font-medium">Product Description</th>
 							<th class="w-25 px-4 py-2 text-right">{$t('Qty')}</th>
 							<th class="w-25 px-4 py-2 text-center">{$t('Unit')}</th>
@@ -1031,6 +1032,9 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each calculatedItems as item, index}
 							<tr class="border-b-0">
+								<td class="w-8 border-b-0 px-2 pt-6 pb-1 text-center align-top">
+									<span class="text-sm font-semibold text-gray-500">{index + 1}</span>
+								</td>
 								<td class="min-w-[360px] border-b-0 px-3 pt-2 pb-1 align-top">
 									<label
 										for="item-desc-{index}"
@@ -1128,6 +1132,7 @@
 								</td>
 							</tr>
 							<tr class="border-t border-gray-100 bg-gray-50/40">
+								<td class="w-8"></td>
 								<td class="min-w-[360px] px-3 py-2 align-top" colspan="9">
 									<span class="mb-1 block text-xs font-medium text-gray-500"
 										>AccountCode | COA</span
