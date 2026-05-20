@@ -550,14 +550,6 @@ export const actions: Actions = {
 						/* กะเช้า (D) */
 						ELSE
 							(
-								/* OT เช้ามืด */
-								IF(base.scan_in IS NOT NULL AND TIME(base.scan_in) >= '04:00:00' AND TIME(base.scan_in) < '07:30:00',
-									FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF('07:30:00', GREATEST(TIME(base.scan_in), '05:30:00'))) / 60) / 30) * 0.5,
-									0
-								)
-							)
-							+
-							(
 								/* OT เย็นหลังเลิกงาน */
 								IF(base.scan_out IS NOT NULL,
 									FLOOR(GREATEST(0, 
