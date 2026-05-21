@@ -158,7 +158,7 @@ export const actions: Actions = {
 
 			const document_number = await allocateMonthlyDocumentNumber(
 				connection,
-				'advance_expense',
+				'ADV',
 				document_date,
 				() => 'ADV-'
 			);
