@@ -32,6 +32,14 @@ interface AdvanceTransaction extends RowDataPacket {
 	job_order_id: number | null;
 	job_number: string | null;
 	customer_name: string | null;
+	job_type: string | null;
+	service_type: string | null;
+	vessel: string | null;
+	eta: string | null;
+	port_of_loading: string | null;
+	port_of_discharge: string | null;
+	bl_number: string | null;
+	invoice_no: string | null;
 	transaction_date: string;
 	description: string | null;
 	amount: number;
@@ -46,6 +54,14 @@ interface JobOrder extends RowDataPacket {
 	id: number;
 	job_number: string;
 	customer_name: string | null;
+	job_type: string | null;
+	service_type: string | null;
+	vessel: string | null;
+	eta: string | null;
+	port_of_loading: string | null;
+	port_of_discharge: string | null;
+	bl_number: string | null;
+	invoice_no: string | null;
 }
 
 interface Product extends RowDataPacket {
@@ -95,7 +111,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const application = JSON.parse(JSON.stringify(appRows[0]));
 
 		const [txRows] = await pool.execute<AdvanceTransaction[]>(
-			`SELECT at2.*, jo.job_number, c.name AS customer_name
+			`SELECT at2.*,
+			        jo.job_number, c.name AS customer_name,
+			        jo.job_type, jo.service_type, jo.vessel, jo.eta,
+			        jo.port_of_loading, jo.port_of_discharge,
+			        jo.bl_number, jo.invoice_no
 			 FROM advance_transactions at2
 			 LEFT JOIN job_orders jo ON at2.job_order_id = jo.id
 			 LEFT JOIN customers c ON jo.customer_id = c.id
@@ -125,7 +145,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		let jobOrders: JobOrder[] = [];
 		try {
 			const [joRows] = await pool.execute<JobOrder[]>(
-				`SELECT jo.id, jo.job_number, c.name AS customer_name
+				`SELECT jo.id, jo.job_number, c.name AS customer_name,
+				        jo.job_type, jo.service_type, jo.vessel, jo.eta,
+				        jo.port_of_loading, jo.port_of_discharge,
+				        jo.bl_number, jo.invoice_no
 				 FROM job_orders jo
 				 LEFT JOIN customers c ON jo.customer_id = c.id
 				 WHERE jo.job_status NOT IN ('Completed', 'Cancelled')

@@ -16,6 +16,14 @@
 	let jobSearch = $state('');
 	let showJobDropdown = $state(false);
 	let jobInputRef = $state<HTMLInputElement | null>(null);
+	interface SelectedJob {
+		id: string; job_number: string; customer_name: string;
+		job_type: string | null; service_type: string | null;
+		vessel: string | null; eta: string | null;
+		port_of_loading: string | null; port_of_discharge: string | null;
+		bl_number: string | null; invoice_no: string | null;
+	}
+	let selectedJobDetail = $state<SelectedJob | null>(null);
 	let invoicePreview = $state<string | null>(null);
 	let slipPreview = $state<string | null>(null);
 	let deleteTxTarget = $state<number | null>(null);
@@ -105,6 +113,7 @@
 				showJobDropdown = false;
 				items = [];
 				nextItemId = 1;
+				selectedJobDetail = null;
 			} else if ((form as any).message) {
 				toast.error((form as any).message);
 			}
@@ -125,6 +134,15 @@
 		selectedCustomer = job.customer_name || '';
 		jobSearch = `${job.job_number}${job.customer_name ? ` (${job.customer_name})` : ''}`;
 		showJobDropdown = false;
+		selectedJobDetail = {
+			id: String(job.id), job_number: job.job_number,
+			customer_name: job.customer_name || '',
+			job_type: job.job_type || null, service_type: job.service_type || null,
+			vessel: job.vessel || null, eta: job.eta || null,
+			port_of_loading: job.port_of_loading || null,
+			port_of_discharge: job.port_of_discharge || null,
+			bl_number: job.bl_number || null, invoice_no: job.invoice_no || null
+		};
 	}
 
 	function clearJob() {
@@ -132,6 +150,7 @@
 		selectedCustomer = '';
 		jobSearch = '';
 		showJobDropdown = false;
+		selectedJobDetail = null;
 	}
 
 	function onImageChange(e: Event, which: 'invoice' | 'slip') {
@@ -303,8 +322,33 @@
 					{#each data.transactions as tx}
 						<tr class="hover:bg-gray-50">
 							<td class="px-4 py-3 text-gray-600">{formatDate(tx.transaction_date)}</td>
-							<td class="px-4 py-3 font-mono text-xs text-blue-700">{tx.job_number || '-'}</td>
-							<td class="px-4 py-3 text-gray-700">{tx.customer_name || '-'}</td>
+							<td class="px-4 py-3">
+								{#if tx.job_number}
+									<p class="font-mono text-xs font-semibold text-blue-700">{tx.job_number}</p>
+									{#if tx.job_type || tx.service_type}
+										<p class="mt-0.5 text-[10px] text-gray-400">
+											{[tx.job_type, tx.service_type].filter(Boolean).join(' / ')}
+										</p>
+									{/if}
+								{:else}
+									<span class="text-xs text-gray-400">-</span>
+								{/if}
+							</td>
+							<td class="px-4 py-3">
+								{#if tx.customer_name || tx.vessel || tx.bl_number}
+									{#if tx.customer_name}
+										<p class="text-xs text-gray-700">{tx.customer_name}</p>
+									{/if}
+									{#if tx.vessel}
+										<p class="mt-0.5 text-[10px] text-gray-400">🚢 {tx.vessel}{tx.eta ? ` • ETA ${formatDate(tx.eta)}` : ''}</p>
+									{/if}
+									{#if tx.bl_number}
+										<p class="mt-0.5 font-mono text-[10px] text-gray-400">B/L: {tx.bl_number}</p>
+									{/if}
+								{:else}
+									<span class="text-xs text-gray-400">-</span>
+								{/if}
+							</td>
 							<td class="px-4 py-3 text-gray-700">{tx.description || '-'}</td>
 							<td class="px-4 py-3 text-center">
 								{#if tx.type === 'expense'}
@@ -466,11 +510,43 @@
 					{/if}
 				</div>
 
-				<!-- Customer (auto-fill) -->
-				{#if selectedCustomer}
-					<div class="rounded-lg bg-blue-50 px-3 py-1.5">
-						<p class="text-xs text-blue-500">{$t('adv.customer_auto')}</p>
-						<p class="text-sm font-medium text-blue-800">{selectedCustomer}</p>
+				<!-- Job Detail Card -->
+				{#if selectedJobDetail}
+					<div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs">
+						<div class="mb-1.5 flex items-center gap-2">
+							<span class="font-bold text-blue-800">{selectedJobDetail.job_number}</span>
+							{#if selectedJobDetail.job_type}
+								<span class="rounded bg-blue-200 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{selectedJobDetail.job_type}</span>
+							{/if}
+							{#if selectedJobDetail.service_type}
+								<span class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{selectedJobDetail.service_type}</span>
+							{/if}
+						</div>
+						<div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+							{#if selectedJobDetail.customer_name}
+								<div class="col-span-2"><span class="text-blue-500">ลูกค้า:</span> <span class="font-medium text-blue-800">{selectedJobDetail.customer_name}</span></div>
+							{/if}
+							{#if selectedJobDetail.vessel}
+								<div><span class="text-blue-500">เรือ:</span> <span class="font-medium text-blue-700">{selectedJobDetail.vessel}</span></div>
+							{/if}
+							{#if selectedJobDetail.eta}
+								<div><span class="text-blue-500">ETA:</span> <span class="font-medium text-blue-700">{new Date(selectedJobDetail.eta).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</span></div>
+							{/if}
+							{#if selectedJobDetail.port_of_loading || selectedJobDetail.port_of_discharge}
+								<div class="col-span-2">
+									<span class="text-blue-500">เส้นทาง:</span>
+									<span class="font-medium text-blue-700">
+										{selectedJobDetail.port_of_loading || '-'} → {selectedJobDetail.port_of_discharge || '-'}
+									</span>
+								</div>
+							{/if}
+							{#if selectedJobDetail.bl_number}
+								<div><span class="text-blue-500">B/L:</span> <span class="font-mono font-medium text-blue-700">{selectedJobDetail.bl_number}</span></div>
+							{/if}
+							{#if selectedJobDetail.invoice_no}
+								<div><span class="text-blue-500">Invoice:</span> <span class="font-mono font-medium text-blue-700">{selectedJobDetail.invoice_no}</span></div>
+							{/if}
+						</div>
 					</div>
 				{/if}
 
