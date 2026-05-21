@@ -125,27 +125,47 @@
 	}
 
 	let newAttachmentFilenameErrors: string[] = [];
+	let pendingNewAttachments: File[] = [];
+	let attachmentsInputEl: HTMLInputElement | undefined;
 
-	function onAttachmentsInputChange(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
+	function refreshNewAttachmentFilenameErrors(files: File[]) {
 		newAttachmentFilenameErrors = [];
-		if (!input.files?.length) return;
-		for (const file of Array.from(input.files)) {
+		for (const file of files) {
 			if (isPurchaseDocumentAttachmentFilenameTooLong(file.name)) {
 				newAttachmentFilenameErrors.push(file.name);
 			}
 		}
 	}
 
-	function validateNewAttachmentFilenames(): boolean {
-		const input = document.getElementById('attachments') as HTMLInputElement | null;
-		if (!input?.files?.length) return true;
-		newAttachmentFilenameErrors = [];
-		for (const file of Array.from(input.files)) {
-			if (isPurchaseDocumentAttachmentFilenameTooLong(file.name)) {
-				newAttachmentFilenameErrors.push(file.name);
-			}
+	function syncAttachmentsInputFromPending() {
+		if (!attachmentsInputEl) return;
+		const dt = new DataTransfer();
+		for (const file of pendingNewAttachments) {
+			dt.items.add(file);
 		}
+		attachmentsInputEl.files = dt.files;
+	}
+
+	function onAttachmentsInputChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		pendingNewAttachments = input.files?.length ? Array.from(input.files) : [];
+		refreshNewAttachmentFilenameErrors(pendingNewAttachments);
+	}
+
+	function removePendingNewAttachment(index: number) {
+		pendingNewAttachments = pendingNewAttachments.filter((_, i) => i !== index);
+		syncAttachmentsInputFromPending();
+		refreshNewAttachmentFilenameErrors(pendingNewAttachments);
+	}
+
+	function validateNewAttachmentFilenames(): boolean {
+		const files = pendingNewAttachments.length
+			? pendingNewAttachments
+			: attachmentsInputEl?.files?.length
+				? Array.from(attachmentsInputEl.files)
+				: [];
+		if (!files.length) return true;
+		refreshNewAttachmentFilenameErrors(files);
 		if (newAttachmentFilenameErrors.length > 0) {
 			alert(
 				$locale === 'th'
@@ -981,9 +1001,51 @@
 					id="attachments"
 					name="attachments"
 					multiple
+					bind:this={attachmentsInputEl}
 					on:change={onAttachmentsInputChange}
 					class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2"
 				/>
+				{#if pendingNewAttachments.length > 0}
+					<ul class="mt-2 space-y-2">
+						{#each pendingNewAttachments as file, index (`${file.name}-${file.size}-${file.lastModified}-${index}`)}
+							<li
+								class="flex items-start justify-between gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+							>
+								<div class="min-w-0 flex-1">
+									<span class="block truncate text-gray-800" title={file.name}>
+										{file.name}
+									</span>
+									{#if isPurchaseDocumentAttachmentFilenameTooLong(file.name)}
+										<p class="mt-0.5 text-xs text-amber-600">
+											{purchaseDocumentAttachmentFilenameTooLongMessage($locale)}
+										</p>
+									{/if}
+								</div>
+								<button
+									type="button"
+									on:click={() => removePendingNewAttachment(index)}
+									class="mt-0.5 flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+									title={$t('Delete')}
+									aria-label={$t('Delete')}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										aria-hidden="true"
+									>
+										<path d="M3 6h18" />
+										<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+									</svg>
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 				{#if newAttachmentFilenameErrors.length > 0}
 					<p class="mt-1 text-xs text-amber-600">
 						{purchaseDocumentAttachmentFilenameTooLongMessage($locale)} —
