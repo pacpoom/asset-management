@@ -125,12 +125,29 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		);
 		const transactions = JSON.parse(JSON.stringify(txRows));
 
+		// Load line items for all transactions in one query
+		let txItemMap: Record<number, any[]> = {};
+		if (transactions.length > 0) {
+			const txIds = transactions.map((t: any) => t.id);
+			const placeholders = txIds.map(() => '?').join(',');
+			const [itemRows] = await pool.execute<any[]>(
+				`SELECT * FROM advance_transaction_items
+				 WHERE advance_transaction_id IN (${placeholders})
+				 ORDER BY advance_transaction_id, id`,
+				txIds
+			);
+			for (const row of JSON.parse(JSON.stringify(itemRows))) {
+				if (!txItemMap[row.advance_transaction_id]) txItemMap[row.advance_transaction_id] = [];
+				txItemMap[row.advance_transaction_id].push(row);
+			}
+		}
+
 		// Compute balance
 		let runningBalance = Number(application.amount);
 		const txWithBalance = transactions.map((tx: any) => {
 			if (tx.type === 'expense') runningBalance -= Number(tx.amount);
 			else runningBalance += Number(tx.amount);
-			return { ...tx, running_balance: runningBalance };
+			return { ...tx, running_balance: runningBalance, items: txItemMap[tx.id] || [] };
 		});
 
 		const totalSpent = transactions

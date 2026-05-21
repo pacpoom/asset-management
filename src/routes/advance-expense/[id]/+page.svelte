@@ -349,7 +349,26 @@
 									<span class="text-xs text-gray-400">-</span>
 								{/if}
 							</td>
-							<td class="px-4 py-3 text-gray-700">{tx.description || '-'}</td>
+							<td class="px-4 py-3">
+								{#if tx.items && tx.items.length > 0}
+									<div class="space-y-0.5">
+										{#each tx.items as item}
+											<div class="flex items-baseline justify-between gap-3 text-xs">
+												<span class="font-medium text-gray-800">{item.product_name}</span>
+												<span class="flex-shrink-0 font-mono text-gray-500">
+													{Number(item.qty)} × {Number(item.price).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+													<span class="ml-1 font-semibold text-gray-700">= {Number(item.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+												</span>
+											</div>
+											{#if item.description}
+												<p class="text-[10px] text-gray-400 leading-tight -mt-0.5">{item.description}</p>
+											{/if}
+										{/each}
+									</div>
+								{:else}
+									<span class="text-xs text-gray-600">{tx.description || '-'}</span>
+								{/if}
+							</td>
 							<td class="px-4 py-3 text-center">
 								{#if tx.type === 'expense'}
 									<span class="inline-flex rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">{$t('adv.tx_expense')}</span>
