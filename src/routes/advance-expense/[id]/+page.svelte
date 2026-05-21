@@ -20,6 +20,61 @@
 	let slipPreview = $state<string | null>(null);
 	let deleteTxTarget = $state<number | null>(null);
 
+	// ── Product line items ────────────────────────────────────────────────
+	interface ItemRow {
+		id: number;
+		product_id: string;
+		product_name: string;
+		product_desc: string;
+		qty: number;
+		price: number;
+		amount: number;
+	}
+	let items = $state<ItemRow[]>([]);
+	let nextItemId = $state(1);
+	const totalAmount = $derived(items.reduce((s, i) => s + i.amount, 0));
+	const itemsJson = $derived(JSON.stringify(items.map((i) => ({
+		product_id: i.product_id || null,
+		product_name: i.product_name,
+		description: i.product_desc || null,
+		qty: i.qty,
+		price: i.price,
+		amount: i.amount
+	}))));
+
+	function addItem() {
+		items.push({ id: nextItemId++, product_id: '', product_name: '', product_desc: '', qty: 1, price: 0, amount: 0 });
+	}
+	function removeItem(id: number) {
+		const idx = items.findIndex((i) => i.id === id);
+		if (idx !== -1) items.splice(idx, 1);
+	}
+	function onProductChange(id: number, productId: string) {
+		const item = items.find((i) => i.id === id);
+		if (!item) return;
+		if (!productId) { item.product_id = ''; item.product_name = ''; item.product_desc = ''; return; }
+		const prod = (data.products as any[]).find((p: any) => String(p.id) === productId);
+		if (prod) {
+			item.product_id = productId;
+			item.product_name = prod.name;
+			item.product_desc = prod.description || '';
+			if (prod.purchase_cost) item.price = Number(prod.purchase_cost);
+			item.amount = item.qty * item.price;
+		}
+	}
+	function updateQty(id: number, v: number) {
+		const item = items.find((i) => i.id === id);
+		if (!item) return;
+		item.qty = v || 0;
+		item.amount = item.qty * item.price;
+	}
+	function updatePrice(id: number, v: number) {
+		const item = items.find((i) => i.id === id);
+		if (!item) return;
+		item.price = v || 0;
+		item.amount = item.qty * item.price;
+	}
+
 	$effect(() => {
 		if (form) {
 			if ((form as any).success) {
@@ -32,6 +87,8 @@
 				selectedCustomer = '';
 				jobSearch = '';
 				showJobDropdown = false;
+				items = [];
+				nextItemId = 1;
 			} else if ((form as any).message) {
 				toast.error((form as any).message);
 			}
@@ -401,18 +458,83 @@
 					</div>
 				{/if}
 
-				<!-- Description + Amount row -->
-				<div class="grid grid-cols-2 gap-3">
-					<div>
-						<label class="mb-1 block text-xs font-medium text-gray-700">{$t('adv.description_label')}</label>
-						<input type="text" name="description" placeholder={$t('adv.description_placeholder')}
-							class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+				<!-- Product Line Items -->
+				<div>
+					<div class="mb-1.5 flex items-center justify-between">
+						<label class="text-xs font-medium text-gray-700">รายการสินค้า / บริการ <span class="text-red-500">*</span></label>
+						<button type="button" onclick={addItem}
+							class="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+							เพิ่มรายการ
+						</button>
 					</div>
-					<div>
-						<label class="mb-1 block text-xs font-medium text-gray-700">{$t('adv.amount_thb')} <span class="text-red-500">*</span></label>
-						<input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required
-							class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-					</div>
+
+					{#if items.length === 0}
+						<div class="rounded-lg border-2 border-dashed border-gray-200 p-4 text-center text-xs text-gray-400">
+							กดปุ่ม "เพิ่มรายการ" เพื่อเพิ่มสินค้า/บริการ
+						</div>
+					{:else}
+						<div class="space-y-2">
+							{#each items as item (item.id)}
+								<div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+									<!-- Product selector -->
+									<div class="flex items-start gap-1.5">
+										<select
+											class="flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+											onchange={(e) => onProductChange(item.id, (e.target as HTMLSelectElement).value)}
+										>
+											<option value="">-- เลือกสินค้า / บริการ --</option>
+											{#each (data.products as any[]) as prod}
+												<option value={String(prod.id)} selected={String(prod.id) === item.product_id}>
+													{prod.name}
+												</option>
+											{/each}
+										</select>
+										<button type="button" onclick={() => removeItem(item.id)}
+											class="mt-0.5 flex-shrink-0 rounded p-0.5 text-gray-400 hover:text-red-500" title="ลบรายการ">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+										</button>
+									</div>
+									{#if item.product_desc}
+										<p class="mt-0.5 pl-0.5 text-[10px] text-gray-500">{item.product_desc}</p>
+									{/if}
+									<!-- Qty / Price / Amount -->
+									<div class="mt-1.5 grid grid-cols-3 gap-1.5">
+										<div>
+											<label class="mb-0.5 block text-[10px] text-gray-500">จำนวน</label>
+											<input type="number" min="0.01" step="0.01" value={item.qty}
+												oninput={(e) => updateQty(item.id, parseFloat((e.target as HTMLInputElement).value))}
+												class="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+										</div>
+										<div>
+											<label class="mb-0.5 block text-[10px] text-gray-500">ราคา / หน่วย</label>
+											<input type="number" min="0" step="0.01" value={item.price}
+												oninput={(e) => updatePrice(item.id, parseFloat((e.target as HTMLInputElement).value))}
+												class="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+										</div>
+										<div>
+											<label class="mb-0.5 block text-[10px] text-gray-500">รวม (฿)</label>
+											<div class="rounded border border-gray-200 bg-white px-2 py-1 text-right text-xs font-semibold text-blue-700">
+												{item.amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+											</div>
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+
+						<!-- Total -->
+						<div class="mt-2 flex justify-end">
+							<div class="rounded-lg bg-blue-50 px-3 py-1.5">
+								<span class="text-xs text-blue-500">ยอดรวมทั้งหมด</span>
+								<span class="ml-2 font-bold text-blue-800">
+									{totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
+								</span>
+							</div>
+						</div>
+					{/if}
+
+					<input type="hidden" name="items_json" value={itemsJson} />
 				</div>
 
 				<!-- Invoice + Slip row -->
@@ -447,7 +569,7 @@
 				<div class="flex justify-end gap-3 pt-1">
 					<button type="button" onclick={() => (showAddTxModal = false)}
 						class="rounded-lg border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{$t('adv.cancel')}</button>
-					<button type="submit" disabled={isSubmitting}
+					<button type="submit" disabled={isSubmitting || items.length === 0}
 						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
 						{#if isSubmitting}
 							<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
