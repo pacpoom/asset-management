@@ -107,7 +107,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			const [productRows] = await pool.execute<Product[]>(
 				`SELECT id, name, description, purchase_cost
 				 FROM products
-				 WHERE is_active = 1
+				 WHERE is_active = 1 AND category_id = 27
 				 ORDER BY name ASC`
 			);
 			products = JSON.parse(JSON.stringify(productRows));
