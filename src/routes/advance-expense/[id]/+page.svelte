@@ -29,6 +29,8 @@
 		qty: number;
 		price: number;
 		amount: number;
+		productSearch: string;
+		productDropdownOpen: boolean;
 	}
 	let items = $state<ItemRow[]>([]);
 	let nextItemId = $state(1);
@@ -43,24 +45,38 @@
 	}))));
 
 	function addItem() {
-		items.push({ id: nextItemId++, product_id: '', product_name: '', product_desc: '', qty: 1, price: 0, amount: 0 });
+		items.push({ id: nextItemId++, product_id: '', product_name: '', product_desc: '',
+			qty: 1, price: 0, amount: 0, productSearch: '', productDropdownOpen: false });
 	}
 	function removeItem(id: number) {
 		const idx = items.findIndex((i) => i.id === id);
 		if (idx !== -1) items.splice(idx, 1);
 	}
-	function onProductChange(id: number, productId: string) {
+	function filteredProductsForItem(item: ItemRow) {
+		const q = item.productSearch.trim().toLowerCase();
+		const all = data.products as any[];
+		if (!q) return all.slice(0, 40);
+		return all.filter((p: any) =>
+			p.name.toLowerCase().includes(q) ||
+			(p.description?.toLowerCase().includes(q) ?? false)
+		).slice(0, 40);
+	}
+	function selectProduct(id: number, prod: any) {
 		const item = items.find((i) => i.id === id);
 		if (!item) return;
-		if (!productId) { item.product_id = ''; item.product_name = ''; item.product_desc = ''; return; }
-		const prod = (data.products as any[]).find((p: any) => String(p.id) === productId);
-		if (prod) {
-			item.product_id = productId;
-			item.product_name = prod.name;
-			item.product_desc = prod.description || '';
-			if (prod.purchase_cost) item.price = Number(prod.purchase_cost);
-			item.amount = item.qty * item.price;
-		}
+		item.product_id = String(prod.id);
+		item.product_name = prod.name;
+		item.product_desc = prod.description || '';
+		if (prod.purchase_cost) item.price = Number(prod.purchase_cost);
+		item.amount = item.qty * item.price;
+		item.productSearch = '';
+		item.productDropdownOpen = false;
+	}
+	function clearProduct(id: number) {
+		const item = items.find((i) => i.id === id);
+		if (!item) return;
+		item.product_id = ''; item.product_name = ''; item.product_desc = '';
+		item.productSearch = ''; item.productDropdownOpen = false;
 	}
 	function updateQty(id: number, v: number) {
 		const item = items.find((i) => i.id === id);
@@ -461,59 +477,96 @@
 				<!-- Product Line Items -->
 				<div>
 					<div class="mb-1.5 flex items-center justify-between">
-						<label class="text-xs font-medium text-gray-700">รายการสินค้า / บริการ <span class="text-red-500">*</span></label>
+						<label class="text-xs font-medium text-gray-700">{$t('adv.items_label')} <span class="text-red-500">*</span></label>
 						<button type="button" onclick={addItem}
 							class="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-100">
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
-							เพิ่มรายการ
+							{$t('adv.add_item')}
 						</button>
 					</div>
 
 					{#if items.length === 0}
 						<div class="rounded-lg border-2 border-dashed border-gray-200 p-4 text-center text-xs text-gray-400">
-							กดปุ่ม "เพิ่มรายการ" เพื่อเพิ่มสินค้า/บริการ
+							{$t('adv.no_items_hint')}
 						</div>
 					{:else}
 						<div class="space-y-2">
 							{#each items as item (item.id)}
 								<div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
-									<!-- Product selector -->
+									<!-- Product searchable combobox -->
 									<div class="flex items-start gap-1.5">
-										<select
-											class="flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-											onchange={(e) => onProductChange(item.id, (e.target as HTMLSelectElement).value)}
-										>
-											<option value="">-- เลือกสินค้า / บริการ --</option>
-											{#each (data.products as any[]) as prod}
-												<option value={String(prod.id)} selected={String(prod.id) === item.product_id}>
-													{prod.name}
-												</option>
-											{/each}
-										</select>
+										<div class="relative flex-1">
+											{#if item.product_id}
+												<!-- Selected chip -->
+												<div class="flex items-center justify-between gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 min-h-[28px]">
+													<span class="truncate text-xs font-semibold text-blue-800">{item.product_name}</span>
+													<button type="button" onclick={() => clearProduct(item.id)}
+														class="flex-shrink-0 text-blue-400 hover:text-blue-700" title={$t('adv.remove_item')}>
+														<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+													</button>
+												</div>
+											{:else}
+												<!-- Search input -->
+												<input
+													type="text"
+													autocomplete="off"
+													placeholder={$t('adv.search_product')}
+													value={item.productSearch}
+													oninput={(e) => { item.productSearch = (e.target as HTMLInputElement).value; item.productDropdownOpen = true; }}
+													onfocus={() => (item.productDropdownOpen = true)}
+													onblur={() => setTimeout(() => { item.productDropdownOpen = false; }, 150)}
+													class="w-full rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+												/>
+												<!-- Dropdown -->
+												{#if item.productDropdownOpen}
+													<!-- svelte-ignore a11y_no_static_element_interactions -->
+													<div
+														class="absolute z-50 mt-0.5 max-h-44 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+														onmousedown={(e) => e.preventDefault()}
+													>
+														{#each filteredProductsForItem(item) as prod}
+															<button
+																type="button"
+																onclick={() => selectProduct(item.id, prod)}
+																class="w-full px-3 py-1.5 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+															>
+																<p class="text-xs font-semibold text-gray-800">{prod.name}</p>
+																{#if prod.description}
+																	<p class="text-[10px] text-gray-400 leading-tight">{prod.description}</p>
+																{/if}
+															</button>
+														{:else}
+															<div class="px-3 py-2 text-xs text-gray-400">{$t('adv.no_products')}</div>
+														{/each}
+													</div>
+												{/if}
+											{/if}
+										</div>
+										<!-- Remove row button -->
 										<button type="button" onclick={() => removeItem(item.id)}
-											class="mt-0.5 flex-shrink-0 rounded p-0.5 text-gray-400 hover:text-red-500" title="ลบรายการ">
+											class="mt-0.5 flex-shrink-0 rounded p-0.5 text-gray-400 hover:text-red-500" title={$t('adv.remove_item')}>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
 										</button>
 									</div>
-									{#if item.product_desc}
+									{#if item.product_desc && item.product_id}
 										<p class="mt-0.5 pl-0.5 text-[10px] text-gray-500">{item.product_desc}</p>
 									{/if}
 									<!-- Qty / Price / Amount -->
 									<div class="mt-1.5 grid grid-cols-3 gap-1.5">
 										<div>
-											<label class="mb-0.5 block text-[10px] text-gray-500">จำนวน</label>
+											<label class="mb-0.5 block text-[10px] text-gray-500">{$t('adv.item_qty')}</label>
 											<input type="number" min="0.01" step="0.01" value={item.qty}
 												oninput={(e) => updateQty(item.id, parseFloat((e.target as HTMLInputElement).value))}
 												class="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
 										</div>
 										<div>
-											<label class="mb-0.5 block text-[10px] text-gray-500">ราคา / หน่วย</label>
+											<label class="mb-0.5 block text-[10px] text-gray-500">{$t('adv.item_price')}</label>
 											<input type="number" min="0" step="0.01" value={item.price}
 												oninput={(e) => updatePrice(item.id, parseFloat((e.target as HTMLInputElement).value))}
 												class="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
 										</div>
 										<div>
-											<label class="mb-0.5 block text-[10px] text-gray-500">รวม (฿)</label>
+											<label class="mb-0.5 block text-[10px] text-gray-500">{$t('adv.item_total')}</label>
 											<div class="rounded border border-gray-200 bg-white px-2 py-1 text-right text-xs font-semibold text-blue-700">
 												{item.amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 											</div>
@@ -523,10 +576,10 @@
 							{/each}
 						</div>
 
-						<!-- Total -->
+						<!-- Grand Total -->
 						<div class="mt-2 flex justify-end">
 							<div class="rounded-lg bg-blue-50 px-3 py-1.5">
-								<span class="text-xs text-blue-500">ยอดรวมทั้งหมด</span>
+								<span class="text-xs text-blue-500">{$t('adv.items_grand_total')}</span>
 								<span class="ml-2 font-bold text-blue-800">
 									{totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
 								</span>
