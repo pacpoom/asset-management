@@ -48,6 +48,22 @@ interface JobOrder extends RowDataPacket {
 	customer_name: string | null;
 }
 
+interface Product extends RowDataPacket {
+	id: number;
+	name: string;
+	description: string | null;
+	purchase_cost: number | null;
+}
+
+interface ItemPayload {
+	product_id: string | null;
+	product_name: string;
+	description: string | null;
+	qty: number;
+	price: number;
+	amount: number;
+}
+
 const UPLOAD_DIR = path.resolve('uploads', 'advance_expense');
 
 async function saveImageFile(file: File): Promise<string | null> {
@@ -120,6 +136,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			jobOrders = [];
 		}
 
+		// Products (category 27)
+		let products: Product[] = [];
+		try {
+			const [productRows] = await pool.execute<Product[]>(
+				`SELECT id, name, description, purchase_cost
+				 FROM products WHERE is_active = 1 AND category_id = 27 ORDER BY name ASC`
+			);
+			products = JSON.parse(JSON.stringify(productRows));
+		} catch { products = []; }
+
 		return {
 			application,
 			transactions: txWithBalance,
@@ -127,6 +153,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			totalRefund,
 			currentBalance,
 			jobOrders,
+			products,
 			currentUser: locals.user
 		};
 	} catch (err: any) {
@@ -144,30 +171,74 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const job_order_id = data.get('job_order_id')?.toString() || null;
 		const transaction_date = data.get('transaction_date')?.toString();
-		const description = data.get('description')?.toString()?.trim() || null;
-		const amount = parseFloat(data.get('amount')?.toString() || '0');
 		const type = data.get('type')?.toString() || 'expense';
 		const remark = data.get('remark')?.toString()?.trim() || null;
 		const invoiceFile = data.get('invoice_image') as File;
 		const slipFile = data.get('slip_image') as File;
 
-		if (!transaction_date || isNaN(amount) || amount <= 0) {
-			return fail(400, { action: 'addTransaction', success: false, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+		// Parse items
+		let items: ItemPayload[] = [];
+		try {
+			items = JSON.parse(data.get('items_json')?.toString() || '[]');
+		} catch {
+			return fail(400, { action: 'addTransaction', success: false, message: 'ข้อมูลรายการสินค้าไม่ถูกต้อง' });
 		}
 
+		if (!items.length)
+			return fail(400, { action: 'addTransaction', success: false, message: 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ' });
+
+		for (const item of items) {
+			if (!item.product_name)
+				return fail(400, { action: 'addTransaction', success: false, message: 'กรุณาเลือกสินค้า/บริการให้ครบทุกรายการ' });
+			if (item.qty <= 0 || item.price < 0)
+				return fail(400, { action: 'addTransaction', success: false, message: 'จำนวนและราคาต้องมากกว่า 0' });
+		}
+
+		const totalAmount = items.reduce((sum, i) => sum + i.qty * i.price, 0);
+		if (totalAmount <= 0)
+			return fail(400, { action: 'addTransaction', success: false, message: 'ยอดรวมต้องมากกว่า 0 บาท' });
+
+		if (!transaction_date)
+			return fail(400, { action: 'addTransaction', success: false, message: 'กรุณาระบุวันที่' });
+
+		const descSnapshot = items.length === 1
+			? items[0].product_name
+			: `${items[0].product_name} +${items.length - 1} รายการ`;
+
+		const connection = await pool.getConnection();
 		try {
+			await connection.beginTransaction();
+
 			const invoicePath = await saveImageFile(invoiceFile);
 			const slipPath = await saveImageFile(slipFile);
 
-			await pool.execute(
-				`INSERT INTO advance_transactions (advance_application_id, job_order_id, transaction_date, description, amount, type, invoice_image, slip_image, remark, created_by)
+			const [txResult]: any = await connection.execute(
+				`INSERT INTO advance_transactions
+				 (advance_application_id, job_order_id, transaction_date, description, amount, type, invoice_image, slip_image, remark, created_by)
 				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				[appId, job_order_id ? parseInt(job_order_id) : null, transaction_date, description, amount, type, invoicePath, slipPath, remark, userId]
+				[appId, job_order_id ? parseInt(job_order_id) : null, transaction_date,
+				 descSnapshot, totalAmount.toFixed(2), type, invoicePath, slipPath, remark, userId]
 			);
+			const txId = txResult.insertId;
 
+			for (const item of items) {
+				const lineAmount = item.qty * item.price;
+				await connection.execute(
+					`INSERT INTO advance_transaction_items
+					 (advance_transaction_id, product_id, product_name, description, qty, price, amount)
+					 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+					[txId, item.product_id ? parseInt(item.product_id) : null,
+					 item.product_name, item.description ?? null, item.qty, item.price, lineAmount.toFixed(2)]
+				);
+			}
+
+			await connection.commit();
 			return { action: 'addTransaction', success: true, message: 'บันทึกรายการสำเร็จ' };
 		} catch (err: any) {
+			await connection.rollback();
 			return fail(500, { action: 'addTransaction', success: false, message: err.message });
+		} finally {
+			connection.release();
 		}
 	},
 
