@@ -38,6 +38,12 @@ interface Product extends RowDataPacket {
 	purchase_cost: number | null;
 }
 
+interface CostCenter extends RowDataPacket {
+	cost_center_code: string;
+	cost_center_name: string;
+	department: string | null;
+}
+
 interface ItemPayload {
 	product_id: string | null;
 	product_name: string;
@@ -45,6 +51,8 @@ interface ItemPayload {
 	qty: number;
 	price: number;
 	amount: number;
+	cost_center_code: string | null;
+	debit_credit: 'Debit' | 'Credit';
 }
 
 const UPLOAD_DIR = path.resolve('uploads', 'advance_expense');
@@ -115,13 +123,24 @@ export const load: PageServerLoad = async ({ params }) => {
 			products = [];
 		}
 
+		// Cost Centers
+		let costCenters: CostCenter[] = [];
+		try {
+			const [ccRows] = await pool.execute<CostCenter[]>(
+				`SELECT cost_center_code, cost_center_name, department
+				 FROM cost_centers WHERE is_active = 1 ORDER BY cost_center_code ASC`
+			);
+			costCenters = JSON.parse(JSON.stringify(ccRows));
+		} catch { costCenters = []; }
+
 		return {
 			application,
 			totalSpent,
 			totalRefund,
 			currentBalance,
 			jobOrders,
-			products
+			products,
+			costCenters
 		};
 	} catch (err: any) {
 		if (err.status) throw err;
@@ -213,8 +232,8 @@ export const actions: Actions = {
 				const lineAmount = item.qty * item.price;
 				await connection.execute(
 					`INSERT INTO advance_transaction_items
-					 (advance_transaction_id, product_id, product_name, description, qty, price, amount)
-					 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+					 (advance_transaction_id, product_id, product_name, description, qty, price, amount, cost_center_code, debit_credit)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					[
 						txId,
 						item.product_id ? parseInt(item.product_id) : null,
@@ -222,7 +241,9 @@ export const actions: Actions = {
 						item.description ?? null,
 						item.qty,
 						item.price,
-						lineAmount.toFixed(2)
+						lineAmount.toFixed(2),
+						item.cost_center_code || null,
+						item.debit_credit || 'Debit'
 					]
 				);
 			}

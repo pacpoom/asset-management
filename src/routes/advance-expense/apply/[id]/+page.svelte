@@ -63,6 +63,10 @@
 		amount: number;
 		productSearch: string;
 		productDropdownOpen: boolean;
+		cost_center_code: string;
+		costCenterSearch: string;
+		costCenterOpen: boolean;
+		debit_credit: 'Debit' | 'Credit';
 	}
 
 	interface Product {
@@ -85,7 +89,11 @@
 			price: 0,
 			amount: 0,
 			productSearch: '',
-			productDropdownOpen: false
+			productDropdownOpen: false,
+			cost_center_code: '',
+			costCenterSearch: '',
+			costCenterOpen: false,
+			debit_credit: 'Debit'
 		});
 	}
 
@@ -129,6 +137,33 @@
 		item.productDropdownOpen = false;
 	}
 
+	function filteredCostCentersForItem(item: ItemRow) {
+		const q = item.costCenterSearch.trim().toLowerCase();
+		const all = (data.costCenters as any[]);
+		if (!q) return all;
+		return all.filter((c: any) =>
+			c.cost_center_code.toLowerCase().includes(q) ||
+			c.cost_center_name.toLowerCase().includes(q) ||
+			(c.department?.toLowerCase().includes(q) ?? false)
+		);
+	}
+
+	function selectCostCenter(localId: number, cc: any) {
+		const item = items.find((i) => i.id === localId);
+		if (!item) return;
+		item.cost_center_code = cc.cost_center_code;
+		item.costCenterSearch = '';
+		item.costCenterOpen = false;
+	}
+
+	function clearCostCenter(localId: number) {
+		const item = items.find((i) => i.id === localId);
+		if (!item) return;
+		item.cost_center_code = '';
+		item.costCenterSearch = '';
+		item.costCenterOpen = false;
+	}
+
 	function onQtyInput(localId: number, raw: string) {
 		const item = items.find((i) => i.id === localId);
 		if (!item) return;
@@ -153,7 +188,9 @@
 				description: i.product_desc || null,
 				qty: i.qty,
 				price: i.price,
-				amount: i.amount
+				amount: i.amount,
+				cost_center_code: i.cost_center_code || null,
+				debit_credit: i.debit_credit
 			}))
 		)
 	);
@@ -543,6 +580,81 @@
 										</div>
 									{/if}
 								{/if}
+							</div>
+
+							<!-- Cost Center + Debit/Credit -->
+							<div class="flex items-start gap-2">
+								<!-- Cost Center combobox -->
+								<div class="relative flex-1">
+									<label class="mb-1 block text-xs font-medium text-gray-500">Cost Center</label>
+									{#if item.cost_center_code}
+										<div class="flex items-center justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+											<div class="min-w-0 flex-1">
+												<p class="text-xs font-bold text-indigo-800">{item.cost_center_code}</p>
+												{#if (data.costCenters as any[]).find((c:any) => c.cost_center_code === item.cost_center_code)?.cost_center_name}
+													<p class="text-[10px] text-indigo-500 leading-tight">
+														{(data.costCenters as any[]).find((c:any) => c.cost_center_code === item.cost_center_code).cost_center_name}
+													</p>
+												{/if}
+											</div>
+											<button type="button" onclick={() => clearCostCenter(item.id)}
+												class="flex-shrink-0 rounded-full p-1 text-indigo-400 transition active:bg-indigo-100">
+												<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+													<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+												</svg>
+											</button>
+										</div>
+									{:else}
+										<div class="relative">
+											<div class="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+												<svg class="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+													<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+												</svg>
+											</div>
+											<input type="text"
+												bind:value={item.costCenterSearch}
+												onfocus={() => (item.costCenterOpen = true)}
+												oninput={() => (item.costCenterOpen = true)}
+												placeholder="ค้นหา Cost Center..."
+												autocomplete="off"
+												class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-8 pr-3 text-xs focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+											/>
+										</div>
+										{#if item.costCenterOpen}
+											<button type="button" class="fixed inset-0 z-10 cursor-default"
+												onclick={() => (item.costCenterOpen = false)}></button>
+											<div class="relative z-20 mt-1 max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+												{#each filteredCostCentersForItem(item) as cc}
+													<button type="button"
+														onmousedown={(e) => e.preventDefault()}
+														onclick={() => selectCostCenter(item.id, cc)}
+														class="flex w-full flex-col px-4 py-2 text-left transition active:bg-indigo-100 hover:bg-gray-50">
+														<span class="text-xs font-semibold text-gray-800">{cc.cost_center_code}</span>
+														<span class="text-[10px] text-gray-500">{cc.cost_center_name}{cc.department ? ` · ${cc.department}` : ''}</span>
+													</button>
+												{:else}
+													<div class="px-4 py-4 text-center text-xs text-gray-400">ไม่พบ Cost Center</div>
+												{/each}
+											</div>
+										{/if}
+									{/if}
+								</div>
+								<!-- Debit / Credit toggle -->
+								<div class="flex-shrink-0">
+									<label class="mb-1 block text-xs font-medium text-gray-500">Dr/Cr</label>
+									<div class="flex overflow-hidden rounded-xl border border-gray-200">
+										<button type="button"
+											onclick={() => (item.debit_credit = 'Debit')}
+											class="px-3 py-2.5 text-xs font-bold transition-colors {item.debit_credit === 'Debit' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 active:bg-gray-100'}">
+											Dr
+										</button>
+										<button type="button"
+											onclick={() => (item.debit_credit = 'Credit')}
+											class="border-l border-gray-200 px-3 py-2.5 text-xs font-bold transition-colors {item.debit_credit === 'Credit' ? 'bg-purple-600 text-white' : 'bg-white text-gray-500 active:bg-gray-100'}">
+											Cr
+										</button>
+									</div>
+								</div>
 							</div>
 
 							<!-- Qty / Price / Amount -->

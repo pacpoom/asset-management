@@ -1225,6 +1225,7 @@
 																<span class="font-semibold text-gray-800">{acc.account_code}</span>
 																<span class="block text-gray-600 leading-tight">{acc.account_name}</span>
 																{#if acc.account_name_th}<span class="block text-gray-400 leading-tight">{acc.account_name_th}</span>{/if}
+																{#if acc.sub_account_code && acc.sub_account_code !== '0'}<span class="block text-blue-400 leading-tight">Sub: {acc.sub_account_code}</span>{/if}
 															</button>
 														</li>
 													{/each}
@@ -1290,6 +1291,7 @@
 																<span class="font-semibold text-gray-800">{acc.account_code}</span>
 																<span class="block text-gray-600 leading-tight">{acc.account_name}</span>
 																{#if acc.account_name_th}<span class="block text-gray-400 leading-tight">{acc.account_name_th}</span>{/if}
+																{#if acc.sub_account_code && acc.sub_account_code !== '0'}<span class="block text-green-400 leading-tight">Sub: {acc.sub_account_code}</span>{/if}
 															</button>
 														</li>
 													{/each}
@@ -1355,6 +1357,7 @@
 																<span class="font-semibold text-gray-800">{acc.account_code}</span>
 																<span class="block text-gray-600 leading-tight">{acc.account_name}</span>
 																{#if acc.account_name_th}<span class="block text-gray-400 leading-tight">{acc.account_name_th}</span>{/if}
+																{#if acc.sub_account_code && acc.sub_account_code !== '0'}<span class="block text-orange-400 leading-tight">Sub: {acc.sub_account_code}</span>{/if}
 															</button>
 														</li>
 													{/each}

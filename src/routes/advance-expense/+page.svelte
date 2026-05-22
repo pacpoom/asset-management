@@ -96,7 +96,24 @@
 	<title>{$t('adv.page_title')} | Core Business</title>
 </svelte:head>
 
-<div class="space-y-6">
+<div class="space-y-5">
+
+	<!-- ── Tab Navigation ──────────────────────────────────────────────────── -->
+	<div class="border-b border-gray-200">
+		<nav class="-mb-px flex gap-1">
+			<a href="/advance-expense"
+				class="inline-flex items-center gap-1.5 border-b-2 border-blue-600 px-4 py-2.5 text-sm font-medium text-blue-600">
+				<span class="material-symbols-outlined text-base">receipt_long</span>
+				{$t('adv.page_title')}
+			</a>
+			<a href="/advance-expense/report"
+				class="inline-flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">
+				<span class="material-symbols-outlined text-base">analytics</span>
+				Advance Report
+			</a>
+		</nav>
+	</div>
+
 	<!-- Header -->
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div>

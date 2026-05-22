@@ -39,6 +39,10 @@
 		amount: number;
 		productSearch: string;
 		productDropdownOpen: boolean;
+		cost_center_code: string;
+		costCenterSearch: string;
+		costCenterOpen: boolean;
+		debit_credit: 'Debit' | 'Credit';
 	}
 	let items = $state<ItemRow[]>([]);
 	let nextItemId = $state(1);
@@ -49,12 +53,15 @@
 		description: i.product_desc || null,
 		qty: i.qty,
 		price: i.price,
-		amount: i.amount
+		amount: i.amount,
+		cost_center_code: i.cost_center_code || null,
+		debit_credit: i.debit_credit
 	}))));
 
 	function addItem() {
 		items.push({ id: nextItemId++, product_id: '', product_name: '', product_desc: '',
-			qty: 1, price: 0, amount: 0, productSearch: '', productDropdownOpen: false });
+			qty: 1, price: 0, amount: 0, productSearch: '', productDropdownOpen: false,
+			cost_center_code: '', costCenterSearch: '', costCenterOpen: false, debit_credit: 'Debit' });
 	}
 	function removeItem(id: number) {
 		const idx = items.findIndex((i) => i.id === id);
@@ -85,6 +92,30 @@
 		if (!item) return;
 		item.product_id = ''; item.product_name = ''; item.product_desc = '';
 		item.productSearch = ''; item.productDropdownOpen = false;
+	}
+	function filteredCostCentersForItem(item: ItemRow) {
+		const q = item.costCenterSearch.trim().toLowerCase();
+		const all = data.costCenters as any[];
+		if (!q) return all;
+		return all.filter((c: any) =>
+			c.cost_center_code.toLowerCase().includes(q) ||
+			c.cost_center_name.toLowerCase().includes(q) ||
+			(c.department?.toLowerCase().includes(q) ?? false)
+		);
+	}
+	function selectCostCenter(id: number, cc: any) {
+		const item = items.find((i) => i.id === id);
+		if (!item) return;
+		item.cost_center_code = cc.cost_center_code;
+		item.costCenterSearch = '';
+		item.costCenterOpen = false;
+	}
+	function clearCostCenter(id: number) {
+		const item = items.find((i) => i.id === id);
+		if (!item) return;
+		item.cost_center_code = '';
+		item.costCenterSearch = '';
+		item.costCenterOpen = false;
 	}
 	function updateQty(id: number, v: number) {
 		const item = items.find((i) => i.id === id);
@@ -646,6 +677,63 @@
 									{#if item.product_desc && item.product_id}
 										<p class="mt-0.5 pl-0.5 text-[10px] text-gray-500">{item.product_desc}</p>
 									{/if}
+									<!-- Cost Center + Debit/Credit -->
+									<div class="mt-1.5 flex items-center gap-1.5">
+										<!-- Cost Center combobox -->
+										<div class="relative flex-1">
+											{#if item.cost_center_code}
+												<div class="flex items-center justify-between gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 min-h-[26px]">
+													<span class="text-[10px] font-semibold text-indigo-800">
+														{item.cost_center_code}
+														{#if (data.costCenters as any[]).find((c:any) => c.cost_center_code === item.cost_center_code)?.cost_center_name}
+															— {(data.costCenters as any[]).find((c:any) => c.cost_center_code === item.cost_center_code).cost_center_name}
+														{/if}
+													</span>
+													<button type="button" onclick={() => clearCostCenter(item.id)}
+														class="flex-shrink-0 text-indigo-400 hover:text-red-500">
+														<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+													</button>
+												</div>
+											{:else}
+												<input type="text"
+													placeholder="Cost Center..."
+													autocomplete="off"
+													value={item.costCenterSearch}
+													oninput={(e) => { item.costCenterSearch = (e.target as HTMLInputElement).value; item.costCenterOpen = true; }}
+													onfocus={() => (item.costCenterOpen = true)}
+													onblur={() => setTimeout(() => { item.costCenterOpen = false; }, 150)}
+													class="w-full rounded-md border border-gray-300 px-2 py-1 text-[10px] focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+												/>
+												{#if item.costCenterOpen}
+													<div class="absolute z-50 mt-0.5 max-h-40 w-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+														onmousedown={(e) => e.preventDefault()}>
+														{#each filteredCostCentersForItem(item) as cc}
+															<button type="button" onclick={() => selectCostCenter(item.id, cc)}
+																class="w-full px-3 py-1.5 text-left hover:bg-indigo-50">
+																<p class="text-[10px] font-semibold text-gray-800">{cc.cost_center_code}</p>
+																<p class="text-[10px] text-gray-500 leading-tight">{cc.cost_center_name}{cc.department ? ` · ${cc.department}` : ''}</p>
+															</button>
+														{:else}
+															<div class="px-3 py-2 text-[10px] text-gray-400">ไม่พบ Cost Center</div>
+														{/each}
+													</div>
+												{/if}
+											{/if}
+										</div>
+										<!-- Debit / Credit toggle -->
+										<div class="flex flex-shrink-0 overflow-hidden rounded-md border border-gray-300">
+											<button type="button"
+												onclick={() => (item.debit_credit = 'Debit')}
+												class="px-2 py-1 text-[10px] font-semibold transition-colors {item.debit_credit === 'Debit' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}">
+												Dr
+											</button>
+											<button type="button"
+												onclick={() => (item.debit_credit = 'Credit')}
+												class="border-l border-gray-300 px-2 py-1 text-[10px] font-semibold transition-colors {item.debit_credit === 'Credit' ? 'bg-purple-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}">
+												Cr
+											</button>
+										</div>
+									</div>
 									<!-- Qty / Price / Amount -->
 									<div class="mt-1.5 grid grid-cols-3 gap-1.5">
 										<div>
