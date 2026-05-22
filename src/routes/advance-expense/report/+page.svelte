@@ -57,6 +57,15 @@
 		}
 		return `?${p.toString()}`;
 	}
+
+	function buildExportUrl() {
+		const p = new URLSearchParams();
+		if (dateFrom) p.set('date_from', dateFrom);
+		if (dateTo)   p.set('date_to',   dateTo);
+		if (status)   p.set('status',    status);
+		if (search)   p.set('search',    search);
+		return `/advance-expense/report/export?${p.toString()}`;
+	}
 </script>
 
 <svelte:head>
@@ -96,6 +105,11 @@
 				class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
 				{$t('adv.rpt.collapse_all')}
 			</button>
+			<a href={buildExportUrl()}
+				class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 shadow-sm">
+				<span class="material-symbols-outlined text-sm">download</span>
+				Export Excel
+			</a>
 		</div>
 	</div>
 
