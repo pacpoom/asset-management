@@ -61,6 +61,8 @@
 		qty: number;
 		price: number;
 		amount: number;
+		productSearch: string;
+		productDropdownOpen: boolean;
 	}
 
 	interface Product {
@@ -81,7 +83,9 @@
 			product_desc: '',
 			qty: 1,
 			price: 0,
-			amount: 0
+			amount: 0,
+			productSearch: '',
+			productDropdownOpen: false
 		});
 	}
 
@@ -90,15 +94,39 @@
 		if (idx >= 0) items.splice(idx, 1);
 	}
 
-	function onProductChange(localId: number, productId: string) {
+	function filteredProductsForItem(item: ItemRow): Product[] {
+		const q = item.productSearch.trim().toLowerCase();
+		if (!q) return (data.products as Product[]).slice(0, 40);
+		return (data.products as Product[])
+			.filter((p) =>
+				p.name.toLowerCase().includes(q) ||
+				(p.description?.toLowerCase().includes(q) ?? false)
+			)
+			.slice(0, 40);
+	}
+
+	function selectProduct(localId: number, product: Product) {
 		const item = items.find((i) => i.id === localId);
 		if (!item) return;
-		const product = (data.products as Product[]).find((p) => String(p.id) === productId);
-		item.product_id = productId;
-		item.product_name = product?.name ?? '';
-		item.product_desc = product?.description ?? '';
-		item.price = Number(product?.purchase_cost ?? 0);
+		item.product_id = String(product.id);
+		item.product_name = product.name;
+		item.product_desc = product.description ?? '';
+		item.price = Number(product.purchase_cost ?? 0);
 		item.amount = item.qty * item.price;
+		item.productSearch = '';
+		item.productDropdownOpen = false;
+	}
+
+	function clearProduct(localId: number) {
+		const item = items.find((i) => i.id === localId);
+		if (!item) return;
+		item.product_id = '';
+		item.product_name = '';
+		item.product_desc = '';
+		item.price = 0;
+		item.amount = 0;
+		item.productSearch = '';
+		item.productDropdownOpen = false;
 	}
 
 	function onQtyInput(localId: number, raw: string) {
@@ -438,34 +466,84 @@
 					{#each items as item (item.id)}
 						<div class="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2.5">
 
-							<!-- Product Selector -->
+							<!-- Product Selector — Searchable Combobox -->
 							<div>
 								<label class="mb-1 block text-xs font-medium text-gray-500">สินค้า / บริการ <span class="text-red-500">*</span></label>
-								<select
-									value={item.product_id}
-									onchange={(e) => onProductChange(item.id, (e.target as HTMLSelectElement).value)}
-									class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-								>
-									<option value="">— เลือกสินค้า / บริการ —</option>
-									{#each (data.products as Product[]) as p (p.id)}
-										<option value={String(p.id)}>{p.name}</option>
-									{/each}
-								</select>
-							</div>
 
-							<!-- Product Description — 2 lines -->
-							{#if item.product_name}
-								<div class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
-									<!-- Line 1: Product name -->
-									<p class="text-sm font-bold text-blue-800 leading-snug">{item.product_name}</p>
-									<!-- Line 2: Product description (if any) -->
-									{#if item.product_desc}
-										<p class="mt-0.5 text-xs text-blue-500 leading-snug">{item.product_desc}</p>
-									{:else}
-										<p class="mt-0.5 text-xs text-blue-300 italic">ไม่มีรายละเอียดเพิ่มเติม</p>
+								{#if item.product_id}
+									<!-- Selected chip -->
+									<div class="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
+										<svg class="h-4 w-4 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+										</svg>
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-bold text-blue-800 leading-snug">{item.product_name}</p>
+											{#if item.product_desc}
+												<p class="truncate text-xs text-blue-500 leading-snug">{item.product_desc}</p>
+											{/if}
+										</div>
+										<button
+											type="button"
+											onclick={() => clearProduct(item.id)}
+											class="flex-shrink-0 rounded-full p-1 text-blue-400 transition active:bg-blue-100"
+											aria-label="เปลี่ยนสินค้า"
+										>
+											<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+											</svg>
+										</button>
+									</div>
+								{:else}
+									<!-- Search input -->
+									<div class="relative">
+										<div class="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+											<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+											</svg>
+										</div>
+										<input
+											type="text"
+											bind:value={item.productSearch}
+											onfocus={() => (item.productDropdownOpen = true)}
+											oninput={() => (item.productDropdownOpen = true)}
+											placeholder="พิมพ์ชื่อสินค้า / บริการ..."
+											autocomplete="off"
+											class="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-9 pr-4 text-sm focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+										/>
+									</div>
+
+									{#if item.productDropdownOpen}
+										<!-- Backdrop -->
+										<button
+											type="button"
+											class="fixed inset-0 z-10 cursor-default"
+											aria-label="ปิดรายการ"
+											onclick={() => (item.productDropdownOpen = false)}
+										></button>
+
+										<!-- Dropdown list -->
+										<div class="relative z-20 mt-1 max-h-52 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+											{#if filteredProductsForItem(item).length === 0}
+												<div class="px-4 py-5 text-center text-xs text-gray-400">ไม่พบสินค้า / บริการ</div>
+											{:else}
+												{#each filteredProductsForItem(item) as p (p.id)}
+													<button
+														type="button"
+														onmousedown={(e) => e.preventDefault()}
+														onclick={() => selectProduct(item.id, p)}
+														class="flex w-full flex-col px-4 py-2.5 text-left transition active:bg-blue-100 hover:bg-gray-50"
+													>
+														<span class="text-sm font-semibold text-gray-800">{p.name}</span>
+														{#if p.description}
+															<span class="text-xs text-gray-500 line-clamp-1">{p.description}</span>
+														{/if}
+													</button>
+												{/each}
+											{/if}
+										</div>
 									{/if}
-								</div>
-							{/if}
+								{/if}
+							</div>
 
 							<!-- Qty / Price / Amount -->
 							<div class="grid grid-cols-3 gap-2">
