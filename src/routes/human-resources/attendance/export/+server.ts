@@ -8,7 +8,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const sectionFilter = url.searchParams.get('section') || 'All';
 	const empFilter = url.searchParams.get('emp_id') || 'All';
 
-	// ดึง department_id ของ User ที่ Login อยู่
 	const userDeptId = locals.user?.department_id;
 
 	let query = `
@@ -20,22 +19,19 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			IFNULL(e.section, '-') AS 'Section',
 			IFNULL(e.emp_group, '-') AS 'Group',
 			IFNULL(jp.position_name, '-') AS 'Position',
-			IFNULL(e.default_shift, 'D') AS 'Shift',  
+			COALESCE(al.shift_type, (SELECT shift_code FROM employee_shifts WHERE emp_id = e.emp_id AND work_date = ? LIMIT 1), e.default_shift, 'D') AS 'Shift',  
 			al.scan_in_time,
 			al.scan_out_time,
-            sm.ot_start_time,
 			al.ot_hours,
 			al.status,
 			al.is_late
 		FROM attendance_logs al
 		LEFT JOIN employees e ON al.emp_id = e.emp_id
 		LEFT JOIN job_positions jp ON e.position_id = jp.id
-        LEFT JOIN shift_master sm ON e.default_shift = sm.shift_code
 		WHERE al.work_date = ?
 	`;
-	const params: any[] = [selectedDate];
+	const params: any[] = [selectedDate, selectedDate];
 
-	// เพิ่มเงื่อนไขกรองตาม Department ID ของ User
 	if (userDeptId) {
 		query += ` AND e.department_id = ?`;
 		params.push(userDeptId);
@@ -80,20 +76,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	rows.forEach((row: any) => {
 		let finalOt = row.ot_hours;
 
-		if (row.scan_in_time && row.scan_out_time && (!finalOt || parseFloat(finalOt) === 0)) {
-			const timeIn = new Date(row.scan_in_time);
-			const timeOut = new Date(row.scan_out_time);
-			if (timeOut.getTime() - timeIn.getTime() >= 3600000 && row.ot_start_time) {
-				const [otH, otM] = row.ot_start_time.split(':').map(Number);
-				const outMins = timeOut.getHours() * 60 + timeOut.getMinutes();
-				const otStartMins = otH * 60 + otM;
-				if (outMins > otStartMins) {
-					const diffMins = outMins - otStartMins;
-					finalOt = Math.floor(diffMins / 30) * 0.5;
-				}
-			}
-		}
-
 		worksheet.addRow({
 			date: row.work_date ? new Date(row.work_date).toLocaleDateString('en-GB') : '-',
 			id_no: row.ID_No || '-',
@@ -110,7 +92,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 					? 'สาย'
 					: row.status === 'Present'
 						? 'ปกติ'
-						: 'ขาด'
+						: row.status === 'Late'
+							? 'สาย'
+							: row.status === 'Absent'
+								? 'ขาด'
+								: row.status
 		});
 	});
 
