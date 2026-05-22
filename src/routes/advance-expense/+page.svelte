@@ -109,7 +109,7 @@
 			<a href="/advance-expense/report"
 				class="inline-flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">
 				<span class="material-symbols-outlined text-base">analytics</span>
-				Advance Report
+				{$t('adv.rpt.tab')}
 			</a>
 		</nav>
 	</div>

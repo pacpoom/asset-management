@@ -76,7 +76,7 @@
 			<a href="/advance-expense/report"
 				class="inline-flex items-center gap-1.5 border-b-2 border-blue-600 px-4 py-2.5 text-sm font-medium text-blue-600">
 				<span class="material-symbols-outlined text-base">analytics</span>
-				Advance Report
+				{$t('adv.rpt.tab')}
 			</a>
 		</nav>
 	</div>
@@ -84,17 +84,17 @@
 	<!-- ── Page Header ─────────────────────────────────────────────────────── -->
 	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-bold text-gray-900">Advance Expense Report</h1>
-			<p class="text-sm text-gray-500">รายงานค่าใช้จ่ายเงินทดรองจ่ายพร้อมรหัสบัญชีและ Cost Center</p>
+			<h1 class="text-2xl font-bold text-gray-900">{$t('adv.rpt.title')}</h1>
+			<p class="text-sm text-gray-500">{$t('adv.rpt.desc')}</p>
 		</div>
 		<div class="flex gap-2">
 			<button type="button" onclick={expandAll}
 				class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-				ขยายทั้งหมด
+				{$t('adv.rpt.expand_all')}
 			</button>
 			<button type="button" onclick={collapseAll}
 				class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-				ย่อทั้งหมด
+				{$t('adv.rpt.collapse_all')}
 			</button>
 		</div>
 	</div>
@@ -103,20 +103,20 @@
 	<form method="GET" class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
 			<div class="col-span-2 sm:col-span-1">
-				<label class="mb-1 block text-xs font-medium text-gray-600">วันที่เริ่มต้น</label>
+				<label class="mb-1 block text-xs font-medium text-gray-600">{$t('adv.rpt.date_from')}</label>
 				<input type="date" name="date_from" bind:value={dateFrom}
 					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
 			</div>
 			<div class="col-span-2 sm:col-span-1">
-				<label class="mb-1 block text-xs font-medium text-gray-600">วันที่สิ้นสุด</label>
+				<label class="mb-1 block text-xs font-medium text-gray-600">{$t('adv.rpt.date_to')}</label>
 				<input type="date" name="date_to" bind:value={dateTo}
 					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
 			</div>
 			<div>
-				<label class="mb-1 block text-xs font-medium text-gray-600">สถานะ</label>
+				<label class="mb-1 block text-xs font-medium text-gray-600">{$t('adv.rpt.col_status')}</label>
 				<select name="status" bind:value={status}
 					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
-					<option value="">ทั้งหมด</option>
+					<option value="">{$t('adv.all_status')}</option>
 					<option value="Pending">{$t('adv.status_pending')}</option>
 					<option value="Approved">{$t('adv.status_approved')}</option>
 					<option value="Rejected">{$t('adv.status_rejected')}</option>
@@ -124,18 +124,18 @@
 				</select>
 			</div>
 			<div class="col-span-2 sm:col-span-1 lg:col-span-1">
-				<label class="mb-1 block text-xs font-medium text-gray-600">ค้นหา</label>
-				<input type="text" name="search" bind:value={search} placeholder="เลขที่ / ชื่อเรื่อง / ผู้สร้าง"
+				<label class="mb-1 block text-xs font-medium text-gray-600">{$t('adv.search')}</label>
+				<input type="text" name="search" bind:value={search} placeholder={$t('adv.rpt.search_ph')}
 					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
 			</div>
 			<div class="flex items-end gap-2">
 				<button type="submit"
 					class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-					ค้นหา
+					{$t('adv.search')}
 				</button>
 				<a href="/advance-expense/report"
 					class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
-					ล้าง
+					{$t('adv.clear')}
 				</a>
 			</div>
 		</div>
@@ -143,9 +143,9 @@
 
 	<!-- ── Summary Bar ─────────────────────────────────────────────────────── -->
 	<div class="flex items-center justify-between text-sm text-gray-500">
-		<span>พบ <strong class="text-gray-800">{data.total}</strong> เอกสาร</span>
+		<span>{$t('adv.rpt.found_pre')} <strong class="text-gray-800">{data.total}</strong> {$t('adv.rpt.found_suf')}</span>
 		{#if data.totalPages > 1}
-			<span>หน้า {data.currentPage} / {data.totalPages}</span>
+			<span>{$t('adv.rpt.page_label')} {data.currentPage} / {data.totalPages}</span>
 		{/if}
 	</div>
 
@@ -153,7 +153,7 @@
 	{#if data.report.length === 0}
 		<div class="rounded-xl border border-gray-200 bg-white py-16 text-center">
 			<span class="material-symbols-outlined text-5xl text-gray-300">analytics</span>
-			<p class="mt-3 text-gray-500">ไม่พบข้อมูล</p>
+			<p class="mt-3 text-gray-500">{$t('adv.rpt.no_data')}</p>
 		</div>
 	{:else}
 		<div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -161,25 +161,25 @@
 				<thead class="sticky top-0 z-10 bg-gray-50 text-[11px]">
 					<tr>
 						<!-- Advance columns -->
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">เลขที่</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-center font-semibold text-gray-600">สถานะ</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">วันที่</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">ธนาคาร</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">ผู้สร้าง</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600 max-w-[180px]">เหตุผล</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_doc_no')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-center font-semibold text-gray-600">{$t('adv.rpt.col_status')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_date')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.bank_label')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.created_by')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600 max-w-[180px]">{$t('adv.reason')}</th>
 						<!-- Item columns -->
-						<th class="whitespace-nowrap border-l border-gray-300 px-3 py-2.5 text-left font-semibold text-gray-600">วันที่ Tx</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">สินค้า / บริการ</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">Cost Center</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">Account Code</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">Sub Account</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">Account Name</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">ชื่อบัญชี (TH)</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-center font-semibold text-gray-600">ประเภทบัญชี</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-center font-semibold text-gray-600">Dr/Cr</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-gray-600">จำนวน</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-gray-600">ราคา/หน่วย</th>
-						<th class="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-gray-600">รวม (฿)</th>
+						<th class="whitespace-nowrap border-l border-gray-300 px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_tx_date')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_product')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_cost_center')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_acct_code')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_sub_acct')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_acct_name')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-left font-semibold text-gray-600">{$t('adv.rpt.col_acct_name_th')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-center font-semibold text-gray-600">{$t('adv.rpt.col_acct_type')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-center font-semibold text-gray-600">{$t('adv.rpt.col_dr_cr')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-gray-600">{$t('adv.rpt.col_qty')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-gray-600">{$t('adv.rpt.col_price')}</th>
+						<th class="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-gray-600">{$t('adv.rpt.col_total')}</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-100">
@@ -208,8 +208,8 @@
 							<td class="px-3 py-2 text-gray-700 max-w-[180px] truncate" title={adv.reason}>{adv.reason}</td>
 							<!-- ยอดรวมเอกสาร colspan -->
 							<td colspan="11" class="px-3 py-2 text-right text-[10px] text-blue-500">
-								{adv.items.length} รายการ •
-								วงเงิน {fmtCurrency(adv.amount)} ฿
+								{adv.items.length} {$t('adv.rpt.items_count')} •
+								{$t('adv.rpt.budget')} {fmtCurrency(adv.amount)} ฿
 							</td>
 						</tr>
 
@@ -218,7 +218,7 @@
 							{#if adv.items.length === 0}
 								<tr class="bg-gray-50">
 									<td colspan="18" class="px-6 py-3 text-center text-xs text-gray-400 italic">
-										— ยังไม่มีรายการ —
+										— {$t('adv.rpt.no_items')} —
 									</td>
 								</tr>
 							{:else}
@@ -238,7 +238,7 @@
 											{fmtDate(item.transaction_date)}
 											<span class="ml-1 inline-flex rounded px-1 py-0.5 text-[10px] font-medium
 												{item.tx_type === 'expense' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}">
-												{item.tx_type === 'expense' ? 'จ่าย' : 'รับคืน'}
+												{item.tx_type === 'expense' ? $t('adv.rpt.tx_expense') : $t('adv.rpt.tx_refund')}
 											</span>
 										</td>
 										<td class="px-3 py-2 font-medium text-gray-800 max-w-[160px]">
@@ -316,7 +316,7 @@
 									s + (i.tx_type === 'expense' ? Number(i.amount) : -Number(i.amount)), 0)}
 								<tr class="border-t border-blue-200 bg-blue-50/60">
 									<td colspan="17" class="px-3 py-1.5 text-right text-[11px] text-blue-600">
-										ยอดสุทธิ {adv.document_number}
+										{$t('adv.rpt.subtotal')} {adv.document_number}
 									</td>
 									<td class="px-3 py-1.5 text-right text-[11px] font-bold text-blue-800">
 										{fmtCurrency(Math.abs(totalItems))} ฿
@@ -334,7 +334,7 @@
 			<div class="flex items-center justify-center gap-2">
 				{#if data.currentPage > 1}
 					<a href={buildUrl({ page: data.currentPage - 1 })}
-						class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">← ก่อนหน้า</a>
+						class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">{$t('adv.rpt.prev')}</a>
 				{/if}
 				{#each Array.from({ length: data.totalPages }, (_, i) => i + 1) as p}
 					{#if Math.abs(p - data.currentPage) <= 2 || p === 1 || p === data.totalPages}
@@ -348,7 +348,7 @@
 				{/each}
 				{#if data.currentPage < data.totalPages}
 					<a href={buildUrl({ page: data.currentPage + 1 })}
-						class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">ถัดไป →</a>
+						class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">{$t('adv.rpt.next')}</a>
 				{/if}
 			</div>
 		{/if}
