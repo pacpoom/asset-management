@@ -68,7 +68,9 @@ interface Customer extends RowDataPacket {
 interface ChartOfAccount extends RowDataPacket {
 	id: number;
 	account_code: string;
+	sub_account_code: string | null;
 	account_name: string;
+	account_name_th: string | null;
 }
 
 // --- File Handling Helpers ---
@@ -297,8 +299,20 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			'SELECT id, name, company_name FROM customers ORDER BY name'
 		);
 		const [accountRows] = await pool.execute<ChartOfAccount[]>(
-			'SELECT id, account_code, account_name FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code'
+			'SELECT id, account_code, sub_account_code, account_name, account_name_th FROM chart_of_accounts WHERE is_active = 1 ORDER BY account_code'
 		);
+
+		// Build account → cost_center mapping
+		let costCenterMap: Record<string, string[]> = {};
+		try {
+			const [ccRows] = await pool.execute<any[]>(
+				'SELECT account_code, cost_center_code FROM account_cost_center_mapping ORDER BY account_code, cost_center_code'
+			);
+			for (const row of ccRows) {
+				if (!costCenterMap[row.account_code]) costCenterMap[row.account_code] = [];
+				costCenterMap[row.account_code].push(row.cost_center_code);
+			}
+		} catch { costCenterMap = {}; }
 
 		return {
 			products: productRows.map((p) => ({ ...p, is_active: Boolean(p.is_active) })),
@@ -307,6 +321,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			vendors: vendorRows,
 			customers: customerRows,
 			accounts: accountRows,
+			costCenterMap,
 			currentPage: page,
 			totalPages,
 			total,

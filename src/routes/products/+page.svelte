@@ -51,6 +51,14 @@
 	let customerSearchText = $state('');
 	let isCustomerDropdownOpen = $state(false);
 
+	// Account combobox search state (3 fields)
+	let assetAccountSearch = $state('');
+	let assetAccountOpen = $state(false);
+	let incomeAccountSearch = $state('');
+	let incomeAccountOpen = $state(false);
+	let expenseAccountSearch = $state('');
+	let expenseAccountOpen = $state(false);
+
 	const filteredVendors = $derived(
 		data.vendors?.filter((v: Vendor) =>
 			v.name.toLowerCase().includes(vendorSearchText.toLowerCase())
@@ -149,6 +157,12 @@
 		removeImageFlag = false;
 		isVendorDropdownOpen = false;
 		isCustomerDropdownOpen = false;
+		assetAccountSearch = '';
+		assetAccountOpen = false;
+		incomeAccountSearch = '';
+		incomeAccountOpen = false;
+		expenseAccountSearch = '';
+		expenseAccountOpen = false;
 
 		if (mode === 'edit' && product) {
 			selectedProduct = { ...product };
@@ -180,6 +194,35 @@
 	}
 	function closeDetailModal() {
 		productToView = null;
+	}
+
+	// ── Accounting combobox helpers ───────────────────────────────────────────
+	type AccountItem = {
+		id: number;
+		account_code: string;
+		sub_account_code: string | null;
+		account_name: string;
+		account_name_th: string | null;
+	};
+
+	function filterAccounts(query: string): AccountItem[] {
+		const q = query.trim().toLowerCase();
+		const all = (data.accounts as AccountItem[]);
+		if (!q) return all.slice(0, 60);
+		return all.filter(a =>
+			a.account_code.toLowerCase().includes(q) ||
+			a.account_name.toLowerCase().includes(q) ||
+			(a.account_name_th?.toLowerCase().includes(q) ?? false)
+		).slice(0, 60);
+	}
+
+	function getAccountById(id: number | null | undefined): AccountItem | null {
+		if (!id) return null;
+		return (data.accounts as AccountItem[]).find(a => a.id === id) ?? null;
+	}
+
+	function getCostCenters(accountCode: string): string[] {
+		return ((data as any).costCenterMap as Record<string, string[]>)?.[accountCode] ?? [];
 	}
 
 	function showGlobalMessage(
@@ -1125,39 +1168,202 @@
 						<fieldset class="rounded-md border p-4">
 							<legend class="px-1 text-sm font-medium">{$t('Accounting Links')}</legend>
 							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+
+								<!-- ── Asset Account ── -->
 								<div>
-									<label for="asset_account_id" class="mb-1 block text-xs font-medium">
+									<label class="mb-1 block text-xs font-medium">
 										{$t('Asset Account')} <span class="text-gray-500">{$t('(Stock)')}</span>
 									</label>
-									<select name="asset_account_id" id="asset_account_id" bind:value={selectedProduct.asset_account_id} class="w-full rounded-md border-gray-300 text-sm">
-										<option value={null}>{$t('-- None --')}</option>
-										{#each data.accounts as acc (acc.id)}
-											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
-										{/each}
-									</select>
+									<input type="hidden" name="asset_account_id" value={selectedProduct.asset_account_id ?? ''} />
+									{#if getAccountById(selectedProduct.asset_account_id)}
+										{@const acc = getAccountById(selectedProduct.asset_account_id)!}
+										{@const ccs = getCostCenters(acc.account_code)}
+										<div class="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs">
+											<div class="flex items-start justify-between gap-1">
+												<div class="min-w-0 flex-1">
+													<p class="font-bold text-blue-800">{acc.account_code}</p>
+													<p class="text-blue-700 leading-snug">{acc.account_name}</p>
+													{#if acc.account_name_th}<p class="text-blue-500 leading-snug">{acc.account_name_th}</p>{/if}
+													{#if acc.sub_account_code && acc.sub_account_code !== '0'}
+														<p class="mt-0.5 text-gray-500">Sub: {acc.sub_account_code}</p>
+													{/if}
+													{#if ccs.length > 0}
+														<p class="mt-0.5 text-gray-400 truncate">
+															CC: {ccs.slice(0,3).join(', ')}{ccs.length > 3 ? ` +${ccs.length - 3}` : ''}
+														</p>
+													{/if}
+												</div>
+												<button type="button" onclick={() => { selectedProduct!.asset_account_id = null; assetAccountSearch = ''; }}
+													class="flex-shrink-0 rounded p-0.5 text-blue-400 hover:text-red-500 hover:bg-red-50">
+													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+												</button>
+											</div>
+										</div>
+									{:else}
+										<div class="relative">
+											<input type="text" bind:value={assetAccountSearch}
+												onfocus={() => (assetAccountOpen = true)}
+												oninput={() => (assetAccountOpen = true)}
+												onblur={() => setTimeout(() => (assetAccountOpen = false), 150)}
+												placeholder="พิมพ์รหัส / ชื่อบัญชี..."
+												autocomplete="off"
+												class="w-full rounded-md border-gray-300 text-sm" />
+											{#if assetAccountOpen}
+												<ul class="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl text-xs">
+													<li>
+														<button type="button" onmousedown={(e) => e.preventDefault()}
+															onclick={() => { selectedProduct!.asset_account_id = null; assetAccountSearch = ''; assetAccountOpen = false; }}
+															class="w-full border-b px-3 py-1.5 text-left text-gray-400 hover:bg-gray-50">
+															— {$t('-- None --')} —
+														</button>
+													</li>
+													{#each filterAccounts(assetAccountSearch) as acc (acc.id)}
+														<li>
+															<button type="button" onmousedown={(e) => e.preventDefault()}
+																onclick={() => { selectedProduct!.asset_account_id = acc.id; assetAccountSearch = ''; assetAccountOpen = false; }}
+																class="w-full px-3 py-2 text-left hover:bg-blue-50">
+																<span class="font-semibold text-gray-800">{acc.account_code}</span>
+																<span class="block text-gray-600 leading-tight">{acc.account_name}</span>
+																{#if acc.account_name_th}<span class="block text-gray-400 leading-tight">{acc.account_name_th}</span>{/if}
+															</button>
+														</li>
+													{/each}
+												</ul>
+											{/if}
+										</div>
+									{/if}
 								</div>
+
+								<!-- ── Income Account ── -->
 								<div>
-									<label for="income_account_id" class="mb-1 block text-xs font-medium">
+									<label class="mb-1 block text-xs font-medium">
 										{$t('Income Account')} <span class="text-gray-500">{$t('(Sales)')}</span>
 									</label>
-									<select name="income_account_id" id="income_account_id" bind:value={selectedProduct.income_account_id} class="w-full rounded-md border-gray-300 text-sm">
-										<option value={null}>{$t('-- None --')}</option>
-										{#each data.accounts as acc (acc.id)}
-											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
-										{/each}
-									</select>
+									<input type="hidden" name="income_account_id" value={selectedProduct.income_account_id ?? ''} />
+									{#if getAccountById(selectedProduct.income_account_id)}
+										{@const acc = getAccountById(selectedProduct.income_account_id)!}
+										{@const ccs = getCostCenters(acc.account_code)}
+										<div class="rounded-md border border-green-200 bg-green-50 p-2 text-xs">
+											<div class="flex items-start justify-between gap-1">
+												<div class="min-w-0 flex-1">
+													<p class="font-bold text-green-800">{acc.account_code}</p>
+													<p class="text-green-700 leading-snug">{acc.account_name}</p>
+													{#if acc.account_name_th}<p class="text-green-600 leading-snug">{acc.account_name_th}</p>{/if}
+													{#if acc.sub_account_code && acc.sub_account_code !== '0'}
+														<p class="mt-0.5 text-gray-500">Sub: {acc.sub_account_code}</p>
+													{/if}
+													{#if ccs.length > 0}
+														<p class="mt-0.5 text-gray-400 truncate">
+															CC: {ccs.slice(0,3).join(', ')}{ccs.length > 3 ? ` +${ccs.length - 3}` : ''}
+														</p>
+													{/if}
+												</div>
+												<button type="button" onclick={() => { selectedProduct!.income_account_id = null; incomeAccountSearch = ''; }}
+													class="flex-shrink-0 rounded p-0.5 text-green-400 hover:text-red-500 hover:bg-red-50">
+													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+												</button>
+											</div>
+										</div>
+									{:else}
+										<div class="relative">
+											<input type="text" bind:value={incomeAccountSearch}
+												onfocus={() => (incomeAccountOpen = true)}
+												oninput={() => (incomeAccountOpen = true)}
+												onblur={() => setTimeout(() => (incomeAccountOpen = false), 150)}
+												placeholder="พิมพ์รหัส / ชื่อบัญชี..."
+												autocomplete="off"
+												class="w-full rounded-md border-gray-300 text-sm" />
+											{#if incomeAccountOpen}
+												<ul class="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl text-xs">
+													<li>
+														<button type="button" onmousedown={(e) => e.preventDefault()}
+															onclick={() => { selectedProduct!.income_account_id = null; incomeAccountSearch = ''; incomeAccountOpen = false; }}
+															class="w-full border-b px-3 py-1.5 text-left text-gray-400 hover:bg-gray-50">
+															— {$t('-- None --')} —
+														</button>
+													</li>
+													{#each filterAccounts(incomeAccountSearch) as acc (acc.id)}
+														<li>
+															<button type="button" onmousedown={(e) => e.preventDefault()}
+																onclick={() => { selectedProduct!.income_account_id = acc.id; incomeAccountSearch = ''; incomeAccountOpen = false; }}
+																class="w-full px-3 py-2 text-left hover:bg-green-50">
+																<span class="font-semibold text-gray-800">{acc.account_code}</span>
+																<span class="block text-gray-600 leading-tight">{acc.account_name}</span>
+																{#if acc.account_name_th}<span class="block text-gray-400 leading-tight">{acc.account_name_th}</span>{/if}
+															</button>
+														</li>
+													{/each}
+												</ul>
+											{/if}
+										</div>
+									{/if}
 								</div>
+
+								<!-- ── Expense / COGS Account ── -->
 								<div>
-									<label for="expense_account_id" class="mb-1 block text-xs font-medium">
+									<label class="mb-1 block text-xs font-medium">
 										{$t('Expense/COGS Acct')} <span class="text-gray-500">{$t('(Purchase/Cost)')}</span>
 									</label>
-									<select name="expense_account_id" id="expense_account_id" bind:value={selectedProduct.expense_account_id} class="w-full rounded-md border-gray-300 text-sm">
-										<option value={null}>{$t('-- None --')}</option>
-										{#each data.accounts as acc (acc.id)}
-											<option value={acc.id}>{acc.account_code} - {acc.account_name}</option>
-										{/each}
-									</select>
+									<input type="hidden" name="expense_account_id" value={selectedProduct.expense_account_id ?? ''} />
+									{#if getAccountById(selectedProduct.expense_account_id)}
+										{@const acc = getAccountById(selectedProduct.expense_account_id)!}
+										{@const ccs = getCostCenters(acc.account_code)}
+										<div class="rounded-md border border-orange-200 bg-orange-50 p-2 text-xs">
+											<div class="flex items-start justify-between gap-1">
+												<div class="min-w-0 flex-1">
+													<p class="font-bold text-orange-800">{acc.account_code}</p>
+													<p class="text-orange-700 leading-snug">{acc.account_name}</p>
+													{#if acc.account_name_th}<p class="text-orange-600 leading-snug">{acc.account_name_th}</p>{/if}
+													{#if acc.sub_account_code && acc.sub_account_code !== '0'}
+														<p class="mt-0.5 text-gray-500">Sub: {acc.sub_account_code}</p>
+													{/if}
+													{#if ccs.length > 0}
+														<p class="mt-0.5 text-gray-400 truncate">
+															CC: {ccs.slice(0,3).join(', ')}{ccs.length > 3 ? ` +${ccs.length - 3}` : ''}
+														</p>
+													{/if}
+												</div>
+												<button type="button" onclick={() => { selectedProduct!.expense_account_id = null; expenseAccountSearch = ''; }}
+													class="flex-shrink-0 rounded p-0.5 text-orange-400 hover:text-red-500 hover:bg-red-50">
+													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+												</button>
+											</div>
+										</div>
+									{:else}
+										<div class="relative">
+											<input type="text" bind:value={expenseAccountSearch}
+												onfocus={() => (expenseAccountOpen = true)}
+												oninput={() => (expenseAccountOpen = true)}
+												onblur={() => setTimeout(() => (expenseAccountOpen = false), 150)}
+												placeholder="พิมพ์รหัส / ชื่อบัญชี..."
+												autocomplete="off"
+												class="w-full rounded-md border-gray-300 text-sm" />
+											{#if expenseAccountOpen}
+												<ul class="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl text-xs">
+													<li>
+														<button type="button" onmousedown={(e) => e.preventDefault()}
+															onclick={() => { selectedProduct!.expense_account_id = null; expenseAccountSearch = ''; expenseAccountOpen = false; }}
+															class="w-full border-b px-3 py-1.5 text-left text-gray-400 hover:bg-gray-50">
+															— {$t('-- None --')} —
+														</button>
+													</li>
+													{#each filterAccounts(expenseAccountSearch) as acc (acc.id)}
+														<li>
+															<button type="button" onmousedown={(e) => e.preventDefault()}
+																onclick={() => { selectedProduct!.expense_account_id = acc.id; expenseAccountSearch = ''; expenseAccountOpen = false; }}
+																class="w-full px-3 py-2 text-left hover:bg-orange-50">
+																<span class="font-semibold text-gray-800">{acc.account_code}</span>
+																<span class="block text-gray-600 leading-tight">{acc.account_name}</span>
+																{#if acc.account_name_th}<span class="block text-gray-400 leading-tight">{acc.account_name_th}</span>{/if}
+															</button>
+														</li>
+													{/each}
+												</ul>
+											{/if}
+										</div>
+									{/if}
 								</div>
+
 							</div>
 						</fieldset>
 
