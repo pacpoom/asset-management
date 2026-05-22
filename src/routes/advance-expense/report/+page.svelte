@@ -105,7 +105,7 @@
 				class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
 				{$t('adv.rpt.collapse_all')}
 			</button>
-			<a href={buildExportUrl()}
+			<a href={buildExportUrl()} data-sveltekit-reload
 				class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 shadow-sm">
 				<span class="material-symbols-outlined text-sm">download</span>
 				Export Excel
