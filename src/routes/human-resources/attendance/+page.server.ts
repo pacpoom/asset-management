@@ -99,26 +99,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
 			log.shift_type = log.real_shift;
 
-			// if (
-			// 	log.time_in_raw &&
-			// 	log.scan_out_time &&
-			// 	(!log.ot_hours || parseFloat(log.ot_hours) === 0)
-			// ) {
-			// 	const timeIn = new Date(log.time_in_raw);
-			// 	const timeOut = new Date(log.scan_out_time);
-
-			// 	if (timeOut.getTime() - timeIn.getTime() >= 3600000 && log.shift_ot_start_time) {
-			// 		const [otH, otM] = log.shift_ot_start_time.split(':').map(Number);
-			// 		const outMins = timeOut.getHours() * 60 + timeOut.getMinutes();
-			// 		const otStartMins = otH * 60 + otM;
-
-			// 		if (outMins > otStartMins) {
-			// 			const diffMins = outMins - otStartMins;
-			// 			log.ot_hours = Math.floor(diffMins / 30) * 0.5;
-			// 		}
-			// 	}
-			// }
-
 			total_ot_hours += parseFloat(log.ot_hours) || 0;
 
 			if (log.is_late && log.time_in_raw && log.shift_start_time) {
