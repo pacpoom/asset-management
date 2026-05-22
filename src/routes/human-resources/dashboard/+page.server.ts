@@ -620,20 +620,7 @@ export const actions: Actions = {
 							)
 
 						ELSE
-							/* Post-shift OT: กะที่ OT อยู่หลังเลิกงาน (Day/O shift) */
-							(
-								/* OT เช้ามืด: เข้างานก่อน start_time */
-								IF(base.scan_in IS NOT NULL
-								   AND TIME(base.scan_in) >= '04:00:00'
-								   AND TIME(base.scan_in) < IFNULL(sm.start_time, '07:30:00'),
-									FLOOR(GREATEST(0, TIME_TO_SEC(TIMEDIFF(
-										IFNULL(sm.start_time, '07:30:00'),
-										GREATEST(TIME(base.scan_in), '05:30:00')
-									)) / 60) / 30) * 0.5,
-									0
-								)
-							)
-							+
+							/* Post-shift OT: กะที่ OT อยู่หลังเลิกงาน (Day/O shift) คิดเฉพาะตอนเลิกงานเท่านั้น */
 							(
 								/* OT หลังเลิกงาน: scan_out หลัง ot_start_time */
 								IF(base.scan_out IS NOT NULL,
